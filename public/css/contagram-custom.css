@@ -1,0 +1,378 @@
+/**
+ * Overrides propios del proyecto Contagram sobre el template NexaDash.
+ * Se carga globalmente (config/dz.php → global.css.bottom), así aplica a
+ * TODAS las páginas y tablas.
+ */
+
+/* --------------------------------------------------------------------------
+ * Paleta de marca (Pompei Sanitarios) — azul oscuro + celeste del isologo.
+ * Colores tomados por muestreo de píxeles del logo real: azul oscuro
+ * #0F1237, celeste #28ACE3.
+ *
+ * Alcance (decidido con el usuario):
+ *  - Azul oscuro → --primary GLOBAL: botones, links, hover/active genéricos,
+ *    topbar (--headerbg). Reemplaza el celeste-azulado (#1D69D6) que traía
+ *    el template.
+ *  - Celeste → NO toca --primary. Se usa puntualmente en 3 lugares:
+ *    1) Íconos de la topbar (campana/sobre/pantalla completa).
+ *    2) Hover/active del ítem de menú en el sidebar (en vez de heredar el
+ *       --primary navy, para diferenciar "dónde estoy parado" del resto de
+ *       la UI).
+ *    3) Botones/textos "secundarios": mapeado sobre el --bs-info de
+ *       Bootstrap (2AA3E7 → 28ACE3), porque ya es la variante que usan
+ *       algunas pantallas para acciones secundarias (`text-info`,
+ *       `btn-outline-info`, iconos `text-info`, etc. — ver clientes/index).
+ *       Así no hace falta tocar cada vista: heredan el celeste solas.
+ * ------------------------------------------------------------------------ */
+:root {
+    --primary: #0F1237;
+    --primary-hover: #23285e;
+    --primary-dark: #05060d;
+    --rgba-primary-1: rgba(15, 18, 55, 0.1);
+    --rgba-primary-2: rgba(15, 18, 55, 0.2);
+    --rgba-primary-3: rgba(15, 18, 55, 0.3);
+    --rgba-primary-4: rgba(15, 18, 55, 0.4);
+    --rgba-primary-5: rgba(15, 18, 55, 0.5);
+    --rgba-primary-6: rgba(15, 18, 55, 0.6);
+    --rgba-primary-7: rgba(15, 18, 55, 0.7);
+    --rgba-primary-8: rgba(15, 18, 55, 0.8);
+    --rgba-primary-9: rgba(15, 18, 55, 0.9);
+    --bs-primary: #0F1237;
+    --bs-primary-rgb: 15, 18, 55;
+    --bs-info: #28ACE3;
+    --bs-info-rgb: 40, 172, 227;
+    --headerbg: #0F1237;
+}
+
+/* El customizer del template setea `data-headerbg="color_N"` en <body> (según
+ * lo último elegido/guardado), y ESE nodo redefine `--headerbg` localmente
+ * ahí — como es más cercano en el DOM a `.header` que nuestro `:root` de
+ * arriba, gana por herencia (no es un tema de especificidad). Con el
+ * selector por presencia de atributo (sin importar el valor) empatamos esa
+ * especificidad y, al cargar después, ganamos por orden de cascada. */
+[data-headerbg] {
+    --headerbg: #0F1237;
+}
+
+/* Cabecera del sidebar (`.nav-header`, fondo = --nav-headbg) al mismo color
+ * que la topbar (--headerbg), para que ambas cabeceras luzcan unificadas.
+ * El logo (isologo + wordmark) venía en trazos oscuros (var(--primary) y
+ * #1C2430/#6F767E) pensado para fondo blanco; sobre el navy pasa a blanco,
+ * igual que hace el template en sus variantes de color de nav-header
+ * (ver `[data-nav-headerbg="color_2"]` en style.css como referencia). */
+:root {
+    --nav-headbg: #0F1237;
+}
+
+[data-nav-headerbg] {
+    --nav-headbg: #0F1237;
+}
+
+.nav-header .brand-logo .logo-abbr path,
+.nav-header .brand-title path {
+    fill: #fff !important;
+}
+
+.nav-header .hamburger svg path {
+    fill: #fff !important;
+}
+
+/* `.btn-info`/`.btn-outline-info`/`.badge-info` de NexaDash hardcodean el hex
+ * en vez de leer `--bs-info-rgb` (a diferencia de `.text-info`/`.bg-info`/
+ * `.border-info`, que sí lo leen y ya quedan celestes con el override de
+ * arriba). Hay que repetir acá los mismos 3 estados (normal/hover/active)
+ * que trae el template, sólo que centrados en el celeste de marca. */
+.btn-info {
+    --bs-btn-bg: #28ACE3;
+    --bs-btn-border-color: #28ACE3;
+    --bs-btn-hover-bg: #48bae7;
+    --bs-btn-hover-border-color: #3cb4e6;
+    --bs-btn-focus-shadow-rgb: 34, 148, 192;
+    --bs-btn-active-bg: #53bee8;
+    --bs-btn-active-border-color: #3cb4e6;
+    --bs-btn-disabled-bg: #28ACE3;
+    --bs-btn-disabled-border-color: #28ACE3;
+}
+
+.btn-outline-info {
+    --bs-btn-color: #28ACE3;
+    --bs-btn-border-color: #28ACE3;
+    --bs-btn-hover-bg: #28ACE3;
+    --bs-btn-hover-border-color: #28ACE3;
+    --bs-btn-focus-shadow-rgb: 40, 172, 227;
+    --bs-btn-active-bg: #28ACE3;
+    --bs-btn-active-border-color: #28ACE3;
+    --bs-btn-disabled-color: #28ACE3;
+    --bs-btn-disabled-border-color: #28ACE3;
+}
+
+.badge-info {
+    background-color: #28ACE3;
+}
+
+/* Topbar (`.header`, fondo = --headerbg de arriba): los íconos de
+ * notificación venían con `fill="black"` fijo en el SVG y desaparecían
+ * sobre el azul oscuro. Los pasamos a celeste (acento de marca) y a azul
+ * oscuro sólo cuando el hover les pone un círculo blanco de fondo. */
+.header-right .notification_dropdown > .nav-link > svg path {
+    fill: #28ACE3 !important;
+}
+
+.header-right .notification_dropdown > .nav-link:hover > svg path {
+    fill: var(--primary) !important;
+}
+
+/* Selector de idioma (demo del template, sin uso funcional en esta app):
+ * el texto quedaba oscuro y se perdía sobre la topbar azul oscuro. */
+.header .select-country .normal-select .btn,
+.header .select-country .normal-select .dropdown-toggle::after {
+    color: #fff;
+}
+
+/* Sidebar — hover/active en celeste (no hereda el --primary navy global,
+ * para diferenciar "sección activa" del resto de la UI). Mismos selectores
+ * que usa el template en `style.css` (misma especificidad); como este
+ * archivo se carga después, gana por orden en la cascada — sin !important. */
+.deznav .metismenu > li:hover > a,
+.deznav .metismenu > li:focus > a,
+.deznav .metismenu > li.mm-active > a {
+    color: #28ACE3;
+}
+
+.deznav .metismenu > li:hover > a g [fill],
+.deznav .metismenu > li:focus > a g [fill],
+.deznav .metismenu > li.mm-active > a g [fill],
+.deznav .metismenu > li.mm-active > a .menu-icon svg path {
+    fill: #28ACE3;
+}
+
+.deznav .metismenu > li.mm-active > a:before {
+    background-color: #28ACE3;
+}
+
+.deznav .metismenu ul a:hover,
+.deznav .metismenu ul a:focus,
+.deznav .metismenu ul a.mm-active {
+    color: #28ACE3;
+}
+
+.deznav .metismenu ul a:hover:before {
+    background: rgba(40, 172, 227, 0.5);
+}
+
+/* --------------------------------------------------------------------------
+ * DataTables — paginación
+ * Fix: los botones "Anterior/Siguiente" se apilaban en vertical (una letra
+ * por línea) porque el texto rompía dentro de un contenedor angosto.
+ * Forzamos que no se corten y que la barra de paginación fluya en horizontal.
+ * Aplicar SIEMPRE en tablas nuevas (ya es global, no hace falta repetir).
+ * ------------------------------------------------------------------------ */
+.dataTables_wrapper .dataTables_paginate {
+    white-space: nowrap;
+    overflow: visible;
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button {
+    display: inline-block !important;
+    white-space: nowrap !important;
+    width: auto !important;
+    min-width: 2.25rem;
+    padding: 0.35rem 0.85rem !important;
+    margin: 0 2px;
+    box-sizing: border-box;
+    text-align: center;
+    word-break: keep-all;
+    overflow: visible;
+}
+
+/* Los enlaces "Anterior" / "Siguiente" necesitan más ancho que los números */
+.dataTables_wrapper .dataTables_paginate .paginate_button.previous,
+.dataTables_wrapper .dataTables_paginate .paginate_button.next {
+    min-width: 5.5rem;
+}
+
+/* Contenedor de paginación (variante Bootstrap de DataTables) */
+.dataTables_wrapper .dataTables_paginate ul.pagination {
+    flex-wrap: nowrap;
+    margin-bottom: 0;
+}
+
+.dataTables_wrapper .dataTables_paginate .page-link {
+    white-space: nowrap !important;
+}
+
+/* Fila inferior del wrapper (info + paginación): que puedan convivir sin
+ * comprimir la paginación hasta romper el texto. */
+.dataTables_wrapper .row:last-child {
+    align-items: center;
+}
+
+/* --------------------------------------------------------------------------
+ * Formularios — controles compactos y uniformes (GLOBAL)
+ * Los inputs/selects se veían demasiado altos. Los dejamos finos y a la MISMA
+ * altura entre sí igualando padding + font-size + line-height (con border-box,
+ * misma altura resultante para text/date/select). Labels más ajustados.
+ * Regla GLOBAL: aplica a todo el proyecto, no repetir por pantalla.
+ * ------------------------------------------------------------------------ */
+.form-control,
+.form-select {
+    padding-top: 0.375rem;
+    padding-bottom: 0.375rem;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    min-height: 0;          /* anular cualquier min-height/height heredado */
+    height: auto;
+}
+
+/* Los select llevan la flecha nativa; mantenemos padding-right holgado. */
+.form-select {
+    padding-right: 2rem;
+}
+
+/* Variante chica (filas de contacto, etc.): aún más fina. */
+.form-control-sm,
+.form-select-sm {
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+    font-size: 0.78125rem;
+}
+
+.form-label {
+    margin-bottom: 0.25rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+}
+
+/* Textareas: alto acorde al nuevo tamaño. */
+textarea.form-control {
+    min-height: auto;
+    line-height: 1.4;
+}
+
+/* Botones compactos ("sm") por defecto en todo el proyecto.
+ * OJO: NexaDash redefine `.btn` MÁS ABAJO en style.css con valores LITERALES
+ * (`padding: 10px 20px; font-size: 14px`), que le ganan a un override por
+ * variables `--bs-btn-*`. Por eso acá seteamos padding/font-size literales.
+ * NO usar !important: `contagram-custom.css` carga después de style.css, así que
+ * con igual especificidad (0,1,0) este `.btn` gana por orden. Y como los
+ * `.btn-lg`/`.btn-sm` del template son `.btn.btn-lg`/`.btn.btn-sm` (0,2,0),
+ * conservan su propio tamaño → un CTA grande con `.btn-lg` explícito sigue
+ * funcionando. */
+.btn {
+    padding: 0.3rem 0.75rem;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    font-weight: 500;
+}
+
+/* --------------------------------------------------------------------------
+ * Modal de cliente — ritmo vertical compacto (parecido al form de Contagram)
+ * y scroll garantizado del cuerpo. El form es largo; que el modal-body scrollee
+ * siempre y el header/footer queden fijos.
+ * ------------------------------------------------------------------------ */
+#modal-cliente .modal-body .mb-3 {
+    margin-bottom: 0.6rem !important;
+}
+
+#modal-cliente .modal-body hr {
+    margin-top: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+#modal-cliente .modal-body h6 {
+    margin-bottom: 0.5rem !important;
+}
+
+/* Garantía de scroll: aunque el template ya lo define para
+ * .modal-dialog-scrollable, lo reforzamos por si el contenido supera la
+ * altura de viewport en pantallas chicas (laptops). */
+#modal-cliente .modal-dialog-scrollable .modal-body {
+    overflow-y: auto;
+    max-height: calc(100vh - 12rem);
+}
+
+/* --------------------------------------------------------------------------
+ * DataTables Responsive — detalle de fila desplegado alineado a la IZQUIERDA.
+ * Por defecto (y con el CSS del template) las columnas ocultas que se muestran
+ * al expandir una fila quedaban corridas a la derecha. Forzamos que el detalle
+ * (título + valor) se lea de izquierda a derecha, como el resto de la tabla.
+ * Regla GLOBAL: aplica a todas las DataTables responsive del proyecto.
+ * ------------------------------------------------------------------------ */
+table.dataTable > tbody > tr.child ul.dtr-details,
+table.dataTable > tbody > tr.child span.dtr-title,
+table.dataTable > tbody > tr.child span.dtr-data,
+table.dataTable > tbody > tr.child td.child {
+    text-align: left !important;
+}
+
+table.dataTable > tbody > tr.child ul.dtr-details {
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+table.dataTable > tbody > tr.child ul.dtr-details > li {
+    display: flex;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+table.dataTable > tbody > tr.child span.dtr-title {
+    min-width: 11rem;
+    font-weight: 600;
+}
+
+/* Botón ColVis ("Columnas"): pequeño respiro respecto del buscador. */
+.dataTables_wrapper .dt-buttons {
+    margin-right: 0.5rem;
+}
+
+/* ------------------------------------------------------------------------
+ * Select2 (buscador en selects de datos dinámicos): alinear su alto y tipografía
+ * con los form-control/form-select compactos del proyecto. Regla GLOBAL.
+ *
+ * OJO — gotcha ya pisado una vez (24/07/2026): `public/css/style.css` (NexaDash)
+ * define `.select2-selection__rendered { min-height: 2.813rem }` (~45px) en el
+ * SPAN INTERNO, no en `.select2-selection--single`. Un override que sólo resetea
+ * el contenedor externo (height/min-height/padding) NO alcanza: el hijo con
+ * min-height grande sigue empujando al padre (height:auto) a ~52px. Cualquier
+ * ajuste futuro de alto de Select2 tiene que resetear min-height en AMBOS
+ * niveles (contenedor Y `.select2-selection__rendered`), si no vuelve a pasar.
+ * ------------------------------------------------------------------------ */
+.select2-container--default .select2-selection--single {
+    height: auto;
+    min-height: 0;
+    padding: 0.375rem 0.85rem;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    border: 1px solid var(--bs-border-color, #e6e6e6);
+    border-radius: 0.5rem;
+}
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    min-height: 0;
+    padding: 0;
+    line-height: 1.4;
+    color: inherit;
+}
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 100%;
+    top: 0;
+    right: 4px;
+}
+.select2-container--default .select2-selection--single .select2-selection__placeholder {
+    color: #9aa0a6;
+}
+.select2-container .select2-search--dropdown .select2-search__field {
+    font-size: 0.8125rem;
+    padding: 0.35rem 0.5rem;
+}
+.select2-container--default .select2-results__option {
+    font-size: 0.8125rem;
+}
+/* El dropdown debe superar el z-index del modal de Bootstrap. */
+.select2-container--open {
+    z-index: 1060;
+}

@@ -1,0 +1,341 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Http\Requests\StoreCobroRequest;
+use App\Http\Requests\StoreVentaRequest;
+use App\Http\Requests\UpdateVentaRequest;
+use App\Models\Categoria;
+use App\Models\Cobro;
+use App\Models\CuentaTesoreria;
+use App\Models\Deposito;
+use App\Models\Etiqueta;
+use App\Models\ListaPrecio;
+use App\Models\Presupuesto;
+use App\Models\Remito;
+use App\Models\Venta;
+use App\Services\Ingresos\CalculoComprobante;
+use App\Services\Ingresos\Cobranzas;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Yajra\DataTables\Facades\DataTables;
+
+/** Ventas (US2): listado, formulario de página completa, detalle con cobranza. */
+class VentaController extends Controller
+{
+    public function __construct(
+        private readonly CalculoComprobante $calculo,
+        private readonly Cobranzas $cobranzas,
+    ) {
+    }
+
+    public function index()
+    {
+        $CurrentPage = 'ventas';
+
+        return view('ventas.index', compact('CurrentPage'));
+    }
+
+    private function queryFiltrada(Request $request): Builder
+    {
+        $query = Venta::query()->with(['cliente:id,nombre', 'categoria:id,nombre', 'presupuesto:id', 'listaPrecio:id,nombre', 'vendedor:id,name', 'etiquetas:id,nombre', 'cobros.cuentaTesoreria:id,nombre']);
+
+        if ($request->filled('cliente_id')) {
+            $query->where('cliente_id', $request->input('cliente_id'));
+        }
+        if ($request->filled('buscar')) {
+            $kw = $request->input('buscar');
+            $query->where('nro_comprobante', 'like', "%{$kw}%");
+        }
+
+        return $query;
+    }
+
+    public function data(Request $request): JsonResponse
+    {
+        $query = $this->queryFiltrada($request);
+
+        return DataTables::eloquent($query)
+            ->addColumn('acciones', fn (Venta $v) => view('ventas._row_actions', ['venta' => $v])->render())
+            ->addColumn('estado_cobro', fn (Venta $v) => $v->estadoCobro())
+            ->addColumn('creada_desde', fn (Venta $v) => $v->presupuesto_id ? 'Presupuesto '.$v->presupuesto_id : 'Venta')
+            ->addColumn('cliente', fn (Venta $v) => optional($v->cliente)->nombre)
+            ->addColumn('categoria', fn (Venta $v) => optional($v->categoria)->nombre)
+            ->addColumn('cobrado', fn (Venta $v) => $v->cobrado())
+            ->addColumn('a_cobrar', fn (Venta $v) => $v->aCobrar())
+            ->addColumn('medio_de_cobro', fn (Venta $v) => optional($v->cobros->last()?->cuentaTesoreria)->nombre)
+            ->addColumn('etiquetas', fn (Venta $v) => $v->etiquetas->pluck('nombre')->implode(', '))
+            ->addColumn('lista_precio', fn (Venta $v) => optional($v->listaPrecio)->nombre)
+            ->addColumn('vendedor', fn (Venta $v) => optional($v->vendedor)->name)
+            ->editColumn('fecha_emision', fn (Venta $v) => optional($v->fecha_emision)->format('d/m/Y'))
+            ->editColumn('fecha_validez', fn (Venta $v) => optional($v->fecha_validez)->format('d/m/Y'))
+            ->editColumn('subtotal_sin_descuento', fn (Venta $v) => (float) $v->subtotal_sin_descuento)
+            ->editColumn('descuento', fn (Venta $v) => (float) $v->descuento)
+            ->editColumn('subtotal_con_descuento', fn (Venta $v) => (float) $v->subtotal_con_descuento)
+            ->editColumn('total', fn (Venta $v) => (float) $v->total)
+            ->rawColumns(['acciones'])
+            ->toJson();
+    }
+
+    public function create(Request $request)
+    {
+        $CurrentPage = 'ventas';
+        $submitToken = (string) \Illuminate\Support\Str::uuid();
+        $presupuesto = null;
+
+        if ($request->filled('presupuesto')) {
+            $presupuesto = Presupuesto::with(['items', 'conceptos', 'etiquetas', 'cliente'])->find($request->input('presupuesto'));
+            if ($presupuesto?->convertido()) {
+                $presupuesto = null;
+            }
+        }
+
+        return view('ventas.form', [
+            'CurrentPage' => $CurrentPage,
+            'venta' => null,
+            'presupuestoOrigen' => $presupuesto,
+            'submitToken' => $submitToken,
+            'categoriasVenta' => Categoria::venta()->activas()->orderBy('nombre')->get(),
+            'listasPrecio' => ListaPrecio::where('activo', true)->orderBy('nombre')->get(),
+        ]);
+    }
+
+    public function store(StoreVentaRequest $request): JsonResponse
+    {
+        $datos = $request->validated();
+
+        if (Venta::withTrashed()->where('submit_token', $datos['submit_token'])->exists()) {
+            $existente = Venta::withTrashed()->where('submit_token', $datos['submit_token'])->first();
+
+            return response()->json([
+                'ok' => true,
+                'mensaje' => 'Venta '.$existente->nro_comprobante.' creada con éxito.',
+                'venta' => $existente,
+                'redirect' => route('ventas.show', $existente),
+            ], 201);
+        }
+
+        $venta = DB::transaction(function () use ($datos, $request) {
+            $resultado = $this->calculo->calcular($datos['items'], $datos['descuento_general_pct'] ?? null, $datos['conceptos'] ?? []);
+
+            $venta = Venta::create([
+                'presupuesto_id' => $datos['presupuesto_id'] ?? null,
+                'cliente_id' => $datos['cliente_id'],
+                'categoria_id' => $datos['categoria_id'] ?? null,
+                'lista_precio_id' => $datos['lista_precio_id'] ?? null,
+                'fecha_emision' => $datos['fecha_emision'],
+                'fecha_validez' => $datos['fecha_validez'] ?? null,
+                'servicio_desde' => $datos['servicio_desde'] ?? null,
+                'servicio_hasta' => $datos['servicio_hasta'] ?? null,
+                'tipo_comprobante' => $datos['tipo_comprobante'],
+                'nro_comprobante' => Venta::siguienteNroComprobante($datos['tipo_comprobante']),
+                'fecha_vto_cobro' => $datos['fecha_vto_cobro'] ?? null,
+                'descuento_general_pct' => $datos['descuento_general_pct'] ?? null,
+                'subtotal_sin_descuento' => $resultado['subtotal_sin_descuento'],
+                'descuento' => $resultado['descuento'],
+                'subtotal_con_descuento' => $resultado['subtotal_con_descuento'],
+                'total' => $resultado['total'],
+                'nota_cliente' => $datos['nota_cliente'] ?? null,
+                'nota_interna' => $datos['nota_interna'] ?? null,
+                'formas_pago' => $datos['formas_pago'] ?? null,
+                'metodos_envio' => $datos['metodos_envio'] ?? null,
+                'vendedor_id' => $request->user()?->id,
+                'submit_token' => $datos['submit_token'],
+            ]);
+
+            $this->guardarItems($venta, $resultado['items']);
+            $this->guardarConceptos($venta, $datos['conceptos'] ?? []);
+            $this->sincronizarEtiquetas($venta, $datos['etiquetas'] ?? []);
+
+            if (! empty($datos['presupuesto_id'])) {
+                $presupuesto = Presupuesto::find($datos['presupuesto_id']);
+                if ($presupuesto && ! $presupuesto->convertido()) {
+                    $presupuesto->update(['venta_id' => $venta->id]);
+                }
+            }
+
+            return $venta;
+        });
+
+        return response()->json([
+            'ok' => true,
+            'mensaje' => 'Venta '.$venta->nro_comprobante.' creada con éxito.',
+            'venta' => $venta,
+            'redirect' => route('ventas.show', $venta),
+        ], 201);
+    }
+
+    public function edit(Venta $venta)
+    {
+        $CurrentPage = 'ventas';
+        $venta->load(['items', 'conceptos', 'etiquetas', 'cliente', 'categoria', 'listaPrecio']);
+        $categoriasVenta = Categoria::venta()->activas()->orderBy('nombre')->get();
+        $listasPrecio = ListaPrecio::where('activo', true)->orderBy('nombre')->get();
+
+        $presupuestoOrigen = null;
+
+        return view('ventas.form', compact('CurrentPage', 'venta', 'categoriasVenta', 'listasPrecio', 'presupuestoOrigen'));
+    }
+
+    public function update(UpdateVentaRequest $request, Venta $venta): JsonResponse
+    {
+        $datos = $request->validated();
+
+        DB::transaction(function () use ($datos, $venta) {
+            $resultado = $this->calculo->calcular($datos['items'], $datos['descuento_general_pct'] ?? null, $datos['conceptos'] ?? []);
+
+            $venta->update([
+                'cliente_id' => $datos['cliente_id'],
+                'categoria_id' => $datos['categoria_id'] ?? null,
+                'lista_precio_id' => $datos['lista_precio_id'] ?? null,
+                'fecha_emision' => $datos['fecha_emision'],
+                'fecha_validez' => $datos['fecha_validez'] ?? null,
+                'servicio_desde' => $datos['servicio_desde'] ?? null,
+                'servicio_hasta' => $datos['servicio_hasta'] ?? null,
+                'tipo_comprobante' => $datos['tipo_comprobante'],
+                'fecha_vto_cobro' => $datos['fecha_vto_cobro'] ?? null,
+                'descuento_general_pct' => $datos['descuento_general_pct'] ?? null,
+                'subtotal_sin_descuento' => $resultado['subtotal_sin_descuento'],
+                'descuento' => $resultado['descuento'],
+                'subtotal_con_descuento' => $resultado['subtotal_con_descuento'],
+                'total' => $resultado['total'],
+                'nota_cliente' => $datos['nota_cliente'] ?? null,
+                'nota_interna' => $datos['nota_interna'] ?? null,
+                'formas_pago' => $datos['formas_pago'] ?? null,
+                'metodos_envio' => $datos['metodos_envio'] ?? null,
+            ]);
+
+            $venta->items()->delete();
+            $venta->conceptos()->delete();
+            $this->guardarItems($venta, $resultado['items']);
+            $this->guardarConceptos($venta, $datos['conceptos'] ?? []);
+            $this->sincronizarEtiquetas($venta, $datos['etiquetas'] ?? []);
+        });
+
+        return response()->json([
+            'ok' => true,
+            'mensaje' => 'Venta '.$venta->nro_comprobante.' actualizada con éxito.',
+            'venta' => $venta->fresh(),
+        ]);
+    }
+
+    public function destroy(Venta $venta): JsonResponse
+    {
+        $venta->delete();
+
+        return response()->json(['ok' => true, 'mensaje' => 'Venta eliminada.']);
+    }
+
+    /** Detalle: barra de ecuación, cobranzas, documento con watermark, NC/ND (informe §3.8). */
+    public function show(Venta $venta)
+    {
+        $CurrentPage = 'ventas';
+        $venta->load(['items', 'conceptos', 'cliente.condicionIva', 'categoria', 'listaPrecio', 'vendedor', 'etiquetas', 'cobros.cuentaTesoreria', 'notasCreditoDebito', 'remitos']);
+        $cuentas = CuentaTesoreria::visibles()->orderBy('orden')->orderBy('nombre')->get();
+        $depositos = Deposito::activos()->orderBy('nombre')->get();
+
+        return view('ventas.detalle', compact('CurrentPage', 'venta', 'cuentas', 'depositos'));
+    }
+
+    public function pdf(Venta $venta)
+    {
+        $venta->load(['items', 'conceptos', 'cliente.condicionIva', 'categoria', 'listaPrecio', 'vendedor']);
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('ventas.pdf', compact('venta'));
+
+        return $pdf->stream('venta-'.$venta->nro_comprobante.'.pdf', ['Content-Disposition' => 'inline']);
+    }
+
+    public function ticket(Venta $venta)
+    {
+        $venta->load(['items', 'cliente']);
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('ventas.ticket', compact('venta'))->setPaper([0, 0, 226.77, 800]);
+
+        return $pdf->stream('ticket-'.$venta->nro_comprobante.'.pdf', ['Content-Disposition' => 'inline']);
+    }
+
+    /** "Cobrar" / "Agregar Cobranza" (informe §3.2). */
+    public function cobranzaStore(StoreCobroRequest $request, Venta $venta): JsonResponse
+    {
+        $datos = $request->validated();
+        $cuenta = CuentaTesoreria::findOrFail($datos['cuenta_tesoreria_id']);
+
+        $cobro = $this->cobranzas->registrarCobro($venta, (float) $datos['monto'], $cuenta, Carbon::parse($datos['fecha']), $datos['nota'] ?? null);
+
+        return response()->json([
+            'ok' => true,
+            'mensaje' => 'Venta '.$venta->nro_comprobante.' actualizada con éxito.',
+            'cobro' => $cobro,
+            'cobrado' => $venta->cobrado(),
+            'a_cobrar' => $venta->aCobrar(),
+            'estado_cobro' => $venta->estadoCobro(),
+        ], 201);
+    }
+
+    public function cobranzaDestroy(Venta $venta, Cobro $cobro): JsonResponse
+    {
+        if ($cobro->venta_id !== $venta->id) {
+            abort(404);
+        }
+
+        $this->cobranzas->anularCobro($cobro);
+
+        return response()->json([
+            'ok' => true,
+            'mensaje' => 'Cobranza anulada.',
+            'cobrado' => $venta->cobrado(),
+            'a_cobrar' => $venta->aCobrar(),
+            'estado_cobro' => $venta->estadoCobro(),
+        ]);
+    }
+
+    /** "Crear Remito" — encabezado mínimo (FR-018). */
+    public function remitoStore(Request $request, Venta $venta): JsonResponse
+    {
+        $datos = $request->validate(['fecha' => 'nullable|date']);
+
+        $remito = $venta->remitos()->create([
+            'fecha' => $datos['fecha'] ?? now()->toDateString(),
+            'nro_remito' => Remito::siguienteNumero(),
+        ]);
+
+        return response()->json(['ok' => true, 'mensaje' => 'Remito creado.', 'remito' => $remito], 201);
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $items
+     */
+    private function guardarItems(Venta $venta, array $items): void
+    {
+        foreach ($items as $item) {
+            $venta->items()->create($item);
+        }
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $conceptos
+     */
+    private function guardarConceptos(Venta $venta, array $conceptos): void
+    {
+        foreach ($conceptos as $concepto) {
+            $venta->conceptos()->create($concepto);
+        }
+    }
+
+    /**
+     * @param  array<int, string>  $nombres
+     */
+    private function sincronizarEtiquetas(Venta $venta, array $nombres): void
+    {
+        $ids = collect($nombres)
+            ->filter()
+            ->map(fn (string $nombre) => Etiqueta::firstOrCreate(['nombre' => trim($nombre)])->id)
+            ->all();
+
+        $venta->etiquetas()->sync($ids);
+    }
+}

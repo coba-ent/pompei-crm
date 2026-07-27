@@ -1,0 +1,97 @@
+<?php
+
+namespace App\Http\Requests\Concerns;
+
+use App\Models\Producto;
+use App\Rules\SkuUnico;
+use Illuminate\Validation\Rule;
+
+/**
+ * Reglas de validación compartidas entre alta y edición de producto.
+ */
+trait ReglasProducto
+{
+    /**
+     * @return array<string, mixed>
+     */
+    protected function reglasProducto(?int $productoId = null): array
+    {
+        return [
+            // Datos básicos (US1)
+            'nombre' => ['required', 'string', 'max:255'],
+            'codigo' => ['nullable', 'string', 'max:255', new SkuUnico($productoId, $productoId)],
+            'tipo' => ['required', 'in:producto,servicio'],
+            'tipo_producto_id' => ['nullable', 'integer', 'exists:tipos_producto,id'],
+            'proveedor_id' => ['nullable', 'integer', 'exists:proveedores,id'],
+            'descripcion' => ['nullable', 'string', 'max:2000'],
+            'imagen' => ['nullable', 'image', 'max:4096'],
+            'imagen_eliminar' => ['nullable', 'boolean'],
+
+            // Económicos y flags (US2)
+            'precio_venta' => ['nullable', 'numeric', 'min:0'],
+            'iva_venta_pct' => ['nullable', Rule::in(array_keys(Producto::OPCIONES_IVA))],
+            'costo' => ['nullable', 'numeric', 'min:0'],
+            'iva_compra_pct' => ['nullable', Rule::in(array_keys(Producto::OPCIONES_IVA))],
+            'mostrar_en_ventas' => ['nullable', 'boolean'],
+            'mostrar_en_compras' => ['nullable', 'boolean'],
+            'activo' => ['nullable', 'boolean'],
+
+            // Stock inicial (sólo se aplica al crear un producto de tipo=producto)
+            'stock_inicial' => ['nullable', 'numeric', 'min:0'],
+            'stock_inicial_deposito_id' => ['nullable', 'integer', 'exists:depositos,id'],
+
+            // Variantes (US4)
+            'variantes' => ['nullable', 'array'],
+            'variantes.*.id' => ['nullable', 'integer'],
+            'variantes.*.sku' => ['nullable', 'string', 'max:255', new SkuUnico($productoId, $productoId)],
+            'variantes.*.talle' => ['nullable', 'string', 'max:100'],
+            'variantes.*.color' => ['nullable', 'string', 'max:100'],
+            'variantes.*.nombre' => ['nullable', 'string', 'max:255'],
+            'variantes.*.precio_extra' => ['nullable', 'numeric'],
+
+            // Precios por lista (US5)
+            'precios' => ['nullable', 'array'],
+            'precios.*.lista_precio_id' => ['nullable', 'integer', 'exists:listas_precio,id'],
+            'precios.*.precio' => ['nullable', 'numeric', 'min:0'],
+        ];
+    }
+
+    /**
+     * Normaliza el payload y valida unicidad de SKU dentro del propio payload
+     * (variantes y código base entre sí).
+     */
+    protected function validarSkuEnPayload(\Illuminate\Contracts\Validation\Validator $validator): void
+    {
+        $vistos = [];
+
+        $registrar = function (?string $sku, string $campo) use (&$vistos, $validator) {
+            $sku = is_string($sku) ? trim($sku) : $sku;
+            if ($sku === null || $sku === '') {
+                return;
+            }
+            if (isset($vistos[$sku])) {
+                $validator->errors()->add($campo, 'El código/SKU "'.$sku.'" está repetido en el formulario.');
+            }
+            $vistos[$sku] = true;
+        };
+
+        $registrar($this->input('codigo'), 'codigo');
+
+        foreach ((array) $this->input('variantes', []) as $i => $variante) {
+            $registrar($variante['sku'] ?? null, "variantes.$i.sku");
+        }
+
+        // Unicidad de lista dentro del payload de precios.
+        $listas = [];
+        foreach ((array) $this->input('precios', []) as $i => $precio) {
+            $listaId = $precio['lista_precio_id'] ?? null;
+            if (empty($listaId)) {
+                continue;
+            }
+            if (isset($listas[$listaId])) {
+                $validator->errors()->add("precios.$i.lista_precio_id", 'La lista de precio está repetida.');
+            }
+            $listas[$listaId] = true;
+        }
+    }
+}

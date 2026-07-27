@@ -1,0 +1,187 @@
+@extends('layouts.default')
+
+@section('content')
+<div class="content-body">
+    <div class="container-fluid">
+
+        <div class="row align-items-center mb-4">
+            <div class="col-sm-8 mb-2">
+                <h4 class="mb-0 text-primary fw-bold">{{ $venta ? 'Editar Venta '.$venta->nro_comprobante : 'Nueva Venta' }}</h4>
+            </div>
+            <div class="col-sm-4 mb-2 text-sm-end">
+                <a href="{{ route('ventas.index') }}" class="btn btn-light">Cancelar</a>
+                <button type="button" class="btn btn-outline-primary" id="btn-guardar-venta">
+                    <i class="fas fa-save me-1"></i> Guardar
+                </button>
+                <button type="button" class="btn btn-success" id="btn-cobrar-venta">
+                    <i class="fas fa-dollar-sign me-1"></i> Cobrar
+                </button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Cliente</label>
+                        <select id="f-cliente" class="form-select" style="width:100%"></select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Categoría</label>
+                        <select id="f-categoria" class="form-select" style="width:100%">
+                            <option value=""></option>
+                            @foreach ($categoriasVenta as $categoria)
+                                <option value="{{ $categoria->id }}">{{ $categoria->nombre }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-1 d-flex align-items-end">
+                        <button type="button" class="btn btn-outline-secondary w-100" id="btn-nueva-categoria" title="Crear Categoría de ventas">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Tipo de Comprobante</label>
+                        <select id="f-tipo-comprobante" class="form-select">
+                            <option value="A">A</option>
+                            <option value="B" selected>B</option>
+                            <option value="C">C</option>
+                            <option value="E">E</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Lista de Precios</label>
+                        <select id="f-lista-precio" class="form-select" style="width:100%">
+                            <option value=""></option>
+                            @foreach ($listasPrecio as $lista)
+                                <option value="{{ $lista->id }}">{{ $lista->nombre }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Emisión</label>
+                        <input type="date" id="f-fecha-emision" class="form-control" value="{{ old('fecha_emision', now()->format('Y-m-d')) }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Vto. del Cobro <i class="fas fa-question-circle text-info" data-bs-toggle="tooltip" title="Fecha estimada de cobro"></i></label>
+                        <input type="date" id="f-fecha-vto-cobro" class="form-control">
+                    </div>
+                </div>
+
+                <hr>
+
+                <div class="row g-3 align-items-end mb-3">
+                    <div class="col-md-8">
+                        <label class="form-label">Seleccionar o Crear Producto/Servicio</label>
+                        <select id="f-producto" class="form-select" style="width:100%"></select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Etiquetas</label>
+                        <select id="f-etiquetas" class="form-select" multiple="multiple" style="width:100%"></select>
+                    </div>
+                </div>
+
+                <div class="table-responsive mb-3">
+                    <table class="table table-sm align-middle" id="tabla-items">
+                        <thead>
+                            <tr>
+                                <th>Producto</th><th>Cant.</th><th>Precio</th><th>Desc. %</th>
+                                <th>Subtotal</th><th>IVA</th><th>Total</th><th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="items-body"></tbody>
+                    </table>
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-lg-6">
+                        <div class="mb-3">
+                            <label class="form-label">Nota para el Cliente</label>
+                            <textarea id="f-nota-cliente" class="form-control" rows="2"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Nota interna</label>
+                            <textarea id="f-nota-interna" class="form-control" rows="2"></textarea>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Formas de Pago</label>
+                                <input type="text" id="f-formas-pago" class="form-control">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Métodos de Envío</label>
+                                <input type="text" id="f-metodos-envio" class="form-control">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-6">
+                        <div class="bg-light rounded p-3">
+                            <div class="mb-3">
+                                <label class="form-label">Descuento General (%)</label>
+                                <input type="number" id="f-descuento-general" class="form-control" min="0" max="100" step="0.01">
+                            </div>
+
+                            <div id="conceptos-body" class="mb-2"></div>
+                            <div class="d-flex gap-3 mb-3">
+                                <a href="#" class="js-add-concepto" data-tipo="percepcion">+ Percepciones</a>
+                                <a href="#" class="js-add-concepto" data-tipo="impuesto_interno">+ Impuestos Internos</a>
+                                <a href="#" class="js-add-concepto" data-tipo="interes">+ Intereses</a>
+                            </div>
+
+                            <table class="table table-sm mb-0">
+                                <tr><td>Subtotal sin Descuento</td><td class="text-end" id="tot-subtotal-sin-descuento">$ 0,00</td></tr>
+                                <tr><td>Descuento</td><td class="text-end" id="tot-descuento">$ 0,00</td></tr>
+                                <tr><td>Subtotal con Descuento</td><td class="text-end" id="tot-subtotal-con-descuento">$ 0,00</td></tr>
+                                <tr class="fw-bold"><td>Total Venta</td><td class="text-end" id="tot-total">$ 0,00</td></tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@include('presupuestos._modal_categoria')
+@endsection
+
+@php
+    $clienteOrigen = $venta?->cliente ?? $presupuestoOrigen?->cliente;
+    $datosVenta = $venta ? $venta->only(['id', 'cliente_id', 'categoria_id', 'lista_precio_id', 'descuento_general_pct', 'tipo_comprobante', 'nota_cliente', 'nota_interna', 'formas_pago', 'metodos_envio']) : null;
+    $datosItems = ($venta?->items ?? $presupuestoOrigen?->items ?? collect())->map(fn ($i) => $i->only(['producto_id', 'descripcion', 'cantidad', 'precio_unitario', 'descuento_pct', 'iva_pct']))->values();
+    $datosConceptos = ($venta?->conceptos ?? $presupuestoOrigen?->conceptos ?? collect())->map(fn ($c) => $c->only(['tipo', 'concepto', 'monto']))->values();
+    $datosEtiquetas = ($venta?->etiquetas ?? $presupuestoOrigen?->etiquetas ?? collect())->pluck('nombre');
+    $datosCliente = $clienteOrigen ? ['id' => $clienteOrigen->id, 'nombre' => $clienteOrigen->nombre] : null;
+@endphp
+@section('local-js')
+<script>
+    window.VentaFormData = {
+        venta: @json($datosVenta),
+        items: @json($datosItems),
+        conceptos: @json($datosConceptos),
+        etiquetas: @json($datosEtiquetas),
+        cliente: @json($datosCliente),
+        presupuestoId: @json($presupuestoOrigen?->id),
+        descuentoGeneralPct: @json($venta?->descuento_general_pct ?? $presupuestoOrigen?->descuento_general_pct),
+        categoriaId: @json($venta?->categoria_id ?? $presupuestoOrigen?->categoria_id),
+        listaPrecioId: @json($venta?->lista_precio_id ?? $presupuestoOrigen?->lista_precio_id),
+        notaCliente: @json($venta?->nota_cliente ?? $presupuestoOrigen?->nota_cliente),
+        notaInterna: @json($venta?->nota_interna ?? $presupuestoOrigen?->nota_interna),
+        formasPago: @json($venta?->formas_pago ?? $presupuestoOrigen?->formas_pago),
+        metodosEnvio: @json($venta?->metodos_envio ?? $presupuestoOrigen?->metodos_envio),
+    };
+    window.VentasConfig = {
+        submitToken: "{{ $submitToken ?? '' }}",
+        rutas: {
+            store: "{{ route('ventas.store') }}",
+            update: {{ $venta ? "'".route('ventas.update', $venta)."'" : 'null' }},
+            index: "{{ route('ventas.index') }}",
+            clientesOpciones: "{{ route('clientes.opciones') }}",
+            productosOpciones: "{{ route('productos.opciones') }}",
+            categoriaVentaStore: "{{ route('categorias.venta.store') }}",
+        },
+    };
+</script>
+@vite(['resources/js/ventas.js'])
+@endsection

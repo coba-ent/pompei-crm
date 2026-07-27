@@ -1,0 +1,126 @@
+.breadcrumb{
+	font-size: 13px;
+	.breadcrumb-item{
+        a{
+            svg{
+               margin-bottom: 3px;
+			   margin-right: 4px;
+            }
+        }    
+		&.active{
+			a{
+				color:$black;
+			}
+		}
+	}
+}	
+
+.breadcrumb-item + .breadcrumb-item::before{
+	content: var(--bs-breadcrumb-divider, " > ") /* rtl: var(--bs-breadcrumb-divider, ">") */;
+	transform: scale(1.5);
+	margin-top: 2px;
+    float: unset;
+}
+.page-titles {
+	display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 0rem 0.6rem;
+    position: relative;
+    z-index: 1;
+	flex-flow:wrap;
+	padding-bottom:0;
+	padding: 10px $h-space;
+    background: white;
+	border-bottom:1px solid $border;
+    @at-root [data-theme-version="dark"] & {
+        //background: $dark-card;
+    }
+
+    @include respond('tab-land') {
+		margin-top: 0;
+	}
+    @include respond('phone-land') {
+		// margin-left: -1.25rem;
+		// margin-right: -1.25rem;
+		margin-bottom: 0rem;
+		padding: 10px 15px;
+		
+    }
+
+    .justify-content-sm-end{
+        align-items: center;
+    }
+
+    h4 {
+        margin-bottom: 0;
+        margin-top: 0;
+        color: var(--primary);
+        font-size: 1.25rem;
+        span {
+            font-size: 0.875rem;
+            font-weight: 400;
+        }
+    }
+    .breadcrumb {
+        margin-bottom: 0;
+        padding: 0;
+        background: transparent;
+		align-items:center;
+        // font-size: 0.875rem;
+        li {
+            margin-top: 0;
+            margin-bottom: 0;
+
+            a{
+               color: $l-ctl; 
+			   font-size: 15px;
+				font-weight: 500;
+			  
+
+            }
+
+            &.active{
+                color:var(--primary);
+				font-weight: 500;
+				a{
+					color:var(--primary)!important;
+				}
+            }
+        }
+        
+        .breadcrumb-item + .breadcrumb-item {
+            &:before {
+                //content: "\e606";
+                /* font-family: 'simple-line-icons';
+                font-weight: 400;
+				position:absolute;
+                font-size: 10px; */
+				color:#6F767E;
+            }
+        }
+
+        &-datepicker{
+            font-size: 0.75rem;
+            color: $muted;
+
+            &__icon{
+                font-size: 0.875rem;
+            }
+        }
+    }
+	
+	.dashboard_bar{
+		margin:0;
+		font-size:20px;
+		color:var(--secondary);
+		font-weight:600;
+		@include respond ('phone'){
+			font-size:15px;
+		}
+	}
+    
+}
+.select2-container--default .select2-selection--single .select2-selection__clear{
+	display:none;
+}

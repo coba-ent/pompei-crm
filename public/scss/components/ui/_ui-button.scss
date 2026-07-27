@@ -1,0 +1,1153 @@
+button {
+	cursor: pointer;
+
+	&:focus {
+		outline: 0;
+		box-shadow: none;
+	}
+}
+
+.btn {
+	padding: 10px 20px;
+	border-radius: $radius-sm;
+	font-weight: 600;
+	font-size: 14px;
+	line-height: 1.3;
+	box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.10);
+
+	&:hover,
+	&:focus,
+	&:active,
+	&.active {
+		//sbackground-color:var(--primary);
+	}
+
+	&.btn-primary {
+		&.light {
+			background-color: var(--rgba-primary-1);
+			color: var(--primary);
+			border-color: var(--rgba-primary-1);
+		}
+	}
+
+	@include respond('laptop') {
+		padding: 0.625rem 1rem;
+		font-size: 0.813rem;
+	}
+
+	&.btn-success,
+	&.btn-secondary,
+	&.btn-warning,
+	&.btn-primary,
+	&.btn-danger,
+	&.btn-info {
+		color: $white;
+	}
+
+	&-transparent {
+		background-color: transparent;
+	}
+
+	&.btn-icon-xxs {
+		padding: 0.275rem 0.4375rem;
+	}
+
+	&.btn-sharp {
+		display: inline-block;
+		width: 32px;
+		height: 32px;
+		text-align: center;
+		line-height: 30px;
+		padding: 0;
+	}
+
+	&.btn-xxs {
+		padding: 4px 10px;
+		font-size: 0.6675rem;
+		line-height: 1.3;
+	}
+
+	&.btn-xs {
+		width: 1.625rem;
+		height: 1.625rem;
+		min-width: 1.625rem;
+		min-height: 1.625rem;
+	}
+}
+
+.swal2-popup .swal2-styled:focus {
+	box-shadow: none;
+}
+
+.btn-primary {
+	border-color: var(--primary);
+	background-color: var(--primary);
+
+	&:active,
+	&:focus,
+	&:hover {
+		border-color: var(--primary-hover);
+		background-color: var(--primary-hover);
+	}
+
+	&:focus {
+		box-shadow: 0 0 0 0.25rem var(--rgba-primary-5);
+	}
+
+	&:disabled,
+	&.disabled {
+		background-color: var(--primary);
+		border-color: var(--primary);
+	}
+}
+
+.btn-link {
+	color: var(--primary);
+	text-decoration: none;
+
+	svg {
+		circle {
+			fill: var(--primary);
+		}
+	}
+
+	&:hover {
+		color: var(--primary-hover);
+	}
+}
+
+.btn-outline-primary {
+	color: var(--primary);
+	border-color: var(--primary);
+
+	&:hover {
+		border-color: var(--primary-hover);
+		background-color: var(--primary-hover);
+	}
+}
+
+.sharp {
+	min-width: 30px;
+	padding: 0.3375rem;
+	height: 30px;
+	line-height: 20px;
+	min-height: 30px;
+	border-radius: 0.375rem;
+
+	&.sharp-lg {
+		min-width: 40px;
+		height: 40px;
+		line-height: 30px;
+	}
+
+	&.sharp-xs {
+		min-width: 45px;
+		min-height: 45px;
+		display: inline-block;
+		line-height: 45px;
+		padding: 0;
+	}
+}
+.btn-block {
+   display: block;
+   width: 100%
+}
+
+/////////////////////
+//// Social Buttons
+/////////////////////
+//
+.btn-facebook {
+	background: $facebook;
+	border-color: $facebook;
+	color: $white;
+
+	&:active,
+	&:focus,
+	&:hover {
+		background: darken($facebook, 10%);
+		color: $white;
+		border-color: darken($facebook, 10%);
+	}
+}
+
+.btn-twitter {
+	background: $twitter;
+	border-color: $twitter;
+	color: $white;
+
+	&:active,
+	&:focus,
+	&:hover {
+		background: darken($twitter, 10%);
+		color: $white;
+		border-color: darken($twitter, 10%);
+	}
+}
+
+.btn-youtube {
+	background: $youtube;
+	border-color: $youtube;
+	color: $white;
+
+	&:active,
+	&:focus,
+	&:hover {
+		background: darken($youtube, 10%);
+		color: $white;
+		border-color: darken($youtube, 10%);
+	}
+}
+
+.btn-instagram {
+	background: $instagram;
+	border-color: $instagram;
+	color: $white;
+
+	&:active,
+	&:focus,
+	&:hover {
+		color: $white;
+		border-color: darken($instagram, 10%);
+	}
+}
+
+.btn-apple {
+	background: $apple;
+	border-color: $apple;
+	color: $white;
+
+	&:active,
+	&:focus,
+	&:hover {
+		color: $white;
+		border-color: darken($apple, 10%);
+		background: $apple;
+	}
+}
+
+.btn-pinterest {
+	background: $pinterest;
+	border-color: $pinterest;
+	color: $white;
+
+	&:active,
+	&:focus,
+	&:hover {
+		background: darken($pinterest, 10%);
+		color: $white;
+		border-color: darken($pinterest, 10%);
+	}
+}
+
+.btn-linkedin {
+	background: $linkedin;
+	border-color: $linkedin;
+	color: $white;
+
+	&:active,
+	&:focus,
+	&:hover {
+		background: darken($linkedin, 10%);
+		color: $white;
+		border-color: darken($linkedin, 10%);
+	}
+}
+
+.btn-flickr {
+	background: $flickr;
+	border-color: $flickr;
+	color: $white;
+
+	&:active,
+	&:focus,
+	&:hover {
+		background: darken($flickr, 10%);
+		color: $white;
+		border-color: darken($flickr, 10%);
+	}
+}
+
+.btn-photo {
+	background: $photo;
+	border-color: $photo;
+	color: $white;
+
+	&:active,
+	&:focus,
+	&:hover {
+		background: darken($photo, 10%);
+		color: $white;
+		border-color: darken($photo, 10%);
+	}
+}
+
+.btn-dropbox {
+	background: $dropbox;
+	border-color: $dropbox;
+	color: $white;
+
+	&:active,
+	&:focus,
+	&:hover {
+		background: darken($dropbox, 10%);
+		color: $white;
+		border-color: darken($dropbox, 10%);
+	}
+}
+
+.btn-google-plus {
+	background: $google-plus;
+	border-color: $google-plus;
+	color: $white;
+
+	&:active,
+	&:focus,
+	&:hover {
+		background: darken($google-plus, 10%);
+		color: $white;
+		border-color: darken($google-plus, 10%);
+	}
+}
+
+.btn-google {
+	background: $google;
+	border-color: $google;
+	color: $white;
+
+	&:active {
+		--bs-btn-active-color: $white;
+		--bs-btn-active-bg: $google;
+		--bs-btn-active-border-color: $google;
+	}
+
+	&:focus,
+	&:hover {
+		background: darken($google, 10%);
+		color: $white;
+		border-color: darken($google, 10%);
+	}
+}
+
+.btn-snapchat {
+	background: $snapchat;
+	border-color: $snapchat;
+	color: $black;
+
+	&:active,
+	&:focus,
+	&:hover {
+		background: darken($snapchat, 10%);
+		color: $black;
+		border-color: darken($snapchat, 10%);
+	}
+}
+
+.btn-whatsapp {
+	background: $whatsapp;
+	border-color: $whatsapp;
+	color: $white;
+
+	&:active,
+	&:focus,
+	&:hover {
+		background: darken($whatsapp, 10%);
+		color: $white;
+		border-color: darken($whatsapp, 10%);
+	}
+}
+
+.btn-tumblr {
+	background: $tumblr;
+	border-color: $tumblr;
+	color: $white;
+
+	&:active,
+	&:focus,
+	&:hover {
+		background: darken($tumblr, 10%);
+		color: $white;
+		border-color: darken($tumblr, 10%);
+	}
+}
+
+.btn-reddit {
+	background: $reddit;
+	border-color: $reddit;
+	color: $white;
+
+	&:active,
+	&:focus,
+	&:hover {
+		background: darken($reddit, 10%);
+		color: $white;
+		border-color: darken($reddit, 10%);
+	}
+}
+
+.btn-spotify {
+	background: $spotify;
+	border-color: $spotify;
+	color: $white;
+
+	&:active,
+	&:focus,
+	&:hover {
+		background: darken($spotify, 10%);
+		color: $white;
+		border-color: darken($spotify, 10%);
+	}
+}
+
+.btn-yahoo {
+	background: $yahoo;
+	border-color: $yahoo;
+	color: $white;
+
+	&:active,
+	&:focus,
+	&:hover {
+		background: darken($yahoo, 10%);
+		color: $white;
+		border-color: darken($yahoo, 10%);
+	}
+}
+
+.btn-dribbble {
+	background: $dribbble;
+	border-color: $dribbble;
+	color: $white;
+
+	&:active,
+	&:focus,
+	&:hover {
+		background: darken($dribbble, 10%);
+		color: $white;
+		border-color: darken($dribbble, 10%);
+	}
+}
+
+.btn-skype {
+	background: $skype;
+	border-color: $skype;
+	color: $white;
+
+	&:active,
+	&:focus,
+	&:hover {
+		background: darken($skype, 10%);
+		color: $white;
+		border-color: darken($skype, 10%);
+	}
+}
+
+.btn-quora {
+	background: $quora;
+	border-color: $quora;
+	color: $white;
+
+	&:active,
+	&:focus,
+	&:hover {
+		background: darken($quora, 10%);
+		color: $white;
+		border-color: darken($quora, 10%);
+	}
+}
+
+.btn-vimeo {
+	background: $vimeo;
+	border-color: $vimeo;
+	color: $white;
+
+	&:active,
+	&:focus,
+	&:hover {
+		background: darken($vimeo, 10%);
+		color: $white;
+		border-color: darken($vimeo, 10%);
+	}
+}
+
+.btn-drive {
+	background: $drive;
+	border-color: $drive;
+	color: $white;
+
+	&:active {
+		--bs-btn-active-color: $white;
+		--bs-btn-active-bg: $drive;
+		--bs-btn-active-border-color: $drive;
+	}
+
+	&:focus,
+	&:hover {
+		background: darken($drive, 10%);
+		color: $white;
+		border-color: darken($drive, 10%);
+	}
+}
+
+.btn-envato {
+	background: $envato;
+	border-color: $envato;
+	color: $white;
+
+	&:active {
+		--bs-btn-active-color: $white;
+		--bs-btn-active-bg: $envato;
+		--bs-btn-active-border-color: $envato;
+	}
+
+	&:focus,
+	&:hover {
+		background: darken($envato, 10%);
+		color: $white;
+		border-color: darken($envato, 10%);
+	}
+}
+
+//.btn-check:checked + .btn-outline-primary,
+//.btn-check:active + .btn-outline-primary,
+//.btn-outline-primary:active,
+//.btn-outline-primary.active,
+//.btn-outline-primary.dropdown-toggle.show{
+//	background-color:var(--primary);
+//	border-color:var(--primary);
+//	color:$white;
+//}
+// 
+//.btn-check:checked + .btn-outline-primary:focus,
+//.btn-check:active + .btn-outline-primary:focus,
+//.btn-outline-primary:active:focus,
+//.btn-outline-primary.active:focus,
+//.btn-outline-primary.dropdown-toggle.show:focus{
+//	box-shadow:0 0 0 0.25rem var(--rgba-primary-5);
+//}
+//.btn-check:focus + .btn-outline-primary, .btn-outline-primary:focus{
+//	box-shadow:0 0 0 0.25rem var(--rgba-primary-5);
+//}
+//.btn-close:focus{
+//	// box-shadow:0 0 0 0.25rem var(--rgba-primary-5);
+//	box-shadow:none;
+//}
+//.asColorPicker-trigger{
+//	background: none;
+//}
+//.dz-card{
+//	.nav-link{
+//		padding: 5px 12px;
+//		border-radius:$radius;
+//	}
+//}
+//.btn{
+//	&.btn-icon-lg{
+//		padding: 1rem 1.2rem;
+//	}
+//	&.btn-icon-md{
+//		padding: 0.719rem 0.919rem;
+//	}
+//	&.btn-icon-sm{
+//		padding: 0.438rem 0.6rem;
+//	}
+//	&.btn-icon-xs{
+//		padding: 0.375rem 0.5375rem;
+//	}
+//	&.btn-icon-xxs{
+//		padding: 0.275rem 0.4375rem;
+//	}
+//}
+.btn-spacing {
+	.btn {
+		margin-bottom: 1.6rem;
+	}
+}
+
+.btn-link {
+	box-shadow: none;
+	text-decoration: none;
+}
+
+.btn-white {
+	background: #FFF;
+	color: black;
+	border: 1px solid #E9ECEF;
+
+	&.light {
+		background: #F3F5F8;
+	}
+
+	&.active,
+	&:hover {
+		box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.05), 0px 0px 0px 4px rgba(222, 222, 237, 0.30);
+		border-color: transparent;
+	}
+
+	&.btn-link {
+		background-color: transparent;
+		border: 0;
+		box-shadow: none;
+	}
+
+}
+
+.btn-primary {
+
+	&.active,
+	&:hover {
+		box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.10), 0px 0px 0px 4px rgba(29, 105, 214, 0.20);
+	}
+}
+
+.btn-outline-white {
+	border: 1px solid #F3F5F8;
+	color: black;
+}
+
+.btn-secondary {
+	&.light {
+		background: lighten($secondary, 75%);
+		color: var(--secondary);
+		border: 0;
+
+		&.btn-transparent {
+			background: transparent;
+			color: var(--primary);
+			border: 0;
+			box-shadow: none;
+
+			&:hover {
+				background-color: var(--rgba-secondary-1);
+				color: var(--secondary);
+				box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.1);
+			}
+		}
+	}
+
+	&.active,
+	&:hover {
+		box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.10), 0px 0px 0px 4px rgba(31, 32, 37, 0.20);
+	}
+
+	&.btn-link {
+		background: transparent;
+		box-shadow: none;
+		color: var(--secondary);
+	}
+
+}
+
+.btn-danger {
+	color: white;
+
+	&.light {
+		background: lighten($danger, 35%);
+		border: 0;
+		color: $danger !important;
+
+		&:hover {
+			color: $danger;
+		}
+
+		&.btn-transparent {
+			background: transparent;
+			color: $danger;
+			border: 0;
+			box-shadow: none;
+
+			&:hover {
+				background-color: lighten($danger, 35%);
+				color: $danger;
+				box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.1);
+			}
+		}
+
+		&.active,
+		&:hover {
+			background: $danger;
+			border: 0;
+			color: #fff !important;
+
+			svg path {
+				stroke: #fff;
+			}
+		}
+	}
+
+	&.active,
+	&:hover {
+		box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.10), 0px 0px 0px 4px rgba(229, 85, 85, 0.20);
+		color: $white;
+	}
+
+	&.btn-link {
+		background: transparent;
+		box-shadow: none;
+		color: var(--secondary);
+	}
+
+}
+
+.btn-outline-danger,
+.btn-outline-success,
+.btn-outline-warning,
+.btn-outline-info {
+	&:hover {
+		color: $white;
+	}
+}
+
+.btn-primary {
+	&.btn-transparent {
+		background: transparent;
+		color: var(--primary);
+		border: 0;
+		box-shadow: none;
+
+		&:hover {
+			background: var(--primary);
+			color: $white;
+			box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.1);
+		}
+	}
+
+	&.light {
+		&.btn-transparent {
+			background: transparent;
+			color: var(--primary);
+			border: 0;
+			box-shadow: none;
+
+			&:hover {
+				background-color: var(--rgba-primary-1);
+				color: var(--primary);
+				box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.1);
+
+				svg path {
+					stroke: #fff;
+				}
+			}
+		}
+	}
+}
+
+.btn-secondary {
+	&.btn-transparent {
+		background: transparent;
+		color: var(--secondary);
+		border: 0;
+		box-shadow: none;
+
+		&:hover {
+			background: var(--secondary);
+			color: $white;
+			box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.1);
+		}
+	}
+}
+
+.btn-danger {
+	&.btn-transparent {
+		background: transparent;
+		color: $danger;
+		border: 0;
+		box-shadow: none;
+
+		&:hover {
+			background: $danger;
+			color: $white;
+			box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.1);
+		}
+	}
+}
+
+.btn-success {
+	color: $white;
+
+	&:hover {
+		color: $white;
+	}
+
+	&.light {
+		background: lighten($success, 50%);
+		border: 0;
+		color: $success;
+
+		&:hover {
+			color: $success;
+		}
+
+		&.btn-transparent {
+			background: transparent;
+			color: $success;
+			border: 0;
+			box-shadow: none;
+
+			&:hover {
+				background-color: lighten($success, 50%);
+				color: $success;
+				box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.1);
+			}
+		}
+	}
+
+	&.active,
+	&:hover {
+		box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.10), 0px 0px 0px 4px rgba(42, 183, 107, 0.20);
+		color: $white;
+	}
+
+	&.btn-link {
+		background: transparent;
+		box-shadow: none;
+		color: $success;
+	}
+
+	&.btn-transparent {
+		background: transparent;
+		color: $success;
+		border: 0;
+		box-shadow: none;
+
+		&:hover {
+			background: $success;
+			color: $white;
+			box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.1);
+		}
+	}
+}
+
+.btn-warning {
+	color: $white;
+
+	&:hover {
+		color: $white;
+	}
+
+	&.light {
+		background: lighten($warning, 40%);
+		border: 0;
+		color: $warning;
+
+		&:hover {
+			color: $warning;
+		}
+
+		&.btn-transparent {
+			background: transparent;
+			color: $warning;
+			border: 0;
+			box-shadow: none;
+
+			&:hover {
+				background-color: lighten($warning, 40%);
+				;
+				color: $warning;
+				box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.1);
+			}
+		}
+	}
+
+	&.active,
+	&:hover {
+		box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.10), 0px 0px 0px 4px rgba(248, 157, 22, 0.20);
+		color: $white;
+	}
+
+	&.btn-link {
+		background: transparent;
+		box-shadow: none;
+		color: $warning;
+	}
+
+	&.btn-transparent {
+		background: transparent;
+		color: $danger;
+		border: 0;
+		box-shadow: none;
+
+		&:hover {
+			background: $warning;
+			color: $white;
+			box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.1);
+		}
+	}
+}
+
+.btn-info {
+	color: $white;
+
+	&:hover {
+		color: $white;
+	}
+
+	&.light {
+		background: lighten($info, 40%);
+		border: 0;
+		color: $info !important;
+
+		&:hover {
+			color: $info;
+		}
+
+		&.btn-transparent {
+			background: transparent;
+			color: $info;
+			border: 0;
+			box-shadow: none;
+
+			&:hover {
+				background-color: lighten($info, 40%);
+				color: $info;
+				box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.1);
+			}
+		}
+
+		&.active,
+		&:hover {
+			background: $info;
+			border: 0;
+			color: #fff !important;
+		}
+	}
+
+	&.active,
+	&:hover {
+		box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.10), 0px 0px 0px 4px rgba(42, 163, 231, 0.20);
+		color: $white;
+	}
+
+	&.btn-link {
+		background: transparent;
+		box-shadow: none;
+		color: $info;
+	}
+
+	&.btn-transparent {
+		background: transparent;
+		color: $info;
+		border: 0;
+		box-shadow: none;
+
+		&:hover {
+			background: $info;
+			color: $white;
+			box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.1);
+		}
+	}
+}
+
+.btn-dark {
+	&.light {
+		background: lighten($dark, 60%);
+		border: 0;
+		color: $dark;
+
+		&:hover {
+			color: $dark;
+		}
+
+		&.btn-transparent {
+			background: transparent;
+			color: $dark;
+			border: 0;
+			box-shadow: none;
+
+			&:hover {
+				background-color: lighten($dark, 60%);
+				color: $dark;
+				box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.1);
+			}
+		}
+	}
+
+	&.active,
+	&:hover {
+		box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.10), 0px 0px 0px 4px rgba(68, 68, 68, 0.20);
+		color: $white;
+	}
+
+	&.btn-link {
+		background: transparent;
+		box-shadow: none;
+		color: $dark;
+	}
+
+	&.btn-transparent {
+		background: transparent;
+		color: $dark;
+		border: 0;
+		box-shadow: none;
+
+		&:hover {
+			background: $dark;
+			color: $white;
+			box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.1);
+		}
+	}
+}
+
+.btn-outline-light {
+	color: #1F2025;
+}
+
+.btn-light {
+	&.light {
+		background: lighten($light, 1%);
+		border: 0;
+		color: #1F2025;
+		;
+
+		&:hover {
+			color: #1F2025;
+		}
+	}
+
+	&.active,
+	&:hover {
+		box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.10), 0px 0px 0px 4px rgba(222, 222, 237, 0.20);
+		color: #1F2025;
+	}
+
+	&.btn-link {
+		background: transparent;
+		box-shadow: none;
+		color: #1F2025;
+	}
+}
+
+.btn {
+	overflow: hidden;
+
+	&.btn-lg {
+		padding: 12px 25px;
+	}
+
+	&.btn-md {
+		padding: 8px 24px;
+	}
+
+	&.btn-sm {
+		padding: 5px 20px;
+	}
+
+	&.shadow-lg {
+		box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.10), 0px 10px 30px 0px rgba(29, 105, 214, 0.25) !important;
+	}
+
+	.btn-icon-end {
+		border-left: 0.0625rem solid rgba(255, 255, 255, 0.30);
+		;
+		display: inline-block;
+		margin: -1rem -0.25rem -1rem 1rem;
+		padding: 0.8rem 0 0.8rem 1.25rem;
+
+		i {
+			transform: scale(1.3);
+		}
+	}
+
+	&.btn-outline-primary {
+		.btn-icon-end {
+			border-color: var(--primary);
+		}
+	}
+
+}
+
+.btn-square {
+	padding: 12px;
+
+	&.btn-md {
+		padding: 10px;
+	}
+
+	&.btn-sm {
+		padding: 8px;
+	}
+}
+
+.btn-instagram {
+	background: linear-gradient(180deg, #E224A2 0%, #FD9A3A 100%);
+	box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.10);
+
+	&:hober {
+		background: linear-gradient(90deg, #E224A2 0%, #FD9A3A 100%);
+	}
+
+}
+
+.column-5 {
+	.btn {
+		min-width: 100px;
+	}
+}
+
+@include respond ('phone-land') {
+	.column-5>* {
+		max-width: 34%;
+		flex: 0 0 32%;
+
+		.btn {
+			margin-bottom: 1rem;
+		}
+	}
+
+	.dz-card {
+		.col-3 {
+			width: 50%;
+			margin-bottom: 1rem;
+
+		}
+
+		.column-4>* {
+			max-width: 50%;
+			flex: 0 0 50%;
+		}
+
+		.col-4 {
+			flex: 0 0 auto;
+			width: 44.33333%;
+			margin-bottom: 1rem;
+
+			.btn {
+				margin-bottom: 1rem;
+			}
+		}
+	}
+}
+
+@include respond ('phone') {
+	.column-5>* {
+		max-width: 75%;
+		flex: 0 0 50%;
+	}
+
+	.dz-card .col-3 {
+		width: 50%;
+	}
+
+	.dz-card .column-4>* {
+		max-width: 100%;
+		flex: 0 0 100%;
+	}
+
+	.dz-card .col-4 {
+		width: 100%;
+	}
+}
+
+.tp-btn-light {
+	&.sharp {
+		svg {
+			circle {
+				fill: white;
+			}
+		}
+	}
+}
+@include respond ('phone'){
+	.noUi-value-horizontal{
+		transform: translate(-80%, 50%);
+	}
+}

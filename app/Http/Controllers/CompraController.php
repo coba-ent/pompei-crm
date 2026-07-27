@@ -1,0 +1,308 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Http\Requests\StoreCompraRequest;
+use App\Http\Requests\StorePagoRequest;
+use App\Http\Requests\StoreRetencionRequest;
+use App\Models\Categoria;
+use App\Models\Compra;
+use App\Models\CuentaTesoreria;
+use App\Models\Pago;
+use App\Models\Remito;
+use App\Services\Egresos\Pagos;
+use App\Services\Ingresos\CalculoComprobante;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Yajra\DataTables\Facades\DataTables;
+
+/** Compras (US1): listado (KPIs), formulario de página completa, detalle con pagos/retenciones/NC-ND. */
+class CompraController extends Controller
+{
+    public function __construct(
+        private readonly CalculoComprobante $calculo,
+        private readonly Pagos $pagos,
+    ) {
+    }
+
+    public function index()
+    {
+        $CurrentPage = 'compras';
+        $kpis = $this->kpis();
+
+        return view('compras.index', compact('CurrentPage', 'kpis'));
+    }
+
+    /** Barra de 5 KPIs del listado (informe §2.4): Cantidad, Pagado, A Pagar, Vencido, Total. */
+    private function kpis(): array
+    {
+        $compras = Compra::query()->get();
+
+        $vencido = $compras->filter(fn (Compra $c) => $c->fecha_vto_pago && $c->fecha_vto_pago->isPast() && $c->aPagar() > 0.005)
+            ->sum(fn (Compra $c) => $c->aPagar());
+
+        return [
+            'cantidad' => $compras->count(),
+            'pagado' => $compras->sum(fn (Compra $c) => $c->pagado()),
+            'a_pagar' => $compras->sum(fn (Compra $c) => $c->aPagar()),
+            'vencido' => $vencido,
+            'total' => $compras->sum(fn (Compra $c) => (float) $c->total),
+        ];
+    }
+
+    private function queryFiltrada(Request $request): Builder
+    {
+        $query = Compra::query()->with(['proveedor:id,nombre', 'categoria:id,nombre', 'pagos.cuentaTesoreria:id,nombre']);
+
+        if ($request->filled('proveedor_id')) {
+            $query->where('proveedor_id', $request->input('proveedor_id'));
+        }
+        if ($request->filled('buscar')) {
+            $kw = $request->input('buscar');
+            $query->where('nro_comprobante', 'like', "%{$kw}%");
+        }
+
+        return $query;
+    }
+
+    public function data(Request $request): JsonResponse
+    {
+        $query = $this->queryFiltrada($request);
+
+        return DataTables::eloquent($query)
+            ->addColumn('acciones', fn (Compra $c) => view('compras._row_actions', ['compra' => $c])->render())
+            ->addColumn('estado_pago', fn (Compra $c) => $c->estadoPago())
+            ->addColumn('proveedor', fn (Compra $c) => optional($c->proveedor)->nombre)
+            ->addColumn('categoria', fn (Compra $c) => optional($c->categoria)->nombre)
+            ->addColumn('pagado', fn (Compra $c) => $c->pagado())
+            ->addColumn('a_pagar', fn (Compra $c) => $c->aPagar())
+            ->addColumn('medio_de_pago', fn (Compra $c) => optional($c->pagos->last()?->cuentaTesoreria)->nombre)
+            ->editColumn('fecha_emision', fn (Compra $c) => optional($c->fecha_emision)->format('d/m/Y'))
+            ->editColumn('fecha_vto_pago', fn (Compra $c) => optional($c->fecha_vto_pago)->format('d/m/Y'))
+            ->editColumn('subtotal_sin_descuento', fn (Compra $c) => (float) $c->subtotal_sin_descuento)
+            ->editColumn('descuento', fn (Compra $c) => (float) $c->descuento)
+            ->editColumn('subtotal_con_descuento', fn (Compra $c) => (float) $c->subtotal_con_descuento)
+            ->editColumn('total', fn (Compra $c) => (float) $c->total)
+            ->rawColumns(['acciones'])
+            ->toJson();
+    }
+
+    public function create()
+    {
+        $CurrentPage = 'compras';
+        $submitToken = (string) \Illuminate\Support\Str::uuid();
+
+        return view('compras.form', [
+            'CurrentPage' => $CurrentPage,
+            'compra' => null,
+            'submitToken' => $submitToken,
+            'categoriasCompra' => Categoria::compra()->activas()->orderBy('nombre')->get(),
+        ]);
+    }
+
+    public function store(StoreCompraRequest $request): JsonResponse
+    {
+        $datos = $request->validated();
+
+        if (Compra::withTrashed()->where('submit_token', $datos['submit_token'])->exists()) {
+            $existente = Compra::withTrashed()->where('submit_token', $datos['submit_token'])->first();
+
+            return response()->json([
+                'ok' => true,
+                'mensaje' => 'Compra '.$existente->nro_comprobante.' creada con éxito.',
+                'compra' => $existente,
+                'redirect' => route('compras.show', $existente),
+            ], 201);
+        }
+
+        $compra = DB::transaction(function () use ($datos) {
+            $resultado = $this->calculo->calcular($datos['items'], $datos['descuento_general_pct'] ?? null, $datos['conceptos'] ?? []);
+
+            $compra = Compra::create([
+                'proveedor_id' => $datos['proveedor_id'],
+                'categoria_id' => $datos['categoria_id'] ?? null,
+                'fecha_emision' => $datos['fecha_emision'],
+                'fecha_vto_pago' => $datos['fecha_vto_pago'] ?? null,
+                'servicio_desde' => $datos['servicio_desde'] ?? null,
+                'servicio_hasta' => $datos['servicio_hasta'] ?? null,
+                'mes_imputacion_iva' => $datos['mes_imputacion_iva'] ?? null,
+                'tipo_comprobante' => $datos['tipo_comprobante'] ?? null,
+                'nro_comprobante' => Compra::siguienteNroComprobante($datos['tipo_comprobante'] ?? ''),
+                'subtotal_sin_descuento' => $resultado['subtotal_sin_descuento'],
+                'descuento' => $resultado['descuento'],
+                'subtotal_con_descuento' => $resultado['subtotal_con_descuento'],
+                'total' => $resultado['total'],
+                'nota_interna' => $datos['nota_interna'] ?? null,
+                'submit_token' => $datos['submit_token'],
+            ]);
+
+            $this->guardarItems($compra, $resultado['items']);
+            $this->guardarConceptos($compra, $datos['conceptos'] ?? []);
+
+            return $compra;
+        });
+
+        return response()->json([
+            'ok' => true,
+            'mensaje' => 'Compra '.$compra->nro_comprobante.' creada con éxito.',
+            'compra' => $compra,
+            'redirect' => route('compras.show', $compra),
+        ], 201);
+    }
+
+    public function edit(Compra $compra)
+    {
+        $CurrentPage = 'compras';
+        $compra->load(['items', 'conceptos', 'proveedor', 'categoria']);
+        $categoriasCompra = Categoria::compra()->activas()->orderBy('nombre')->get();
+
+        return view('compras.form', compact('CurrentPage', 'compra', 'categoriasCompra'));
+    }
+
+    public function update(\App\Http\Requests\UpdateCompraRequest $request, Compra $compra): JsonResponse
+    {
+        $datos = $request->validated();
+
+        DB::transaction(function () use ($datos, $compra) {
+            $resultado = $this->calculo->calcular($datos['items'], $datos['descuento_general_pct'] ?? null, $datos['conceptos'] ?? []);
+
+            $compra->update([
+                'proveedor_id' => $datos['proveedor_id'],
+                'categoria_id' => $datos['categoria_id'] ?? null,
+                'fecha_emision' => $datos['fecha_emision'],
+                'fecha_vto_pago' => $datos['fecha_vto_pago'] ?? null,
+                'servicio_desde' => $datos['servicio_desde'] ?? null,
+                'servicio_hasta' => $datos['servicio_hasta'] ?? null,
+                'mes_imputacion_iva' => $datos['mes_imputacion_iva'] ?? null,
+                'tipo_comprobante' => $datos['tipo_comprobante'] ?? $compra->tipo_comprobante,
+                'subtotal_sin_descuento' => $resultado['subtotal_sin_descuento'],
+                'descuento' => $resultado['descuento'],
+                'subtotal_con_descuento' => $resultado['subtotal_con_descuento'],
+                'total' => $resultado['total'],
+                'nota_interna' => $datos['nota_interna'] ?? null,
+            ]);
+
+            $compra->items()->delete();
+            $compra->conceptos()->delete();
+            $this->guardarItems($compra, $resultado['items']);
+            $this->guardarConceptos($compra, $datos['conceptos'] ?? []);
+        });
+
+        return response()->json([
+            'ok' => true,
+            'mensaje' => 'Compra '.$compra->nro_comprobante.' actualizada con éxito.',
+            'compra' => $compra->fresh(),
+        ]);
+    }
+
+    public function destroy(Compra $compra): JsonResponse
+    {
+        $compra->delete();
+
+        return response()->json(['ok' => true, 'mensaje' => 'Compra eliminada.']);
+    }
+
+    /** Detalle: barra de ecuación, pagos, documento con watermark, retenciones, NC/ND (informe §2.4). */
+    public function show(Compra $compra)
+    {
+        $CurrentPage = 'compras';
+        $compra->load(['items', 'conceptos', 'proveedor.condicionIva', 'categoria', 'pagos.cuentaTesoreria', 'pagos.retenciones', 'notasCreditoDebito', 'remitos']);
+        $cuentas = CuentaTesoreria::visibles()->orderBy('orden')->orderBy('nombre')->get();
+
+        return view('compras.detalle', compact('CurrentPage', 'compra', 'cuentas'));
+    }
+
+    public function pdf(Compra $compra)
+    {
+        $compra->load(['items', 'conceptos', 'proveedor.condicionIva', 'categoria']);
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('compras.pdf', compact('compra'));
+
+        return $pdf->stream('compra-'.$compra->nro_comprobante.'.pdf', ['Content-Disposition' => 'inline']);
+    }
+
+    /** "Agregar Pago" (informe §2.4). */
+    public function pagoStore(StorePagoRequest $request, Compra $compra): JsonResponse
+    {
+        $datos = $request->validated();
+        $cuenta = CuentaTesoreria::findOrFail($datos['cuenta_tesoreria_id']);
+
+        $pago = $this->pagos->registrarPago($compra, (float) $datos['monto'], $cuenta, Carbon::parse($datos['fecha']), $datos['nota'] ?? null);
+
+        return response()->json([
+            'ok' => true,
+            'mensaje' => 'Compra '.$compra->nro_comprobante.' actualizada con éxito.',
+            'pago' => $pago,
+            'pagado' => $compra->pagado(),
+            'a_pagar' => $compra->aPagar(),
+            'estado_pago' => $compra->estadoPago(),
+        ], 201);
+    }
+
+    public function pagoDestroy(Compra $compra, Pago $pago): JsonResponse
+    {
+        if ($pago->compra_id !== $compra->id) {
+            abort(404);
+        }
+
+        $this->pagos->anularPago($pago);
+
+        return response()->json([
+            'ok' => true,
+            'mensaje' => 'Pago anulado.',
+            'pagado' => $compra->pagado(),
+            'a_pagar' => $compra->aPagar(),
+            'estado_pago' => $compra->estadoPago(),
+        ]);
+    }
+
+    /** "+ Agregar Retención" (US2, informe §2.5). */
+    public function retencionStore(StoreRetencionRequest $request, Compra $compra): JsonResponse
+    {
+        $datos = $request->validated();
+
+        $retencion = \App\Models\Retencion::create($datos);
+
+        return response()->json([
+            'ok' => true,
+            'mensaje' => 'Retención creada correctamente.',
+            'retencion' => $retencion,
+        ], 201);
+    }
+
+    /** "Crear Remito" — encabezado mínimo (FR-011, mismo criterio que Ventas). */
+    public function remitoStore(Request $request, Compra $compra): JsonResponse
+    {
+        $datos = $request->validate(['fecha' => 'nullable|date']);
+
+        $remito = $compra->remitos()->create([
+            'fecha' => $datos['fecha'] ?? now()->toDateString(),
+            'nro_remito' => Remito::siguienteNumero(),
+        ]);
+
+        return response()->json(['ok' => true, 'mensaje' => 'Remito creado.', 'remito' => $remito], 201);
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $items
+     */
+    private function guardarItems(Compra $compra, array $items): void
+    {
+        foreach ($items as $item) {
+            $compra->items()->create($item);
+        }
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $conceptos
+     */
+    private function guardarConceptos(Compra $compra, array $conceptos): void
+    {
+        foreach ($conceptos as $concepto) {
+            $compra->conceptos()->create($concepto);
+        }
+    }
+}

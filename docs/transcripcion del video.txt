@@ -1,0 +1,53 @@
+0:00Contagram, seguimos mejorando para vos. Bienvenidos al sistema. Esto es una breve introducción y repaso general por algunos módulos para que tengan un
+0:088 secondspantallazo inicial. En primer lugar, siempre recomendamos primero arrancar por la base de datos, donde acá podemos cargar los clientes, los proveeders y los productos.
+0:2121 secondsEs importante aclarar que tanto los clientes, los proveedores como los productos los podemos importar vía Excel rápidamente. Si no, podemos cargarlos
+0:2929 secondsmanualmente rápidamente completando estos campos.
+0:3232 seconds[Música]
+1:011 minute, 1 secondPara crear un nuevo proveedor es muy similar al de clientes. Arriba a la derecha, el nuevo proveedor.
+1:071 minute, 7 seconds[Música]
+1:441 minute, 44 secondsEn la solapa de productos también podemos aprovechar el campo de filtros para ir buscando nuestros productos. Para crear uno nuevo lo
+1:511 minute, 51 secondspodemos hacer arriba a la derecha el nuevo producto. Acá mismo también podemos crear servicios en caso de que corresponda la venta de servicios.
+2:002 minutes[Música]
+2:162 minutes, 16 secondsColocamos nuestro precio de venta y nuestro costo. Y en el caso de que tengan una lista de precios extra, también la pueden colocar acá
+2:292 minutes, 29 secondsmismo. Ahora que ya tenemos nuestro cliente, nuestro proveedor y nuestro producto creado, podemos pasar a probar crear una nueva venta. Simplemente vamos
+2:372 minutes, 37 secondsa ingresos ventas y acá vamos a ver almacenadas todas las ventas que fuimos
+2:442 minutes, 44 seconds[Música]
+2:512 minutes, 51 secondsrealizando. También podemos aprovechar el campo de filtros para ir buscando la venta en cuestión que necesitemos. Para realizar la nueva venta, vamos arriba a
+3:003 minutesla derecha, nueva venta, y ahí cuando seleccionemos el cliente nos va a salir el cliente que ya habíamos generado
+3:113 minutes, 11 secondsanteriormente. Cabe aclarar que si no teníamos el cliente creado previamente, también lo podemos crear acá simplemente tipeando su nombre.
+3:203 minutes, 20 seconds[Música]
+3:233 minutes, 23 secondsPodemos elegir una de las categorías de venta para así luego en los informes ver cuánto ingresó de cada categoría de venta. Si no, también la podemos crear
+3:313 minutes, 31 secondsahí
+3:323 minutes, 32 seconds[Música]
+3:383 minutes, 38 secondsmismo. Como podemos ver, ya seleccionamos el producto que habíamos creado anteriormente y nos trae con el precio de venta que habíamos seleccionado. También si queremos
+3:473 minutes, 47 secondsagilizar la venta y pasar al cobro, directamente le podemos dar cobrar. Si no le podemos dar guardar y después nos va a quedar el cobro pendiente. En este
+3:543 minutes, 54 secondscaso a modo de prueba, le dimos a cobrar y ya rápidamente se actualizó con éxito.
+3:593 minutes, 59 secondsSi apretamos en ver mis ventas nos lleva automáticamente al listado de ventas anterior, donde podemos ver arriba del todo ya creada nuestra
+4:114 minutes, 11 seconds[Música]
+4:234 minutes, 23 secondsventa. Con el proceso de compras muy similar al de
+4:284 minutes, 28 seconds[Música]
+4:304 minutes, 30 secondsventa, seleccionamos el
+4:334 minutes, 33 seconds[Música]
+4:354 minutes, 35 secondsproveedor, seleccionamos la
+4:404 minutes, 40 seconds[Música]
+4:424 minutes, 42 secondscategoría y luego seleccionamos el producto o servicio que nosotros necesitemos comprar.
+4:484 minutes, 48 secondsEn el caso de que tengamos más de un depósito, podemos seleccionar a qué depósito iría este producto que estamos
+5:005 minutescomprando. Y acá podemos ver un poco del comprobante que nos genera cuando cargamos la nueva
+5:095 minutes, 9 seconds[Música]
+5:115 minutes, 11 secondscompra. Si cliqueamos en agregar pago, podemos registrar un cobro parcial o un cobro total. de la compra respectiva.
+5:205 minutes, 20 seconds[Música]
+5:495 minutes, 49 secondsPor otro lado, si tenemos un gasto chico que no requiere factura, lo podemos ingresar por egresos gastos.
+5:575 minutes, 57 seconds[Música]
+6:096 minutes, 9 secondsEl diferencial que tiene con compras es que podemos seleccionar una categoría y subcategoría delegreso.
+6:146 minutes, 14 seconds[Música]
+6:426 minutes, 42 secondspara ir viendo más en detalle todos estos Estos movimientos que nosotros vamos haciendo se van almacenando automáticamente en el módulo de
+6:536 minutes, 53 seconds[Música]
+6:586 minutes, 58 secondsinformes. En el último módulo podemos ver la tesorería, donde acá vamos a llevar el control de todo lo que vamos cobrando y pagando con nuestras diferentes cuentas.
+7:097 minutes, 9 seconds[Música]
+7:437 minutes, 43 secondsPor último, podemos ingresar a la configuración. Acá automáticamente nos lleva mi perfil, donde, por ejemplo, podemos incluir el logo que va a
+7:527 minutes, 52 secondsaparecer en los comprobantes. Y si vamos al módulo de funciones avanzadas, podemos ver todos los módulos que podemos activar o desactivar desde acá.
+8:008 minutesPor ejemplo, la facturación electrónica, la integración con Mercadoolibbre, tienda nube, abonos, entre otros. Para cerrar con la configuración, podemos ver
+8:098 minutes, 9 secondsque en el módulo de usuarios y permisos podemos crear usuarios extra con sus propios permisos y limitaciones para que tengan o no tengan acceso a cierta
+8:178 minutes, 17 secondsinformación. Este fue un breve repaso por todos los módulos del sistema.
+8:218 minutes, 21 secondsRecuerden que cuando quieran podemos hacer un recorrido virtual por el sistema donde vemos todos los módulos en detalle. Por más que el sistema sea
+8:288 minutes, 28 secondssimple e intuitivo, siempre vamos a estar ahí para lo que necesiten. Sumate a contar.

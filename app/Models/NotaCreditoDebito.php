@@ -1,0 +1,43 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
+
+class NotaCreditoDebito extends Model
+{
+    use HasFactory, SoftDeletes;
+
+    protected $table = 'notas_credito_debito';
+
+    protected $fillable = [
+        'venta_id', 'compra_id', 'tipo', 'afecta_stock', 'fecha_emision', 'monto',
+        'tipo_comprobante', 'descripcion', 'impuestos',
+    ];
+
+    protected $casts = [
+        'afecta_stock' => 'boolean',
+        'fecha_emision' => 'date',
+        'monto' => 'decimal:2',
+        'impuestos' => 'array',
+    ];
+
+    public function venta(): BelongsTo
+    {
+        return $this->belongsTo(Venta::class);
+    }
+
+    public function compra(): BelongsTo
+    {
+        return $this->belongsTo(Compra::class);
+    }
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(NotaCreditoDebitoItem::class);
+    }
+}
