@@ -35,3 +35,6 @@ CREDENCIALES_ACCESO.txt
 # Datos reales del cliente / archivos sueltos de trabajo en la raíz
 /*.csv
 /*.png
+
+# Permisos locales de Claude Code (por maquina, no se versiona)
+/.claude/settings.local.json
