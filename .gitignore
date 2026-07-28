@@ -38,3 +38,6 @@ CREDENCIALES_ACCESO.txt
 
 # Permisos locales de Claude Code (por maquina, no se versiona)
 /.claude/settings.local.json
+
+# Bytecode de Python (deploy.py)
+__pycache__/
