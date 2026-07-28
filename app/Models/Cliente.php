@@ -18,6 +18,7 @@ class Cliente extends Model
         'nombre_pila',
         'apellido',
         'apodo_ml',
+        'ml_user_id',
         'pagina_web',
         'email',
         'telefono',

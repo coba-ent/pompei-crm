@@ -64,8 +64,11 @@ class InformeStockTest extends TestCase
         $this->assertEquals(10 * 200 + 5 * 80, $resp['valor_venta_total']);
     }
 
-    public function test_filtro_operacion_solo_reconoce_ajuste_o_transferencia(): void
+    public function test_filtro_operacion_reconoce_entrada_salida_ajuste_y_transferencia(): void
     {
+        // FR-013 se amplió en la spec 012 (research.md §R1): las Ventas ahora generan
+        // movimientos "entrada"/"salida", y el filtro del Informe de Stock los expone
+        // (quickstart.md §Escenario 7), además de los ya existentes ajuste/transferencia.
         $deposito = Deposito::create(['nombre' => 'D']);
         $producto = Producto::factory()->create();
 
@@ -78,19 +81,24 @@ class InformeStockTest extends TestCase
             'tipo' => 'ajuste', 'cantidad' => 2, 'fecha' => '2026-06-02',
         ]);
 
-        // "entrada" no es una opción reconocida (FR-013): el backend la ignora y
-        // devuelve el histórico completo en vez de filtrar por ese tipo.
         $resp = $this->getJson(route('informes.stock.data', [
             'draw' => 1, 'start' => 0, 'length' => 10, 'operacion' => 'entrada',
         ]))->assertOk()->json();
-        $this->assertCount(2, $resp['data']);
+        $this->assertCount(1, $resp['data']);
+        $this->assertSame('entrada', $resp['data'][0]['tipo']);
 
-        // "ajuste" sí es una opción reconocida y filtra correctamente.
+        // "ajuste" sigue reconocida y filtrando correctamente.
         $resp2 = $this->getJson(route('informes.stock.data', [
             'draw' => 1, 'start' => 0, 'length' => 10, 'operacion' => 'ajuste',
         ]))->assertOk()->json();
         $this->assertCount(1, $resp2['data']);
         $this->assertSame('ajuste', $resp2['data'][0]['tipo']);
+
+        // Un valor realmente no reconocido se sigue ignorando (histórico completo).
+        $resp3 = $this->getJson(route('informes.stock.data', [
+            'draw' => 1, 'start' => 0, 'length' => 10, 'operacion' => 'no_existe',
+        ]))->assertOk()->json();
+        $this->assertCount(2, $resp3['data']);
     }
 
     public function test_filtro_producto_id_acota_la_tabla(): void

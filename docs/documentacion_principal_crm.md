@@ -349,6 +349,65 @@ Otros Ingresos y Abonos son independientes.
   ("cheques de terceros" → "banco"). Simétrico para "cheques propios" emitidos en Pagos a Proveedores.
   Ambos se siguen desde Tesorería.
 
+### 3.2.bis Mercado Libre (`/ingresos/mercadolibre`) — spec 012
+
+Entrada **condicional** del menú Ingresos: aparece sólo cuando la función avanzada "Mercado Libre"
+está activa (mismo patrón que Abonos, §3.4).
+
+> **Estructura verificada contra Contagram (27/07/2026).** El relevamiento con capturas
+> (`informe_contagram_funciones_avanzadas.md` §3) nunca completó el flujo de Mercado Libre, por lo que
+> inicialmente se asumió que no había pantalla que calcar. **Era incorrecto**: el centro de ayuda
+> oficial documenta la pantalla. Flujo real de Contagram: las órdenes bajan en estado **Pendiente** a
+> **Ingresos → MercadoLibre**; el usuario selecciona un cliente (existente o nuevo), elige o crea el
+> producto, y se abre el formulario **Nueva Venta** para guardar, facturar y cobrar. La venta
+> resultante se filtra en el listado de Ventas por **"Creada Desde → MercadoLibre"**. La tarjeta de
+> Funciones Avanzadas ofrece un botón **"Ver mis Órdenes"**.
+> *Fuentes: [cómo funciona](https://help.contagram.com/es/articles/10922610-como-funciona-la-integracion-con-mercadolibre) ·
+> [dónde veo las ventas](https://help.contagram.com/es/articles/10922778-donde-veo-las-ventas-que-provienen-de-mercadolibre) ·
+> [cómo integro la cuenta](https://help.contagram.com/es/articles/10922769-como-integro-mi-cuenta-de-mercadolibre-a-contagram).*
+>
+> La spec 012 **coincide estructuralmente** con ese flujo. Agrega, a pedido explícito del usuario:
+> vinculación **persistente** publicación↔producto (Contagram elige el producto en cada conversión),
+> **creación automática** de ventas (Contagram documenta sólo el flujo manual — única divergencia
+> funcional real), y configuración de depósito y frecuencia de sincronización.
+
+Ver §5.2 para la divergencia deliberada de todo el módulo (aplicación propia con permisos de escritura).
+
+- **Listado de órdenes sincronizadas** desde Mercado Libre: identificador de orden, fecha, comprador,
+  publicaciones y cantidades, monto, estado en Mercado Libre y **estado de conversión** en el CRM.
+  Filtros por estado, estado de conversión y rango de fechas. Botón "Sincronizar ahora" + tarea
+  programada con **frecuencia configurable**.
+- **Cinco estados de conversión** (excluyentes): Pendiente de pago · Lista para convertir · Requiere
+  atención (con motivo) · Convertida (con acceso a la Venta) · Cancelada. Sólo "Lista para convertir"
+  habilita la creación de la Venta.
+- **Vinculación publicación ↔ producto**: pantalla propia + carga inline desde la conversión. Relación
+  **estrictamente 1:1**, garantizada por índices únicos. Es infraestructura compartida con la spec 013.
+  Las publicaciones **con variantes no están soportadas** (el negocio no las usa) y se rechazan en vez
+  de vincularse de forma ambigua.
+- **Conversión a Venta**, manual o **automática** (interruptor en la configuración de Mercado Libre).
+  La Venta se crea cobrada contra la cuenta de Tesorería **Mercado Pago** (§3.7) y descuenta stock del
+  **depósito configurado**. Cliente emparejado por **Apodo ML** (§2.1) o creado automáticamente.
+- **Tipo de comprobante derivado** de la condición fiscal que informa Mercado Libre: Responsable
+  Inscripto → A; Consumidor Final/Monotributo o sin dato → B. **No se consulta ARCA** (no hay
+  integración con el padrón en este CRM); Mercado Libre ya provee el dato. Coherente con el principio
+  III de la constitución, que exige derivar el comprobante de la condición de IVA.
+- **Fuera de alcance**: comisión de Mercado Libre y costo de envío (la Venta se crea por el monto
+  bruto, por lo que el saldo de Mercado Pago en el CRM no coincidirá con el real, neto de comisiones).
+  Las cancelaciones posteriores se señalan pero **no** modifican la Venta ya creada.
+
+> ⚠️ **Riesgo de sobreventa — spec 013 especificada, pendiente de implementar**: el flujo de stock
+> vigente sigue siendo unidireccional (ML → CRM). Una venta manual del CRM baja el stock local pero
+> **no** reduce el stock publicado en Mercado Libre, que sigue ofreciendo unidades inexistentes. La
+> spec 013 (`specs/013-stock-mercadolibre/`) ya está especificada, clarificada y planeada — resuelve el
+> sentido inverso (CRM → ML): cualquier movimiento de stock de un producto vinculado (Venta manual,
+> ajuste, transferencia) marca la publicación como pendiente y una sincronización programada (misma
+> frecuencia configurable que la de órdenes, corriendo inmediatamente después) empuja la cantidad
+> disponible resultante hacia Mercado Libre, sin rebotar sobre los movimientos que ya vinieron de una
+> orden de Mercado Libre. Ver §5.2 y `docs/modelo_datos.md §10`. El riesgo queda cerrado recién cuando
+> esta spec se implemente, no con su sola especificación.
+
+*Fuente(s): `specs/012-ventas-mercadolibre/`*
+
 ### 3.3 Otros Ingresos (`/incomes`)
 
 Deliberadamente minimalista — sin selector de columnas, sin "Analizar", sin acciones masivas.
@@ -601,12 +660,15 @@ registrarMovimiento()`) usados por Pagos y Gastos — no quedó pendiente al cie
 
 ---
 
-## 5. Módulo Configuración & Ajustes (alcance actual: Usuarios y Permisos)
+## 5. Módulo Configuración & Ajustes (alcance actual: Usuarios y Permisos, Depósitos, Funciones Avanzadas)
 
 | Sección | Contenido |
 |---|---|
 | Usuarios y Permisos | Alta de usuarios, asignación de roles, activar/desactivar usuarios |
 | Roles | CRUD completo de roles (crear/renombrar/borrar) y asignación de permisos por rol |
+| Depósitos | ABM de depósitos/almacenes (spec 005) |
+| Funciones Avanzadas | Lista de las 10 funciones activables, con toggle Sí/No (spec 011) — ver §5.1 |
+| Mercado Libre | Configuración de la integración y vinculación de cuenta (spec 011) — ver §5.2 |
 
 > **Adaptación single-tenant:** este CRM es single-tenant, sin plan contratado ni costo por usuario
 > adicional. Los permisos son **sólo por rol** (el usuario hereda los permisos de sus roles; no hay
@@ -614,13 +676,110 @@ registrarMovimiento()`) usados por Pagos y Gastos — no quedó pendiente al cie
 > fijo. El rol Admin pasa cualquier permiso (`Gate::before`). Ver `docs/modelo_datos.md §1` para el
 > modelo de `roles`/`permisos`/pivots.
 >
-> Las secciones de Contagram "Mi Perfil" (datos fiscales/logo de la empresa), "Mi Plan" y "Funciones
-> Avanzadas" no están implementadas por ahora — dependían de módulos descartados (Facturación
-> Electrónica) y se retoman junto con ellos. "Importar Datos" ya está implementado, pero como
-> pantalla propia de Base de Datos (§2.4, spec 006) — Contagram real la expone también desde
-> Configuración & Ajustes, alcance no replicado en este CRM.
+> Las secciones de Contagram "Mi Perfil" (datos fiscales/logo de la empresa) y "Mi Plan" no están
+> implementadas por ahora — dependían de módulos descartados (Facturación Electrónica) y se retoman
+> junto con ellos. "Funciones Avanzadas" **sí** está implementada (spec 011, ver §5.1). "Importar
+> Datos" ya está implementado, pero como pantalla propia de Base de Datos (§2.4, spec 006) —
+> Contagram real la expone también desde Configuración & Ajustes, alcance no replicado en este CRM.
 
 *Fuente(s): [Configuración & Ajustes](https://help.contagram.com/es/collections/83659-configuracion-ajustes)*
+
+### 5.1 Funciones Avanzadas (spec 011)
+
+Pantalla que calca la de Contagram (`docs/informe_contagram_funciones_avanzadas.md` §1, captura
+`[103]`): lista vertical de **10 tarjetas**, cada una con ícono, nombre, descripción de una línea y
+toggle Sí/No. Orden relevado (se respeta):
+
+| # | Función | ¿Construida en este CRM? | Configuración propia |
+|---|---|---|---|
+| 1 | Facturación electrónica | No | — |
+| 2 | **Mercado Libre** | **Sí** (spec 011) | §5.2 |
+| 3 | Tiendanube | No | — |
+| 4 | Reportes por email | No | — |
+| 5 | Abonos | Sí (spec 008) | — |
+| 6 | IA | No (fuera de alcance) | — |
+| 7 | Retenciones | Sí (spec 009) | — |
+| 8 | Ventas sin stock | No | — |
+| 9 | Depósitos | Sí (spec 005) | ABM de Depósitos |
+| 10 | Lector de código de barras | No | — |
+
+Las funciones aún no construidas **se listan igual**, deshabilitadas e identificadas como no
+disponibles, para preservar la estructura de la pantalla original (principio rector de fidelidad
+estructural). El estado del toggle se persiste por función, junto con quién lo cambió y cuándo.
+Permiso requerido: `configuracion.funciones` (el mismo que ya protege Depósitos).
+
+### 5.2 Integración con Mercado Libre (spec 011) — **divergencia deliberada respecto de Contagram**
+
+> ⚠️ **Ésta es la única parte del CRM que NO calca a Contagram, y la divergencia es intencional.**
+>
+> **Qué hace Contagram**: según el relevamiento con capturas reales (`informe_contagram_funciones_avanzadas.md`
+> §3), Contagram resuelve la integración con un asistente de **2 pasos** ("Solicitar Acceso" → "Acceso
+> Permitido") sobre una aplicación de Mercado Libre **propia de Contagram**. El negocio sólo autoriza y
+> obtiene capacidades de **lectura**.
+>
+> **Qué hace este CRM**: **aplicación propia del negocio** creada en el DevCenter de Mercado Libre, con
+> OAuth 2.0 y **permisos funcionales de lectura y escritura**, lo que habilita modificar stock, precios
+> y publicaciones desde el CRM — algo que el acceso básico de Contagram no permite.
+>
+> ⚠️ **Los permisos no se piden por la API**: se configuran como *permisos funcionales* en la aplicación
+> del DevCenter, por área (Usuarios, Publicación y sincronización, Ventas y envíos, Comunicación pre y
+> postventa, …), cada una con alcance "sólo lectura" o "lectura y escritura". El CRM no puede
+> otorgárselos a sí mismo, por lo que la pantalla de configuración le indica al usuario cuáles habilitar.
+> Verificado contra la documentación oficial el 27/07/2026.
+>
+> **Por qué**: decisión explícita del usuario (27/07/2026). El objetivo del negocio es operar Mercado
+> Libre *desde* el CRM, no sólo consultarlo. El acceso básico de Contagram no alcanza para eso.
+>
+> **Alcance de la divergencia**: está acotada al contenido de la tarjeta "Mercado Libre". La pantalla
+> contenedora (Funciones Avanzadas, §5.1) sigue calcando a Contagram.
+
+**Alcance implementado en spec 011 (etapa 1 — sólo conexión)**:
+
+- Carga de las credenciales de la aplicación del DevCenter (App ID + clave secreta, cifrada) y sitio de
+  operación (MLA por defecto).
+- Vinculación por OAuth 2.0 (authorization code, **sin PKCE**), con protección antifalsificación de un
+  solo uso y vencimiento.
+- Panel de estado con los datos reales de la cuenta vinculada (apodo, identificador, correo, tipo de
+  cuenta, sitio, fecha de vinculación, vencimiento del acceso, último renovado).
+- Renovación automática y transparente del acceso. **Regla crítica**: el token de renovación de Mercado
+  Libre es de **un solo uso** — cada renovación devuelve uno nuevo que reemplaza al anterior, y dos
+  renovaciones concurrentes rompen la cadena y obligan a re-autorizar. Por eso la renovación se hace
+  bajo exclusión mutua.
+- Probar conexión / Desconectar.
+- **Reemplazo de cuenta**: autorizar con una cuenta de Mercado Libre distinta de la ya vinculada no la
+  reemplaza directamente — pide confirmación explícita (mostrando ambas cuentas lado a lado) mientras la
+  cuenta vigente sigue operando con normalidad. Evita reemplazar por error la cuenta real del negocio.
+- **Modo sólo lectura** (kill-switch): bloquea toda escritura hacia Mercado Libre, registrándola en vez
+  de ejecutarla. Permite apuntar a la cuenta real del negocio sin riesgo de modificar publicaciones
+  verdaderas durante el desarrollo.
+- Historial consultable de operaciones contra la API, sin datos sensibles.
+
+**Fuera de alcance de la etapa 1** (specs posteriores): importación de publicaciones, matcheo con
+productos del CRM, sincronización de stock y precios, ingreso de ventas/órdenes al CRM, preguntas,
+mensajería, envíos y webhooks de negocio.
+
+**Etapa 2 — Ventas de Mercado Libre (spec 012, implementada)**: sincronización de órdenes hacia el CRM,
+vinculación publicación↔producto (`ml_publicacion_producto`, 1:1), conversión manual o automática a
+Venta del CRM con cobranza y descuento de stock. Ver §3.2.bis.
+
+**Etapa 3 — Sincronización de stock hacia Mercado Libre (spec 013, especificada, pendiente de
+implementar)**: contraparte inversa de la etapa 2 — un movimiento de stock local de un producto
+vinculado (Venta manual, ajuste, transferencia) empuja la cantidad disponible hacia la publicación de
+Mercado Libre correspondiente, sin rebotar sobre los movimientos que ya vinieron de una orden de Mercado
+Libre. Cierra el riesgo de sobreventa señalado más arriba en esta sección. Ver
+`specs/013-stock-mercadolibre/` y `docs/modelo_datos.md §10`.
+
+**Sigue fuera de alcance** (etapas 2 y 3 combinadas): sincronización de **precio**, título, descripción,
+imágenes o estado (pausar/activar) de la publicación; comisión de Mercado Libre y costo de envío;
+importación masiva de publicaciones; preguntas, mensajería y webhooks de negocio.
+
+**Restricciones de infraestructura** (aplican a todo el módulo): requiere que el CRM esté publicado en
+una dirección pública con conexión segura — Mercado Libre no admite direcciones locales ni sin cifrar,
+por lo que el flujo OAuth no puede completarse en desarrollo local. El módulo se diseñó para correr
+igual en hosting compartido (sin procesos permanentes) y en VPS, cambiando sólo variables de entorno.
+
+*Fuente(s): `docs/informe_contagram_funciones_avanzadas.md` §3; documentación oficial de Mercado Libre
+Developers; `specs/011-mercadolibre-conexion-oauth/`*
 
 ---
 
@@ -662,9 +821,18 @@ La acción de fila **"Movimientos"** en Productos ya no abre un modal (el modal 
 para el form de Ajuste de Stock); navega a una **pantalla propia** (`/informes/stock`, fiel a
 `informe_contagram_base_de_datos.md` §4.9), con `?producto_id=` pre-cargando el filtro "Productos".
 
-- **Filtros**: Usuario, Operación (limitado hoy a `Ajuste`/`Transferencia` — no existen `Entrada`/
-  `Salida` de Compras/Ventas todavía), Proveedor, Tipo de Producto, Productos (buscador), Estado del
+- **Filtros**: Usuario, Operación (`Ajuste`/`Transferencia`, más **`Salida`/`Entrada` por Ventas desde
+  la spec 012** — ver nota abajo), Proveedor, Tipo de Producto, Productos (buscador), Estado del
   Producto/Servicio, rango de fechas.
+
+  > **Corrección (spec 012, 27/07/2026)**: este documento afirmaba que las operaciones `Entrada`/`Salida`
+  > "no existen todavía". Era exacto hasta la spec 011: se verificó en código que `VentaController` y
+  > `CompraController` **no generaban ningún movimiento de stock**, pese a que `StockService` ya exponía
+  > `registrarSalida()`/`registrarEntrada()` sin consumidores. La spec 012 cierra esa brecha para
+  > **Ventas** (manuales y de Mercado Libre), porque sin movimiento de stock local la sincronización
+  > hacia Mercado Libre (spec 013) no tendría nada que propagar y el riesgo de sobreventa sería
+  > insoluble. **Compras sigue sin afectar stock** — brecha pendiente, a resolver cuando se retome
+  > Egresos.
 - **KPIs** (recalculados según los filtros de producto vigentes): Unidades en Stock, Costo Total, Valor
   Venta Total — misma fórmula que los KPIs en $ de Productos (§2.2).
 - **Tabla**: Fecha, Operación, Detalle, Producto, Cantidad, **Stock Saldo** (saldo corrido por

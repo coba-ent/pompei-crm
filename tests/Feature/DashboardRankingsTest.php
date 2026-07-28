@@ -69,6 +69,10 @@ class DashboardRankingsTest extends TestCase
 
     public function test_ranking_de_productos_excluye_ventas_soft_deleted(): void
     {
+        // Necesario desde la spec 012: al eliminar la Venta, StockDeVenta reintegra
+        // stock del ítem con producto y precisa poder resolver un depósito.
+        \App\Models\Deposito::create(['nombre' => 'Principal', 'activo' => true]);
+
         $producto = Producto::factory()->create();
         $venta = Venta::factory()->create(['fecha_emision' => '2026-06-05', 'total' => 1000]);
         VentaItem::create([

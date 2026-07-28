@@ -4,8 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Integraciones\MercadoLibreOrden;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -16,7 +19,7 @@ class Venta extends Model
     protected $table = 'ventas';
 
     protected $fillable = [
-        'presupuesto_id', 'cliente_id', 'categoria_id', 'lista_precio_id',
+        'presupuesto_id', 'origen', 'cliente_id', 'categoria_id', 'lista_precio_id',
         'fecha_emision', 'fecha_validez', 'servicio_desde', 'servicio_hasta',
         'tipo_comprobante', 'nro_comprobante', 'fecha_vto_cobro',
         'descuento_general_pct', 'subtotal_sin_descuento', 'descuento',
@@ -60,6 +63,17 @@ class Venta extends Model
     public function presupuesto(): BelongsTo
     {
         return $this->belongsTo(Presupuesto::class);
+    }
+
+    /** Orden de Mercado Libre que originó esta Venta, si la hay (FR-033). */
+    public function mlOrden(): HasOne
+    {
+        return $this->hasOne(MercadoLibreOrden::class, 'venta_id');
+    }
+
+    public function scopeOrigen(Builder $query, string $origen): Builder
+    {
+        return $query->where('origen', $origen);
     }
 
     public function items(): HasMany

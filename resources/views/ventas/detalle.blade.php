@@ -16,6 +16,11 @@
                 <a href="{{ route('ventas.index') }}" class="btn btn-light btn-sm">
                     <i class="fas fa-arrow-left me-1"></i> Volver
                 </a>
+                @if ($venta->origen === 'mercadolibre' && $venta->mlOrden && \Illuminate\Support\Facades\Route::has('ingresos.mercadolibre.index'))
+                    <span class="badge bg-warning text-dark ms-2">
+                        <i class="fas fa-store me-1"></i> Origen: Mercado Libre — orden {{ $venta->mlOrden->ml_order_id }}
+                    </span>
+                @endif
             </div>
             <div class="col-sm-6 text-sm-end">
                 <button type="button" class="btn btn-warning" id="btn-crear-remito">

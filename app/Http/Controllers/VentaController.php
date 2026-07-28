@@ -16,6 +16,7 @@ use App\Models\Remito;
 use App\Models\Venta;
 use App\Services\Ingresos\CalculoComprobante;
 use App\Services\Ingresos\Cobranzas;
+use App\Services\Ingresos\StockDeVenta;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -29,6 +30,7 @@ class VentaController extends Controller
     public function __construct(
         private readonly CalculoComprobante $calculo,
         private readonly Cobranzas $cobranzas,
+        private readonly StockDeVenta $stockDeVenta,
     ) {
     }
 
@@ -50,6 +52,14 @@ class VentaController extends Controller
             $kw = $request->input('buscar');
             $query->where('nro_comprobante', 'like', "%{$kw}%");
         }
+        if ($request->filled('creada_desde')) {
+            // FR-035a: "Creada Desde" — MercadoLibre / Presupuesto / Venta directa.
+            match ($request->input('creada_desde')) {
+                'mercadolibre' => $query->where('origen', 'mercadolibre'),
+                'presupuesto' => $query->whereNotNull('presupuesto_id'),
+                default => $query->whereNull('presupuesto_id')->where('origen', '!=', 'mercadolibre'),
+            };
+        }
 
         return $query;
     }
@@ -61,7 +71,11 @@ class VentaController extends Controller
         return DataTables::eloquent($query)
             ->addColumn('acciones', fn (Venta $v) => view('ventas._row_actions', ['venta' => $v])->render())
             ->addColumn('estado_cobro', fn (Venta $v) => $v->estadoCobro())
-            ->addColumn('creada_desde', fn (Venta $v) => $v->presupuesto_id ? 'Presupuesto '.$v->presupuesto_id : 'Venta')
+            ->addColumn('creada_desde', fn (Venta $v) => match (true) {
+                $v->origen === 'mercadolibre' => 'MercadoLibre',
+                (bool) $v->presupuesto_id => 'Presupuesto '.$v->presupuesto_id,
+                default => 'Venta',
+            })
             ->addColumn('cliente', fn (Venta $v) => optional($v->cliente)->nombre)
             ->addColumn('categoria', fn (Venta $v) => optional($v->categoria)->nombre)
             ->addColumn('cobrado', fn (Venta $v) => $v->cobrado())
@@ -150,6 +164,8 @@ class VentaController extends Controller
             $this->guardarConceptos($venta, $datos['conceptos'] ?? []);
             $this->sincronizarEtiquetas($venta, $datos['etiquetas'] ?? []);
 
+            $this->stockDeVenta->aplicarAlta($venta->load('items.producto'));
+
             if (! empty($datos['presupuesto_id'])) {
                 $presupuesto = Presupuesto::find($datos['presupuesto_id']);
                 if ($presupuesto && ! $presupuesto->convertido()) {
@@ -186,6 +202,7 @@ class VentaController extends Controller
 
         DB::transaction(function () use ($datos, $venta) {
             $resultado = $this->calculo->calcular($datos['items'], $datos['descuento_general_pct'] ?? null, $datos['conceptos'] ?? []);
+            $itemsAnteriores = $venta->items()->with('producto')->get();
 
             $venta->update([
                 'cliente_id' => $datos['cliente_id'],
@@ -213,6 +230,8 @@ class VentaController extends Controller
             $this->guardarItems($venta, $resultado['items']);
             $this->guardarConceptos($venta, $datos['conceptos'] ?? []);
             $this->sincronizarEtiquetas($venta, $datos['etiquetas'] ?? []);
+
+            $this->stockDeVenta->reaplicarPorEdicion($venta->load('items.producto'), $itemsAnteriores);
         });
 
         return response()->json([
@@ -233,7 +252,7 @@ class VentaController extends Controller
     public function show(Venta $venta)
     {
         $CurrentPage = 'ventas';
-        $venta->load(['items', 'conceptos', 'cliente.condicionIva', 'categoria', 'listaPrecio', 'vendedor', 'etiquetas', 'cobros.cuentaTesoreria', 'notasCreditoDebito', 'remitos']);
+        $venta->load(['items', 'conceptos', 'cliente.condicionIva', 'categoria', 'listaPrecio', 'vendedor', 'etiquetas', 'cobros.cuentaTesoreria', 'notasCreditoDebito', 'remitos', 'mlOrden']);
         $cuentas = CuentaTesoreria::visibles()->orderBy('orden')->orderBy('nombre')->get();
         $depositos = Deposito::activos()->orderBy('nombre')->get();
 

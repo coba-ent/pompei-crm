@@ -82,6 +82,8 @@
                                 <label class="form-label">Operación</label>
                                 <select id="filtro-operacion" class="form-select">
                                     <option value="">Todas</option>
+                                    <option value="salida">Salida</option>
+                                    <option value="entrada">Entrada</option>
                                     <option value="ajuste">Ajuste</option>
                                     <option value="transferencia">Transferencia</option>
                                 </select>

@@ -330,6 +330,30 @@ table.dataTable > tbody > tr.child span.dtr-title {
     margin-right: 0.5rem;
 }
 
+/* --------------------------------------------------------------------------
+ * DataTables Responsive — flecha de expandir (►) vs. dropdown "Acciones".
+ * En todas las tablas del proyecto la columna "Acciones" es la primera
+ * columna (convención `{ data: 'acciones' }` como primer item de `columns`),
+ * así que Responsive le agrega la clase `dtr-control` y antepone la flechita
+ * como `::before` inline-block. El dropdown de acciones es un `<div>`, o sea
+ * un bloque, así que caía a una línea nueva debajo de la flecha en vez de al
+ * lado. Alcanza con volverlo inline-block para que queden en la misma fila.
+ *
+ * NO usar `display:flex` en el `<td>`: saca la celda del algoritmo de layout
+ * de la tabla (deja de participar del cálculo de ancho de columna). Se probó
+ * en vivo y da exactamente el mismo resultado visual que esto, sin ese riesgo.
+ *
+ * Regla GLOBAL: aplica a todas las DataTables responsive del proyecto.
+ * ------------------------------------------------------------------------ */
+table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control > .dropdown {
+    display: inline-block;
+    vertical-align: middle;
+}
+
+table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control:before {
+    vertical-align: middle;
+}
+
 /* ------------------------------------------------------------------------
  * Select2 (buscador en selects de datos dinámicos): alinear su alto y tipografía
  * con los form-control/form-select compactos del proyecto. Regla GLOBAL.

@@ -223,9 +223,9 @@ en `movimientos_stock`.
 | producto_id | FK → productos | |
 | variante_id | FK → producto_variantes, nullable | si el producto tiene variantes |
 | deposito_id | FK → depositos | |
-| tipo | enum(`entrada`,`salida`,`ajuste`,`transferencia`) | `transferencia` = movimiento entre depósitos (2 filas: salida negativa + entrada positiva). Hoy sólo se generan por ajuste manual (`ajuste`/`transferencia`); `entrada`/`salida` quedan reservados para cuando existan Compras/Ventas |
+| tipo | enum(`entrada`,`salida`,`ajuste`,`transferencia`) | `transferencia` = movimiento entre depósitos (2 filas: salida negativa + entrada positiva). `ajuste`/`transferencia` = ajuste manual. **`salida`/`entrada` = Ventas, desde la spec 012** (`salida` al crear la Venta, `entrada` al eliminarla o reintegrar por edición). **Compras todavía no genera movimientos** |
 | cantidad | decimal | |
-| origen_type / origen_id | polimórfico | reservado para venta_items/compra_items cuando existan; hoy el origen es el ajuste manual |
+| origen_type / origen_id | polimórfico | **`Venta` desde la spec 012**; `compra_items` sigue reservado. En los ajustes manuales queda nulo |
 | fecha | date | |
 | usuario_id | FK → usuarios, nullable | quién generó el movimiento |
 
@@ -234,8 +234,8 @@ en `movimientos_stock`.
 > histórico **completo** de `movimientos_stock` (nunca sobre el subconjunto filtrado por pantalla). Se
 > proyecta como columna adicional de `InformeStockController::data()`, análoga a los `addSelect` de
 > subconsulta ya usados en `ProductoController::queryFiltrada()` para las columnas dinámicas de lista de
-> precio. El filtro "Operación" del informe expone hoy sólo `ajuste`/`transferencia` (los únicos tipos
-> que el sistema genera) — `entrada`/`salida` quedan reservados para cuando existan Compras/Ventas.
+> precio. El filtro "Operación" del informe expone `ajuste`/`transferencia` y —**desde la spec 012**—
+> `salida`/`entrada` generados por Ventas. Compras aún no genera movimientos de stock.
 
 ---
 
@@ -520,7 +520,109 @@ Tesorería.
 
 ---
 
-## 8. Tablas descartadas (pendientes de re-relevamiento)
+## 8. Configuración & Ajustes: funciones avanzadas e integración Mercado Libre (spec 011)
+
+Ver `docs/documentacion_principal_crm.md` §5.1 y §5.2 (esta última documenta la **divergencia
+deliberada respecto de Contagram**). Detalle completo del esquema en
+`specs/011-mercadolibre-conexion-oauth/data-model.md`.
+
+### `funciones_avanzadas`
+
+Una fila por función activable del CRM (las 10 relevadas de Contagram, sembradas por seeder idempotente).
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| clave | string(50), unique | `mercadolibre`, `depositos`, `abonos`, … — identificador estable en código |
+| nombre | string(100) | Texto de la tarjeta |
+| descripcion | string(255) | Descripción de una línea |
+| icono | string(50), nullable | Clase de ícono del template |
+| orden | smallint | 1..10, orden relevado de Contagram |
+| disponible | boolean, default false | Si la función está construida en este CRM. Las no construidas se listan pero no se pueden activar (validado en servidor) |
+| activa | boolean, default false | Estado del toggle |
+| ruta_configuracion | string(150), nullable | Ruta a la que enlaza la tarjeta si tiene configuración propia |
+| actualizada_por | FK → usuarios, nullable | Quién cambió el estado |
+| actualizada_en | timestamp, nullable | Cuándo |
+
+### `ml_configuracion`
+
+Registro **único** (single-tenant) con los datos de la aplicación creada en el DevCenter de Mercado Libre.
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| client_id | string(100), nullable | App ID. No es secreto |
+| client_secret | text, nullable | **Cifrado** (cast `encrypted`). Nunca se devuelve a la interfaz |
+| site_id | string(5), default `MLA` | Sitio de operación |
+| modo_solo_lectura | boolean, default false | Kill-switch: bloquea toda escritura hacia Mercado Libre |
+| actualizada_por | FK → usuarios, nullable | |
+
+Cambiar `client_id`/`client_secret` con una cuenta vinculada invalida esa vinculación (estado `caida`).
+
+### `ml_cuentas`
+
+La cuenta de Mercado Libre vinculada (single-tenant: una sola activa).
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| ml_user_id | bigint, unique | Identificador del usuario en Mercado Libre |
+| nickname / email / tipo_cuenta | string, nullable | Datos traídos de `GET /users/me` al vincular |
+| site_id | string(5) | Debe coincidir con el configurado, si no se rechaza la vinculación |
+| access_token | text, nullable | **Cifrado**, `$hidden`. Vigencia 6 horas |
+| refresh_token | text, nullable | **Cifrado**, `$hidden`. **De un solo uso** — cada renovación devuelve uno nuevo que reemplaza al anterior |
+| token_expira_en | timestamp, nullable | Renovación anticipada 10 min antes |
+| estado | string(20) | `desconectada` / `conectada` / `pendiente_confirmacion` / `caida` (+ `no_configurada`, derivado de `ml_configuracion`) |
+| pendiente_expira_en | timestamp, nullable | Sólo en estado `pendiente_confirmacion`: vencimiento (+15 min) de una autorización retenida a la espera de que el usuario confirme el reemplazo de cuenta |
+| vinculada_en / ultimo_refresh_en | timestamp, nullable | |
+| ultimo_error | string(255), nullable | Motivo de la caída, para mostrar en el panel |
+| vinculada_por | FK → usuarios, nullable | |
+
+> **Regla crítica de la integración**: dos renovaciones concurrentes rompen la cadena del
+> `refresh_token` y obligan a re-autorizar manualmente. La renovación se ejecuta bajo exclusión mutua
+> (lock atómico con driver de base de datos, para que funcione también en hosting compartido).
+
+> **Reemplazo de cuenta (FR-022)**: autorizar con una cuenta de Mercado Libre distinta de la ya
+> vinculada NO la reemplaza directamente — queda en `pendiente_confirmacion` (tokens ya canjeados,
+> cifrados igual que una cuenta activa) mientras la cuenta `conectada` sigue operando con normalidad.
+> La confirmación del usuario activa la pendiente y desconecta la anterior en una única transacción
+> (nunca dos filas `conectada` a la vez); si vence sin confirmar, se descarta junto con sus tokens.
+
+### `ml_solicitudes_vinculacion`
+
+Protección antifalsificación del retorno de OAuth (parámetro `state`). Es tabla y no sesión porque el
+usuario vuelve desde un dominio externo y la cookie puede no acompañar el retorno.
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| state | string(64), unique | Token aleatorio de 40 caracteres |
+| estado | string(20) | `pendiente` / `consumida` / `vencida` — **de un solo uso** |
+| expira_en | timestamp | Emisión + 10 minutos |
+| consumida_en | timestamp, nullable | Se marca **antes** de canjear, para que un retorno repetido no dispare un segundo canje |
+| iniciada_por | FK → usuarios | |
+| ip | string(45), nullable | Auditoría del intento |
+
+### `ml_operaciones_log`
+
+Historial de interacciones con la API, para diagnóstico. **Nunca contiene credenciales** (el saneado es
+previo a persistir, no posterior).
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| operacion | string(100) | `vincular_cuenta`, `renovar_token`, `probar_conexion`, … |
+| metodo / endpoint | string | Verbo HTTP y ruta, sin parámetros sensibles |
+| sentido | string(10) | `lectura` / `escritura` — determina si aplica el kill-switch |
+| resultado | string(20) | `exito` / `error` / `bloqueada` |
+| codigo_http | smallint, nullable | Nulo cuando fue bloqueada (no hubo petición) |
+| duracion_ms | int, nullable | |
+| mensaje_error | text, nullable | Saneado |
+| payload_bloqueado | text, nullable | Sólo si `resultado = bloqueada`: qué se habría enviado |
+| usuario_id | FK → usuarios, nullable | Nulo si fue automática |
+| created_at | timestamp | Sin `updated_at`: es un registro inmutable de auditoría |
+
+Retención: 30 días o 5.000 registros, depurada de forma oportunista (sin depender de tarea programada,
+por la restricción de portabilidad a hosting compartido).
+
+---
+
+## 9. Tablas descartadas (pendientes de re-relevamiento)
 
 Las siguientes tablas existieron en una versión anterior del modelo (spec 003 a 015) y fueron
 eliminadas junto con su código porque el relevamiento funcional que las originó no reflejaba con
@@ -530,3 +632,70 @@ precisión el negocio real. Se documentarán de nuevo cuando se retome cada mód
 `puntos_venta`, `certificados_fiscales`, `comprobantes_fiscales`,
 `reportes_email_config`, `importaciones` (la de Contagram, no la
 implementada en spec 006), `integraciones`, `integracion_eventos`, `producto_canal`, `ml_ordenes`.
+
+> **Nota (spec 011)**: las tablas `integraciones`, `integracion_eventos` y `ml_ordenes` de aquel
+> modelo descartado **no** se retoman. La integración con Mercado Libre se rehizo desde cero con el
+> esquema de §8, que es más específico y refleja el flujo OAuth real. `producto_canal` y `ml_ordenes`
+> se rediseñarán cuando se especifique la sincronización de publicaciones y el ingreso de ventas.
+>
+> **Actualización (spec 012, 27/07/2026)**: `ml_ordenes` **sí se retomó**, rediseñada desde cero — ver
+> §10. `producto_canal` se reemplaza por `ml_publicacion_producto`, con cardinalidad 1:1 en lugar de la
+> relación por canal del modelo descartado.
+
+---
+
+## 10. Ventas de Mercado Libre (spec 012)
+
+Extiende §8 (integración Mercado Libre, spec 011). Detalle completo, con enums y transiciones de
+estado, en `specs/012-ventas-mercadolibre/data-model.md`.
+
+**Convención terminológica**: "orden" = documento sincronizado desde Mercado Libre; "Venta" = documento
+del CRM (§5).
+
+### `ml_ordenes`
+Órdenes sincronizadas. `ml_order_id` (string, **unique** — identidad e idempotencia), `estado_ml`
+(valor crudo del proveedor), `estado_orden` (enum normalizado), `estado_conversion` (enum:
+`pendiente_pago`, `lista`, `requiere_atencion`, `convertida`, `cancelada`), `motivo` (enum del bloqueo)
++ `motivo_detalle`, `fecha_creada`, `fecha_cerrada` (se usa como `fecha_emision` de la Venta), `total`,
+`moneda`, datos del comprador (`comprador_ml_id`, `comprador_apodo` — se matchea contra
+`clientes.apodo_ml`, `comprador_nombre`, `comprador_doc_tipo`, `comprador_doc_numero`,
+`comprador_condicion_iva`), `es_prueba`, `venta_id` (FK → `ventas`, nullable, **unique**),
+`creacion_automatica`, `convertida_en`, `convertida_por`, `payload` (json, sin datos sensibles),
+`sincronizada_en`. **Sin soft delete ni purga** — es respaldo de documentos contables.
+
+### `ml_orden_items`
+`ml_orden_id` (FK, cascade), `ml_item_id` (publicación), `ml_variation_id` (nullable — **si viene con
+valor, la orden se marca como no soportada**), `titulo`, `sku_vendedor`, `cantidad`, `precio_unitario`
+(**precio FINAL con IVA incluido**), `total_linea`, `producto_id` (FK → productos, nullable — se
+congela al convertir).
+
+### `ml_publicacion_producto`
+Vinculación **estrictamente 1:1**, infraestructura compartida con la spec 013. `ml_item_id` (string,
+**unique**), `producto_id` (FK → productos, **unique**), `titulo_ml`, `vinculada_por`. Los dos índices
+únicos son los que garantizan la cardinalidad a nivel de datos, no sólo en la UI.
+
+> **Columnas nuevas (spec 013, especificada)** — estado de sincronización de stock CRM → Mercado Libre
+> de este vínculo: `stock_pendiente` (bool, default false — con cambios de stock sin empujar todavía),
+> `stock_sincronizado_en` (timestamp, nullable — último envío exitoso), `stock_error` (string, nullable
+> — motivo del último rechazo), `stock_error_en` (timestamp, nullable). Detalle completo en
+> `specs/013-stock-mercadolibre/data-model.md`.
+
+### `ml_configuracion` (columnas nuevas)
+`creacion_automatica` (bool, default false), `frecuencia_sync_minutos` (default 15),
+`deposito_id` (FK → depositos, nullable — null usa el depósito por defecto), `categoria_venta_id`
+(FK → categorias, nullable), `dias_primera_sync` (default 30), `ultima_sync_en`,
+`ultima_sync_resultado`.
+
+> **Columnas nuevas (spec 013, especificada)**: `stock_ultima_sync_en` (timestamp, nullable — última
+> corrida del sincronizador de stock, comparada contra `frecuencia_sync_minutos`, reutilizado),
+> `stock_ultima_sync_resultado` (string, nullable). No hay columna de activar/desactivar propia: sigue
+> gobernado por la función avanzada "Mercado Libre" y el modo sólo lectura ya existentes.
+
+### `ventas` (columna nueva)
+`origen` (enum `manual`/`presupuesto`/`mercadolibre`, default `manual`). Explicita el tercer origen;
+"Creada Desde" hoy se deriva de `presupuesto_id`.
+
+> **Cálculo clave**: los precios de Mercado Libre son **finales con IVA incluido**, así que el neto se
+> obtiene como `precio_final / (1 + iva_pct/100)` usando el IVA del producto vinculado (tasa 0 para
+> Exento/No Gravado). La diferencia por redondeo se absorbe en la última línea, para que el total de la
+> Venta coincida **exactamente** con el monto de la orden.

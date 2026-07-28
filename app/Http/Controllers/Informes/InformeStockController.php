@@ -21,8 +21,8 @@ use Yajra\DataTables\Facades\DataTables;
  */
 class InformeStockController extends Controller
 {
-    /** Tipos de operación que el filtro "Operación" expone hoy (FR-013). */
-    private const OPERACIONES_DISPONIBLES = ['ajuste', 'transferencia'];
+    /** Tipos de operación que el filtro "Operación" expone (FR-013, spec 012 quickstart §Escenario 7). */
+    private const OPERACIONES_DISPONIBLES = ['entrada', 'salida', 'ajuste', 'transferencia'];
 
     /** Página del informe (shell con filtros, KPIs y tabla). */
     public function index(Request $request)

@@ -68,7 +68,11 @@
         });
 
         function filtrosActuales() {
-            return { cliente_id: $('#filtro-cliente').val(), buscar: $('#filtro-buscar').val() };
+            return {
+                cliente_id: $('#filtro-cliente').val(),
+                buscar: $('#filtro-buscar').val(),
+                creada_desde: $('#filtro-creada-desde').val(),
+            };
         }
 
         const tabla = $tabla.DataTable({
@@ -108,6 +112,7 @@
         $('#btn-limpiar-filtros').on('click', () => {
             $('#filtro-cliente').val(null).trigger('change');
             $('#filtro-buscar').val('');
+            $('#filtro-creada-desde').val('');
             tabla.ajax.reload();
         });
 

@@ -1,0 +1,47 @@
+<?php
+
+namespace App\Models\Integraciones;
+
+use App\Models\Producto;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+/**
+ * Vinculación 1:1 entre una publicación de Mercado Libre y un producto del CRM
+ * (spec 012, data-model.md §4). Infraestructura compartida con la spec 013.
+ * Los índices únicos de la migración son la garantía real de FR-022; esta
+ * clase no debe usarse como único mecanismo de validación de cardinalidad.
+ */
+class MercadoLibrePublicacionProducto extends Model
+{
+    protected $table = 'ml_publicacion_producto';
+
+    protected $fillable = [
+        'ml_item_id', 'producto_id', 'titulo_ml', 'vinculada_por',
+        'stock_pendiente', 'stock_sincronizado_en', 'stock_error', 'stock_error_en',
+    ];
+
+    protected $casts = [
+        'stock_pendiente' => 'boolean',
+        'stock_sincronizado_en' => 'datetime',
+        'stock_error_en' => 'datetime',
+    ];
+
+    public function producto(): BelongsTo
+    {
+        return $this->belongsTo(Producto::class);
+    }
+
+    public function vinculadaPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'vinculada_por');
+    }
+
+    /** Vínculos con un cambio de stock sin empujar todavía a Mercado Libre (spec 013, FR-003). */
+    public function scopePendientes(Builder $query): Builder
+    {
+        return $query->where('stock_pendiente', true);
+    }
+}

@@ -106,11 +106,34 @@ en el `<iframe>` del modal compartido).
 
 1. `/speckit-constitution` — principios del proyecto (una sola vez / cuando cambien)
 2. `/speckit-specify` — especificar el módulo o feature a construir (consultar docs primero)
-3. `/speckit-clarify` (opcional) — resolver ambigüedades antes de planear
+3. `/speckit-clarify` — resolver ambigüedades antes de planear
 4. `/speckit-plan` — plan técnico de implementación
-5. `/speckit-checklist` (opcional) — checklist de calidad de la spec
+5. `/speckit-checklist` — checklist de calidad de la spec
 6. `/speckit-tasks` — desglose en tareas accionables
-7. `/speckit-analyze` (opcional) — chequeo de consistencia entre spec/plan/tasks
+7. `/speckit-analyze` — chequeo de consistencia entre spec/plan/tasks
 8. `/speckit-implement` — implementación
 
 Specs, plans y tasks quedan en `specs/` (generado por spec-kit al correr `/speckit-specify`).
+
+### REGLA OBLIGATORIA: encadenar hasta `analyze` sin preguntar
+
+Cuando el usuario pide "hacé el spec de X" (o `/speckit-specify`), **NO se ejecuta sólo `specify`**.
+Se ejecuta la cadena completa **de corrido y sin pedir confirmación entre pasos**:
+
+```
+specify → clarify → plan → checklist → tasks → analyze → aplicar los fixes de analyze
+```
+
+Reglas de esa cadena:
+
+- **Las preguntas se hacen TODAS AL PRINCIPIO**, antes de arrancar `specify`. Una vez que empieza la
+  cadena no se vuelve a interrumpir al usuario para consultarle nada, salvo que aparezca algo que
+  **realmente bloquee** y no tenga default razonable.
+- **`clarify`, `checklist` y `analyze` NO son opcionales** en este proyecto, aunque el flujo genérico
+  de spec-kit los marque como tales.
+- **Al terminar `analyze` no se pregunta "¿aplico los fixes?"**: se aplican directamente. Recién
+  después se le reporta al usuario.
+- **Antes de `tasks`** se actualizan `docs/documentacion_principal_crm.md` y `docs/modelo_datos.md`
+  si la spec/plan introdujo reglas, campos o entidades nuevas (principio I de la constitución).
+- **`implement` NO se ejecuta.** La cadena termina informando: **"Está listo para implementar"**, con
+  el resumen de lo generado y de los fixes aplicados. El usuario decide cuándo implementar.

@@ -3,9 +3,11 @@
 namespace App\Providers;
 
 use App\Models\Compra;
+use App\Models\MovimientoStock;
 use App\Models\User;
 use App\Models\Venta;
 use App\Observers\CompraObserver;
+use App\Observers\MovimientoStockObserver;
 use App\Observers\VentaObserver;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -28,6 +30,7 @@ class AppServiceProvider extends ServiceProvider
         $this->registrarGatesDePermisos();
         Venta::observe(VentaObserver::class);
         Compra::observe(CompraObserver::class);
+        MovimientoStock::observe(MovimientoStockObserver::class);
     }
 
     /** Admin pasa cualquier ability (research D2); el resto se resuelve contra los permisos del rol del usuario. */

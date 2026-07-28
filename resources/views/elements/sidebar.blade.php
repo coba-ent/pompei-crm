@@ -37,6 +37,9 @@
 							@endcan
 							@can('ventas.ver')
 								<li><a href="{{ route('ventas.index') }}">Ventas</a></li>
+								@if (\App\Models\FuncionAvanzada::where('clave', 'mercadolibre')->value('activa'))
+									<li><a href="{{ route('ingresos.mercadolibre.index') }}">Mercado Libre</a></li>
+								@endif
 							@endcan
 							@can('otros-ingresos.ver')
 								<li><a href="{{ route('otros-ingresos.index') }}">Otros Ingresos</a></li>
@@ -144,6 +147,8 @@
 							@endcan
 							@can('configuracion.funciones')
 								<li><a href="{{ route('configuracion.depositos.index') }}">Depósitos</a></li>
+								<li><a href="{{ route('configuracion.funciones.index') }}">Funciones Avanzadas</a></li>
+								<li><a href="{{ route('configuracion.mercadolibre.index') }}">Mercado Libre</a></li>
 							@endcan
 						</ul>
 					</li>

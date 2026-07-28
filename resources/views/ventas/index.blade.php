@@ -34,6 +34,15 @@
                                 <label class="form-label">Cliente</label>
                                 <select id="filtro-cliente" class="form-select"><option value="">Todos</option></select>
                             </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Creada Desde</label>
+                                <select id="filtro-creada-desde" class="form-select">
+                                    <option value="">Todas</option>
+                                    <option value="venta">Venta</option>
+                                    <option value="presupuesto">Presupuesto</option>
+                                    <option value="mercadolibre">MercadoLibre</option>
+                                </select>
+                            </div>
                             <div class="col-12 text-end">
                                 <button type="button" class="btn btn-light" id="btn-limpiar-filtros">Limpiar</button>
                                 <button type="button" class="btn btn-primary" id="btn-aplicar-filtros">

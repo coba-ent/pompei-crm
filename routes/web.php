@@ -7,9 +7,14 @@ use App\Http\Controllers\CuentaTesoreriaController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GastoController;
 use App\Http\Controllers\GeoController;
+use App\Http\Controllers\Configuracion\FuncionAvanzadaController;
 use App\Http\Controllers\Configuracion\RolController;
 use App\Http\Controllers\Configuracion\UsuarioController;
 use App\Http\Controllers\DepositoController;
+use App\Http\Controllers\Ingresos\MercadoLibreVentaController;
+use App\Http\Controllers\Ingresos\MercadoLibreVinculacionController;
+use App\Http\Controllers\Integraciones\MercadoLibreConfiguracionController;
+use App\Http\Controllers\Integraciones\MercadoLibreOAuthController;
 use App\Http\Controllers\ImportacionController;
 use App\Http\Controllers\Informes\InformeStockController;
 use App\Http\Controllers\ListaPrecioController;
@@ -152,6 +157,28 @@ Route::middleware('permiso:otros-ingresos.ver')->prefix('otros-ingresos')->name(
     Route::delete('{otroIngreso}', [OtroIngresoController::class, 'destroy'])->name('destroy');
 });
 
+// Ingresos → Mercado Libre (spec 012) — listado de órdenes, sincronización y conversión a Venta
+Route::middleware('permiso:ventas.ver')->prefix('ingresos/mercadolibre')->name('ingresos.mercadolibre.')->group(function () {
+    Route::get('/', [MercadoLibreVentaController::class, 'index'])->name('index');
+    Route::get('datatable', [MercadoLibreVentaController::class, 'datatable'])->name('datatable');
+    Route::post('sincronizar', [MercadoLibreVentaController::class, 'sincronizar'])->name('sincronizar');
+    Route::post('sincronizar-stock', [MercadoLibreVentaController::class, 'sincronizarStock'])->name('sincronizarStock');
+    Route::prefix('vinculaciones')->name('vinculaciones.')->group(function () {
+        Route::get('/', [MercadoLibreVinculacionController::class, 'index'])->name('index');
+        Route::get('datatable', [MercadoLibreVinculacionController::class, 'datatable'])->name('datatable');
+        Route::post('/', [MercadoLibreVinculacionController::class, 'store'])->name('store');
+        Route::patch('{vinculacion}', [MercadoLibreVinculacionController::class, 'update'])->name('update');
+        Route::delete('{vinculacion}', [MercadoLibreVinculacionController::class, 'destroy'])->name('destroy');
+    });
+
+    // Rutas con {orden} genérico DEBEN ir después de /vinculaciones — si no, "vinculaciones"
+    // matchea {orden} primero y la pantalla de vinculaciones nunca se alcanza (bug detectado
+    // en el deploy del 28/07/2026).
+    Route::get('{orden}/convertir', [MercadoLibreVentaController::class, 'convertir'])->name('convertir');
+    Route::post('{orden}/convertir', [MercadoLibreVentaController::class, 'convertirGuardar'])->name('convertirGuardar');
+    Route::get('{orden}', [MercadoLibreVentaController::class, 'show'])->name('show');
+});
+
 Route::post('categorias-ingreso', [CategoriaController::class, 'storeIngreso'])->name('categorias.ingreso.store');
 Route::post('categorias-venta', [CategoriaController::class, 'storeVenta'])->name('categorias.venta.store');
 
@@ -223,6 +250,29 @@ Route::prefix('configuracion')->name('configuracion.')->group(function () {
         Route::patch('{deposito}', [DepositoController::class, 'update'])->name('update');
         Route::patch('{deposito}/estado', [DepositoController::class, 'estado'])->name('estado');
         Route::delete('{deposito}', [DepositoController::class, 'destroy'])->name('destroy');
+    });
+
+    // Configuración & Ajustes → Funciones Avanzadas (spec 011)
+    Route::middleware('permiso:configuracion.funciones')->prefix('funciones')->name('funciones.')->group(function () {
+        Route::get('/', [FuncionAvanzadaController::class, 'index'])->name('index');
+        Route::patch('{funcion}/estado', [FuncionAvanzadaController::class, 'estado'])->name('estado');
+    });
+
+    // Configuración & Ajustes → Mercado Libre (spec 011)
+    Route::middleware('permiso:configuracion.funciones')->prefix('mercadolibre')->name('mercadolibre.')->group(function () {
+        Route::get('/', [MercadoLibreConfiguracionController::class, 'index'])->name('index');
+        Route::get('estado', [MercadoLibreConfiguracionController::class, 'estado'])->name('estado');
+        Route::get('pendiente', [MercadoLibreConfiguracionController::class, 'pendiente'])->name('pendiente');
+        Route::post('pendiente/confirmar', [MercadoLibreConfiguracionController::class, 'confirmarReemplazo'])->name('confirmarReemplazo');
+        Route::delete('pendiente', [MercadoLibreConfiguracionController::class, 'descartarPendiente'])->name('descartarPendiente');
+        Route::put('configuracion', [MercadoLibreConfiguracionController::class, 'guardar'])->name('guardar');
+        Route::patch('ventas', [MercadoLibreConfiguracionController::class, 'guardarVentas'])->name('ventas.configurar');
+        Route::patch('modo-solo-lectura', [MercadoLibreConfiguracionController::class, 'modoSoloLectura'])->name('modoSoloLectura');
+        Route::post('probar', [MercadoLibreConfiguracionController::class, 'probar'])->name('probar');
+        Route::delete('desconectar', [MercadoLibreConfiguracionController::class, 'desconectar'])->name('desconectar');
+        Route::get('operaciones', [MercadoLibreConfiguracionController::class, 'operaciones'])->name('operaciones');
+        Route::get('conectar', [MercadoLibreOAuthController::class, 'conectar'])->name('conectar');
+        Route::get('callback', [MercadoLibreOAuthController::class, 'callback'])->name('callback');
     });
 });
 
