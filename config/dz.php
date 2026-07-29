@@ -2329,6 +2329,20 @@ return [
 				'js/custom.js',
 			],
 		],
+		'configuracion-tiendanube' => [
+			'title' => 'Tiendanube',
+			'css' => [
+				'vendor/datatables/css/jquery.dataTables.min.css',
+				'vendor/datatables/responsive/responsive.css',
+				'vendor/toastr/css/toastr.min.css',
+			],
+			'js' => [
+				'vendor/datatables/js/jquery.dataTables.min.js',
+				'vendor/datatables/responsive/responsive.js',
+				'vendor/toastr/js/toastr.min.js',
+				'js/custom.js',
+			],
+		],
 		'configuracion-importar' => [
 			'title' => 'Importar Datos',
 			'css' => [

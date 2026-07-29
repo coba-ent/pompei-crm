@@ -118,8 +118,8 @@
                     },
                 },
                 { data: 'id', name: 'id', className: 'text-end' },
-                { data: 'nombre', name: 'nombre' },
-                { data: 'codigo', name: 'codigo', defaultContent: '' },
+                { data: 'nombre', name: 'nombre', render: $.fn.dataTable.render.text() },
+                { data: 'codigo', name: 'codigo', defaultContent: '', render: $.fn.dataTable.render.text() },
                 {
                     data: 'tipo', name: 'tipo',
                     render: function (val) {
@@ -128,8 +128,8 @@
                             : '<span class="badge bg-primary-light text-primary">Producto</span>';
                     },
                 },
-                { data: 'tipo_producto', name: 'tipo_producto', orderable: false, searchable: false, defaultContent: '' },
-                { data: 'proveedor', name: 'proveedor', orderable: false, searchable: false, defaultContent: '' },
+                { data: 'tipo_producto', name: 'tipo_producto', orderable: false, searchable: false, defaultContent: '', render: $.fn.dataTable.render.text() },
+                { data: 'proveedor', name: 'proveedor', orderable: false, searchable: false, defaultContent: '', render: $.fn.dataTable.render.text() },
                 {
                     data: 'costo', name: 'costo', className: 'text-end',
                     render: function (val) { return new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2 }).format(val || 0); },
@@ -165,6 +165,23 @@
                         return new Intl.NumberFormat('es-AR').format(val);
                     },
                 },
+                // Una columna de stock por cada depósito activo (dinámico, igual que las
+                // listas de precio): el total solo no alcanza para ver de dónde sale el
+                // stock, y hay módulos que trabajan contra UN depósito puntual.
+                ...(cfg.depositosColumnas || []).map(function (deposito) {
+                    const campo = 'stock_deposito_' + deposito.id;
+                    return {
+                        data: campo, name: campo, orderable: false, searchable: false, className: 'text-end',
+                        render: function (val) {
+                            if (val === null || val === undefined) {
+                                return '<span class="text-muted">—</span>';
+                            }
+                            // El stock negativo se destaca: es un descuadre que hay que corregir.
+                            const formateado = new Intl.NumberFormat('es-AR').format(val);
+                            return val < 0 ? '<span class="text-danger fw-bold">' + formateado + '</span>' : formateado;
+                        },
+                    };
+                }),
                 {
                     data: 'descripcion_si', name: 'descripcion_si', orderable: false, searchable: false, className: 'text-center',
                     render: function (val) {

@@ -30,7 +30,10 @@
                                 <th>Título</th>
                                 <th>Producto</th>
                                 <th>Fecha</th>
-                                <th>Stock</th>
+                                <th title="Unidades disponibles en el depósito que publica Mercado Libre. NO es el stock total del producto sumando todos los depósitos.">
+                                    Stock publicado
+                                </th>
+                                <th>Sincronización</th>
                             </tr>
                         </thead>
                         <tbody></tbody>

@@ -41,9 +41,9 @@ class FuncionAvanzadaSeeder extends Seeder
                 'nombre' => 'Tiendanube',
                 'descripcion' => 'Sincronizar tu tienda online de Tiendanube con el catálogo y las ventas del CRM.',
                 'icono' => 'fas fa-shopping-bag',
-                'disponible' => false,
+                'disponible' => true,
                 'activa' => false,
-                'ruta_configuracion' => null,
+                'ruta_configuracion' => 'configuracion.tiendanube.index',
             ],
             [
                 'clave' => 'reportes_email',

@@ -65,14 +65,15 @@
                 paginate: { first: 'Primero', last: 'Último', next: 'Siguiente', previous: 'Anterior' },
                 processing: 'Cargando...',
             },
-            order: [[2, 'desc']],
+            order: [[3, 'desc']],
             ajax: { url: rutas.datatable, data: (d) => $.extend(d, filtrosActuales()) },
             columns: [
                 { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
+                { data: 'ml_order_id', name: 'ml_order_id' },
                 {
-                    data: 'ml_order_id', name: 'ml_order_id',
-                    render: (data, type, row) => data + (row.es_prueba ? ' <span class="badge bg-secondary">Prueba</span>' : '')
-                        + (row.tiene_alerta_fraude ? ' <span class="badge bg-danger">Alerta de fraude</span>' : ''),
+                    data: null, name: 'etiquetas', orderable: false, searchable: false,
+                    render: (data, type, row) => (row.es_prueba ? '<span class="badge bg-secondary">Prueba</span> ' : '')
+                        + (row.tiene_alerta_fraude ? '<span class="badge bg-danger">Alerta de fraude</span>' : ''),
                 },
                 { data: 'fecha_cerrada', name: 'fecha_cerrada' },
                 {

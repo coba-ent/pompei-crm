@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Ingresos;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Integraciones\VincularPublicacionRequest;
+use App\Models\Integraciones\MercadoLibreConfiguracion;
 use App\Models\Integraciones\MercadoLibreOrdenItem;
 use App\Models\Integraciones\MercadoLibrePublicacionProducto;
+use App\Services\Stock\StockService;
 use Illuminate\Http\JsonResponse;
 use Yajra\DataTables\Facades\DataTables;
 
@@ -27,8 +29,17 @@ class MercadoLibreVinculacionController extends Controller
     {
         $query = MercadoLibrePublicacionProducto::query()->with('producto:id,nombre,codigo');
 
+        // El stock que realmente se publica sale de UN depósito, no del total del
+        // producto. Mostrar el total acá induce a error: se ve "17" en el CRM y "7"
+        // en Mercado Libre y parece un problema de sincronización cuando no lo es.
+        $depositoMl = MercadoLibreConfiguracion::actual()->depositoEfectivo();
+        $stockService = app(StockService::class);
+
         return DataTables::eloquent($query)
             ->addColumn('producto_nombre', fn (MercadoLibrePublicacionProducto $v) => optional($v->producto)->nombre)
+            ->addColumn('stock_ml', fn (MercadoLibrePublicacionProducto $v) => $v->producto
+                ? (int) max(0, $stockService->disponibilidad($v->producto, null, $depositoMl))
+                : null)
             ->addColumn('acciones', fn (MercadoLibrePublicacionProducto $v) => view('ingresos.mercadolibre._row_actions_vinculacion', ['vinculacion' => $v])->render())
             ->addColumn('stock_estado', fn (MercadoLibrePublicacionProducto $v) => $this->stockEstado($v))
             ->editColumn('created_at', fn (MercadoLibrePublicacionProducto $v) => $v->created_at->format('d/m/Y'))

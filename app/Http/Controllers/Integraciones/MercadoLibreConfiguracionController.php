@@ -32,7 +32,16 @@ class MercadoLibreConfiguracionController extends Controller
         $depositos = Deposito::activos()->orderBy('nombre')->get();
         $categoriasVenta = Categoria::venta()->activas()->orderBy('nombre')->get();
 
-        return view('configuracion.mercadolibre.index', compact('CurrentPage', 'depositos', 'categoriasVenta'));
+        // Se nombran ambos para que la pantalla pueda decir de qué depósito sale
+        // el stock publicado, en vez de un genérico "por defecto del CRM". Versión
+        // que no lanza: es sólo informativo y un CRM sin depósitos cargados todavía
+        // tiene que poder abrir esta pantalla.
+        $depositoPorDefecto = Deposito::porDefecto();
+        $depositoEfectivo = MercadoLibreConfiguracion::actual()->depositoEfectivoONulo();
+
+        return view('configuracion.mercadolibre.index', compact(
+            'CurrentPage', 'depositos', 'categoriasVenta', 'depositoPorDefecto', 'depositoEfectivo'
+        ));
     }
 
     public function estado(Request $request): JsonResponse

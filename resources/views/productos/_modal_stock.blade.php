@@ -15,9 +15,7 @@
                         <div class="col-md-4">
                             <label class="form-label">Depósito</label>
                             <select class="form-select" name="deposito_id" id="stock-deposito">
-                                @foreach ($depositos as $deposito)
-                                    <option value="{{ $deposito->id }}">{{ $deposito->nombre }}</option>
-                                @endforeach
+                                @include('elements._options_depositos', ['depositos' => $depositos])
                             </select>
                             <div class="invalid-feedback" data-field="deposito_id"></div>
                         </div>

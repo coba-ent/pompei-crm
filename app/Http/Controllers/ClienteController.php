@@ -38,6 +38,32 @@ class ClienteController extends Controller
         return response()->json($this->estadisticas());
     }
 
+    /**
+     * Verifica localmente (sin consultar ARCA/padrón) si un CUIT/CUIL es
+     * matemáticamente válido, para el botón "Verificar" del modal (FR-002).
+     * Sólo aplica cuando el tipo de documento es CUIT o CUIL (FR-005 análogo).
+     */
+    public function verificarDocumento(Request $request): JsonResponse
+    {
+        $request->validate([
+            'tipo_documento' => ['present', 'nullable', 'string'],
+            'numero' => ['present', 'nullable', 'string'],
+        ]);
+
+        $tipo = strtoupper((string) $request->input('tipo_documento'));
+        $numero = preg_replace('/\D/', '', (string) $request->input('numero'));
+
+        if (! in_array($tipo, ['CUIT', 'CUIL'], true) || $numero === '') {
+            return response()->json(['aplica' => false]);
+        }
+
+        $valido = CuitValido::esValido($numero);
+
+        return response()->json($valido
+            ? ['aplica' => true, 'valido' => true]
+            : ['aplica' => true, 'valido' => false, 'mensaje' => 'El CUIT ingresado no es válido.']);
+    }
+
     /** Opciones de cliente para Select2 (Presupuestos/Ventas), con categoría/lista/descuento para autocompletar (FR-003). */
     public function opciones(Request $request): JsonResponse
     {

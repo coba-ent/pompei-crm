@@ -8,6 +8,7 @@ use App\Models\Integraciones\MercadoLibreOrden;
 use App\Models\Integraciones\MercadoLibrePublicacionProducto;
 use App\Models\Venta;
 use App\Services\MercadoLibre\ConversorOrdenAVenta;
+use App\Services\MercadoLibre\ResolutorCliente;
 use App\Services\MercadoLibre\SincronizadorOrdenes;
 use App\Services\MercadoLibre\SincronizadorStock;
 use Illuminate\Database\QueryException;
@@ -27,6 +28,7 @@ class MercadoLibreVentaController extends Controller
         private readonly SincronizadorOrdenes $sincronizador,
         private readonly ConversorOrdenAVenta $conversor,
         private readonly SincronizadorStock $sincronizadorStock,
+        private readonly ResolutorCliente $resolutorCliente,
     ) {
     }
 
@@ -62,7 +64,10 @@ class MercadoLibreVentaController extends Controller
             ->addColumn('motivo_label', fn (MercadoLibreOrden $o) => optional($o->motivo)->etiqueta())
             ->addColumn('comprador', fn (MercadoLibreOrden $o) => $o->comprador_nombre ?? $o->comprador_apodo)
             // Aviso NO bloqueante: al convertir se va a dar de alta un Cliente nuevo.
-            ->addColumn('cliente_nuevo', fn (MercadoLibreOrden $o) => (bool) $o->cliente_nuevo)
+            // Se recalcula en vivo (no se confía en el snapshot `cliente_nuevo` que se
+            // persistió al sincronizar): el Cliente puede haberse dado de alta después,
+            // por ejemplo al convertir otra orden del mismo comprador.
+            ->addColumn('cliente_nuevo', fn (MercadoLibreOrden $o) => $this->esClienteNuevo($o))
             ->addColumn('productos', fn (MercadoLibreOrden $o) => $o->items->pluck('titulo')->implode(', '))
             ->addColumn('venta_nro', fn (MercadoLibreOrden $o) => optional($o->venta)->nro_comprobante)
             ->editColumn('fecha_cerrada', fn (MercadoLibreOrden $o) => optional($o->fecha_cerrada)->format('d/m/Y H:i'))
@@ -91,8 +96,23 @@ class MercadoLibreVentaController extends Controller
     public function show(MercadoLibreOrden $orden): JsonResponse
     {
         $orden->load(['items.producto', 'venta:id,nro_comprobante']);
+        $orden->cliente_nuevo = $this->esClienteNuevo($orden);
 
         return response()->json(['ok' => true, 'orden' => $orden]);
+    }
+
+    /**
+     * Aviso NO bloqueante "Cliente nuevo": se recalcula en vivo contra el estado
+     * actual de `clientes` en cada lectura, en vez de confiar en el snapshot que
+     * `SincronizadorOrdenes` persiste al momento de sincronizar. Así, dos órdenes
+     * del mismo comprador siempre muestran el mismo resultado, y el aviso
+     * desaparece apenas el Cliente se da de alta (por esta orden o por otra).
+     */
+    private function esClienteNuevo(MercadoLibreOrden $orden): bool
+    {
+        ['cliente' => $cliente, 'ambiguo' => $ambiguo] = $this->resolutorCliente->buscarExistente($orden);
+
+        return ! $cliente && ! $ambiguo;
     }
 
     /** Formulario de conversión precargado (FR-028/FR-029). */

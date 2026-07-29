@@ -14,31 +14,41 @@ Runbook para subir cambios locales al demo productivo del CRM en Hostinger, sin 
 re-explorar el servidor desde cero cada vez. Leé este archivo entero antes de tocar nada — evita
 repetir errores ya pisados en el primer deploy.
 
-## Credenciales y acceso
+## Usar `deploy.py`, no escribir un script nuevo cada vez
 
-Todo en `CREDENCIALES_ACCESO.txt` (raíz del proyecto, gitignored). Leelo antes de conectar:
-- SSH: `ssh -p 65002 u361088648@147.93.37.8` (password en el archivo)
-- DB producción: `u361088648_contagramdemo` / user `u361088648_contagramusr` (password en el archivo)
-- Dominio: `https://contagramdemo.devstudioweb.com`
+**Hay un `deploy.py` ya armado en la raíz del proyecto — usalo, no reinventes un script de paramiko
+suelto por sesión.** Lee la password de `CREDENCIALES_ACCESO.txt` (nunca la hardcodea), reutiliza una
+sola conexión SSH para exec y SFTP, aborta todo el deploy si falta un archivo local en vez de subir
+el resto a medias, y `--build` hace el swap de `public/build/` de forma **atómica** (extrae a
+`public/build_nuevo/` en staging, verifica el manifest, y recién ahí mueve — nunca hay una ventana
+en la que `public/build/` no exista, ni un tar corrupto puede tumbar el sitio a mitad de deploy).
 
-**Cómo conectar**: esta máquina (Windows/git-bash) no tiene `sshpass`, `rsync` ni `plink`, y el
-tool de Bash no soporta prompts interactivos de password. Usar **Python + paramiko** (ya instalado)
-para todo: SSH exec y SFTP put. Patrón:
-
-```python
-import paramiko
-client = paramiko.SSHClient()
-client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-client.connect('147.93.37.8', port=65002, username='u361088648', password='<ver archivo>', timeout=30)
-stdin, stdout, stderr = client.exec_command(cmd)
-stdout.channel.recv_exit_status()  # esperar a que termine
+```bash
+python deploy.py <archivo> [<archivo> ...]   # archivos puntuales
+python deploy.py --changed                   # deriva la lista de `git status`, no la tipees a mano
+python deploy.py --build                     # npm run build + swap atómico de public/build/
+python deploy.py --artisan "migrate --force"
+python deploy.py --tinker scripts/consulta.php
+python deploy.py --check                     # smoke test: HTTP de la home
 ```
 
-Para subir archivos, usar `paramiko.Transport` + `SFTPClient.from_transport(...).put(local, remote)`.
+`--changed` es la opción por defecto para un deploy de varios archivos: evita el error de "me olvidé
+un archivo de la lista a mano" (ver gotcha de "Deploy grande" más abajo, es la misma causa raíz).
+Igual imprime la lista antes de subir — revisala si el working tree tiene WIP sin relación.
 
-**Nunca imprimas el contenido de `.env` ni de archivos con la password de la DB** (el classifier de
-permisos bloquea comandos que hacen `cat` de secretos — usá `wc -l` o similar para verificar sin
-exponer contenido).
+Sólo escribí un script de paramiko nuevo si necesitás algo que `deploy.py` genuinamente no cubre
+(por ejemplo, un tar de directorios enteros para un deploy con muchas carpetas nuevas — ver esa
+sección más abajo). Si le agregás una capacidad nueva a ese flujo, mejor extender `deploy.py` que
+dejarlo como código descartable de una sola sesión.
+
+**Sobre las credenciales**: todo en `CREDENCIALES_ACCESO.txt` (raíz del proyecto, gitignored) —
+`deploy.py` ya lo lee solo. Si por algo puntual necesitás las credenciales a mano: SSH
+`ssh -p 65002 u361088648@147.93.37.8`, DB producción `u361088648_contagramdemo` / user
+`u361088648_contagramusr`, dominio `https://contagramdemo.devstudioweb.com`. **Nunca imprimas el
+contenido de `.env` ni de archivos con la password de la DB** (el classifier de permisos bloquea
+comandos que hacen `cat` de secretos — usá `wc -l` o similar para verificar sin exponer contenido), y
+si escribís un script ad-hoc que la necesite, leela en runtime (mismo patrón que `password_ssh()` en
+`deploy.py`) en vez de tipearla en el código del script.
 
 ## Estructura real en el servidor (IMPORTANTE, no la reinventes)
 
@@ -77,56 +87,40 @@ falta tocarlo salvo que cambie alguna config real.
 
 ### Solo PHP / Blade (controllers, models, views, routes, config)
 
-Subir el/los archivo(s) puntuales por SFTP a la misma ruta relativa dentro de
-`domains/devstudioweb.com/public_html/contagramdemo/`. Después, según qué tocaste:
+`python deploy.py <archivo> ...` (o `--changed`) sube el/los archivo(s) puntuales por SFTP a la misma
+ruta relativa dentro de `domains/devstudioweb.com/public_html/contagramdemo/`, y ya corre solo el
+`view:clear`/`route:clear`/`config:clear` (+ el `cache` correspondiente) según qué tipo de archivo
+detecte en la lista — no hace falta correrlos a mano.
 
-**Namespaces/carpetas nuevas**: `SFTPClient.put()` no crea directorios padre — si el archivo va a
-una carpeta que todavía no existe en el server (ej. un módulo nuevo con su propio namespace), primero
-hay que crearla con `exec_command('mkdir -p <ruta>')` antes de subir, si no el `put` falla con "No
-such file".
-
-```bash
-php artisan view:clear && php artisan view:cache      # si tocaste algún .blade.php
-php artisan route:clear && php artisan route:cache     # si tocaste routes/*.php
-php artisan config:clear && php artisan config:cache   # si tocaste config/*.php o .env
-```
+**Namespaces/carpetas nuevas**: `SFTPClient.put()` no crea directorios padre — si el archivo va a una
+carpeta que todavía no existe en el server (ej. un módulo nuevo con su propio namespace), `deploy.py`
+ya hace `mkdir -p` antes de cada subida, así que esto no es un problema con el flujo normal. Sólo
+importa si estás escribiendo un script de paramiko aparte: ahí sí hay que crear la carpeta a mano con
+`exec_command('mkdir -p <ruta>')` antes de subir, si no el `put` falla con "No such file".
 
 No hace falta re-subir todo el proyecto ni reinstalar composer para esto.
 
 ### JS/CSS (resources/js/*, resources/css/*)
 
 El servidor **no tiene node/npm** (`node -v` da "command not found"). Vite hay que compilarlo
-**localmente**:
+**localmente** — `python deploy.py --build` hace `npm run build` y sube `public/build/` completo con
+swap atómico (ver arriba). No lo reimplementes a mano con `rm -rf` seguido de `tar -xzf`: ese orden
+deja una ventana en la que `public/build/` no existe, y si el tar llega corrupto o la extracción
+falla el sitio queda caído sin build y sin rollback — es justo el bug que `deploy.py --build` evita
+extrayendo primero a `public/build_nuevo/` en staging y recién moviendo si el manifest verificó bien.
 
-```bash
-npm run build
-```
+`deploy.py --build` ya corre `view:clear && view:cache` al final. Subí también el `.js`/`.css`
+fuente al server con `python deploy.py --changed` (o puntual) para que quede en sync — no se sirve
+directo, pero si el día de mañana se corre build en el server o alguien lee el código ahí, que sea
+el mismo.
 
-Esto regenera `public/build/` con hashes nuevos en los nombres de archivo (manifest.json cambia).
-Hay que subir **todo `public/build/`** (borrar el viejo en el server y subir el nuevo completo, no
-mergear), porque las vistas Blade referencian los assets vía el manifest y un hash viejo colgado
-rompe todo:
-
-```python
-# local: tar solo del build
-tar -czf build_update.tar.gz -C public build
-# server:
-rm -rf domains/devstudioweb.com/public_html/contagramdemo/public/build
-tar -xzf build_update.tar.gz -C domains/devstudioweb.com/public_html/contagramdemo/public
-```
-
-Después `php artisan view:clear && php artisan view:cache` (las vistas cacheadas pueden tener
-referencias a assets, mejor recompilar). Subí también el `.js`/`.css` fuente a
-`resources/js|css/...` en el server para que quede en sync (no se sirve directo, pero si el día de
-mañana se corre build en el server o alguien lee el código ahí, que sea el mismo).
-
-**Si estás corriendo esto desde Claude Code**: cualquier paso de este runbook que escriba en el
-server de producción por SSH/SFTP —no sólo el `rm -rf` de `public/build`, también una subida SFTP
-común y corriente de un solo archivo (ej. un CSS)— puede quedar bloqueado por el classifier de Auto
-Mode la primera vez que se ejecuta en una conversación. No es un bloqueo duro: pedile confirmación al
-usuario y reintentá el mismo comando — normalmente se destraba. Si vuelve a bloquear después de
-confirmar, ahí sí es un bloqueo duro (mismo patrón que editar `.env` o auto-ampliarse permisos): no
-insistas, pasale el comando exacto al usuario para que lo corra él mismo.
+**Si estás corriendo esto desde Claude Code**: cualquier invocación de `deploy.py` que escriba en el
+server de producción —subir un solo archivo puntual incluido, no sólo `--build`— puede quedar
+bloqueada por el classifier de Auto Mode la primera vez que se ejecuta en una conversación. No es un
+bloqueo duro: pedile confirmación al usuario y reintentá exactamente el mismo comando `python
+deploy.py ...` — normalmente se destraba. Si vuelve a bloquear después de confirmar, ahí sí es un
+bloqueo duro (mismo patrón que editar `.env` o auto-ampliarse permisos): no insistas, pasale el
+comando exacto al usuario para que lo corra él mismo.
 
 ### Assets estáticos nuevos (imágenes, libs de terceros en public/vendor, etc.)
 
@@ -189,11 +183,16 @@ Después de tocar `.env`: `php artisan config:clear && php artisan config:cache`
 
 ### Deploy grande (muchos archivos nuevos, varias carpetas nuevas — ej. una spec completa)
 
-Para un cambio chico (1-3 archivos existentes), archivo por archivo por SFTP como arriba está bien.
-Para un deploy grande (una spec entera: decenas de archivos, varias carpetas/namespaces nuevos), **no
-enumeres archivo por archivo** — es lento y muy fácil olvidarse uno (pasó: un controller nuevo quedó
-afuera de la lista a mano y rompió una pantalla en silencio hasta que se probó con `curl`). En su
-lugar, tarear los directorios de código fuente completos y extraer el tar entero en el server:
+Primera opción, casi siempre alcanza: `python deploy.py --changed` — deriva la lista de `git status`
+en vez de tipearla a mano, así que no hay riesgo de olvidarse un archivo nuevo (pasó una vez a mano:
+un controller nuevo quedó afuera de la lista y rompió una pantalla en silencio hasta que se probó con
+`curl`; `--changed` existe justo por eso). `SFTPClient.put()` no crea directorios padre, pero
+`deploy.py` ya hace `mkdir -p` por archivo antes de subirlo, así que namespaces/carpetas nuevas no
+son un problema.
+
+Sólo si `--changed` da un working tree gigante y con mucho ruido de WIP sin relación (o si de verdad
+son cientos de archivos y el `mkdir -p` por archivo se vuelve lento), tarear los directorios de
+código fuente completos y extraer el tar entero en el server a mano:
 
 ```bash
 # local

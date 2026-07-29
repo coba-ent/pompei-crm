@@ -131,11 +131,18 @@
                         <div class="col-md-6">
                             <label class="form-label">Depósito de descuento de stock</label>
                             <select class="form-select" id="ml-deposito-id" style="width:100%">
-                                <option value="">Depósito por defecto del CRM</option>
+                                {{-- Se nombra el depósito que se va a usar realmente: decir sólo
+                                     "por defecto del CRM" obliga a adivinar cuál es, y cargar stock
+                                     en otro deja la publicación desfasada sin ningún aviso. --}}
+                                <option value="">Usar el depósito por defecto{{ $depositoPorDefecto ? ' — '.$depositoPorDefecto->nombre : '' }}</option>
                                 @foreach ($depositos as $deposito)
                                     <option value="{{ $deposito->id }}">{{ $deposito->nombre }}</option>
                                 @endforeach
                             </select>
+                            <div class="form-text">
+                                Mercado Libre publica el stock de <strong id="ml-deposito-efectivo">{{ $depositoEfectivo?->nombre ?? '—' }}</strong>.
+                                El stock cargado en otros depósitos no se publica.
+                            </div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Categoría de las Ventas</label>

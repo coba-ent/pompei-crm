@@ -261,7 +261,58 @@ vinculación producto↔publicación y sincronizar una orden real. Ambos ya corr
    "primera sincronización" completa (acotada por `dias_primera_sync`) en vez de una incremental sobre
    una ventana que no tiene sentido para la cuenta nueva.
 
-## 10. Estado
+## 10. Verificación del circuito de stock CRM → Mercado Libre (28/07/2026)
+
+Probado de punta a punta contra la publicación real `MLA1927008393`, con tres mediciones del
+`available_quantity` **leído desde la API de Mercado Libre** después de cada cambio en el CRM:
+
+| Stock en el CRM (depósito ML) | Enviado a ML | `available_quantity` real en ML | `status` en ML |
+|---|---|---|---|
+| −4 (negativo por ventas sin stock) | 0 (`max(0, …)`) | **0** | `paused` (ML pausa solo al quedar en 0) |
+| 10 (ajuste de aumento) | 10 | **10** | `active` (ML reactiva solo) |
+| 7 (ajuste de disminución) | 7 | **7** | `active` |
+
+**Conclusión: el stock de Mercado Libre responde fielmente al CRM**, en aumentos y disminuciones.
+Detalles confirmados en la prueba:
+
+- El `MovimientoStockObserver` marca el vínculo como pendiente ante cualquier movimiento de stock
+  (ajuste, venta manual, etc.) en el depósito configurado para ML.
+- Nunca se envía un número negativo: `max(0, disponibilidad)` lo acota en 0.
+- Mercado Libre **pausa la publicación solo** cuando el stock llega a 0, y **la reactiva solo**
+  cuando vuelve a haber stock. No hace falta hacer nada del lado del CRM.
+
+### ⚠️ Trampa del depósito por defecto (causa de un falso "no funciona")
+
+Hay **dos criterios distintos de "depósito por defecto"** conviviendo, y no coinciden:
+
+| Dónde | Criterio | Resultado con los depósitos actuales |
+|---|---|---|
+| Selects de la UI (alta de producto, ajustes de stock) | `Deposito::activos()->orderBy('nombre')` → primero **alfabético** | "Depósito Tiendanube" |
+| Sincronización de stock a ML (`depositoEfectivo()`) | configurado, o `orderBy('id')` → primero **por id** | "Principal" |
+
+Consecuencia real (pasó en esta prueba): al dar de alta un producto con stock inicial, el select
+venía en "Depósito Tiendanube" y las unidades se cargaron ahí, mientras ML lee de "Principal".
+Después, dos ventas manuales descontaron de "Principal" (que estaba en 0) dejándolo en −4, y la
+sincronización mandó 0 a Mercado Libre, que pausó la publicación. **Todo el circuito funcionó
+correctamente**: el dato de origen era el que estaba mal.
+
+**Resuelto el 28/07/2026** con cuatro cambios:
+
+1. `Deposito::porDefecto()` es ahora la **única** definición de "depósito por defecto" (antes estaba
+   duplicada en `StockDeVenta` y en `MercadoLibreConfiguracion`).
+2. Todos los selects de depósito de la interfaz preseleccionan ese depósito y lo rotulan
+   "(por defecto)" — parcial compartido `elements/_options_depositos.blade.php`.
+3. La pantalla de Vinculaciones muestra la columna **"Stock publicado"**: las unidades del depósito
+   que publica ML, no el total del producto sumando todos los depósitos. Ese total es justamente lo
+   que hacía parecer que la sincronización fallaba ("17 en el CRM, 7 en Mercado Libre").
+4. La configuración de Mercado Libre nombra el depósito que se usa realmente, en vez del genérico
+   "Depósito por defecto del CRM".
+
+Además, a pedido del usuario se **consolidó todo en un único depósito** ("Principal"): las unidades
+de los demás se transfirieron con movimientos registrados, los vacíos se eliminaron y los que tenían
+historial quedaron inactivos (se conserva la trazabilidad y desaparecen de los selects).
+
+## 11. Estado
 
 Circuito de punta a punta probado y funcionando: cuenta real vinculada al CRM (§ ver
 `CREDENCIALES_ACCESO.txt`) + 2 usuarios de test + ítem publicado + venta simulada aprobada +

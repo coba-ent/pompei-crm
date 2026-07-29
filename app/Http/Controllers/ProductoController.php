@@ -10,6 +10,7 @@ use App\Models\ListaPrecio;
 use App\Models\PrecioProducto;
 use App\Models\Producto;
 use App\Models\Proveedor;
+use App\Models\Stock;
 use App\Models\TipoProducto;
 use App\Services\Stock\StockService;
 use Illuminate\Database\Eloquent\Builder;
@@ -32,13 +33,20 @@ class ProductoController extends Controller
         // Mismo orden (por id) que las columnas dinámicas de "Lista de precios" del
         // listado y del export, para que header/datos/CSV queden siempre alineados.
         $listasPrecio = $this->listasActivas();
+        // Dos colecciones a propósito: los selects se listan alfabéticamente (cómodo
+        // para buscar) y las columnas del listado por id (alineadas con los datos y
+        // con el CSV, y con el depósito por defecto primero).
         $depositos = Deposito::activos()->orderBy('nombre')->get();
+        $depositosColumnas = $this->depositosActivos();
         $tiposProducto = TipoProducto::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']);
         $proveedores = Proveedor::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']);
         $stats = $this->estadisticas();
         $ultimoCodigo = $this->ultimoCodigo();
 
-        return view('productos.index', compact('CurrentPage', 'listasPrecio', 'depositos', 'tiposProducto', 'proveedores', 'stats', 'ultimoCodigo'));
+        return view('productos.index', compact(
+            'CurrentPage', 'listasPrecio', 'depositos', 'depositosColumnas',
+            'tiposProducto', 'proveedores', 'stats', 'ultimoCodigo'
+        ));
     }
 
     /** Métricas para las cards informativas (refresco AJAX sin recargar). */
@@ -110,6 +118,20 @@ class ProductoController extends Controller
         return ListaPrecio::where('activo', true)->orderBy('id')->get(['id', 'nombre']);
     }
 
+    /**
+     * Depósitos activos — cada uno se muestra como columna propia de stock en el
+     * listado, igual que las listas de precio. Ordenados por id (no por nombre)
+     * para que header, datos y CSV queden siempre alineados, y para que el
+     * depósito por defecto quede primero.
+     *
+     * Es dinámico a propósito: si el negocio da de alta un depósito nuevo, aparece
+     * su columna sin tocar código.
+     */
+    private function depositosActivos(): \Illuminate\Support\Collection
+    {
+        return Deposito::activos()->orderBy('id')->get(['id', 'nombre']);
+    }
+
     private function queryFiltrada(Request $request, ?\Illuminate\Support\Collection $listas = null): Builder
     {
         // Si se filtra por depósito, el stock_total se calcula sólo para ese depósito.
@@ -132,6 +154,18 @@ class ProductoController extends Controller
                 ->whereColumn('producto_id', 'productos.id')
                 ->where('lista_precio_id', $lista->id)
                 ->limit(1),
+            ]);
+        }
+
+        // Ídem para el stock: además del total, una columna por depósito. Sin esto
+        // sólo se ve el total sumado, que induce a error cuando un módulo (por
+        // ejemplo la publicación en Mercado Libre) trabaja contra UN depósito
+        // — ver MERCADOLIBRE_NOTAS_TECNICAS.md §10.
+        foreach ($this->depositosActivos() as $deposito) {
+            $query->addSelect(['stock_deposito_'.$deposito->id => Stock::query()
+                ->selectRaw('COALESCE(SUM(cantidad), 0)')
+                ->whereColumn('producto_id', 'productos.id')
+                ->where('deposito_id', $deposito->id),
             ]);
         }
 
@@ -204,7 +238,18 @@ class ProductoController extends Controller
             $dt->editColumn($campo, fn (Producto $p) => $p->{$campo} !== null ? (float) $p->{$campo} : null);
         }
 
-        return $dt->rawColumns(['acciones'])->toJson();
+        // Ídem, una columna de stock por depósito activo. Los Servicios no llevan
+        // stock: van en null para que se muestren como "—" y no como 0.
+        foreach ($this->depositosActivos() as $deposito) {
+            $campo = 'stock_deposito_'.$deposito->id;
+            $dt->editColumn($campo, fn (Producto $p) => $p->esServicio() ? null : (float) ($p->{$campo} ?? 0));
+        }
+
+        // Texto libre cargado por el usuario (nombre, código, proveedor, tipo de
+        // producto): va "crudo" acá y el escapeo lo hace el cliente con
+        // render.text() al insertarlo, así el JSON no lleva entidades HTML
+        // (Yajra por defecto escapa todo lo que no esté en rawColumns()).
+        return $dt->rawColumns(['acciones', 'nombre', 'codigo', 'proveedor', 'tipo_producto'])->toJson();
     }
 
     /** Sugerencia del último código cargado (ayuda del campo Código, como Contagram). */
@@ -228,19 +273,23 @@ class ProductoController extends Controller
         }
 
         $nombreArchivo = 'productos_'.now()->format('Ymd_His').'.csv';
+        $depositos = $this->depositosActivos();
 
         $encabezados = [
             'Nombre', 'Código/SKU', 'Tipo', 'Tipo de Producto', 'Proveedor', 'Precio venta',
             ...$listas->map(fn ($l) => $l->nombre)->all(),
-            'IVA venta', 'Costo', 'IVA compra', 'Stock total', 'Estado',
+            'IVA venta', 'Costo', 'IVA compra', 'Stock total',
+            // Mismo desglose por depósito que el listado, en el mismo orden.
+            ...$depositos->map(fn ($d) => 'Stock '.$d->nombre)->all(),
+            'Estado',
         ];
 
-        return response()->streamDownload(function () use ($query, $encabezados, $listas) {
+        return response()->streamDownload(function () use ($query, $encabezados, $listas, $depositos) {
             $salida = fopen('php://output', 'w');
             fwrite($salida, "\xEF\xBB\xBF");
             fputcsv($salida, $encabezados, ';');
 
-            $query->orderBy('nombre')->chunk(500, function ($productos) use ($salida, $listas) {
+            $query->orderBy('nombre')->chunk(500, function ($productos) use ($salida, $listas, $depositos) {
                 foreach ($productos as $p) {
                     fputcsv($salida, [
                         $p->nombre,
@@ -254,6 +303,7 @@ class ProductoController extends Controller
                         $p->costo,
                         Producto::etiquetaIva($p->iva_compra_pct),
                         $p->esServicio() ? '' : (float) ($p->stock_total ?? 0),
+                        ...$depositos->map(fn ($d) => $p->esServicio() ? '' : (float) ($p->{'stock_deposito_'.$d->id} ?? 0))->all(),
                         $p->activo ? 'Activo' : 'Inactivo',
                     ], ';');
                 }

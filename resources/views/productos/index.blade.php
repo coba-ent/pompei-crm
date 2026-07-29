@@ -216,6 +216,11 @@
                                 <th>IVA Ventas</th>
                                 <th>IVA Compras</th>
                                 <th>Stock total</th>
+                                {{-- Una columna de stock por depósito activo, dinámica: si se da de
+                                     alta un depósito nuevo, aparece su columna sin tocar código. --}}
+                                @foreach ($depositosColumnas as $deposito)
+                                    <th title="Unidades en el depósito {{ $deposito->nombre }}">{{ $deposito->nombre }}</th>
+                                @endforeach
                                 <th>Descripción</th>
                                 <th>Imagen</th>
                                 <th>Estado</th>
@@ -278,6 +283,8 @@
             accionesMasivas: "{{ route('productos.acciones-masivas') }}",
         },
         listasPrecio: {!! $listasPrecio->map(fn ($l) => ['id' => $l->id, 'nombre' => $l->nombre])->toJson() !!},
+        {{-- Mismo orden que el <thead>: las columnas del DataTable tienen que coincidir 1 a 1. --}}
+        depositosColumnas: {!! $depositosColumnas->map(fn ($d) => ['id' => $d->id, 'nombre' => $d->nombre])->toJson() !!},
         tiposProducto: {!! $tiposProducto->map(fn ($t) => ['id' => $t->id, 'nombre' => $t->nombre])->toJson() !!},
         proveedores: {!! $proveedores->map(fn ($p) => ['id' => $p->id, 'nombre' => $p->nombre])->toJson() !!},
     };

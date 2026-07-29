@@ -3,6 +3,7 @@
 namespace Tests\Feature\Integraciones;
 
 use App\Enums\MercadoLibre\EstadoConexion;
+use App\Enums\MercadoLibre\EstadoConversion;
 use App\Models\Cliente;
 use App\Models\CuentaTesoreria;
 use App\Models\Deposito;
@@ -135,6 +136,87 @@ class MercadoLibreConversionTest extends TestCase
         $this->assertSame('B', $resultado['venta']->tipo_comprobante);
         $cliente = $resultado['venta']->cliente;
         $this->assertSame('Consumidor Final', $cliente->condicionIva->nombre);
+    }
+
+    // -------------------------------------------------------------------
+    // Spec 014 — un CUIT/CUIL matemáticamente inválido de Mercado Libre no
+    // se usa ni para derivar el comprobante ni para persistirse en el Cliente.
+    // -------------------------------------------------------------------
+
+    public function test_cuit_invalido_sin_condicion_iva_deriva_como_si_no_hubiera_documento(): void
+    {
+        $orden = $this->crearOrden([
+            'comprador_condicion_iva' => null,
+            'comprador_doc_tipo' => 'CUIT',
+            'comprador_doc_numero' => '20304050600', // dígito verificador incorrecto.
+        ]);
+
+        $resultado = app(ConversorOrdenAVenta::class)->convertir($orden, null, automatica: true);
+
+        $this->assertTrue($resultado['ok'], $resultado['mensaje'] ?? '');
+        $this->assertSame('B', $resultado['venta']->tipo_comprobante);
+        $this->assertSame(EstadoConversion::Convertida->value, $orden->fresh()->estado_conversion->value);
+    }
+
+    public function test_cuit_invalido_sin_condicion_iva_el_cliente_nuevo_queda_sin_cuit(): void
+    {
+        $orden = $this->crearOrden([
+            'comprador_condicion_iva' => null,
+            'comprador_doc_tipo' => 'CUIT',
+            'comprador_doc_numero' => '20304050600',
+        ]);
+
+        $resultado = app(ConversorOrdenAVenta::class)->convertir($orden, null, automatica: true);
+
+        $this->assertTrue($resultado['ok'], $resultado['mensaje'] ?? '');
+        $this->assertNull($resultado['venta']->cliente->cuit);
+    }
+
+    public function test_cuil_invalido_sin_condicion_iva_se_comporta_igual_que_cuit(): void
+    {
+        $orden = $this->crearOrden([
+            'comprador_condicion_iva' => null,
+            'comprador_doc_tipo' => 'CUIL',
+            'comprador_doc_numero' => '20304050600',
+        ]);
+
+        $resultado = app(ConversorOrdenAVenta::class)->convertir($orden, null, automatica: true);
+
+        $this->assertTrue($resultado['ok'], $resultado['mensaje'] ?? '');
+        $this->assertSame('B', $resultado['venta']->tipo_comprobante);
+        $this->assertNull($resultado['venta']->cliente->cuit);
+    }
+
+    /** No regresión: un CUIT válido sigue aproximando a Factura A como hoy. */
+    public function test_cuit_valido_sin_condicion_iva_no_cambia_el_comportamiento_actual(): void
+    {
+        $orden = $this->crearOrden([
+            'comprador_condicion_iva' => null,
+            'comprador_doc_tipo' => 'CUIT',
+            'comprador_doc_numero' => '20123456786', // dígito verificador correcto.
+        ]);
+
+        $resultado = app(ConversorOrdenAVenta::class)->convertir($orden, null, automatica: true);
+
+        $this->assertTrue($resultado['ok'], $resultado['mensaje'] ?? '');
+        $this->assertSame('A', $resultado['venta']->tipo_comprobante);
+        $this->assertSame('20123456786', $resultado['venta']->cliente->cuit);
+    }
+
+    /** CHK004 / FR-007 incondicional: aplica también cuando el comprobante se deriva de la condición de IVA. */
+    public function test_documento_invalido_no_se_persiste_aunque_la_condicion_de_iva_haya_sido_informada(): void
+    {
+        $orden = $this->crearOrden([
+            'comprador_condicion_iva' => 'Consumidor Final',
+            'comprador_doc_tipo' => 'CUIT',
+            'comprador_doc_numero' => '20304050600',
+        ]);
+
+        $resultado = app(ConversorOrdenAVenta::class)->convertir($orden, null, automatica: true);
+
+        $this->assertTrue($resultado['ok'], $resultado['mensaje'] ?? '');
+        $this->assertSame('B', $resultado['venta']->tipo_comprobante);
+        $this->assertNull($resultado['venta']->cliente->cuit);
     }
 
     /** T051a — el tipo de comprobante es editable en la Venta ya creada (FR-043). */

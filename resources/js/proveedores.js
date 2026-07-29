@@ -145,8 +145,8 @@
         const $form = $('#form-proveedor');
 
         function limpiarErrores() {
-            $form.find('.is-invalid').removeClass('is-invalid');
-            $form.find('.invalid-feedback').text('');
+            $form.find('.is-invalid, .is-valid').removeClass('is-invalid is-valid');
+            $form.find('.invalid-feedback').removeClass('text-success').text('');
         }
 
         // Modo sólo lectura (acción "Ver").
@@ -167,6 +167,80 @@
             $form.find('.js-localidad').html('<option value="">Seleccionar</option>');
             $('#saldo-inicial-wrap').addClass('d-none');
         }
+
+        // --- Verificación de CUIT/CUIL (US1, spec 014) ---
+
+        // Auto-formatea el N° de Doc con guiones mientras se tipea (FR-003);
+        // el backend ya limpia los guiones antes de validar/guardar (research.md R3).
+        function formatearDocumento(valor) {
+            const digitos = (valor || '').replace(/\D/g, '').slice(0, 11);
+            if (digitos.length <= 2) {
+                return digitos;
+            }
+            if (digitos.length <= 10) {
+                return digitos.slice(0, 2) + '-' + digitos.slice(2);
+            }
+            return digitos.slice(0, 2) + '-' + digitos.slice(2, 10) + '-' + digitos.slice(10);
+        }
+
+        // Limpia el resultado de una verificación previa (FR-010): nunca debe
+        // quedar visible un "válido"/"inválido" que ya no corresponde al valor actual.
+        function limpiarResultadoVerificacion() {
+            $form.find('input[name="cuit"]').removeClass('is-invalid is-valid');
+            $form.find('.invalid-feedback[data-field="cuit"]').removeClass('text-success').text('');
+        }
+
+        function pintarResultadoVerificacion(resp) {
+            const $input = $form.find('input[name="cuit"]');
+            const $fb = $form.find('.invalid-feedback[data-field="cuit"]');
+            $input.removeClass('is-invalid is-valid');
+            $fb.removeClass('text-success').text('');
+
+            if (!resp || !resp.aplica) {
+                return;
+            }
+            if (resp.valido) {
+                $input.addClass('is-valid');
+                $fb.addClass('text-success').text('El CUIT/CUIL ingresado es válido.');
+            } else {
+                $input.addClass('is-invalid');
+                $fb.text(resp.mensaje || 'El CUIT ingresado no es válido.');
+            }
+        }
+
+        $form.on('input', 'input[name="cuit"]', function () {
+            const input = this;
+            const cursorDigitosAntes = input.value.slice(0, input.selectionStart).replace(/\D/g, '').length;
+            input.value = formatearDocumento(input.value);
+
+            let posicion = 0;
+            let digitosVistos = 0;
+            while (posicion < input.value.length && digitosVistos < cursorDigitosAntes) {
+                if (/\d/.test(input.value[posicion])) {
+                    digitosVistos++;
+                }
+                posicion++;
+            }
+            input.setSelectionRange(posicion, posicion);
+
+            limpiarResultadoVerificacion();
+        });
+
+        $form.on('change', 'select[name="tipo_documento"]', limpiarResultadoVerificacion);
+
+        $form.on('click', '.js-verificar-documento', function () {
+            if (!rutas.verificarDocumento) {
+                return;
+            }
+            $.getJSON(rutas.verificarDocumento, {
+                tipo_documento: $form.find('select[name="tipo_documento"]').val(),
+                numero: $form.find('input[name="cuit"]').val(),
+            })
+                .done(pintarResultadoVerificacion)
+                .fail(function () {
+                    toast('error', 'No se pudo verificar el documento.');
+                });
+        });
 
         // --- Provincia → Localidad (selects linkeados, país fijo Argentina) ---
         function cargarLocalidades($localidad, provincia, seleccionar) {

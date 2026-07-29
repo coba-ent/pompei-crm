@@ -15,6 +15,7 @@ use App\Http\Controllers\Ingresos\MercadoLibreVentaController;
 use App\Http\Controllers\Ingresos\MercadoLibreVinculacionController;
 use App\Http\Controllers\Integraciones\MercadoLibreConfiguracionController;
 use App\Http\Controllers\Integraciones\MercadoLibreOAuthController;
+use App\Http\Controllers\Integraciones\TiendanubeConfiguracionController;
 use App\Http\Controllers\ImportacionController;
 use App\Http\Controllers\Informes\InformeStockController;
 use App\Http\Controllers\ListaPrecioController;
@@ -53,6 +54,7 @@ Route::get('clientes/stats', [ClienteController::class, 'stats'])->name('cliente
 Route::get('clientes/export', [ClienteController::class, 'export'])->name('clientes.export');
 Route::patch('clientes/{cliente}/estado', [ClienteController::class, 'estado'])->name('clientes.estado');
 Route::get('clientes/opciones', [ClienteController::class, 'opciones'])->name('clientes.opciones');
+Route::get('clientes/verificar-documento', [ClienteController::class, 'verificarDocumento'])->name('clientes.verificar-documento');
 Route::get('geo/localidades', [GeoController::class, 'localidades'])->name('geo.localidades');
 Route::resource('clientes', ClienteController::class)
     ->only(['index', 'store', 'show', 'update', 'destroy']);
@@ -75,6 +77,7 @@ Route::resource('productos', ProductoController::class)
 Route::get('proveedores/data', [ProveedorController::class, 'data'])->name('proveedores.data');
 Route::get('proveedores/stats', [ProveedorController::class, 'stats'])->name('proveedores.stats');
 Route::get('proveedores/opciones', [ProveedorController::class, 'opciones'])->name('proveedores.opciones');
+Route::get('proveedores/verificar-documento', [ProveedorController::class, 'verificarDocumento'])->name('proveedores.verificar-documento');
 Route::get('proveedores/export', [ProveedorController::class, 'export'])->name('proveedores.export');
 Route::patch('proveedores/{proveedor}/estado', [ProveedorController::class, 'estado'])->name('proveedores.estado');
 Route::resource('proveedores', ProveedorController::class)
@@ -273,6 +276,17 @@ Route::prefix('configuracion')->name('configuracion.')->group(function () {
         Route::get('operaciones', [MercadoLibreConfiguracionController::class, 'operaciones'])->name('operaciones');
         Route::get('conectar', [MercadoLibreOAuthController::class, 'conectar'])->name('conectar');
         Route::get('callback', [MercadoLibreOAuthController::class, 'callback'])->name('callback');
+    });
+
+    // Configuración & Ajustes → Tiendanube (spec 015)
+    Route::middleware('permiso:configuracion.funciones')->prefix('tiendanube')->name('tiendanube.')->group(function () {
+        Route::get('/', [TiendanubeConfiguracionController::class, 'index'])->name('index');
+        Route::get('estado', [TiendanubeConfiguracionController::class, 'estado'])->name('estado');
+        Route::put('credenciales', [TiendanubeConfiguracionController::class, 'credenciales'])->name('credenciales');
+        Route::post('probar', [TiendanubeConfiguracionController::class, 'probar'])->name('probar');
+        Route::post('desconectar', [TiendanubeConfiguracionController::class, 'desconectar'])->name('desconectar');
+        Route::patch('modo-solo-lectura', [TiendanubeConfiguracionController::class, 'modoSoloLectura'])->name('modoSoloLectura');
+        Route::get('historial', [TiendanubeConfiguracionController::class, 'historial'])->name('historial');
     });
 });
 

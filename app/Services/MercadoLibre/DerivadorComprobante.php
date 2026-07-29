@@ -4,6 +4,7 @@ namespace App\Services\MercadoLibre;
 
 use App\Models\Integraciones\MercadoLibreConfiguracion;
 use App\Models\Integraciones\MercadoLibreOrden;
+use App\Rules\CuitValido;
 
 /**
  * Deriva el tipo de comprobante (A/B) de la condición frente al IVA del
@@ -36,22 +37,26 @@ class DerivadorComprobante
         $orden->refresh();
 
         if ($orden->comprador_condicion_iva) {
+            [$docTipo, $docNumero] = $this->sanearDocumento($orden->comprador_doc_tipo, $orden->comprador_doc_numero);
+
             return [
                 'tipo_comprobante' => $orden->comprador_condicion_iva === 'IVA Responsable Inscripto' ? 'A' : 'B',
                 'condicion_iva' => self::MAPEO_CONDICION_IVA_CRM[$orden->comprador_condicion_iva] ?? 'Consumidor Final',
-                'doc_tipo' => $orden->comprador_doc_tipo,
-                'doc_numero' => $orden->comprador_doc_numero,
+                'doc_tipo' => $docTipo,
+                'doc_numero' => $docNumero,
                 'aproximado' => false,
             ];
         }
 
         // FR-040c: sin condición de IVA pero con documento, aproximación por tipo de documento.
         if ($orden->comprador_doc_tipo) {
+            [$docTipo, $docNumero] = $this->sanearDocumento($orden->comprador_doc_tipo, $orden->comprador_doc_numero);
+
             return [
-                'tipo_comprobante' => $orden->comprador_doc_tipo === 'CUIT' ? 'A' : 'B',
+                'tipo_comprobante' => $docTipo === 'CUIT' ? 'A' : 'B',
                 'condicion_iva' => 'Consumidor Final',
-                'doc_tipo' => $orden->comprador_doc_tipo,
-                'doc_numero' => $orden->comprador_doc_numero,
+                'doc_tipo' => $docTipo,
+                'doc_numero' => $docNumero,
                 'aproximado' => true,
             ];
         }
@@ -64,6 +69,23 @@ class DerivadorComprobante
             'doc_numero' => null,
             'aproximado' => false,
         ];
+    }
+
+    /**
+     * Descarta un CUIT/CUIL matemáticamente inválido antes de que se use para
+     * derivar el comprobante o persistirse en un Cliente (FR-005/FR-006/FR-007,
+     * research.md R4). Cualquier otro tipo de documento (DNI/Pasaporte/CDI) o
+     * un documento ya vacío pasa sin tocar.
+     *
+     * @return array{0: ?string, 1: ?string}
+     */
+    private function sanearDocumento(?string $tipo, ?string $numero): array
+    {
+        if (in_array($tipo, ['CUIT', 'CUIL'], true) && ! CuitValido::esValido((string) $numero)) {
+            return [null, null];
+        }
+
+        return [$tipo, $numero];
     }
 
     /**

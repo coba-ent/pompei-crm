@@ -155,6 +155,7 @@
             store: "{{ route('clientes.store') }}",
             show: "{{ url('clientes') }}",
             localidades: "{{ route('geo.localidades') }}",
+            verificarDocumento: "{{ route('clientes.verificar-documento') }}",
         },
     };
 </script>

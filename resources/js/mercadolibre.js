@@ -198,7 +198,7 @@
         $('#form-ventas-ml').on('submit', function (e) {
             e.preventDefault();
             const datos = {
-                creacion_automatica: $('#ml-creacion-automatica').is(':checked'),
+                creacion_automatica: $('#ml-creacion-automatica').is(':checked') ? 1 : 0,
                 frecuencia_sync_minutos: $('#ml-frecuencia-sync').val(),
                 deposito_id: $('#ml-deposito-id').val() || null,
                 categoria_venta_id: $('#ml-categoria-venta-id').val() || null,
@@ -274,7 +274,7 @@
         $('#ml-modo-solo-lectura').on('change', function () {
             const $checkbox = $(this);
             const activo = $checkbox.is(':checked');
-            $.ajax({ url: rutas.modoSoloLectura, method: 'PATCH', dataType: 'json', data: { activo: activo } })
+            $.ajax({ url: rutas.modoSoloLectura, method: 'PATCH', dataType: 'json', data: { activo: activo ? 1 : 0 } })
                 .done(function (resp) {
                     toast('success', resp.mensaje);
                     $('#ml-aviso-solo-lectura').toggleClass('d-none', !resp.modo_solo_lectura);

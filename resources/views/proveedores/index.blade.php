@@ -138,6 +138,7 @@
             store: "{{ route('proveedores.store') }}",
             show: "{{ url('proveedores') }}",
             localidades: "{{ route('geo.localidades') }}",
+            verificarDocumento: "{{ route('proveedores.verificar-documento') }}",
         },
     };
 </script>

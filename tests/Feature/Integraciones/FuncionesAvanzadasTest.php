@@ -3,8 +3,10 @@
 namespace Tests\Feature\Integraciones;
 
 use App\Enums\MercadoLibre\EstadoConexion;
+use App\Enums\Tiendanube\EstadoConexion as EstadoConexionTiendanube;
 use App\Models\FuncionAvanzada;
 use App\Models\Integraciones\MercadoLibreCuenta;
+use App\Models\Integraciones\TiendanubeConfiguracion;
 use App\Models\Rol;
 use Database\Seeders\FuncionAvanzadaSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -59,6 +61,16 @@ class FuncionesAvanzadasTest extends TestCase
 
         $response->assertOk()->assertJsonPath('ok', true)->assertJsonPath('funcion.activa', false);
         $this->assertFalse($funcion->fresh()->activa);
+    }
+
+    /** T020 (spec 015): la tarjeta "Tiendanube" queda disponible=true tras el seeder. */
+    public function test_la_tarjeta_tiendanube_aparece_disponible(): void
+    {
+        $funcion = FuncionAvanzada::where('clave', 'tiendanube')->firstOrFail();
+
+        $this->assertTrue($funcion->disponible);
+        $this->assertFalse($funcion->activa);
+        $this->assertSame('configuracion.tiendanube.index', $funcion->ruta_configuracion);
     }
 
     public function test_activar_una_funcion_no_disponible_devuelve_422(): void
@@ -128,5 +140,36 @@ class FuncionesAvanzadasTest extends TestCase
         $this->assertFalse($funcion->fresh()->activa);
         $this->assertSame(EstadoConexion::Conectada, $cuenta->fresh()->estado);
         $this->assertNotNull($cuenta->fresh()->access_token);
+    }
+
+    /** FR-006a (spec 015): mismo patrón que Mercado Libre, tabla y conexión propias. */
+    public function test_desactivar_tiendanube_con_conexion_activa_exige_confirmacion(): void
+    {
+        $this->darPermisoAlUsuarioActual();
+
+        $funcion = FuncionAvanzada::where('clave', 'tiendanube')->firstOrFail();
+        $funcion->update(['activa' => true]);
+
+        TiendanubeConfiguracion::actual()->update([
+            'store_id' => '1234567',
+            'access_token' => 'token-vigente',
+            'estado' => EstadoConexionTiendanube::Conectada,
+        ]);
+
+        $sinConfirmar = $this->patchJson(route('configuracion.funciones.estado', $funcion), ['activa' => false]);
+        $sinConfirmar->assertStatus(409)->assertJsonPath('ok', false)->assertJsonPath('requiere_confirmacion', true);
+
+        $this->assertTrue($funcion->fresh()->activa);
+        $this->assertSame(EstadoConexionTiendanube::Conectada, TiendanubeConfiguracion::actual()->estado);
+
+        $confirmado = $this->patchJson(route('configuracion.funciones.estado', $funcion), [
+            'activa' => false,
+            'confirmado' => true,
+        ]);
+        $confirmado->assertOk()->assertJsonPath('funcion.activa', false);
+
+        $this->assertFalse($funcion->fresh()->activa);
+        $this->assertSame(EstadoConexionTiendanube::Conectada, TiendanubeConfiguracion::actual()->estado);
+        $this->assertNotNull(TiendanubeConfiguracion::actual()->access_token);
     }
 }

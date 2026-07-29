@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Configuracion;
 
 use App\Enums\MercadoLibre\EstadoConexion;
+use App\Enums\Tiendanube\EstadoConexion as EstadoConexionTiendanube;
 use App\Http\Controllers\Controller;
 use App\Models\FuncionAvanzada;
 use App\Models\Integraciones\MercadoLibreCuenta;
+use App\Models\Integraciones\TiendanubeConfiguracion;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -48,6 +50,21 @@ class FuncionAvanzadaController extends Controller
                 return response()->json([
                     'ok' => false,
                     'mensaje' => 'Al desactivar Mercado Libre se suspenden las operaciones contra la API, pero la vinculación de la cuenta se conserva. ¿Confirmás la desactivación?',
+                    'requiere_confirmacion' => true,
+                ], 409);
+            }
+        }
+
+        // FR-006a (spec 015): mismo patrón que la rama 'mercadolibre' de arriba —
+        // desactivar con una conexión activa exige confirmación explícita, y nunca
+        // borra las credenciales ni desconecta la tienda.
+        if ($funcion->clave === 'tiendanube' && ! $datos['activa'] && $funcion->activa) {
+            $conexionActiva = TiendanubeConfiguracion::actual()->estado === EstadoConexionTiendanube::Conectada;
+
+            if ($conexionActiva && ! ($datos['confirmado'] ?? false)) {
+                return response()->json([
+                    'ok' => false,
+                    'mensaje' => 'Al desactivar Tiendanube se suspenden las operaciones contra la API, pero la configuración se conserva. ¿Confirmás la desactivación?',
                     'requiere_confirmacion' => true,
                 ], 409);
             }

@@ -3,6 +3,10 @@
     "mercadolibre": {
       "type": "http",
       "url": "https://mcp.mercadolibre.com/mcp"
+    },
+    "tiendanube": {
+      "type": "http",
+      "url": "https://admin-mcp.tiendanube.com/"
     }
   }
 }

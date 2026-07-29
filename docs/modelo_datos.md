@@ -644,10 +644,12 @@ implementada en spec 006), `integraciones`, `integracion_eventos`, `producto_can
 
 ---
 
-## 10. Ventas de Mercado Libre (spec 012)
+## 10. Ventas de Mercado Libre (spec 012) y sincronización de stock (spec 013)
 
-Extiende §8 (integración Mercado Libre, spec 011). Detalle completo, con enums y transiciones de
-estado, en `specs/012-ventas-mercadolibre/data-model.md`.
+Extiende §8 (integración Mercado Libre, spec 011). **Ambas specs están implementadas.** La 013 no agrega
+tablas: sólo columnas de estado sobre `ml_publicacion_producto` y `ml_configuracion`, señaladas más
+abajo. Detalle completo, con enums y transiciones de estado, en
+`specs/012-ventas-mercadolibre/data-model.md` y `specs/013-stock-mercadolibre/data-model.md`.
 
 **Convención terminológica**: "orden" = documento sincronizado desde Mercado Libre; "Venta" = documento
 del CRM (§5).
@@ -674,11 +676,12 @@ Vinculación **estrictamente 1:1**, infraestructura compartida con la spec 013. 
 **unique**), `producto_id` (FK → productos, **unique**), `titulo_ml`, `vinculada_por`. Los dos índices
 únicos son los que garantizan la cardinalidad a nivel de datos, no sólo en la UI.
 
-> **Columnas nuevas (spec 013, especificada)** — estado de sincronización de stock CRM → Mercado Libre
+> **Columnas nuevas (spec 013, implementada)** — estado de sincronización de stock CRM → Mercado Libre
 > de este vínculo: `stock_pendiente` (bool, default false — con cambios de stock sin empujar todavía),
-> `stock_sincronizado_en` (timestamp, nullable — último envío exitoso), `stock_error` (string, nullable
-> — motivo del último rechazo), `stock_error_en` (timestamp, nullable). Detalle completo en
-> `specs/013-stock-mercadolibre/data-model.md`.
+> `stock_sincronizado_en` (datetime, nullable — último envío exitoso), `stock_error` (string(255),
+> nullable — motivo del último rechazo), `stock_error_en` (datetime, nullable). Son el **único estado
+> persistente** de la sincronización de stock: no hay tabla de historial propia, los envíos se registran
+> en `ml_operaciones_log` (§8). Detalle completo en `specs/013-stock-mercadolibre/data-model.md`.
 
 ### `ml_configuracion` (columnas nuevas)
 `creacion_automatica` (bool, default false), `frecuencia_sync_minutos` (default 15),
@@ -686,10 +689,18 @@ Vinculación **estrictamente 1:1**, infraestructura compartida con la spec 013. 
 (FK → categorias, nullable), `dias_primera_sync` (default 30), `ultima_sync_en`,
 `ultima_sync_resultado`.
 
-> **Columnas nuevas (spec 013, especificada)**: `stock_ultima_sync_en` (timestamp, nullable — última
+> **Columnas nuevas (spec 013, implementada)**: `stock_ultima_sync_en` (datetime, nullable — última
 > corrida del sincronizador de stock, comparada contra `frecuencia_sync_minutos`, reutilizado),
-> `stock_ultima_sync_resultado` (string, nullable). No hay columna de activar/desactivar propia: sigue
-> gobernado por la función avanzada "Mercado Libre" y el modo sólo lectura ya existentes.
+> `stock_ultima_sync_resultado` (string(255), nullable). No hay columna de activar/desactivar propia:
+> sigue gobernado por la función avanzada "Mercado Libre" y el modo sólo lectura ya existentes.
+
+> **Columna nueva (spec 016, implementada)**: `lista_precio_id` (FK → `listas_precio`, nullable,
+> `nullOnDelete`). Lista de Precios que se asigna a toda Venta creada al convertir una orden de Mercado
+> Libre — **puramente clasificatoria**, no influye en el precio de las líneas ni en el total (esos
+> valores siguen saliendo del importe pagado en Mercado Libre). `null` = sin Lista de Precios asignada
+> (comportamiento previo a esta spec); sin fallback "por defecto del CRM", a diferencia de `deposito_id`
+> — ese concepto no existe para Listas de Precios en ningún otro punto del sistema. Detalle completo en
+> `specs/016-lista-precio-mercadolibre/data-model.md`.
 
 ### `ventas` (columna nueva)
 `origen` (enum `manual`/`presupuesto`/`mercadolibre`, default `manual`). Explicita el tercer origen;
@@ -699,3 +710,136 @@ Vinculación **estrictamente 1:1**, infraestructura compartida con la spec 013. 
 > obtiene como `precio_final / (1 + iva_pct/100)` usando el IVA del producto vinculado (tasa 0 para
 > Exento/No Gravado). La diferencia por redondeo se absorbe en la última línea, para que el total de la
 > Venta coincida **exactamente** con el monto de la orden.
+
+---
+
+## 11. Configuración & Ajustes: integración Tiendanube (spec 015 — conexión)
+
+Ver `docs/documentacion_principal_crm.md` §5.3 (documenta la **divergencia deliberada respecto de
+Contagram**: Aplicación personalizada en vez del flujo de 4 pasos con partner app). Detalle completo
+del esquema en `specs/015-tiendanube-conexion/data-model.md`.
+
+Dos tablas nuevas, prefijadas `tn_` (mismo criterio que `ml_` en §8). **Sin tabla de "solicitud de
+vinculación pendiente"**: sin flujo OAuth no existe ese estado intermedio.
+
+### `tn_configuracion`
+
+Registro **único** (single-tenant) con las credenciales de la Aplicación personalizada, los datos de
+la tienda vinculada y el estado de la conexión, todo en una sola fila — a diferencia de Mercado Libre
+(§8), acá no hace falta separar credenciales de "cuenta autorizada" porque no existe el escenario de
+"autorizar con otra cuenta" (no hay pantalla de autorización externa).
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| store_id | string(50), nullable | Identificador de la tienda en Tiendanube, tal como lo carga el usuario |
+| access_token | text, nullable | **Cifrado** (cast `encrypted`), `$hidden`. Nunca se devuelve a la interfaz. **No vence** — a diferencia de Mercado Libre, no hay `refresh_token` ni ciclo de renovación |
+| nombre_tienda / dominio / pais / moneda | string, nullable | Obtenidos de `GET /{store_id}/store` al verificar conexión |
+| estado | string(20) | `no_configurada` (derivado, no persistido) / `desconectada` / `conectada` / `caida` — sin `pendiente_confirmacion` (no aplica, ver arriba) |
+| ultimo_error | text, nullable | Motivo del último rechazo, para el panel cuando `estado = caida` |
+| modo_solo_lectura | boolean, default false | Kill-switch, independiente del de Mercado Libre |
+| credenciales_guardadas_en | timestamp, nullable | Fecha en que se guardó el `access_token` vigente |
+| ultima_verificacion_en | timestamp, nullable | Última vez que "Probar conexión" respondió con éxito |
+| actualizada_por | FK → usuarios, nullable | |
+
+Desconectar borra sólo `access_token` y pasa `estado` a `desconectada`; conserva `nombre_tienda`/
+`dominio`/`pais`/`moneda` para trazabilidad (mismo criterio que `ml_cuentas` en §8).
+
+### `tn_operaciones_log`
+
+Mismo esquema exacto que `ml_operaciones_log` (§8), tabla separada — historial propio de Tiendanube
+(integraciones y credenciales distintas, no se mezclan).
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| operacion / metodo / endpoint / sentido / resultado / codigo_http / duracion_ms / mensaje_error / payload_bloqueado / usuario_id / created_at | — | Mismas columnas y semántica que `ml_operaciones_log` (§8) |
+
+Retención: 30 días o 5.000 registros, depurada de forma oportunista — mismo criterio y mecanismo que
+`ml_operaciones_log`.
+
+**Continuación (spec 017, implementada)**: tablas de órdenes de Tiendanube, líneas de orden y
+vinculación variante↔producto — ver §12.
+
+---
+
+## 12. Ventas de Tiendanube (spec 017) y stock hacia Tiendanube (spec 018)
+
+Extiende §11 (integración Tiendanube, spec 015). Detalle completo, con enums y transiciones de estado,
+en `specs/017-ventas-tiendanube/data-model.md` y `specs/018-stock-tiendanube/data-model.md`.
+
+**Convención terminológica**: "orden" = documento sincronizado desde Tiendanube; "Venta" = documento del
+CRM (§5) — mismo criterio que §10 para Mercado Libre.
+
+### `tn_ordenes`
+Órdenes sincronizadas. `tn_order_id` (bigint, **unique** — identidad e idempotencia), `status`
+(`open`/`closed`/`cancelled`), `payment_status` (`pending`/`authorized`/`paid`/`partially_paid`/
+`abandoned`/`refunded`/`partially_refunded`/`voided`), `shipping_status` (informativo, no participa del
+estado de conversión), `estado_conversion` (enum propio `Tiendanube\EstadoConversion`: mismos 5 valores
+que Mercado Libre — `pendiente_pago`/`lista`/`requiere_atencion`/`convertida`/`cancelada`, derivado de
+`status`+`payment_status`), `motivo` (enum propio `Tiendanube\MotivoRequiereAtencion`) + `motivo_detalle`,
+`fecha_creada`, `fecha_cerrada` (se usa como `fecha_emision` de la Venta), `total`, `moneda`,
+`storefront` (**nunca** `meli` — se descarta antes de persistir, ver nota abajo), datos del comprador
+(`tn_customer_id`, `comprador_email`, `comprador_nombre`, `billing_document_type`,
+`billing_document_number`), `venta_id` (FK → `ventas`, nullable, **unique**), `creacion_automatica`,
+`convertida_en`, `convertida_por`, `payload` (json, sin datos sensibles), `sincronizada_en`. **Sin soft
+delete ni purga** — respaldo de documentos contables, mismo criterio que `ml_ordenes`.
+
+> **Exclusión del canal Mercado Libre integrado a Tiendanube**: las órdenes con `storefront = "meli"`
+> (importadas desde Mercado Libre a través de Tiendanube) **nunca** se persisten en `tn_ordenes` — se
+> descartan en dos capas (filtro en la consulta a la API + descarte explícito antes de guardar), para no
+> duplicar lo que ya ingresa la integración directa de Mercado Libre (§10). Detalle en
+> `specs/017-ventas-tiendanube/research.md` R2.
+
+### `tn_orden_items`
+`tn_orden_id` (FK, cascade), `variant_id` (identificador de variante en Tiendanube — **siempre**
+presente, incluso en productos sin variantes reales, que tienen una variante "virtual" única),
+`nombre_producto`, `nombre_variante` (nullable), `cantidad`, `precio_unitario` (**precio FINAL con IVA
+incluido**, mismo criterio que Mercado Libre), `total_linea`, `producto_id` (FK → productos, nullable —
+se congela al convertir).
+
+### `tn_variante_producto`
+Vinculación **estrictamente 1:1** entre una variante de Tiendanube y un producto del CRM — equivalente a
+`ml_publicacion_producto` (§10), pero por **variante**, no por publicación, porque la API de Tiendanube
+siempre expone `variant_id` por línea. `variant_id` (**unique**), `producto_id` (FK → productos,
+**unique**), `nombre_variante_tn`, `vinculada_por`. Los dos índices únicos garantizan la cardinalidad.
+
+**Columnas nuevas (spec 018 — sincronización de stock hacia Tiendanube)**:
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| `tn_product_id` | string(50) | Identificador del **producto** de Tiendanube dueño de la variante. La API actualiza stock contra `POST /products/{product_id}/variants/stock` — cuelga siempre del producto, el `variant_id` solo no alcanza. Se completa al crear el vínculo, a partir del dato ya disponible en su origen (línea de orden o catálogo de productos). |
+| `stock_pendiente` | boolean, default `false` | `true` cuando hubo un movimiento de stock elegible sin empujar todavía a Tiendanube. Lo pone en `true` la rama Tiendanube de `MovimientoStockObserver` (spec 013/018); lo vuelve a `false` `SincronizadorStock` tras un envío exitoso. |
+| `stock_sincronizado_en` | timestamp, nullable | Fecha del último envío **exitoso**. |
+| `stock_error` | string(255), nullable | Motivo del último rechazo (o de un vínculo con `tn_product_id` incompleto). Se limpia (`null`) en el siguiente envío exitoso. |
+| `stock_error_en` | timestamp, nullable | Fecha de ese rechazo. |
+
+Mismo criterio que `ml_publicacion_producto` (§10): sin índice adicional (volumen esperado de decenas de
+filas); eliminar el vínculo elimina estas columnas junto con la fila.
+
+### `tn_configuracion` (columnas nuevas)
+`creacion_automatica` (bool, default false), `frecuencia_sync_minutos` (default 15), `deposito_id` (FK →
+depositos, nullable — null usa el depósito por defecto), `categoria_venta_id` (FK → categorias,
+nullable), `cuenta_tesoreria_id` (FK → cuentas_tesoreria, nullable — **a diferencia de Mercado Libre**,
+que resuelve la cuenta de cobranza por nombre fijo "Mercado Pago", acá es configurable porque Tiendanube
+admite múltiples medios de pago sin una pasarela canónica), `dias_primera_sync` (default 30),
+`ultima_sync_en`, `ultima_sync_resultado`.
+
+**Columnas nuevas (spec 018)**: `stock_ultima_sync_en` (timestamp, nullable — cuándo corrió por última
+vez la sincronización de stock), `stock_ultima_sync_resultado` (string(255), nullable — texto legible del
+resultado de esa corrida, mismo patrón que `ultima_sync_resultado`). Sin columna de activar/desactivar
+propia: gobernada por la función avanzada "Tiendanube" + modo sólo lectura, igual que el resto de la
+integración.
+
+### `clientes` (columna nueva)
+`tn_customer_id` (bigint, nullable) — análogo a `ml_user_id` (§8): emparejamiento estable del comprador,
+persistido la primera vez que un Cliente se empareja por email.
+
+### `ventas` (valor de enum nuevo)
+`origen` (§10) agrega el valor `tiendanube` junto a `manual`/`presupuesto`/`mercadolibre`.
+
+> **Cálculo clave**: mismo criterio que Mercado Libre (§10) — precios finales con IVA incluido,
+> desagregación con el IVA del producto vinculado, redondeo absorbido en la última línea.
+>
+> **Tipo de comprobante**: a diferencia de Mercado Libre (que informa la condición de IVA del
+> comprador), Tiendanube sólo informa el tipo de documento (`billing_document_type`). Se deriva primero
+> de la condición de IVA que el Cliente ya tenga cargada en el CRM y, si no la tiene, se aproxima por
+> documento (CUIT → A, cualquier otro valor o ausencia → B) — corregible manualmente después.

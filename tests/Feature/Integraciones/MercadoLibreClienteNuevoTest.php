@@ -156,4 +156,34 @@ class MercadoLibreClienteNuevoTest extends TestCase
         $this->assertSame(EstadoConversion::RequiereAtencion, $guardada->estado_conversion);
         $this->assertSame('publicacion_sin_vincular', $guardada->motivo->value);
     }
+
+    /**
+     * Reproduce el bug reportado por el usuario (29/07/2026): el aviso
+     * `cliente_nuevo` se persiste como snapshot al sincronizar y no se
+     * recalculaba después, así que quedaba "pegado" en `true` para una orden
+     * vieja aunque el Cliente ya se hubiera dado de alta (por ejemplo, al
+     * convertir otra orden posterior del mismo comprador). El listado y el
+     * detalle tienen que reflejar el estado ACTUAL de `clientes`, no el
+     * snapshot guardado en la orden.
+     */
+    public function test_el_listado_y_el_detalle_recalculan_cliente_nuevo_en_vivo_no_usan_el_snapshot(): void
+    {
+        $this->sincronizar([$this->ordenCruda(2006, compradorId: 555, apodo: 'REPETIDO')]);
+
+        $orden = MercadoLibreOrden::where('ml_order_id', '2006')->firstOrFail();
+        $this->assertTrue($orden->cliente_nuevo, 'Snapshot al sincronizar: todavía no existía el Cliente.');
+
+        // El Cliente se da de alta después (ej.: se convirtió otra orden del
+        // mismo comprador), pero el snapshot de ESTA orden nunca se toca.
+        Cliente::factory()->create(['ml_user_id' => 555]);
+        $orden->refresh();
+        $this->assertTrue($orden->cliente_nuevo, 'El snapshot persistido queda desactualizado a propósito en este test.');
+
+        $datatable = $this->getJson(route('ingresos.mercadolibre.datatable'));
+        $fila = collect($datatable->json('data'))->firstWhere('ml_order_id', '2006');
+        $this->assertFalse($fila['cliente_nuevo'], 'El listado debe recalcular en vivo, no confiar en el snapshot.');
+
+        $detalle = $this->getJson(route('ingresos.mercadolibre.show', $orden));
+        $detalle->assertJsonPath('orden.cliente_nuevo', false);
+    }
 }

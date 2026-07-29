@@ -55,10 +55,21 @@ El modelo de datos completo (entidades, campos y relaciones) está detallado en 
   **propio de ese cliente** (no es un catálogo global): se arma en el front del modal y se guarda
   asociado al cliente recién al guardar.
 - Ventas: Categoría, Lista de Precios, Descuento General (%), Nota para el Cliente, Saldo Inicial.
-- Datos de facturación: Razón social, N° de Doc (tipo CUIT/CUIL/DNI/… + número), Condición de IVA, Tipo
-  de comprobante por defecto, y domicilio/teléfonos fiscales (separados del domicilio comercial). La
-  verificación de CUIT contra ARCA/padrón fiscal quedó fuera de alcance junto con el resto de la
-  integración fiscal (se retoma cuando se rehaga Facturación Electrónica).
+- Datos de facturación: Razón social, N° de Doc (selector de tipo CUIT/DNI + campo con **auto-formato**
+  de guiones, ej. "30712345678" → "30-71234567-8"), botón **"Verificar"** (ícono de refresh) junto al
+  campo, Condición de IVA, Tipo de comprobante por defecto, y domicilio/teléfonos fiscales (separados
+  del domicilio comercial). Confirmado con capturas reales en `informe_contagram_base_de_datos.md`
+  §2.3/§2.5 (Clientes) y §3 (Proveedores, mismo comportamiento).
+  - **Dos verificaciones distintas, no confundir**: el botón "Verificar" sólo corre el **algoritmo de
+    dígito verificador módulo 11** de forma local (sin red) — si el CUIT/CUIL es matemáticamente
+    inválido, **bloquea la creación/edición del registro** con "El número de cuit no es válido" en
+    rojo, incluso si se guarda sin apretar "Verificar" primero (la validación corre igual al guardar).
+    Esto **sí está en alcance** y ya está implementado en el backend (`app/Rules/CuitValido.php`,
+    usado por `ReglasCliente`/`ReglasProveedor`) — lo que falta es el botón/UI y el auto-formato.
+  - La **verificación contra ARCA/padrón fiscal** (consulta en vivo a un padrón externo para confirmar
+    que el CUIT existe y corroborar su condición de IVA real) es una cosa distinta y **sigue fuera de
+    alcance**, junto con el resto de la integración fiscal (se retoma cuando se rehaga Facturación
+    Electrónica).
 - Listado: tabla con columnas Id, Cliente, Nombre, Apellido, Mail, Teléfono, Teléfono Celular,
   Domicilio, Localidad, Provincia, DNI, CUIT, Condición de IVA, Usuario de Mercado Libre, Nota,
   Página Web (DNI y CUIT se muestran en columnas separadas según el tipo de documento). Buscador
@@ -387,6 +398,13 @@ Ver §5.2 para la divergencia deliberada de todo el módulo (aplicación propia 
 - **Conversión a Venta**, manual o **automática** (interruptor en la configuración de Mercado Libre).
   La Venta se crea cobrada contra la cuenta de Tesorería **Mercado Pago** (§3.7) y descuenta stock del
   **depósito configurado**. Cliente emparejado por **Apodo ML** (§2.1) o creado automáticamente.
+- **Lista de Precios de clasificación** (spec 016 — implementada): la configuración de Mercado Libre
+  permite elegir opcionalmente una Lista de Precios (`ml_configuracion.lista_precio_id`), que se asigna
+  a toda Venta creada al convertir una orden, igual que la Categoría de Venta. Es **puramente
+  clasificatorio**: no influye en absoluto en el precio de las líneas ni en el total de la Venta, que
+  siempre sale del importe pagado en Mercado Libre. Sin configurar, la Venta queda sin Lista de Precios,
+  igual que antes de esta spec; no existe un fallback "por defecto del CRM" para este campo (a
+  diferencia del depósito).
 - **Tipo de comprobante derivado** de la condición fiscal que informa Mercado Libre: Responsable
   Inscripto → A; Consumidor Final/Monotributo o sin dato → B. **No se consulta ARCA** (no hay
   integración con el padrón en este CRM); Mercado Libre ya provee el dato. Coherente con el principio
@@ -395,18 +413,148 @@ Ver §5.2 para la divergencia deliberada de todo el módulo (aplicación propia 
   bruto, por lo que el saldo de Mercado Pago en el CRM no coincidirá con el real, neto de comisiones).
   Las cancelaciones posteriores se señalan pero **no** modifican la Venta ya creada.
 
-> ⚠️ **Riesgo de sobreventa — spec 013 especificada, pendiente de implementar**: el flujo de stock
-> vigente sigue siendo unidireccional (ML → CRM). Una venta manual del CRM baja el stock local pero
-> **no** reduce el stock publicado en Mercado Libre, que sigue ofreciendo unidades inexistentes. La
-> spec 013 (`specs/013-stock-mercadolibre/`) ya está especificada, clarificada y planeada — resuelve el
-> sentido inverso (CRM → ML): cualquier movimiento de stock de un producto vinculado (Venta manual,
-> ajuste, transferencia) marca la publicación como pendiente y una sincronización programada (misma
-> frecuencia configurable que la de órdenes, corriendo inmediatamente después) empuja la cantidad
-> disponible resultante hacia Mercado Libre, sin rebotar sobre los movimientos que ya vinieron de una
-> orden de Mercado Libre. Ver §5.2 y `docs/modelo_datos.md §10`. El riesgo queda cerrado recién cuando
-> esta spec se implemente, no con su sola especificación.
+> ✅ **Riesgo de sobreventa — cerrado por la spec 013 (implementada)**: al cierre de la spec 012 el flujo
+> de stock era unidireccional (ML → CRM), por lo que una venta manual del CRM bajaba el stock local pero
+> **no** reducía el stock publicado en Mercado Libre, que seguía ofreciendo unidades inexistentes. La
+> spec 013 construyó el sentido inverso (CRM → ML) y ese riesgo ya no está vigente. Ver §3.2.ter.
 
 *Fuente(s): `specs/012-ventas-mercadolibre/`*
+
+### 3.2.ter Sincronización de stock hacia Mercado Libre (spec 013 — implementada)
+
+Contraparte inversa de §3.2.bis: cierra el circuito de stock en los dos sentidos. **No agrega pantallas
+nuevas** — extiende las ya construidas por la spec 012.
+
+- **Disparo**: cualquier movimiento de stock de un producto vinculado, en el **depósito configurado para
+  Mercado Libre** (`ml_configuracion.deposito_id`, o el depósito por defecto), marca el vínculo como
+  "con cambios pendientes de sincronizar". Es indiferente al módulo que lo originó (Venta manual,
+  ajuste, transferencia); se detecta en un único punto, el observer sobre `movimientos_stock`.
+- **Anti-rebote**: los movimientos originados en la **conversión de una orden de Mercado Libre** quedan
+  excluidos — Mercado Libre ya descontó esa unidad de su propio stock al generar la orden, y empujarla
+  de vuelta sería redundante o directamente inconsistente si llegara desfasada.
+- **Consolidación**: no se llama a la API por movimiento. Cada corrida envía **un único valor final por
+  producto** (el stock actual en el depósito configurado), sin importar cuántos movimientos hubo desde
+  el último envío. Evita agotar el límite de solicitudes ante ráfagas (varias Ventas seguidas, una
+  importación).
+- **Nunca se publica stock negativo**: si el saldo local quedó por debajo de cero (posible tras una
+  orden de Mercado Libre, §3.2.bis), se empuja **cero**, sin alterar el valor real que muestra el CRM.
+- **Cadencia**: la misma `frecuencia_sync_minutos` que las órdenes, en la misma corrida programada y
+  **después** de traerlas, para que el valor empujado ya contemple las órdenes recién sincronizadas.
+  Además hay acción manual **"Sincronizar stock ahora"** en la pantalla de Mercado Libre, junto a
+  "Sincronizar ahora".
+- **Es una escritura**: queda bloqueada por el **modo sólo lectura** y por la desactivación de la
+  función avanzada "Mercado Libre" (§5.1), igual que cualquier otra escritura del módulo. En ambos
+  casos los cambios pendientes **se conservan** para el próximo intento válido — un corte nunca pierde
+  un pendiente. Lo mismo con la conexión caída.
+- **Rechazos**: si Mercado Libre rechaza una publicación puntual (pausada, cerrada, inexistente), el
+  vínculo queda señalado con el **motivo concreto y la fecha**, el resto de los vínculos de esa corrida
+  se sincroniza con normalidad, y el pendiente se conserva para reintentarlo. Un error no excluye al
+  vínculo de futuras corridas.
+- **Visibilidad**: la pantalla de **Vinculación de publicaciones** muestra por cada vínculo su estado
+  (sincronizado / pendiente / con error), la fecha del último envío exitoso y el motivo del último
+  rechazo. La pantalla de **configuración de Mercado Libre** muestra fecha y resultado de la última
+  sincronización de stock, análogo a lo que ya expone para órdenes. Todo envío queda además en el
+  historial de operaciones (`ml_operaciones_log`, spec 011) como operación de escritura.
+- **Fuera de alcance**: precio, título, descripción, imágenes y estado (pausar/activar) de la
+  publicación — **sólo se sincroniza la cantidad disponible**. Tampoco se pausa ni cierra la publicación
+  al llegar a cero: informar cantidad cero ya alcanza para que Mercado Libre deje de venderla.
+
+> **Nota — Compras todavía no mueven stock** (§6.2): el disparo reacciona a *cualquier* movimiento de
+> stock, pero hoy sólo las Ventas y los ajustes los generan. El día que Egresos cierre esa brecha, las
+> Compras quedan cubiertas por este mecanismo sin cambios adicionales.
+
+*Fuente(s): `specs/013-stock-mercadolibre/`*
+
+### 3.2.quater Tiendanube (`/ingresos/tiendanube`) — spec 017
+
+Entrada **condicional** del menú Ingresos: aparece sólo cuando la función avanzada "Tiendanube" está
+activa (mismo patrón que Mercado Libre y Abonos). Continúa la conexión de la spec 015 (§5.3) con el
+mismo alcance funcional que la etapa 2 de Mercado Libre (§3.2.bis), adaptado a las diferencias reales de
+la API de Tiendanube — **sin relevamiento propio de Contagram** (el relevamiento con capturas no pudo
+completarse para esta tarjeta, §5.3): el diseño sigue el patrón ya construido para Mercado Libre en vez
+de calcar una pantalla real.
+
+- **Listado de órdenes sincronizadas**: identificador de orden, fecha, comprador, productos y
+  cantidades, monto, `status`/`payment_status`/`shipping_status` (los dos primeros derivan el estado de
+  conversión; el tercero es sólo informativo) y **estado de conversión** en el CRM (los mismos cinco
+  valores que Mercado Libre: Pendiente de pago · Lista para convertir · Requiere atención · Convertida ·
+  Cancelada). Botón "Sincronizar ahora" + tarea programada con frecuencia configurable — **sin
+  webhooks**, a propósito, para no reintroducir el requisito de infraestructura pública que la spec 015
+  evitó (§5.3).
+- **⚠️ Exclusión del canal Mercado Libre integrado a Tiendanube**: las órdenes con `storefront = "meli"`
+  (ventas hechas en Mercado Libre pero importadas a Tiendanube por su canal integrado) **nunca** se
+  sincronizan ni aparecen en el listado, en dos capas independientes (filtro en la propia consulta +
+  descarte explícito antes de persistir). Sin esta exclusión, esas ventas se duplicarían con la
+  integración directa de Mercado Libre (§5.2), que las ingresa por su propia vía.
+- **Vinculación variante ↔ producto**: a diferencia de Mercado Libre (que vincula por publicación),
+  Tiendanube siempre expone un identificador de **variante** por línea de pedido —incluso los productos
+  sin variantes reales tienen una "variante virtual" única—, así que el vínculo persistente 1:1 es
+  variante↔producto del CRM. Pantalla propia de administración, igual patrón que Mercado Libre.
+- **Conversión a Venta**, manual o automática (interruptor en la configuración de Tiendanube). La Venta
+  se crea cobrada contra la **cuenta de Tesorería configurable** (a diferencia de Mercado Libre, que
+  siempre usa "Mercado Pago": Tiendanube admite múltiples medios de pago sin una pasarela canónica) y
+  descuenta stock del depósito configurado. Cliente emparejado por `tn_customer_id` o, si es la primera
+  vez, por email.
+- **Tipo de comprobante derivado**: Tiendanube no informa la condición de IVA del comprador (a
+  diferencia de Mercado Libre). Se deriva primero de la condición de IVA que el Cliente ya tenga cargada
+  en el CRM y, sólo si no la tiene, se aproxima por tipo de documento (CUIT → A, cualquier otro valor o
+  ausencia → B) — la misma regla de aproximación que Mercado Libre usa como respaldo (§5.2) pasa a ser
+  la regla principal acá, con la misma vía de corrección manual posterior.
+- **Fuera de alcance**: comisión de Tiendanube y costo de envío; importación masiva de catálogo.
+
+> ✅ **Numeración de specs**: esta continuación de la spec 015 se documentó originalmente como "specs 016
+> y 017" antes de que la 016 terminara siendo un feature chico no relacionado (Lista de Precios de
+> clasificación para Mercado Libre, §5.2 etapa 4); por eso la Venta de Tiendanube quedó en la 017 y su
+> stock en la 018, no en la 016/017 como se anotó en un primer momento.
+
+> ✅ **Riesgo de sobreventa — cerrado por la spec 018**: al cierre de la spec 017 el flujo de stock era
+> unidireccional (Tiendanube → CRM), por lo que una Venta de cualquier origen bajaba el stock local pero
+> **no** reducía el stock publicado en Tiendanube. La spec 018 construyó el sentido inverso (CRM →
+> Tiendanube) y ese riesgo ya no está vigente. Ver §3.2.quinquies.
+
+*Fuente(s): `specs/017-ventas-tiendanube/`*
+
+### 3.2.quinquies Sincronización de stock hacia Tiendanube (spec 018)
+
+Contraparte inversa de §3.2.quater: cierra el circuito de stock en los dos sentidos, mismo patrón que la
+spec 013 aplicó sobre la 012 para Mercado Libre (§3.2.ter). **No agrega pantallas nuevas** — extiende las
+ya construidas por la spec 017.
+
+- **Disparo**: cualquier movimiento de stock de un producto vinculado, en el **depósito configurado para
+  Tiendanube** (`tn_configuracion.deposito_id`, o el depósito por defecto), marca el vínculo como "con
+  cambios pendientes de sincronizar". Es indiferente al módulo que lo originó (Venta manual, ajuste,
+  transferencia); se detecta en el mismo observer sobre `movimientos_stock` que ya usa Mercado Libre
+  (spec 013), con una rama propia para Tiendanube.
+- **Anti-rebote**: los movimientos originados en la **conversión de una orden de Tiendanube** quedan
+  excluidos — Tiendanube ya descontó esa unidad de su propio stock al generar la orden, y empujarla de
+  vuelta sería redundante o directamente inconsistente si llegara desfasada.
+- **Consolidación**: no se llama a la API por movimiento. Cada corrida envía **un único valor final por
+  producto** (el stock actual en el depósito configurado), sin importar cuántos movimientos hubo desde el
+  último envío.
+- **Nunca se publica stock negativo**: si el saldo local quedó por debajo de cero, se empuja **cero**, sin
+  alterar el valor real que muestra el CRM.
+- **Cadencia**: la misma `frecuencia_sync_minutos` que las órdenes, en la misma corrida programada y
+  **después** de traerlas. Además hay acción manual **"Sincronizar stock ahora"** en la pantalla de
+  Tiendanube, junto a "Sincronizar ahora".
+- **Es una escritura**: queda bloqueada por el **modo sólo lectura** y por la desactivación de la función
+  avanzada "Tiendanube" (§5.1), igual que cualquier otra escritura del módulo. Los cambios pendientes
+  **se conservan** para el próximo intento válido.
+- **Rechazos**: si Tiendanube rechaza una actualización puntual (producto/variante despublicado o
+  inexistente), el vínculo queda señalado con el **motivo concreto y la fecha**, el resto de los vínculos
+  de esa corrida se sincroniza con normalidad, y el pendiente se conserva para reintentarlo.
+- **Endpoint requiere el producto, no sólo la variante**: a diferencia de lo que la vinculación de la
+  spec 017 capturaba (sólo `variant_id`), la API de Tiendanube actualiza stock contra
+  `POST /products/{product_id}/variants/stock` — cuelga siempre del producto. La spec 018 agrega
+  `tn_product_id` a la vinculación variante↔producto para poder construir esa llamada.
+- **Visibilidad**: la pantalla de **Vinculación de variantes** muestra por cada vínculo su estado
+  (sincronizado / pendiente / con error), la fecha del último envío exitoso y el motivo del último
+  rechazo. La pantalla de **configuración de Tiendanube** muestra fecha y resultado de la última
+  sincronización de stock. Todo envío queda además en el historial de operaciones (`tn_operaciones_log`,
+  spec 015) como operación de escritura.
+- **Fuera de alcance**: precio, nombre, descripción, imágenes y estado de publicación de la variante —
+  **sólo se sincroniza la cantidad disponible**. Tampoco se despublica automáticamente al llegar a cero.
+
+*Fuente(s): `specs/018-stock-tiendanube/`*
 
 ### 3.3 Otros Ingresos (`/incomes`)
 
@@ -669,6 +817,7 @@ registrarMovimiento()`) usados por Pagos y Gastos — no quedó pendiente al cie
 | Depósitos | ABM de depósitos/almacenes (spec 005) |
 | Funciones Avanzadas | Lista de las 10 funciones activables, con toggle Sí/No (spec 011) — ver §5.1 |
 | Mercado Libre | Configuración de la integración y vinculación de cuenta (spec 011) — ver §5.2 |
+| Tiendanube | Configuración de la integración (Aplicación personalizada, sin OAuth) (spec 015) — ver §5.3 |
 
 > **Adaptación single-tenant:** este CRM es single-tenant, sin plan contratado ni costo por usuario
 > adicional. Los permisos son **sólo por rol** (el usuario hereda los permisos de sus roles; no hay
@@ -694,7 +843,7 @@ toggle Sí/No. Orden relevado (se respeta):
 |---|---|---|---|
 | 1 | Facturación electrónica | No | — |
 | 2 | **Mercado Libre** | **Sí** (spec 011) | §5.2 |
-| 3 | Tiendanube | No | — |
+| 3 | **Tiendanube** | **Sí** (spec 015 conexión + spec 017 ventas) | §5.3 |
 | 4 | Reportes por email | No | — |
 | 5 | Abonos | Sí (spec 008) | — |
 | 6 | IA | No (fuera de alcance) | — |
@@ -708,7 +857,7 @@ disponibles, para preservar la estructura de la pantalla original (principio rec
 estructural). El estado del toggle se persiste por función, junto con quién lo cambió y cuándo.
 Permiso requerido: `configuracion.funciones` (el mismo que ya protege Depósitos).
 
-### 5.2 Integración con Mercado Libre (spec 011) — **divergencia deliberada respecto de Contagram**
+### 5.2 Integración con Mercado Libre (specs 011, 012, 013 y 016) — **divergencia deliberada respecto de Contagram**
 
 > ⚠️ **Ésta es la única parte del CRM que NO calca a Contagram, y la divergencia es intencional.**
 >
@@ -762,12 +911,22 @@ mensajería, envíos y webhooks de negocio.
 vinculación publicación↔producto (`ml_publicacion_producto`, 1:1), conversión manual o automática a
 Venta del CRM con cobranza y descuento de stock. Ver §3.2.bis.
 
-**Etapa 3 — Sincronización de stock hacia Mercado Libre (spec 013, especificada, pendiente de
-implementar)**: contraparte inversa de la etapa 2 — un movimiento de stock local de un producto
-vinculado (Venta manual, ajuste, transferencia) empuja la cantidad disponible hacia la publicación de
-Mercado Libre correspondiente, sin rebotar sobre los movimientos que ya vinieron de una orden de Mercado
-Libre. Cierra el riesgo de sobreventa señalado más arriba en esta sección. Ver
+**Etapa 3 — Sincronización de stock hacia Mercado Libre (spec 013, implementada)**: contraparte inversa
+de la etapa 2 — un movimiento de stock local de un producto vinculado (Venta manual, ajuste,
+transferencia) marca el vínculo como pendiente y la corrida programada empuja la cantidad disponible
+consolidada hacia la publicación de Mercado Libre, sin rebotar sobre los movimientos que ya vinieron de
+una orden de Mercado Libre. **Cierra el riesgo de sobreventa** de la etapa 2. Reutiliza toda la
+infraestructura ya construida (vinculación 1:1, depósito configurado, cliente de API, modo sólo lectura
+e historial de operaciones) y no agrega pantallas propias. Detalle en §3.2.ter; ver
 `specs/013-stock-mercadolibre/` y `docs/modelo_datos.md §10`.
+
+**Etapa 4 — Lista de Precios de clasificación (spec 016, implementada)**: agrega a la configuración de
+Mercado Libre un campo Lista de Precios opcional, del mismo tipo que el Depósito y la Categoría de Venta
+ya existentes (etapa 2), que se asigna a toda Venta creada al convertir una orden. **No es una fuente de
+precio**: el precio de las líneas de esas Ventas sigue derivándose exclusivamente del importe pagado en
+Mercado Libre, tal como en las etapas 2 y 3 — esta etapa sólo agrega un dato de clasificación para
+informes/filtros, coherente con el resto de las Ventas del CRM (§3, bloque Cliente/Categoría/Lista de
+Precios). Ver §3.2.bis; `specs/016-lista-precio-mercadolibre/`.
 
 **Sigue fuera de alcance** (etapas 2 y 3 combinadas): sincronización de **precio**, título, descripción,
 imágenes o estado (pausar/activar) de la publicación; comisión de Mercado Libre y costo de envío;
@@ -778,8 +937,81 @@ una dirección pública con conexión segura — Mercado Libre no admite direcci
 por lo que el flujo OAuth no puede completarse en desarrollo local. El módulo se diseñó para correr
 igual en hosting compartido (sin procesos permanentes) y en VPS, cambiando sólo variables de entorno.
 
+### 5.3 Integración con Tiendanube (specs 015 y 017) — **divergencia deliberada respecto de Contagram**
+
+> ⚠️ **Segunda parte del CRM que NO calca a Contagram, por el mismo motivo que Mercado Libre (§5.2).**
+>
+> **Qué releva Contagram** (`informe_contagram_funciones_avanzadas.md` §4, captura `[104]`): al activar
+> la tarjeta "Tiendanube" se ve un indicador parcial de **4 pasos** — Solicitar Acceso → Acceso
+> Permitido → Importar → Sincronizar — sugiriendo una aplicación propia de Tiendanube (partner/pública)
+> con flujo de autorización, seguido de importación de catálogo. El relevamiento no pudo completarse
+> (requería upgrade de cuenta) y no se encontraron artículos públicos del centro de ayuda de Contagram
+> sobre Tiendanube.
+>
+> **Qué hace este CRM**: modelo de **Aplicación personalizada** de Tiendanube — el usuario genera un
+> `access_token` de larga vida desde el panel de administración de su propia tienda (o el Partner
+> Portal) y lo carga directamente en el CRM junto con el identificador de tienda. **Sin OAuth**: no hay
+> redirect a un sitio de autorización externo, no hay `state`, no hay `refresh_token` ni vencimiento de
+> credencial que renovar.
+>
+> **Por qué**: decisión explícita del usuario (29/07/2026). Tiendanube ofrece este camino específicamente
+> para una única tienda operando su propia integración — exactamente la naturaleza single-tenant de este
+> CRM. Replicar el modelo OAuth completo de Mercado Libre no aportaría nada: no hay dos partes distintas
+> autorizándose entre sí, el usuario ya es dueño de ambos sistemas.
+>
+> **Alcance de la divergencia**: acotada al contenido de la tarjeta "Tiendanube". La pantalla contenedora
+> (Funciones Avanzadas, §5.1) sigue calcando a Contagram.
+
+**Alcance implementado en spec 015 (etapa 1 — sólo conexión)**:
+
+- Carga de las credenciales de la Aplicación personalizada: identificador de tienda (`store_id`) y
+  token de acceso, cifrado y nunca devuelto en claro.
+- Verificación de conexión contra la API real (`GET /{store_id}/store`), con panel de estado (No
+  configurada / Desconectada / Conectada / Caída) y los datos de la tienda vinculada (nombre, dominio,
+  país, moneda).
+- Probar conexión / Desconectar (conserva los datos de la tienda para trazabilidad, borra sólo el
+  token).
+- **Sin ciclo de renovación**: a diferencia de Mercado Libre, el token no vence. El único evento a
+  manejar es la revocación o regeneración manual desde el panel de Tiendanube, detectada en la
+  siguiente operación y reflejada como conexión "Caída" con la acción de recargar el token.
+- **Modo sólo lectura** (kill-switch) e historial de operaciones, independientes de los de Mercado
+  Libre — mismo patrón, tablas propias (`tn_configuracion`, `tn_operaciones_log`).
+
+**Fuera de alcance de la etapa 1** (specs posteriores 017 y 018, continuación directa de ésta —
+mismo patrón que 011→012→013 de Mercado Libre; la spec 016 terminó siendo un feature chico y no
+relacionado —Lista de Precios de clasificación en la configuración de Mercado Libre, §5.2 etapa 4— por
+lo que la numeración de esta continuación corrió un lugar): listado de órdenes de venta de Tiendanube,
+vinculación de productos con publicaciones existentes, conversión de órdenes en Venta del CRM,
+sincronización de stock del CRM hacia Tiendanube, importación masiva de catálogo, webhooks de negocio.
+
+**Sin restricción de infraestructura pública**: a diferencia de Mercado Libre, esta integración **no**
+requiere que el CRM esté publicado — sin redirect de autorización, la conexión puede probarse incluso
+en desarrollo local contra la API real de Tiendanube.
+
+**Etapa 2 — Ventas de Tiendanube (spec 017, implementada)**: listado de órdenes, vinculación
+variante↔producto, conversión manual/automática a Venta del CRM con cobranza y descuento de stock —
+mismo alcance funcional que la etapa 2 de Mercado Libre (§5.2), adaptado a que Tiendanube expone tres
+campos de estado en vez de uno, no informa condición de IVA, y admite múltiples medios de pago. Excluye
+por completo las órdenes del canal Mercado Libre integrado a Tiendanube (`storefront = "meli"`), para no
+duplicar lo que ya cubre la integración directa de Mercado Libre. Ver §3.2.quater;
+`specs/017-ventas-tiendanube/`.
+
+**Etapa 3 — Stock hacia Tiendanube (spec 018, especificada — lista para implementar)**: cierra el
+riesgo de sobreventa que la etapa 2 dejó documentado, empujando el stock del CRM hacia la variante
+vinculada de Tiendanube, mismo patrón que la spec 013 aplicó sobre la 012 para Mercado Libre. Agrega
+`tn_product_id` a la vinculación variante↔producto (la API de Tiendanube exige el producto, no sólo la
+variante, para actualizar stock). Ver §3.2.quinquies; `specs/018-stock-tiendanube/`.
+
+> ⚠️ **Nota de secuencia de implementación**: a la fecha de esta actualización, la spec 017 tiene sus
+> artefactos de spec-kit completos pero **su código todavía no está construido** (sólo la spec 015 —
+> conexión— tiene controladores, modelos y migraciones reales). La spec 018 extiende infraestructura que
+> la 017 todavía tiene que crear (`tn_variante_producto`, controladores de Ingresos → Tiendanube): sus
+> tareas de implementación deben ejecutarse después de, o junto con, las de la 017. Ver
+> `specs/018-stock-tiendanube/plan.md`, "Advertencia de secuencia de implementación".
+
 *Fuente(s): `docs/informe_contagram_funciones_avanzadas.md` §3; documentación oficial de Mercado Libre
-Developers; `specs/011-mercadolibre-conexion-oauth/`*
+Developers y de Tiendanube (`tiendanube.github.io/api-documentation`); `specs/011-mercadolibre-conexion-oauth/`,
+`specs/015-tiendanube-conexion/`, `specs/017-ventas-tiendanube/`, `specs/018-stock-tiendanube/`*
 
 ---
 
@@ -878,18 +1110,22 @@ Los siguientes módulos de Contagram fueron investigados en la primera pasada de
 esa documentación se descartó junto con el código porque no reflejaba con precisión el negocio real.
 Se re-relevarán módulo por módulo antes de retomar su implementación. **Ingresos (Ventas, Presupuestos,
 Otros Ingresos, Abonos) ya se re-relevó** (ver §3), **Tesorería (Cuentas, Movimientos) ya se
-implementó** (ver §3.7), **Egresos (Compras, Gastos) ya se re-relevó** (ver §4) y **Inicio / Panel de
-Control ya se implementó** (ver §6.3) — los cuatro salieron de esta lista:
+implementó** (ver §3.7), **Egresos (Compras, Gastos) ya se re-relevó** (ver §4), **Inicio / Panel de
+Control ya se implementó** (ver §6.3), **la integración con Mercado Libre + Funciones Avanzadas ya se
+implementaron** (specs 011/012/013/016 — ver §3.2.bis, §3.2.ter, §5.1 y §5.2) y **la integración con
+Tiendanube (conexión + ventas) ya se implementó** (specs 015/017 — ver §3.2.quater, §5.3; etapa 3 — stock
+hacia Tiendanube, spec 018 — ya especificada y lista para implementar, ver §3.2.quinquies) — todos
+salieron de esta lista:
 
 - Facturación Electrónica (ARCA/AFIP — WSAA + WSFEv1)
 - Informes (Ventas, Compras, Cuenta Corriente, Gastos, Contador, Ranking, Reporte Final) — nota: el
   aging de Cuenta Corriente ya tiene un cálculo mínimo reutilizable (`CuentaCorriente::aging()`, §6.3);
   las pantallas completas de Cuenta Corriente por Cliente/Proveedor siguen pendientes acá.
-- Integraciones (MercadoLibre, TiendaNube)
 - Retenciones (transversal a Cobros/Pagos — ya resuelta a nivel de regla de negocio en Ingresos §3.5 y
   Egresos §4.1 vía el modal "Nueva Retención"; sigue faltando el relevamiento de una pantalla propia de
   administración de retenciones, si existiera)
-- Configuración & Ajustes → Mi Perfil, Funciones Avanzadas, Ajustes de formularios
+- Configuración & Ajustes → Mi Perfil, Ajustes de formularios (**Funciones Avanzadas** ya está
+  implementada, spec 011 — §5.1)
 
 ---
 

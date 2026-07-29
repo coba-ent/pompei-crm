@@ -68,6 +68,14 @@
                 { data: 'producto_nombre', name: 'producto.nombre' },
                 { data: 'created_at', name: 'created_at' },
                 {
+                    // Unidades del depósito que publica ML — es el número que tiene que
+                    // coincidir con el de la publicación, no el stock total del producto.
+                    data: 'stock_ml', name: 'stock_ml', orderable: false, searchable: false,
+                    render: (data) => data === null || data === undefined
+                        ? '—'
+                        : '<span class="badge bg-' + (data > 0 ? 'light text-dark' : 'danger') + '">' + data + '</span>',
+                },
+                {
                     data: 'stock_estado', name: 'stock_estado', orderable: false, searchable: false,
                     render: (data, type, row) => renderEstadoStock(data, row),
                 },

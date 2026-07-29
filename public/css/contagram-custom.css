@@ -400,3 +400,24 @@ table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control:before {
 .select2-container--open {
     z-index: 1060;
 }
+
+/* --------------------------------------------------------------------------
+ * Toastr — recupera sus colores propios (verde/rojo/celeste/naranja).
+ * Bootstrap 5 también define un componente ".toast" (no relacionado) con la
+ * misma especificidad; como carga después que toastr.min.css, su
+ * background-color: var(--bs-toast-bg) le gana a .toast-success/.toast-error/
+ * etc. y todos los toasts terminaban con el mismo azul oscuro de marca en vez
+ * de su color de estado. Se sube la especificidad con el ID del contenedor.
+ * ------------------------------------------------------------------------ */
+#toast-container > .toast-success {
+    background-color: #51a351 !important;
+}
+#toast-container > .toast-error {
+    background-color: #bd362f !important;
+}
+#toast-container > .toast-info {
+    background-color: #2f96b4 !important;
+}
+#toast-container > .toast-warning {
+    background-color: #f89406 !important;
+}

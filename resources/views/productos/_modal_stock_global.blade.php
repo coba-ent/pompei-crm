@@ -39,9 +39,7 @@
                         <div class="col-md-6">
                             <label class="form-label" id="stock-op-deposito-label">Depósito</label>
                             <select class="form-select" name="deposito_id" id="stock-op-deposito">
-                                @foreach ($depositos as $deposito)
-                                    <option value="{{ $deposito->id }}">{{ $deposito->nombre }}</option>
-                                @endforeach
+                                @include('elements._options_depositos', ['depositos' => $depositos])
                             </select>
                             <div class="invalid-feedback" data-field="deposito_id"></div>
                             <div class="invalid-feedback" data-field="deposito_salida_id"></div>
@@ -50,9 +48,7 @@
                         <div class="col-md-6 d-none" id="stock-op-entrada-wrap">
                             <label class="form-label">Depósito de Entrada</label>
                             <select class="form-select" name="deposito_entrada_id" id="stock-op-entrada">
-                                @foreach ($depositos as $deposito)
-                                    <option value="{{ $deposito->id }}">{{ $deposito->nombre }}</option>
-                                @endforeach
+                                @include('elements._options_depositos', ['depositos' => $depositos])
                             </select>
                             <div class="invalid-feedback" data-field="deposito_entrada_id"></div>
                         </div>

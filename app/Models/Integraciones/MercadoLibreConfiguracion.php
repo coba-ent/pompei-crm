@@ -38,11 +38,26 @@ class MercadoLibreConfiguracion extends Model
     }
 
     /**
-     * Depósito configurado para Mercado Libre si existe y está activo; si no,
-     * el primero activo por orden de alta — misma regla que
-     * StockDeVenta::depositoPorDefecto() (spec 013, research.md R1, tasks.md T006).
+     * Depósito del que Mercado Libre publica el stock: el configurado si existe y
+     * está activo; si no, el por defecto del CRM (Deposito::porDefecto(), única
+     * definición compartida con las Ventas — spec 013, research.md R1, tasks.md T006).
+     *
+     * Lanza si no hay ninguno: sin depósito no se puede calcular qué publicar, y
+     * fallar es preferible a mandarle a Mercado Libre un stock inventado. Para
+     * pantallas informativas usar depositoEfectivoONulo().
      */
     public function depositoEfectivo(): Deposito
+    {
+        return $this->depositoEfectivoONulo()
+            ?? throw new \RuntimeException('No hay ningún depósito activo en el CRM.');
+    }
+
+    /**
+     * Igual que depositoEfectivo() pero devuelve null en vez de lanzar. Para
+     * pantallas que sólo muestran de qué depósito saldría el stock: un CRM sin
+     * depósitos todavía cargados no debe romper la pantalla de configuración.
+     */
+    public function depositoEfectivoONulo(): ?Deposito
     {
         $deposito = $this->deposito_id ? Deposito::find($this->deposito_id) : null;
 
@@ -50,7 +65,7 @@ class MercadoLibreConfiguracion extends Model
             return $deposito;
         }
 
-        return Deposito::activos()->orderBy('id')->firstOrFail();
+        return Deposito::porDefecto();
     }
 
     public function categoriaVenta(): BelongsTo

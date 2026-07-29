@@ -90,13 +90,9 @@ class StockDeVenta
         return $this->depositoPorDefecto();
     }
 
-    /**
-     * "Depósito por defecto del CRM": el modelo de Depósitos (spec 005) no tiene
-     * un flag explícito para esto, así que se usa el primero activo por orden
-     * de alta — determinístico y estable mientras no exista esa columna.
-     */
+    /** Ver Deposito::porDefecto() — única definición de "depósito por defecto del CRM". */
     private function depositoPorDefecto(): Deposito
     {
-        return Deposito::activos()->orderBy('id')->firstOrFail();
+        return Deposito::porDefecto() ?? throw new \RuntimeException('No hay ningún depósito activo.');
     }
 }

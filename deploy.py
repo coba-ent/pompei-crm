@@ -7,6 +7,7 @@ Credenciales: CREDENCIALES_ACCESO.txt (raíz, gitignored) — NO se hardcodean a
 
 Uso:
     python deploy.py <archivo> [<archivo> ...]   Sube archivos puntuales
+    python deploy.py --changed                   Sube lo que git ve modificado/nuevo (deployable)
     python deploy.py --build                     Recompila y sube public/build/
     python deploy.py --artisan "<comando>"       Corre un artisan en el server
     python deploy.py --tinker <script.php>       Corre un script PHP en tinker
@@ -15,9 +16,19 @@ Uso:
 Ejemplos:
     python deploy.py public/css/contagram-custom.css
     python deploy.py app/Models/Venta.php resources/views/ventas/index.blade.php
+    python deploy.py --changed
     python deploy.py --build
     python deploy.py --artisan "migrate --force"
     python deploy.py --tinker scripts/consulta.php
+
+`--changed` evita tipear la lista de archivos a mano (fuente típica de bugs: un
+archivo nuevo que se queda afuera de la lista y rompe una pantalla en silencio
+hasta que alguien la prueba). Toma `git status --porcelain`, descarta lo que no
+hace falta en el server (tests/, specs/, docs/, *.md, database/seeders/,
+public/build/) y sube el resto. Los borrados (`D` en git status) NO se aplican
+en el server — avisa y hay que borrarlos a mano. Revisá la lista impresa antes
+de confiar en que está completa; si te agarra a mitad de un WIP sin relación
+con el deploy, subí los archivos puntuales en vez de `--changed`.
 
 `--tinker` existe porque pasar PHP inline por `--artisan "tinker --execute=..."`
 se rompe con el escapeo de `$` a través de las capas de shell. Con un archivo
@@ -75,9 +86,10 @@ class Servidor:
         self.cliente.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.cliente.connect(HOST, port=PORT, username=USER, password=password, timeout=30)
 
-        self.transport = paramiko.Transport((HOST, PORT))
-        self.transport.connect(username=USER, password=password)
-        self.sftp = paramiko.SFTPClient.from_transport(self.transport)
+        # Reutiliza el transport de la conexión SSH ya abierta en vez de abrir
+        # una segunda conexión independiente para SFTP: menos handshakes, y no
+        # hay riesgo de que una de las dos conexiones falle y la otra no.
+        self.sftp = paramiko.SFTPClient.from_transport(self.cliente.get_transport())
 
     def ejecutar(self, comando, mostrar=True):
         _, stdout, stderr = self.cliente.exec_command(f"cd {REMOTE_BASE} && {comando}")
@@ -98,9 +110,12 @@ class Servidor:
         ruta_relativa = ruta_relativa.replace("\\", "/").lstrip("./")
         local = os.path.join(RAIZ, ruta_relativa.replace("/", os.sep))
 
+        # Aborta todo el deploy en vez de "OMITIDO" y seguir: un archivo
+        # faltante casi siempre es un typo, y subir el resto igual deja el
+        # server en un estado mixto (código nuevo que asume un archivo que
+        # nunca llegó) sin que nadie se entere hasta que falla en producción.
         if not os.path.isfile(local):
-            print(f"  OMITIDO (no existe local): {ruta_relativa}")
-            return False
+            sys.exit(f"No existe local, abortando (no se sube nada a medias): {ruta_relativa}")
 
         remoto = f"{REMOTE_BASE}/{ruta_relativa}"
         carpeta = os.path.dirname(remoto)
@@ -111,7 +126,6 @@ class Servidor:
 
     def cerrar(self):
         self.sftp.close()
-        self.transport.close()
         self.cliente.close()
 
 
@@ -128,28 +142,97 @@ def caches_a_limpiar(rutas):
 
 
 def desplegar_build(servidor):
-    """Recompila Vite localmente y reemplaza public/build/ completo en el server."""
+    """Recompila Vite localmente y reemplaza public/build/ completo en el server.
+
+    Swap atómico: extrae a public/build_nuevo/ (staging, sin tocar lo que está
+    sirviendo tráfico), verifica que el manifest haya llegado bien, y recién
+    ahí hace el `mv`. Nunca hay una ventana en la que public/build no exista o
+    esté a medio escribir — antes hacía rm -rf del build viejo ANTES de saber
+    si el nuevo se había extraído bien, así que un tar corrupto o una falla de
+    extracción dejaba el sitio caído sin build alguno y sin forma de revertir.
+    """
     print("Compilando assets (npm run build)...")
     resultado = subprocess.run("npm run build", shell=True, cwd=RAIZ)
     if resultado.returncode != 0:
         sys.exit("npm run build falló, no se sube nada.")
 
+    manifest_local = os.path.join(RAIZ, "public", "build", "manifest.json")
+    if not os.path.isfile(manifest_local):
+        sys.exit("npm run build no generó public/build/manifest.json, no se sube nada.")
+
     with tempfile.TemporaryDirectory() as tmp:
         tar_local = os.path.join(tmp, "build.tar.gz")
         with tarfile.open(tar_local, "w:gz") as tar:
-            tar.add(os.path.join(RAIZ, "public", "build"), arcname="build")
+            tar.add(os.path.join(RAIZ, "public", "build"), arcname="build_nuevo")
 
         print("Subiendo public/build/...")
         tar_remoto = f"{REMOTE_BASE}/build_deploy.tar.gz"
         servidor.sftp.put(tar_local, tar_remoto)
 
-    # El build viejo se borra entero: los nombres llevan hash y un archivo
-    # colgado de un build anterior puede quedar referenciado por el manifest.
-    servidor.ejecutar(f"rm -rf {REMOTE_BASE}/public/build")
-    servidor.ejecutar(f"tar -xzf {tar_remoto} -C {REMOTE_BASE}/public")
-    servidor.ejecutar(f"rm -f {tar_remoto}")
+    print("Extrayendo a public/build_nuevo/ (staging, sin tocar el build actual)...")
+    codigo, _, error = servidor.ejecutar(
+        f"rm -rf {REMOTE_BASE}/public/build_nuevo && tar -xzf {tar_remoto} -C {REMOTE_BASE}/public"
+    )
+    servidor.ejecutar(f"rm -f {tar_remoto}", mostrar=False)
+    if codigo != 0:
+        servidor.ejecutar(f"rm -rf {REMOTE_BASE}/public/build_nuevo", mostrar=False)
+        sys.exit(f"La extracción falló en el server; el build/ actual sigue intacto y sirviendo.\n{error}")
+
+    codigo, _, _ = servidor.ejecutar(f"test -f {REMOTE_BASE}/public/build_nuevo/manifest.json", mostrar=False)
+    if codigo != 0:
+        servidor.ejecutar(f"rm -rf {REMOTE_BASE}/public/build_nuevo", mostrar=False)
+        sys.exit("El build subido no trae manifest.json; algo salió mal. El build/ actual sigue intacto.")
+
+    print("Swap atómico de public/build...")
+    codigo, _, error = servidor.ejecutar(
+        f"rm -rf {REMOTE_BASE}/public/build_anterior && "
+        f"mv {REMOTE_BASE}/public/build {REMOTE_BASE}/public/build_anterior && "
+        f"mv {REMOTE_BASE}/public/build_nuevo {REMOTE_BASE}/public/build"
+    )
+    if codigo != 0:
+        sys.exit(
+            "El swap falló a mitad de camino — revisá el server a mano: "
+            f"public/build_anterior puede tener el build viejo para restaurar con mv.\n{error}"
+        )
+    servidor.ejecutar(f"rm -rf {REMOTE_BASE}/public/build_anterior", mostrar=False)
+
     servidor.ejecutar("php artisan view:clear")
     servidor.ejecutar("php artisan view:cache")
+
+
+RUTAS_DEPLOYABLES = ("app/", "resources/", "routes/", "config/", "database/migrations/", "public/", "bootstrap/app.php")
+RUTAS_EXCLUIDAS = ("tests/", "specs/", "docs/", "database/seeders/", "public/build/")
+
+
+def archivos_cambiados():
+    """Deriva del `git status` qué archivos hacen falta en el server, en vez de
+    tipearlos a mano (ver nota de --changed en el docstring del módulo)."""
+    resultado = subprocess.run(
+        ["git", "status", "--porcelain"], cwd=RAIZ, capture_output=True, text=True, check=True,
+    )
+
+    rutas = []
+    borrados = []
+    for linea in resultado.stdout.splitlines():
+        estado, ruta = linea[:2], linea[3:].strip()
+        ruta = ruta.replace("\\", "/")
+
+        if "D" in estado:
+            borrados.append(ruta)
+            continue
+        if ruta.endswith(".md") or ruta.startswith(RUTAS_EXCLUIDAS):
+            continue
+        if not ruta.startswith(RUTAS_DEPLOYABLES):
+            continue
+        rutas.append(ruta)
+
+    if borrados:
+        print("ATENCION: git muestra archivos borrados localmente que --changed NO borra en el server:")
+        for r in borrados:
+            print(f"  - {r}")
+        print("Borralos a mano por SSH si corresponde.\n")
+
+    return rutas
 
 
 def verificar():
@@ -172,6 +255,15 @@ def main():
     if args[0] == "--check":
         verificar()
         return
+
+    if args[0] == "--changed":
+        args = archivos_cambiados()
+        if not args:
+            sys.exit("git no muestra archivos deployables pendientes (revisá git status).")
+        print(f"Archivos detectados por git ({len(args)}):")
+        for r in args:
+            print(f"  {r}")
+        print()
 
     servidor = Servidor(password_ssh())
     try:
@@ -199,17 +291,25 @@ def main():
                 servidor.ejecutar(f"rm -f {remoto}", mostrar=False)
 
         else:
+            # Chequea que TODOS existan antes de subir el primero: un typo en
+            # el archivo 5 de 6 no debe dejar el server con los primeros 4 ya
+            # actualizados y el resto de la corrida cortada a mitad de camino.
+            faltantes = [r for r in args if not os.path.isfile(os.path.join(RAIZ, r.replace("\\", "/").replace("/", os.sep)))]
+            if faltantes:
+                sys.exit("No existen localmente, abortando (no se sube nada a medias): " + ", ".join(faltantes))
+
             print("Subiendo archivos...")
-            subidos = [r for r in args if servidor.subir(r)]
+            for r in args:
+                servidor.subir(r)
 
-            if not subidos:
-                sys.exit("No se subió ningún archivo.")
-
-            comandos = caches_a_limpiar([r.replace("\\", "/") for r in subidos])
+            comandos = caches_a_limpiar([r.replace("\\", "/") for r in args])
             if comandos:
                 print("Regenerando caches...")
                 for comando in comandos:
-                    servidor.ejecutar(comando)
+                    codigo, _, error = servidor.ejecutar(comando)
+                    if codigo != 0:
+                        print(f"  ATENCION: '{comando}' falló (exit {codigo}) — puede que uno de los "
+                              "archivos subidos tenga un error de sintaxis.")
     finally:
         servidor.cerrar()
 

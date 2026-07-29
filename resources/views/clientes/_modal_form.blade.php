@@ -192,7 +192,10 @@
                                         <option value="Pasaporte">Pasaporte</option>
                                         <option value="CDI">CDI</option>
                                     </select>
-                                    <input type="text" class="form-control" name="cuit" maxlength="11" placeholder="Sin guiones">
+                                    <input type="text" class="form-control" name="cuit" maxlength="13" placeholder="Sin guiones">
+                                    <button type="button" class="btn btn-outline-secondary js-verificar-documento" title="Verificar">
+                                        <i class="fas fa-check-circle"></i> Verificar
+                                    </button>
                                 </div>
                                 <div class="invalid-feedback d-block" data-field="cuit"></div>
                             </div>

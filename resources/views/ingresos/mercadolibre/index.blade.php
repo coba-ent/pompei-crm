@@ -80,6 +80,7 @@
                             <tr>
                                 <th>Acciones</th>
                                 <th>Orden</th>
+                                <th>Etiquetas</th>
                                 <th>Fecha</th>
                                 <th>Comprador</th>
                                 <th>Productos</th>
