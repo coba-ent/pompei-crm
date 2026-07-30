@@ -52,10 +52,12 @@ var NexaDash = function(){
 					$(this).removeClass('dark');
 					$(this).addClass('light');
 					jQuery('body').attr('data-theme-version','light');
+					try { localStorage.setItem('contagram-theme', 'light'); } catch (e) {}
 				} else{
 					$(this).removeClass('light');
 					$(this).addClass('dark');
 					jQuery('body').attr('data-theme-version','dark');
+					try { localStorage.setItem('contagram-theme', 'dark'); } catch (e) {}
 				}
 			});
 		}

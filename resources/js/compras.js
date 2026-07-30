@@ -145,7 +145,42 @@
         let items = Array.isArray(data.items) && data.items.length ? data.items.slice() : [];
         let conceptos = Array.isArray(data.conceptos) && data.conceptos.length ? data.conceptos.slice() : [];
 
-        initSelect2($('#f-categoria'), { placeholder: 'Seleccioná una Categoría', allowClear: true });
+        // ---- Categoría de Compras (catálogo con Select2 + crear/renombrar/eliminar) ----
+        let categoriasCompra = (cfg.categorias || []).slice();
+        const $categoriaSel = $('#f-categoria');
+        let categoriaPrevia = '';
+
+        function actualizarBotonesCategoria() {
+            const val = $categoriaSel.val();
+            const cat = categoriasCompra.find((c) => String(c.id) === String(val));
+            const real = !!val && val !== '__nuevo__' && !(cat && cat.es_sistema);
+            $('#btn-renombrar-categoria, #btn-eliminar-categoria').toggleClass('d-none', !real);
+        }
+
+        function renderCategorias(selectedId) {
+            const sel = selectedId ? String(selectedId) : '';
+            $categoriaSel.empty();
+            $categoriaSel.append(new Option('', '', false, !sel));
+            $categoriaSel.append(new Option('＋ Crear Categoría de Compras', '__nuevo__', false, false));
+            categoriasCompra.forEach((c) => $categoriaSel.append(new Option(c.nombre, c.id, false, String(c.id) === sel)));
+            refreshSelect2($categoriaSel);
+            categoriaPrevia = sel;
+            actualizarBotonesCategoria();
+        }
+
+        initSelect2($categoriaSel, { placeholder: 'Seleccioná una Categoría', allowClear: true });
+        renderCategorias('');
+
+        $categoriaSel.on('change', function () {
+            const val = $(this).val();
+            if (val === '__nuevo__') {
+                $(this).val(categoriaPrevia).trigger('change.select2');
+                abrirModalCategoria('crear', '', '');
+            } else {
+                categoriaPrevia = val || '';
+                actualizarBotonesCategoria();
+            }
+        });
 
         initSelect2($('#f-proveedor'), {
             placeholder: 'Seleccionar Proveedor',
@@ -169,8 +204,7 @@
             $('#f-proveedor').append(new Option(data.proveedor.nombre, data.proveedor.id, true, true));
             refreshSelect2($('#f-proveedor'));
         }
-        if (data.categoriaId) { $('#f-categoria').val(data.categoriaId); }
-        refreshSelect2($('#f-categoria'));
+        if (data.categoriaId) { renderCategorias(data.categoriaId); }
         if (data.compra && data.compra.tipo_comprobante) { $('#f-tipo-comprobante').val(data.compra.tipo_comprobante); }
         if (data.notaInterna) { $('#f-nota-interna').val(data.notaInterna); }
         if (data.fechaVtoPago) { $('#f-fecha-vto-pago').val(data.fechaVtoPago); }
@@ -268,18 +302,90 @@
         renderItems();
         renderConceptos();
 
-        $('#btn-nueva-categoria').on('click', () => bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-nueva-categoria')).show());
+        // Modal crear/renombrar Categoría de Compras.
+        let modoCategoria = 'crear';
+        let idCategoriaEditar = null;
+
+        function abrirModalCategoria(modo, id, nombreActual) {
+            modoCategoria = modo;
+            idCategoriaEditar = id || null;
+            $('#nueva-categoria-nombre').val(nombreActual || '').removeClass('is-invalid');
+            $('#nueva-categoria-error').text('');
+            $('#modal-nueva-categoria-titulo').text(modo === 'renombrar' ? 'Renombrar Categoría de Compras' : 'Crear Categoría de Compras');
+            $('#btn-crear-categoria').text(modo === 'renombrar' ? 'Guardar' : 'Crear');
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-nueva-categoria')).show();
+            setTimeout(() => $('#nueva-categoria-nombre').trigger('focus'), 300);
+        }
+
+        $('#btn-renombrar-categoria').on('click', function (e) {
+            e.preventDefault();
+            const id = $categoriaSel.val();
+            if (!id || id === '__nuevo__') { return; }
+            const c = categoriasCompra.find((x) => String(x.id) === String(id));
+            abrirModalCategoria('renombrar', id, c ? c.nombre : '');
+        });
+
         $('#btn-crear-categoria').on('click', function () {
-            const nombre = $('#nueva-categoria-nombre').val();
-            if (!nombre) { return; }
-            $.post(rutas.categoriaCompraStore, { nombre })
+            const nombre = $('#nueva-categoria-nombre').val().trim();
+            $('#nueva-categoria-nombre').removeClass('is-invalid');
+            $('#nueva-categoria-error').text('');
+            if (!nombre) {
+                $('#nueva-categoria-nombre').addClass('is-invalid');
+                $('#nueva-categoria-error').text('Ingresá un nombre.');
+                return;
+            }
+
+            const esRenombrar = modoCategoria === 'renombrar';
+            const url = esRenombrar ? rutas.categoriaUpdateBase + '/' + idCategoriaEditar : rutas.categoriaCompraStore;
+            const datos = esRenombrar ? { _method: 'PATCH', nombre } : { nombre };
+
+            $.post(url, datos)
                 .done((resp) => {
-                    $('#f-categoria').append(new Option(resp.categoria.nombre, resp.categoria.id, true, true)).trigger('change');
-                    $('#nueva-categoria-nombre').val('');
+                    if (esRenombrar) {
+                        const c = categoriasCompra.find((x) => String(x.id) === String(idCategoriaEditar));
+                        if (c) { c.nombre = resp.categoria.nombre; }
+                        categoriasCompra.sort((a, b) => a.nombre.localeCompare(b.nombre));
+                        renderCategorias(idCategoriaEditar);
+                    } else {
+                        categoriasCompra.push({ id: resp.categoria.id, nombre: resp.categoria.nombre, es_sistema: false });
+                        categoriasCompra.sort((a, b) => a.nombre.localeCompare(b.nombre));
+                        renderCategorias(resp.categoria.id);
+                    }
                     bootstrap.Modal.getInstance(document.getElementById('modal-nueva-categoria'))?.hide();
-                    toast('success', 'Categoría creada.');
+                    toast('success', resp.mensaje || 'Categoría guardada.');
                 })
-                .fail((xhr) => toast('error', xhr.responseJSON?.mensaje || 'No se pudo crear la categoría.'));
+                .fail((xhr) => {
+                    const msg = xhr.responseJSON?.mensaje || xhr.responseJSON?.errors?.nombre?.[0] || 'No se pudo guardar la categoría.';
+                    $('#nueva-categoria-nombre').addClass('is-invalid');
+                    $('#nueva-categoria-error').text(msg);
+                });
+        });
+
+        // Eliminar Categoría de Compras (modal de confirmación).
+        let idCategoriaAEliminar = null;
+        $('#btn-eliminar-categoria').on('click', function (e) {
+            e.preventDefault();
+            const id = $categoriaSel.val();
+            if (!id || id === '__nuevo__') { return; }
+            const c = categoriasCompra.find((x) => String(x.id) === String(id));
+            idCategoriaAEliminar = id;
+            $('#categoria-eliminar-nombre').text(c ? c.nombre : '');
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-categoria-eliminar')).show();
+        });
+        $('#btn-confirmar-eliminar-categoria').on('click', function () {
+            if (!idCategoriaAEliminar) { return; }
+            const id = idCategoriaAEliminar;
+            $.post(rutas.categoriaDestroyBase + '/' + id, { _method: 'DELETE' })
+                .done((resp) => {
+                    categoriasCompra = categoriasCompra.filter((x) => String(x.id) !== String(id));
+                    renderCategorias('');
+                    toast('success', resp.mensaje || 'Categoría eliminada.');
+                })
+                .fail((xhr) => toast('error', xhr.responseJSON?.mensaje || 'No se pudo eliminar la categoría.'))
+                .always(() => {
+                    bootstrap.Modal.getInstance(document.getElementById('modal-categoria-eliminar'))?.hide();
+                    idCategoriaAEliminar = null;
+                });
         });
 
         function payload() {

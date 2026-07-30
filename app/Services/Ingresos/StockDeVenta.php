@@ -4,6 +4,7 @@ namespace App\Services\Ingresos;
 
 use App\Models\Deposito;
 use App\Models\Integraciones\MercadoLibreConfiguracion;
+use App\Models\Integraciones\TiendanubeConfiguracion;
 use App\Models\Venta;
 use App\Models\VentaItem;
 use App\Services\Stock\StockService;
@@ -80,11 +81,15 @@ class StockDeVenta
         return $items->filter(fn (VentaItem $item) => $item->producto && $item->producto->controlaStock());
     }
 
-    /** ML → depósito configurado (o el por defecto); manual → depósito por defecto del CRM (FR-047). */
+    /** ML/TN → depósito configurado (o el por defecto); manual → depósito por defecto del CRM (FR-047). */
     private function resolverDeposito(Venta $venta): Deposito
     {
         if ($venta->origen === 'mercadolibre') {
             return MercadoLibreConfiguracion::actual()->depositoEfectivo();
+        }
+
+        if ($venta->origen === 'tiendanube') {
+            return TiendanubeConfiguracion::actual()->depositoEfectivo();
         }
 
         return $this->depositoPorDefecto();

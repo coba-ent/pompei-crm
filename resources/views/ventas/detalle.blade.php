@@ -126,7 +126,7 @@
                             <div><strong>CUIT:</strong> {{ optional($venta->cliente)->cuit ?: '-' }}</div>
                             <div><strong>Condición IVA:</strong> {{ optional(optional($venta->cliente)->condicionIva)->nombre ?: '-' }}</div>
                             <div><strong>Categoría:</strong> {{ optional($venta->categoria)->nombre ?: '-' }}</div>
-                            <div><strong>Vendedor:</strong> {{ optional($venta->vendedor)->name ?: '-' }}</div>
+                            <div><strong>Vendedor:</strong> {{ optional($venta->vendedor)->nombre ?: '-' }}</div>
                         </div>
                     </div>
                 </div>

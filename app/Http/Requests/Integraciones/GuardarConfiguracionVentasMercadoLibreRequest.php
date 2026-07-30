@@ -33,6 +33,7 @@ class GuardarConfiguracionVentasMercadoLibreRequest extends FormRequest
             'categoria_venta_id' => ['nullable', 'exists:categorias,id'],
             'dias_primera_sync' => ['required', 'integer', 'min:1', 'max:365'],
             'lista_precio_id' => ['nullable', 'exists:listas_precio,id'],
+            'vendedor_id' => ['nullable', 'integer', 'exists:vendedores,id'],
         ];
     }
 }

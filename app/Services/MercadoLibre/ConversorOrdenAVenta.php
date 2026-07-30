@@ -150,6 +150,7 @@ class ConversorOrdenAVenta
                     'origen' => 'mercadolibre',
                     'cliente_id' => $clienteFinal->id,
                     'categoria_id' => MercadoLibreConfiguracion::actual()->categoria_venta_id,
+                    'vendedor_id' => MercadoLibreConfiguracion::actual()->vendedor_id,
                     'fecha_emision' => $fechaEmision,
                     'tipo_comprobante' => $tipoComprobante,
                     'nro_comprobante' => Venta::siguienteNroComprobante($tipoComprobante),

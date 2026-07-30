@@ -5,9 +5,12 @@ namespace App\Enums\Tiendanube;
 /**
  * Estados de la conexión con Tiendanube (tn_configuracion.estado).
  *
- * `NoConfigurada` es un valor DERIVADO: se calcula cuando `tn_configuracion` está
- * incompleta (sin store_id/access_token) y nunca se persiste así en la columna
- * `estado` — ver data-model.md §1. Sin `PendienteConfirmacion` (research.md §R6):
+ * `NoConfigurada` es un valor DERIVADO (spec 019 data-model.md §1): se calcula
+ * cuando `access_token` está vacío, cubriendo tanto "nunca conectado" como
+ * "desconectado" (FR-006) — no hay datos parciales sin `store_id` manual que
+ * distingan un caso del otro. `Desconectada` queda como caso del enum sin uso
+ * nuevo (no se vuelve a persistir desde spec 019 en adelante), conservado para
+ * no romper datos históricos. Sin `PendienteConfirmacion` (research.md §R6):
  * no existe pantalla de autorización externa donde pueda aparecer "otra cuenta".
  */
 enum EstadoConexion: string

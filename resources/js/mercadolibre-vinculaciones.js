@@ -138,6 +138,40 @@
         $('#form-vinculacion .invalid-feedback').text('');
     }
 
+    function mostrarSelectPublicacion(seleccionado, deshabilitado) {
+        const $select = $('#vinculacion-ml-item-id');
+        $select.empty();
+
+        if (seleccionado && seleccionado.id) {
+            const opcion = new Option(seleccionado.text, seleccionado.id, true, true);
+            $select.append(opcion);
+        }
+
+        $select.prop('disabled', !!deshabilitado);
+
+        initSelect2($select, {
+            dropdownParent: $('#modal-vinculacion'),
+            placeholder: 'Buscar publicación…',
+            allowClear: true,
+            ajax: {
+                url: rutas.pendientes,
+                data: (params) => ({ q: params.term }),
+                processResults: (data) => ({
+                    results: data.data.map((p) => ({ id: p.id, text: p.text, titulo: p.titulo })),
+                }),
+            },
+        });
+
+        if (seleccionado && seleccionado.id) {
+            $select.trigger('change.select2');
+        }
+
+        $select.off('select2:select').on('select2:select', function (e) {
+            const data = e.params.data;
+            $('#vinculacion-titulo-ml').val(data.titulo || '');
+        });
+    }
+
     function mostrarSelectProducto(seleccionado) {
         const $select = $('#vinculacion-producto-id');
         $select.empty();
@@ -173,8 +207,8 @@
             limpiarErrores();
             $('#modal-vinculacion-titulo').text('Nueva vinculación');
             $('#vinculacion-id').val('');
-            $('#vinculacion-ml-item-id').val('').prop('disabled', false);
             $('#vinculacion-titulo-ml').val('');
+            mostrarSelectPublicacion(null, false);
             mostrarSelectProducto(null);
             modal.show();
         });
@@ -186,8 +220,14 @@
             limpiarErrores();
             $('#modal-vinculacion-titulo').text('Editar vinculación');
             $('#vinculacion-id').val(idEnEdicion);
-            $('#vinculacion-ml-item-id').val($btn.data('ml-item-id')).prop('disabled', true);
             $('#vinculacion-titulo-ml').val($btn.data('titulo-ml'));
+            // La publicación vinculada no se puede cambiar en una edición — sólo
+            // el producto del CRM y el título.
+            const tituloMl = $btn.data('titulo-ml');
+            mostrarSelectPublicacion({
+                id: $btn.data('ml-item-id'),
+                text: $btn.data('ml-item-id') + (tituloMl ? ' — ' + tituloMl : ''),
+            }, true);
             mostrarSelectProducto({ id: $btn.data('producto-id'), nombre: $btn.data('producto-nombre') });
             modal.show();
         });

@@ -57,8 +57,9 @@
                 <div class="modal-body">
                     <input type="hidden" id="vinculacion-id">
                     <div class="mb-3">
-                        <label class="form-label">ID de la publicación en Mercado Libre</label>
-                        <input type="text" class="form-control" id="vinculacion-ml-item-id" placeholder="Ej: MLA1927008393">
+                        <label class="form-label">Publicación de Mercado Libre</label>
+                        <select class="form-select" id="vinculacion-ml-item-id" style="width:100%"></select>
+                        <div class="form-text">Salen de las órdenes de Mercado Libre ya sincronizadas; las ya vinculadas no aparecen.</div>
                         <div class="invalid-feedback" id="error-ml-item-id"></div>
                     </div>
                     <div class="mb-3">
@@ -105,6 +106,7 @@
     window.MercadoLibreVinculacionesConfig = {
         rutas: {
             datatable: @json(route('ingresos.mercadolibre.vinculaciones.datatable')),
+            pendientes: @json(route('ingresos.mercadolibre.vinculaciones.pendientes')),
             store: @json(route('ingresos.mercadolibre.vinculaciones.store')),
             base: @json(url('ingresos/mercadolibre/vinculaciones')),
             productosOpciones: @json(route('productos.opciones')),

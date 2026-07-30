@@ -55,19 +55,28 @@
             }));
         }
 
+        function actualizarBotonesCategoriaGasto() {
+            const val = $('#gasto-categoria').val();
+            const cat = (cfg.categorias || []).find((c) => String(c.id) === String(val));
+            const real = !!val && !(cat && cat.es_sistema);
+            $('#btn-renombrar-categoria-gasto, #btn-eliminar-categoria-gasto').toggleClass('d-none', !real);
+        }
+
         function llenarCategorias(seleccion) {
+            const sel = seleccion ? String(seleccion) : '';
             const $sel = $('#gasto-categoria').empty();
             $sel.append(new Option('', ''));
             categoriasJerarquia().forEach(({ raiz, hijos }) => {
                 if (!hijos.length) {
-                    $sel.append(new Option(raiz.nombre, raiz.id, false, raiz.id === seleccion));
+                    $sel.append(new Option(raiz.nombre, raiz.id, false, String(raiz.id) === sel));
                     return;
                 }
                 const $grupo = $('<optgroup>').attr('label', raiz.nombre);
-                hijos.forEach((h) => $grupo.append(new Option(h.nombre, h.id, false, h.id === seleccion)));
+                hijos.forEach((h) => $grupo.append(new Option(h.nombre, h.id, false, String(h.id) === sel)));
                 $sel.append($grupo);
             });
             $sel.trigger('change.select2');
+            actualizarBotonesCategoriaGasto();
         }
         function llenarCuentas(seleccion) {
             const $sel = $('#gasto-cuenta').empty();
@@ -80,6 +89,7 @@
         initSelect2($('#gasto-cuenta'), { placeholder: 'Seleccioná un Medio de Pago', allowClear: true });
         llenarCategorias(null);
         llenarCuentas(null);
+        $('#gasto-categoria').on('change', actualizarBotonesCategoriaGasto);
 
         function filtrosActuales() {
             return { buscar: $('#filtro-buscar').val() };
@@ -158,24 +168,70 @@
         });
 
         let subcategoriaDe = null;
+        let modoCategoriaGasto = 'crear';
+        let idCategoriaGastoEditar = null;
+
         $('#btn-nueva-categoria-gasto').on('click', function (e) {
             e.preventDefault();
             subcategoriaDe = null;
+            modoCategoriaGasto = 'crear';
             $('#modal-nueva-categoria-gasto-titulo').text('Crear Categoría de Gasto');
-            $('#nueva-categoria-gasto-nombre').val('');
+            $('#btn-crear-categoria-gasto').text('Crear');
+            $('#nueva-categoria-gasto-nombre').val('').removeClass('is-invalid');
+            $('#nueva-categoria-gasto-error').text('');
             bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-nueva-categoria-gasto')).show();
         });
         $('#btn-nueva-subcategoria-gasto').on('click', function (e) {
             e.preventDefault();
             subcategoriaDe = $('#gasto-categoria').val();
             if (!subcategoriaDe) { toast('error', 'Elegí primero una Categoría para agregarle una Subcategoría.'); return; }
+            modoCategoriaGasto = 'crear';
             $('#modal-nueva-categoria-gasto-titulo').text('Crear Subcategoría');
-            $('#nueva-categoria-gasto-nombre').val('');
+            $('#btn-crear-categoria-gasto').text('Crear');
+            $('#nueva-categoria-gasto-nombre').val('').removeClass('is-invalid');
+            $('#nueva-categoria-gasto-error').text('');
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-nueva-categoria-gasto')).show();
+        });
+        $('#btn-renombrar-categoria-gasto').on('click', function (e) {
+            e.preventDefault();
+            const id = $('#gasto-categoria').val();
+            if (!id) { return; }
+            const c = (cfg.categorias || []).find((x) => String(x.id) === String(id));
+            if (!c || c.es_sistema) { return; }
+            modoCategoriaGasto = 'renombrar';
+            idCategoriaGastoEditar = id;
+            $('#modal-nueva-categoria-gasto-titulo').text('Renombrar Categoría');
+            $('#btn-crear-categoria-gasto').text('Guardar');
+            $('#nueva-categoria-gasto-nombre').val(c.nombre).removeClass('is-invalid');
+            $('#nueva-categoria-gasto-error').text('');
             bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-nueva-categoria-gasto')).show();
         });
         $('#btn-crear-categoria-gasto').on('click', function () {
-            const nombre = $('#nueva-categoria-gasto-nombre').val();
-            if (!nombre) { return; }
+            const nombre = $('#nueva-categoria-gasto-nombre').val().trim();
+            $('#nueva-categoria-gasto-nombre').removeClass('is-invalid');
+            $('#nueva-categoria-gasto-error').text('');
+            if (!nombre) {
+                $('#nueva-categoria-gasto-nombre').addClass('is-invalid');
+                $('#nueva-categoria-gasto-error').text('Ingresá un nombre.');
+                return;
+            }
+
+            if (modoCategoriaGasto === 'renombrar') {
+                $.post(rutas.categoriaUpdateBase + '/' + idCategoriaGastoEditar, { _method: 'PATCH', nombre })
+                    .done((resp) => {
+                        const c = (cfg.categorias || []).find((x) => String(x.id) === String(idCategoriaGastoEditar));
+                        if (c) { c.nombre = resp.categoria.nombre; }
+                        llenarCategorias(idCategoriaGastoEditar);
+                        bootstrap.Modal.getInstance(document.getElementById('modal-nueva-categoria-gasto'))?.hide();
+                        toast('success', resp.mensaje || 'Categoría renombrada.');
+                    })
+                    .fail((xhr) => {
+                        const msg = xhr.responseJSON?.mensaje || xhr.responseJSON?.errors?.nombre?.[0] || 'No se pudo renombrar la categoría.';
+                        $('#nueva-categoria-gasto-nombre').addClass('is-invalid');
+                        $('#nueva-categoria-gasto-error').text(msg);
+                    });
+                return;
+            }
 
             const url = subcategoriaDe
                 ? rutas.categoriaGastoSubcategoriaStoreBase + '/' + subcategoriaDe + '/subcategorias'
@@ -183,13 +239,45 @@
 
             $.post(url, { nombre })
                 .done((resp) => {
-                    cfg.categorias.push({ id: resp.categoria.id, nombre: resp.categoria.nombre, categoria_padre_id: resp.categoria.categoria_padre_id });
+                    cfg.categorias.push({ id: resp.categoria.id, nombre: resp.categoria.nombre, categoria_padre_id: resp.categoria.categoria_padre_id, es_sistema: false });
                     llenarCategorias(resp.categoria.id);
                     $('#nueva-categoria-gasto-nombre').val('');
                     bootstrap.Modal.getInstance(document.getElementById('modal-nueva-categoria-gasto'))?.hide();
                     toast('success', 'Categoría creada.');
                 })
-                .fail((xhr) => toast('error', xhr.responseJSON?.mensaje || 'No se pudo crear la categoría.'));
+                .fail((xhr) => {
+                    const msg = xhr.responseJSON?.mensaje || xhr.responseJSON?.errors?.nombre?.[0] || 'No se pudo crear la categoría.';
+                    $('#nueva-categoria-gasto-nombre').addClass('is-invalid');
+                    $('#nueva-categoria-gasto-error').text(msg);
+                });
+        });
+
+        // Eliminar Categoría/Subcategoría de Gasto (modal de confirmación).
+        let idCategoriaGastoAEliminar = null;
+        $('#btn-eliminar-categoria-gasto').on('click', function (e) {
+            e.preventDefault();
+            const id = $('#gasto-categoria').val();
+            if (!id) { return; }
+            const c = (cfg.categorias || []).find((x) => String(x.id) === String(id));
+            if (!c || c.es_sistema) { return; }
+            idCategoriaGastoAEliminar = id;
+            $('#categoria-gasto-eliminar-nombre').text(c.nombre);
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-categoria-gasto-eliminar')).show();
+        });
+        $('#btn-confirmar-eliminar-categoria-gasto').on('click', function () {
+            if (!idCategoriaGastoAEliminar) { return; }
+            const id = idCategoriaGastoAEliminar;
+            $.post(rutas.categoriaDestroyBase + '/' + id, { _method: 'DELETE' })
+                .done((resp) => {
+                    cfg.categorias = (cfg.categorias || []).filter((x) => String(x.id) !== String(id));
+                    llenarCategorias(null);
+                    toast('success', resp.mensaje || 'Categoría eliminada.');
+                })
+                .fail((xhr) => toast('error', xhr.responseJSON?.mensaje || 'No se pudo eliminar la categoría.'))
+                .always(() => {
+                    bootstrap.Modal.getInstance(document.getElementById('modal-categoria-gasto-eliminar'))?.hide();
+                    idCategoriaGastoAEliminar = null;
+                });
         });
 
         $('#btn-guardar-gasto').on('click', function () {

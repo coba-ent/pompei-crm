@@ -214,6 +214,38 @@ return [
 				'js/custom.js',
 			],
 		],
+		'ingresos-tiendanube' => [
+			'title' => 'Tiendanube',
+			'css' => [
+				'vendor/datatables/css/jquery.dataTables.min.css',
+				'vendor/datatables/responsive/responsive.css',
+				'vendor/toastr/css/toastr.min.css',
+				'vendor/select2/css/select2.min.css',
+			],
+			'js' => [
+				'vendor/datatables/js/jquery.dataTables.min.js',
+				'vendor/datatables/responsive/responsive.js',
+				'vendor/toastr/js/toastr.min.js',
+				'vendor/select2/js/select2.full.min.js',
+				'js/custom.js',
+			],
+		],
+		'ingresos-tiendanube-vinculaciones' => [
+			'title' => 'Vinculación de variantes',
+			'css' => [
+				'vendor/datatables/css/jquery.dataTables.min.css',
+				'vendor/datatables/responsive/responsive.css',
+				'vendor/toastr/css/toastr.min.css',
+				'vendor/select2/css/select2.min.css',
+			],
+			'js' => [
+				'vendor/datatables/js/jquery.dataTables.min.js',
+				'vendor/datatables/responsive/responsive.js',
+				'vendor/toastr/js/toastr.min.js',
+				'vendor/select2/js/select2.full.min.js',
+				'js/custom.js',
+			],
+		],
 		'presupuestos' => [
 			'title' => 'Presupuestos',
 			'css' => [

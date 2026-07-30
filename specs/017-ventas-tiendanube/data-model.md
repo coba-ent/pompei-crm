@@ -9,23 +9,22 @@ Tres tablas nuevas (prefijo `tn_`, mismo criterio que `ml_`), dos alter sobre ta
 | Campo | Tipo | Notas |
 |---|---|---|
 | `id` | bigint PK | |
-| `tn_order_id` | bigint, **unique** | Número de orden en Tiendanube — identidad e idempotencia (FR-013). |
+| `tn_order_id` | bigint, **unique** | **Corrección post-019**: mapea al campo `id` de la tool `list_orders` (identificador estable del recurso), no a `number` (correlativo visible al comprador) — identidad e idempotencia (FR-013). |
 | `status` | string(20) | Valor crudo de Tiendanube (`open`/`closed`/`cancelled`). |
-| `payment_status` | string(20) | Valor crudo (`pending`/`authorized`/`paid`/`partially_paid`/`abandoned`/`refunded`/`partially_refunded`/`voided`). |
-| `shipping_status` | string(30), nullable | Informativo (FR-005); no participa del mapeo (research.md R1). |
+| `payment_status` | string(20) | Valor crudo — verificado contra la tool real: `pending`/`authorized`/`paid`/`partially_paid`/`voided`/`expired`/`refunded`/`partially_refunded`/`abandoned`/`chargeback` (agrega `expired`/`chargeback` respecto de la versión original de esta tabla). |
+| `fulfillment_status` | string(30), nullable | **Corrección post-019**: la tool real llama así a lo que esta tabla llamaba `shipping_status`. Informativo (FR-005); no participa del mapeo (research.md R1). |
 | `estado_conversion` | enum-string (`Tiendanube\EstadoConversion`) | Derivado de `status`+`payment_status` (FR-007a). Persistido y recalculado en cada sincronización/intento de conversión. |
 | `motivo` | enum-string (`Tiendanube\MotivoRequiereAtencion`), nullable | Sólo cuando `estado_conversion = requiere_atencion`. |
 | `motivo_detalle` | string(255), nullable | Texto legible del motivo (FR-007b). |
-| `fecha_creada` | datetime | `created_at` de Tiendanube. |
-| `fecha_cerrada` | datetime, nullable | Usada como `fecha_emision` de la Venta, análogo a `ml_ordenes.fecha_cerrada`. |
-| `total` | decimal(14,2) | |
-| `moneda` | string(5) | ISO 4217. |
-| `storefront` | string(20) | `store`/`api`/`form`/`pos` (nunca `meli` — se descarta antes de persistir, FR-012a, research.md R2). |
-| `tn_customer_id` | bigint, nullable | Comprador — identificador de Tiendanube. |
-| `comprador_email` | string(150), nullable | |
-| `comprador_nombre` | string(150), nullable | |
-| `billing_document_type` | string(20), nullable | Fuente de la derivación de comprobante (FR-039/FR-040). |
-| `billing_document_number` | string(20), nullable | |
+| `fecha_creada` | datetime | **Corrección post-019**: la tool real `list_orders` sólo expone `completed_at` — no hay `created_at`/`closed_at` separados. Se completa con `completed_at` (mismo valor que `fecha_cerrada`); se conserva la columna por compatibilidad con el patrón de `ml_ordenes`, aunque en Tiendanube ambas fechas coincidan siempre. |
+| `fecha_cerrada` | datetime, nullable | `completed_at` de la tool `list_orders`. Usada como `fecha_emision` de la Venta, análogo a `ml_ordenes.fecha_cerrada`. |
+| `total` | decimal(14,2) | Mapea a `order.total.amount` (objeto `{amount, currency}` en la respuesta real, no un escalar). |
+| `moneda` | string(5) | ISO 4217, `order.total.currency`. |
+| `storefront` | string(20) | Verificado contra órdenes reales: `store`/`form`/`mobile` (nunca `meli` observado todavía en la cuenta real, pero el campo es el único dato disponible para detectarlo — se descarta antes de persistir, FR-012a, research.md R2 corregido). **Corrección**: no hay `api`/`pos` confirmados; se documentan como posibles pero no verificados. |
+| `tn_customer_id` | bigint, nullable | Comprador — `order.customer.id`. |
+| `comprador_email` | string(150), nullable | `order.customer.email`. |
+| `comprador_nombre` | string(150), nullable | `order.customer.name`. |
+| `billing_document_number` | string(20), nullable | **Corrección post-019**: mapea a `order.customer.cpf_cnpj` (documento crudo, sin clasificar) — no existe `billing_document_type` en la tool real. Verificado nulo en las 9 órdenes reales de la tienda. La derivación de comprobante (FR-039/FR-040) aproxima el tipo por **longitud** de este valor cuando esté presente. |
 | `venta_id` | FK → `ventas`, nullable, **unique** | Garantiza a nivel de datos que una orden genera como máximo una Venta (FR-032b). |
 | `creacion_automatica` | boolean, default false | |
 | `convertida_en` | timestamp, nullable | |
@@ -46,11 +45,13 @@ después de convertida; la Venta permanece intacta, FR-058) · `cancelada` no tr
 |---|---|---|
 | `id` | bigint PK | |
 | `tn_orden_id` | FK → `tn_ordenes`, cascade | |
-| `variant_id` | bigint | Identificador de variante en Tiendanube (siempre presente, incluso variante "virtual"). |
-| `nombre_producto` | string(255) | |
-| `nombre_variante` | string(255), nullable | Vacío si es la variante virtual de un producto sin variantes reales. |
-| `cantidad` | decimal | |
-| `precio_unitario` | decimal(14,2) | Precio FINAL con IVA incluido (research.md, mismo criterio que Mercado Libre). |
+| `tn_product_id` | bigint | **Agregado post-019**: `item.product_id` de la línea real — necesario para `update_stock_and_price` (spec 018), que exige `product_id` además de `variant_id`. No estaba en el diseño original de esta tabla. |
+| `variant_id` | bigint | `item.variant_id` (siempre presente, incluso variante "virtual"). |
+| `nombre_producto` | string(255) | `item.name` — es el nombre del **producto**; la tool real no separa nombre de producto y nombre de variante en campos distintos. |
+| `nombre_variante` | string(255), nullable | **Corrección post-019**: no existe un campo de nombre de variante suelto — se arma concatenando `item.variant_values` (array de valores de atributo, ej. `["Rojo", "M"]`; vacío para la variante virtual de un producto sin variantes reales, que es el caso observado en las 9 órdenes reales de la tienda). |
+| `sku` | string(100), nullable | **Agregado post-019**: `item.sku`, disponible en la respuesta real y útil para diagnóstico/vinculación manual. |
+| `cantidad` | decimal | `item.quantity`. |
+| `precio_unitario` | decimal(14,2) | `item.price.amount` (objeto `{amount, currency}`, no escalar) — precio FINAL con IVA incluido (research.md, mismo criterio que Mercado Libre). |
 | `total_linea` | decimal(14,2) | |
 | `producto_id` | FK → `productos`, nullable | Se congela al convertir. |
 

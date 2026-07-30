@@ -13,6 +13,7 @@ use App\Models\Etiqueta;
 use App\Models\ListaPrecio;
 use App\Models\Presupuesto;
 use App\Models\Remito;
+use App\Models\Vendedor;
 use App\Models\Venta;
 use App\Services\Ingresos\CalculoComprobante;
 use App\Services\Ingresos\Cobranzas;
@@ -43,7 +44,7 @@ class VentaController extends Controller
 
     private function queryFiltrada(Request $request): Builder
     {
-        $query = Venta::query()->with(['cliente:id,nombre', 'categoria:id,nombre', 'presupuesto:id', 'listaPrecio:id,nombre', 'vendedor:id,name', 'etiquetas:id,nombre', 'cobros.cuentaTesoreria:id,nombre']);
+        $query = Venta::query()->with(['cliente:id,nombre', 'categoria:id,nombre', 'presupuesto:id', 'listaPrecio:id,nombre', 'vendedor:id,nombre', 'etiquetas:id,nombre', 'cobros.cuentaTesoreria:id,nombre']);
 
         if ($request->filled('cliente_id')) {
             $query->where('cliente_id', $request->input('cliente_id'));
@@ -53,11 +54,13 @@ class VentaController extends Controller
             $query->where('nro_comprobante', 'like', "%{$kw}%");
         }
         if ($request->filled('creada_desde')) {
-            // FR-035a: "Creada Desde" — MercadoLibre / Presupuesto / Venta directa.
+            // FR-035a (spec 017): "Creada Desde" agrega Tiendanube como cuarto valor,
+            // junto a MercadoLibre / Presupuesto / Venta directa — sin filtro separado.
             match ($request->input('creada_desde')) {
                 'mercadolibre' => $query->where('origen', 'mercadolibre'),
+                'tiendanube' => $query->where('origen', 'tiendanube'),
                 'presupuesto' => $query->whereNotNull('presupuesto_id'),
-                default => $query->whereNull('presupuesto_id')->where('origen', '!=', 'mercadolibre'),
+                default => $query->whereNull('presupuesto_id')->whereNotIn('origen', ['mercadolibre', 'tiendanube']),
             };
         }
 
@@ -73,6 +76,7 @@ class VentaController extends Controller
             ->addColumn('estado_cobro', fn (Venta $v) => $v->estadoCobro())
             ->addColumn('creada_desde', fn (Venta $v) => match (true) {
                 $v->origen === 'mercadolibre' => 'MercadoLibre',
+                $v->origen === 'tiendanube' => 'Tiendanube',
                 (bool) $v->presupuesto_id => 'Presupuesto '.$v->presupuesto_id,
                 default => 'Venta',
             })
@@ -83,7 +87,7 @@ class VentaController extends Controller
             ->addColumn('medio_de_cobro', fn (Venta $v) => optional($v->cobros->last()?->cuentaTesoreria)->nombre)
             ->addColumn('etiquetas', fn (Venta $v) => $v->etiquetas->pluck('nombre')->implode(', '))
             ->addColumn('lista_precio', fn (Venta $v) => optional($v->listaPrecio)->nombre)
-            ->addColumn('vendedor', fn (Venta $v) => optional($v->vendedor)->name)
+            ->addColumn('vendedor', fn (Venta $v) => optional($v->vendedor)->nombre)
             ->editColumn('fecha_emision', fn (Venta $v) => optional($v->fecha_emision)->format('d/m/Y'))
             ->editColumn('fecha_validez', fn (Venta $v) => optional($v->fecha_validez)->format('d/m/Y'))
             ->editColumn('subtotal_sin_descuento', fn (Venta $v) => (float) $v->subtotal_sin_descuento)
@@ -114,6 +118,7 @@ class VentaController extends Controller
             'submitToken' => $submitToken,
             'categoriasVenta' => Categoria::venta()->activas()->orderBy('nombre')->get(),
             'listasPrecio' => ListaPrecio::where('activo', true)->orderBy('nombre')->get(),
+            'vendedores' => Vendedor::orderBy('nombre')->get(),
         ]);
     }
 
@@ -156,7 +161,7 @@ class VentaController extends Controller
                 'nota_interna' => $datos['nota_interna'] ?? null,
                 'formas_pago' => $datos['formas_pago'] ?? null,
                 'metodos_envio' => $datos['metodos_envio'] ?? null,
-                'vendedor_id' => $request->user()?->id,
+                'vendedor_id' => $datos['vendedor_id'] ?? null,
                 'submit_token' => $datos['submit_token'],
             ]);
 
@@ -187,13 +192,14 @@ class VentaController extends Controller
     public function edit(Venta $venta)
     {
         $CurrentPage = 'ventas';
-        $venta->load(['items', 'conceptos', 'etiquetas', 'cliente', 'categoria', 'listaPrecio']);
+        $venta->load(['items', 'conceptos', 'etiquetas', 'cliente', 'categoria', 'listaPrecio', 'vendedor']);
         $categoriasVenta = Categoria::venta()->activas()->orderBy('nombre')->get();
         $listasPrecio = ListaPrecio::where('activo', true)->orderBy('nombre')->get();
+        $vendedores = Vendedor::orderBy('nombre')->get();
 
         $presupuestoOrigen = null;
 
-        return view('ventas.form', compact('CurrentPage', 'venta', 'categoriasVenta', 'listasPrecio', 'presupuestoOrigen'));
+        return view('ventas.form', compact('CurrentPage', 'venta', 'categoriasVenta', 'listasPrecio', 'vendedores', 'presupuestoOrigen'));
     }
 
     public function update(UpdateVentaRequest $request, Venta $venta): JsonResponse
@@ -223,6 +229,7 @@ class VentaController extends Controller
                 'nota_interna' => $datos['nota_interna'] ?? null,
                 'formas_pago' => $datos['formas_pago'] ?? null,
                 'metodos_envio' => $datos['metodos_envio'] ?? null,
+                'vendedor_id' => $datos['vendedor_id'] ?? null,
             ]);
 
             $venta->items()->delete();

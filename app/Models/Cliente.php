@@ -19,6 +19,7 @@ class Cliente extends Model
         'apellido',
         'apodo_ml',
         'ml_user_id',
+        'tn_customer_id',
         'pagina_web',
         'email',
         'telefono',

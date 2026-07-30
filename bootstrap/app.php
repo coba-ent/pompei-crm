@@ -15,6 +15,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'permiso' => \App\Http\Middleware\VerificarPermiso::class,
         ]);
+
+        $middleware->appendToGroup('web', \App\Http\Middleware\AplicarDuracionSesion::class);
     })
     ->withSchedule(function (Schedule $schedule) {
         // research.md §R5: se evalúa cada minuto; el propio comando decide si
@@ -29,6 +31,18 @@ return Application::configure(basePath: dirname(__DIR__))
         // closure para que, en cada tick de schedule:run, el stock que se empuja ya
         // contemple las órdenes recién traídas — sin invocación cruzada entre comandos.
         $schedule->command('mercadolibre:sincronizar-stock')
+            ->everyMinute()
+            ->withoutOverlapping();
+
+        // spec 017: mismo mecanismo de portabilidad — se evalúa cada minuto, el
+        // propio comando decide si corresponde según la frecuencia configurada.
+        $schedule->command('tiendanube:sincronizar-ordenes')
+            ->everyMinute()
+            ->withoutOverlapping();
+
+        // spec 018, research.md §R4: DESPUÉS del de órdenes de Tiendanube en el
+        // mismo closure, mismo motivo que el de Mercado Libre arriba.
+        $schedule->command('tiendanube:sincronizar-stock')
             ->everyMinute()
             ->withoutOverlapping();
     })

@@ -31,6 +31,7 @@ class UpdatePresupuestoRequest extends FormRequest
             'cliente_id' => 'required|exists:clientes,id',
             'categoria_id' => 'nullable|exists:categorias,id',
             'lista_precio_id' => 'nullable|exists:listas_precio,id',
+            'vendedor_id' => 'nullable|integer|exists:vendedores,id',
             'fecha_emision' => 'required|date',
             'fecha_validez' => 'nullable|date',
             'servicio_desde' => 'nullable|date',

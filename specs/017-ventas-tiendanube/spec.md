@@ -13,15 +13,35 @@ permite convertir cada una en una Venta del CRM, de forma manual o automática. 
 
 ## Contexto y fuentes
 
-Esta spec es la **etapa 2** del módulo de integración con Tiendanube. Continúa directamente
-`specs/015-tiendanube-conexion/`, que quedó implementada: credenciales de Aplicación personalizada
-(`store_id` + `access_token`, sin OAuth), verificación de conexión, kill-switch de modo sólo lectura,
-historial de operaciones propio (`tn_configuracion`, `tn_operaciones_log`) y el cliente de API
-`ClienteTiendanube` como único punto de salida hacia Tiendanube.
+> ⚠️ **Corrección post-19/08/2026 (revisión posterior a spec 019)**: esta spec se escribió asumiendo la
+> infraestructura de conexión de `specs/015-tiendanube-conexion/` (Aplicación personalizada, `store_id` +
+> `access_token` sin OAuth, `ClienteTiendanube` hablando REST plano contra `api.tiendanube.com`). Esa
+> spec **quedó inutilizable** (el modelo de Aplicación personalizada exige un plan de Tiendanube que la
+> tienda real no tiene) y fue **reemplazada por `specs/019-tiendanube-conexion-mcp/`**: OAuth 2.1 +
+> Dynamic Client Registration contra el servidor MCP `admin-mcp.tiendanube.com`, con `ClienteTiendanube`
+> reescrito para hablar JSON-RPC 2.0 (`tools/call`) en vez de REST. **Toda referencia a `store_id`,
+> `GET /orders`, `ClienteTiendanube::obtener()/enviar()` y "recargar el token" en esta spec quedó
+> corregida contra la interfaz real de la 019** (`ClienteTiendanube::leer()/escribir()` con nombres de
+> tool, `no hay endpoint de "recargar sólo el token": la única recuperación es reconectar completo,
+> acción que requiere intervención técnica — ver `docs/documentacion_principal_crm.md §5.3`). Además,
+> varios campos que esta spec asumía por la documentación REST pública de Tiendanube **no existen en las
+> tools reales del servidor MCP** (verificado empíricamente contra la cuenta real el 29-30/07/2026): no
+> hay `channels` como parámetro de `list_orders`, no hay `updated_at_min`/`created_at_min`, el campo de
+> estado de envío se llama `fulfillment_status` (no "shipping_status", como decía la primera versión de
+> esta spec), y no existe `billing_document_type`
+> (sólo `cpf_cnpj`, casi siempre vacío en la tienda real). Cada corrección puntual queda marcada abajo.
+> Kill-switch, historial de operaciones y pantalla de configuración de la 015 **sí** se conservan sin
+> cambios de comportamiento — sólo cambió el transporte por dentro (ver spec 019).
 
-La etapa 1 (`spec 015`, sección Alcance) excluyó explícitamente el listado de órdenes, la vinculación de
-productos y la conversión a Venta, dejándolo anotado como continuación directa en
-`docs/documentacion_principal_crm.md §5.3`. **Eso es exactamente lo que cubre esta spec**, siguiendo
+Esta spec es la **etapa 2** del módulo de integración con Tiendanube. Continúa directamente
+`specs/019-tiendanube-conexion-mcp/` (que corrige y reemplaza a `specs/015-tiendanube-conexion/`):
+conexión OAuth 2.1 auto-registrada contra `admin-mcp.tiendanube.com`, verificación de conexión, kill-switch
+de modo sólo lectura, historial de operaciones propio (`tn_configuracion`, `tn_operaciones_log`) y el
+cliente de API `ClienteTiendanube` (JSON-RPC/MCP) como único punto de salida hacia Tiendanube.
+
+La etapa 1 (`spec 015`, corregida por la `019`, sección Alcance) excluyó explícitamente el listado de
+órdenes, la vinculación de productos y la conversión a Venta, dejándolo anotado como continuación directa
+en `docs/documentacion_principal_crm.md §5.3`. **Eso es exactamente lo que cubre esta spec**, siguiendo
 **el mismo patrón estructural que las specs 011→012→013 de Mercado Libre** (pantalla de listado,
 vinculación persistente, conversión manual/automática, configuración) — con las adaptaciones que impone
 la API real de Tiendanube, documentadas explícitamente abajo en vez de forzar una equivalencia que no
@@ -34,29 +54,52 @@ pantalla real de Contagram contra la cual calcarse; se diseña por fidelidad al 
 esta misma app** para la integración análoga (Mercado Libre), que es la referencia más confiable
 disponible.
 
-**Diferencias reales de la API de Tiendanube frente a Mercado Libre** (fuente: documentación oficial de
-Nuvemshop/Tiendanube, `tiendanube.github.io/api-documentation`, consultada 29/07/2026), que esta spec
-adapta en vez de ignorar:
+**Diferencias reales de la API de Tiendanube frente a Mercado Libre**: la primera pasada de esta spec
+(29/07/2026) se basó en la documentación **REST pública** de Nuvemshop/Tiendanube
+(`tiendanube.github.io/api-documentation`). Esa API REST **no es la que este CRM usa**: la conexión real
+(spec 019) habla contra el servidor MCP `admin-mcp.tiendanube.com`, cuyas tools tienen su **propio**
+esquema de parámetros, verificado empíricamente contra la cuenta real (30/07/2026) y **distinto** en
+varios puntos de lo que documenta la API REST pública. Lo que sigue ya refleja esa verificación:
 
 1. **Tres campos de estado independientes**, no uno solo: `status` (`open`/`closed`/`cancelled`),
-   `payment_status` (`pending`/`authorized`/`paid`/`partially_paid`/`abandoned`/`refunded`/
-   `partially_refunded`/`voided`) y `shipping_status`. Mercado Libre expone un único estado de orden.
+   `payment_status` (`pending`/`authorized`/`paid`/`partially_paid`/`voided`/`expired`/`refunded`/
+   `partially_refunded`/`abandoned`/`chargeback`) y **`fulfillment_status`** — la tool real `list_orders`
+   llama así a lo que la documentación REST pública (y la primera pasada de esta spec) llamaba
+   "shipping_status"; sus valores tampoco coinciden con un simple "enviado/no enviado"
+   (`unpacked`/`unfulfilled`/`fulfilled`/`partially_fulfilled`/`partially_packed`/`pickup_ready`/
+   `delivered`/`packed`/`unshipped`/`shipped`/`ready_for_pickup`/`dispatched`/`marked_as_fulfilled`).
+   Mercado Libre expone un único estado de orden. Toda referencia a "shipping_status" en el resto de este
+   documento (FR-005, data-model.md, etc.) es, en la implementación real, la columna/campo
+   `fulfillment_status`.
 2. **Toda línea de pedido tiene `variant_id`**, incluso los productos sin variantes reales (Tiendanube
    gestiona una "variante virtual" única en ese caso). No hay equivalente a "publicación sin variantes"
    de Mercado Libre — la vinculación de esta spec es por variante, no por producto.
-3. **Sin condición de IVA del comprador**: la API no expone un campo equivalente al de Mercado Libre.
-   El dato disponible es `billing_document_type` (tipo de documento). La derivación del tipo de
-   comprobante debe apoyarse únicamente en el tipo de documento, no en una condición de IVA informada.
+3. **Sin condición de IVA del comprador, y sin `billing_document_type` tampoco**: la documentación REST
+   pública sugiere un campo `billing_document_type` (tipo de documento), pero **la tool real `list_orders`
+   no lo expone** — el único dato de documento disponible es `customer.cpf_cnpj` (número de documento en
+   crudo, sin clasificar). Verificado contra las 9 órdenes reales de la tienda (Pompei Sanitarios,
+   30/07/2026): **las 9 tienen `cpf_cnpj` nulo**. La derivación de FR-040 se corrige para aproximar el
+   tipo de documento **por longitud de `cpf_cnpj`** cuando el dato exista (CUIT argentino = 11 dígitos,
+   DNI = 7-8 dígitos), y para asumir Consumidor Final/Factura B cuando esté ausente — que, según lo
+   verificado, es el caso dominante en la práctica, no una excepción rara.
 4. **Sin desglose de impuestos**: igual que Mercado Libre, la API no separa el IVA del total — sólo
    expone `subtotal`, `discount`, `total`. Se mantiene el mismo criterio ya usado en la spec 012 (precio
    final con IVA incluido, desagregado con el IVA por defecto del producto), con el mismo respaldo
    normativo (Ley de Lealtad Comercial argentina).
-5. **Múltiples medios de pago posibles** (`gateway`: `offline`, `not-provided`, o un proveedor externo),
-   no una única pasarela como Mercado Pago en Mercado Libre.
-6. **Campo `storefront`/`channels`**, con un valor `meli` que identifica **órdenes importadas desde
-   Mercado Libre a través del canal integrado de Tiendanube** — ver "Riesgo de duplicación" abajo.
+5. **Múltiples medios de pago posibles** (`payment_provider_name`/`payment_method_name`: "Pago Nube",
+   "Mercado Pago", "not-provided", etc., verificado contra órdenes reales), no una única pasarela como
+   Mercado Pago en Mercado Libre.
+6. **Campo `storefront`** (verificado: valores reales observados `store`/`form`/`mobile`; ningún ejemplo
+   con `meli` en la tienda real todavía, pero el campo existe y es el único dato disponible para
+   detectarlo — ver corrección de R2 en research.md: **no existe** un parámetro `channels` en `list_orders`
+   para excluirlo en la propia consulta, sólo se puede filtrar después de traer la orden).
 7. **Sin límite documentado de historial** (a diferencia de los 12 meses que retiene Mercado Libre) y
-   **sin OAuth que renovar** (ya resuelto en la spec 015).
+   **sin renovación de token que hacer** (spec 019: el token dura ~1 año, sin `refresh_token`; si se
+   revoca o vence, la única recuperación es reconectar por completo — acción técnica manual, no
+   self-service, ver `docs/documentacion_principal_crm.md §5.3`). **Tampoco hay `updated_at_min`/
+   `created_at_min`** en `list_orders` (verificado: la tool sólo filtra por `completed_at_from`/
+   `completed_at_to`) — no hay forma de pedirle a Tiendanube "sólo lo que cambió desde la última vez";
+   ver corrección de FR-013/FR-015 más abajo.
 
 ### ⚠️ Riesgo de duplicación con la integración de Mercado Libre — resuelto por exclusión
 
@@ -106,10 +149,10 @@ Tiendanube, sin interrumpir al usuario (mismo criterio que usó la spec 012 para
 ambigüedades):
 
 - Q: ¿Cómo se traduce el estado de una orden de Tiendanube (tres campos independientes: `status`,
-  `payment_status`, `shipping_status`) al conjunto cerrado de estados de conversión del CRM? → A: se
+  `payment_status`, `fulfillment_status`) al conjunto cerrado de estados de conversión del CRM? → A: se
   mantienen los **mismos cinco estados de conversión** ya definidos en la spec 012 (Pendiente de pago ·
   Lista para convertir · Requiere atención · Convertida · Cancelada), derivados de `status` +
-  `payment_status` (ver FR-007a). `shipping_status` **no** participa de la derivación: es información de
+  `payment_status` (ver FR-007a). `fulfillment_status` **no** participa de la derivación: es información de
   logística, no de si la orden está pronta para facturarse — se muestra en el listado como dato
   informativo (FR-005), no como parte del estado de conversión.
 - Q: ¿Cómo se deriva el tipo de comprobante (A/B) sin un campo de condición de IVA como el de Mercado
@@ -123,13 +166,13 @@ ambigüedades):
   de Mercado Libre.
 - Q: ¿Sincronización por webhook o por consulta programada? → A: **consulta programada + manual**, igual
   patrón que Mercado Libre (spec 012) — los webhooks de Tiendanube requerirían exponer un endpoint
-  público entrante, mientras que la conexión de la spec 015 se diseñó explícitamente para **no**
-  necesitar infraestructura pública (`docs §5.3`). Introducir un webhook acá reintroduciría esa
-  restricción por la puerta de atrás, sobre una integración que se armó a propósito para evitarla.
+  público entrante, mientras que la conexión de la spec 019 no necesita infraestructura pública para
+  operar día a día (`docs §5.3`). Introducir un webhook acá reintroduciría esa restricción por la puerta
+  de atrás, sobre una integración que se armó a propósito para evitarla.
 - Q: ¿A qué cuenta de Tesorería se imputa la cobranza, dado que Tiendanube admite múltiples medios de
-  pago (`gateway`) y no una única pasarela como Mercado Pago? → A: una **cuenta de Tesorería
+  pago (`payment_provider_name`) y no una única pasarela como Mercado Pago? → A: una **cuenta de Tesorería
   configurable** (nueva, análoga a `categoria_venta_id`/`deposito_id` de Mercado Libre), única para
-  todas las Ventas de Tiendanube sin importar el `gateway` real de cada orden — no se modela una cuenta
+  todas las Ventas de Tiendanube sin importar el `payment_provider_name` real de cada orden — no se modela una cuenta
   por medio de pago, para no anticipar una complejidad no pedida.
 - Q: ¿Contra qué se vincula un producto del CRM: la publicación (como en Mercado Libre) o la variante? →
   A: contra la **variante** de Tiendanube (`variant_id`), porque la API siempre expone una — incluso los
@@ -147,7 +190,7 @@ actualización del listado con un botón, sin esperar a la sincronización progr
 **Why this priority**: es la base de todo lo demás — sin traer y mostrar las órdenes no hay nada que
 convertir. Entrega valor por sí sola: ver las ventas de Tiendanube dentro del CRM.
 
-**Independent Test**: se puede probar con la tienda ya conectada (spec 015), presionando "Sincronizar
+**Independent Test**: se puede probar con la tienda ya conectada (spec 019), presionando "Sincronizar
 ahora" y verificando que aparecen las órdenes reales de la tienda con sus datos correctos, sin convertir
 ninguna a Venta.
 
@@ -350,12 +393,19 @@ verificando que el listado lo refleja y la Venta permanece intacta.
   respeta tal como la informa Tiendanube.
 - **La sincronización se interrumpe a mitad de camino**: las órdenes ya procesadas no se reprocesan ni
   se duplican en la corrida siguiente.
-- **Tiendanube rechaza la consulta por exceso de solicitudes** (leaky bucket, ~2 solicitudes/segundo,
-  ráfagas de hasta 40): la sincronización reintenta con espera creciente y retoma donde quedó.
-- **La conexión con Tiendanube está caída** (token revocado o regenerado, spec 015): la sincronización no
-  se ejecuta ni marca órdenes como fallidas; informa que hay que recargar el token.
-- **Comprador sin `billing_document_type` informado**: se asume Consumidor Final, comprobante B, mismo
-  criterio que Mercado Libre cuando no hay dato fiscal.
+- **Tiendanube rechaza la consulta por exceso de solicitudes**: la sincronización reintenta con espera
+  creciente y retoma donde quedó — mismo mecanismo de `ClienteTiendanube` (spec 019); el límite exacto
+  para las tools del servidor MCP no está documentado públicamente (research.md de la 019 lo trata como
+  "piso conservador" tomado de la API REST, no como un número verificado para MCP — ver corrección de
+  FR-020).
+- **La conexión con Tiendanube está caída** (token revocado o regenerado, spec 019): la sincronización no
+  se ejecuta ni marca órdenes como fallidas; informa que hace falta reconectar — a diferencia de la
+  redacción original de este edge case ("recargar el token"), no existe una acción de recarga parcial:
+  la única recuperación es rehacer la conexión completa, que requiere intervención técnica (spec 019,
+  `docs/documentacion_principal_crm.md §5.3`), no algo que el usuario del negocio resuelva solo.
+- **Comprador sin `cpf_cnpj` informado** (caso dominante en la práctica: verificado que las 9 órdenes
+  reales de la tienda lo tienen vacío): se asume Consumidor Final, comprobante B, mismo criterio que
+  Mercado Libre cuando no hay dato fiscal — ver corrección de FR-039/FR-040.
 - **La orden llega con un monto que no coincide con la suma de sus líneas** (por descuentos de
   Tiendanube): el total de la Venta respeta el monto real de la orden, igual que Mercado Libre.
 - **La primera sincronización sobre una tienda con historial extenso**: se acota a un período reciente
@@ -363,7 +413,7 @@ verificando que el listado lo refleja y la Venta permanece intacta.
   de retención como sí lo hace Mercado Libre.
 - **Una orden cuya moneda no es la del negocio**: se rechaza la conversión, marcándola como que requiere
   atención, mismo criterio que Mercado Libre (FR-030d de la spec 012).
-- **`shipping_status` de la orden**: es puramente informativo en el listado; no participa de los cinco
+- **`fulfillment_status` de la orden**: es puramente informativo en el listado; no participa de los cinco
   estados de conversión (Clarifications).
 
 ## Requirements *(mandatory)*
@@ -387,7 +437,7 @@ verificando que el listado lo refleja y la Venta permanece intacta.
   proyecto).
 - **FR-005**: El sistema DEBE mostrar por cada orden, como mínimo: número de orden en Tiendanube, fecha,
   comprador, productos y cantidades vendidas, monto total, `status`, `payment_status` y
-  `shipping_status` (informativo), estado de conversión en el CRM y acceso a la Venta creada cuando
+  `fulfillment_status` (informativo), estado de conversión en el CRM y acceso a la Venta creada cuando
   exista.
 - **FR-006**: El sistema DEBE permitir filtrar el listado por estado de conversión y rango de fechas.
 - **FR-007**: El sistema DEBE distinguir visualmente las órdenes que requieren atención, indicando el
@@ -406,12 +456,13 @@ verificando que el listado lo refleja y la Venta permanece intacta.
 - **FR-007b**: El sistema DEBE registrar, en las órdenes en estado "Requiere atención", el motivo
   concreto que las bloquea.
 - **FR-012a**: El sistema NO DEBE sincronizar ni mostrar en ningún momento órdenes con `storefront =
-  "meli"` (Clarifications, "Riesgo de duplicación"). Esto se garantiza en **dos capas independientes**:
-  (1) la propia consulta a Tiendanube pide sólo canales distintos de `meli` (`channels`, research.md
-  R2); (2) aunque una orden `meli` llegara igual — por un cambio futuro no anunciado de la API, o porque
-  `storefront` venga vacío/no informado —, `TraductorOrdenes` la descarta explícitamente antes de
-  persistir nada. La ausencia del dato `storefront` NO se interpreta como `meli`: sólo se excluye el
-  valor exacto `"meli"`; toda orden sin ese valor exacto se sincroniza con normalidad.
+  "meli"` (Clarifications, "Riesgo de duplicación"). **Corrección post-019**: la tool real `list_orders`
+  no expone ningún parámetro `channels` (ni equivalente) para excluir canales en la propia consulta — la
+  "defensa en dos capas" original de este requisito **no es posible tal como estaba planteada**. La
+  exclusión es de **una sola capa**: `TraductorOrdenes` descarta explícitamente toda orden con
+  `storefront = "meli"` después de traerla, antes de persistir nada. La ausencia del dato `storefront`
+  NO se interpreta como `meli`: sólo se excluye el valor exacto `"meli"`; toda orden sin ese valor exacto
+  se sincroniza con normalidad. Ver research.md R2 (corregido).
 
 ### Functional Requirements — Sincronización de órdenes
 
@@ -425,22 +476,41 @@ verificando que el listado lo refleja y la Venta permanece intacta.
 - **FR-012**: El sistema DEBE traer todas las órdenes de la tienda (salvo las excluidas por FR-012a),
   cualquiera sea su estado, y reflejarlo en el listado.
 - **FR-013**: El sistema DEBE actualizar el estado de las órdenes ya sincronizadas cuando cambie en
-  Tiendanube, sin duplicarlas (identificador de orden único).
+  Tiendanube, sin duplicarlas (identificador de orden único — `id`, no `number`: `number` es el número
+  correlativo visible al comprador, `id` es el identificador estable del recurso, verificado contra
+  órdenes reales; `tn_order_id` mapea a `id`). **Corrección post-019**: la tool real `list_orders` no
+  tiene ningún filtro de tipo "traído desde la última actualización" (`updated_at_min`/`updated_at`no
+  existen) — sólo filtra por `completed_at_from`/`completed_at_to`. FR-013 se cumple **re-consultando en
+  cada corrida la ventana completa** de `dias_primera_sync` días hacia atrás (FR-016, ahora aplicable a
+  **toda** corrida, no sólo la primera) y haciendo *upsert* por `id` sobre lo que traiga esa ventana —
+  no hay forma de pedirle a Tiendanube "sólo lo que cambió". Una orden cuyo estado cambia **después** de
+  salir de esa ventana no se refleja hasta que se agrande la ventana o se sincronice a mano por
+  `order_number` — limitación aceptada, documentada en Assumptions.
 - **FR-014**: El sistema DEBE garantizar que dos sincronizaciones no se ejecuten simultáneamente.
 - **FR-015**: El sistema DEBE retomar la sincronización desde el punto en que quedó si una corrida se
-  interrumpe, sin reprocesar ni perder órdenes.
-- **FR-016**: El sistema DEBE acotar el alcance de la primera sincronización a un período reciente
-  configurable, para no arrastrar el historial completo de la tienda de golpe.
+  interrumpe, sin reprocesar ni perder órdenes — dentro de la ventana de la corrida (FR-013 corregido):
+  la paginación (`page`, `limit`) permite retomar desde la página siguiente sin repetir las ya
+  procesadas, gracias al *upsert* idempotente por `id`.
+- **FR-016**: El sistema DEBE acotar el alcance de **cada** sincronización (no sólo la primera —
+  corrección de FR-013) a una ventana de días reciente configurable (`dias_primera_sync`, mismo campo,
+  redefinido como el largo de la ventana que se re-consulta en cada corrida), para no arrastrar el
+  historial completo de la tienda de golpe ni perder cambios de estado fuera de ventana en silencio.
 - **FR-017**: El sistema NO DEBE ejecutar la sincronización mientras la función "Tiendanube" esté
   desactivada o el modo sólo lectura esté activo, y DEBE registrarlo en el historial de operaciones
-  propio de Tiendanube (`tn_operaciones_log`, spec 015).
+  propio de Tiendanube (`tn_operaciones_log`, spec 015/019).
 - **FR-018**: El sistema NO DEBE ejecutar la sincronización mientras la conexión esté caída o no
-  configurada, informando que se requiere recargar el token (spec 015) en lugar de acumular errores.
+  configurada, informando que hace falta **reconectar** (spec 019 — no existe "recargar sólo el token":
+  la única recuperación es rehacer la conexión completa, acción técnica manual) en lugar de acumular
+  errores.
 - **FR-019**: El sistema DEBE registrar cada operación de sincronización en el historial de operaciones
-  propio de Tiendanube, sin incluir datos sensibles (el `access_token`).
-- **FR-020**: El sistema DEBE aplicar espera creciente ante rechazos por exceso de solicitudes (límite
-  documentado: ~2 solicitudes/segundo, ráfagas de hasta 40) y reintentar un número acotado de veces ante
-  fallas temporales, sin descartar órdenes silenciosamente.
+  propio de Tiendanube, sin incluir datos sensibles (el `access_token`, el `client_secret`).
+- **FR-020**: El sistema DEBE aplicar espera creciente ante rechazos por exceso de solicitudes y
+  reintentar un número acotado de veces ante fallas temporales, sin descartar órdenes silenciosamente
+  — mismo mecanismo ya construido en `ClienteTiendanube` (spec 019). **Corrección**: el límite de
+  "~2 solicitudes/segundo, ráfagas de hasta 40" citado en la versión original de esta spec viene de la
+  documentación de la API REST pública, **no** está verificado específicamente para las tools del
+  servidor MCP — se mantiene como piso conservador (mismo criterio que spec 019 research.md), no como un
+  número confirmado.
 
 ### Functional Requirements — Vinculación variante ↔ producto
 
@@ -514,28 +584,34 @@ verificando que el listado lo refleja y la Venta permanece intacta.
 - **FR-039**: El sistema DEBE derivar el tipo de comprobante **primero** a partir de la condición de IVA
   que el Cliente emparejado **ya tenga cargada** en el CRM (mismo mecanismo estándar que usa cualquier
   Venta manual, `CalculoComprobante`) y, únicamente si el Cliente es nuevo o no tiene condición de IVA
-  cargada, aproximarla a partir del **tipo de documento** (`billing_document_type`) que informa
-  Tiendanube (FR-040), sin intervención manual, conforme al principio III de la constitución.
+  cargada, aproximarla a partir del **documento** (`customer.cpf_cnpj`, corrección post-019 — ver FR-040)
+  que informa Tiendanube, sin intervención manual, conforme al principio III de la constitución.
 
-  > **Motivo**: Tiendanube nunca informa la condición de IVA real, sólo el tipo de documento. Si un
-  > Cliente ya está cargado en el CRM con su condición de IVA correcta (por ejemplo, Responsable
-  > Inscripto, cargada a mano alguna vez), usar esa fuente es estrictamente más confiable que
-  > re-adivinar a partir del CUIT en cada orden nueva — evita, en particular, que un Monotributista con
-  > CUIT ya identificado como tal reciba Factura A por la aproximación de FR-040 cuando el CRM ya sabía
-  > que no correspondía.
-- **FR-040**: Para Clientes nuevos o sin condición de IVA cargada, el sistema DEBE aplicar la siguiente
-  derivación por tipo de documento (Clarifications — reutiliza la regla de aproximación de la spec 012,
-  FR-040c, como regla primaria en ausencia de mejor dato):
+  > **Motivo**: Tiendanube nunca informa la condición de IVA real. Si un Cliente ya está cargado en el
+  > CRM con su condición de IVA correcta (por ejemplo, Responsable Inscripto, cargada a mano alguna vez),
+  > usar esa fuente es estrictamente más confiable que re-adivinar a partir del documento en cada orden
+  > nueva — evita, en particular, que un Monotributista con CUIT ya identificado como tal reciba Factura
+  > A por la aproximación de FR-040 cuando el CRM ya sabía que no correspondía.
+- **FR-040**: **Corrección post-019**: la tool real `list_orders` **no expone** ningún campo
+  `billing_document_type` — el único dato de documento disponible es `customer.cpf_cnpj` (número crudo,
+  sin clasificar por tipo). Verificado contra las 9 órdenes reales de la tienda (30/07/2026): **las 9
+  tienen `cpf_cnpj` nulo**. Para Clientes nuevos o sin condición de IVA cargada, el sistema DEBE aplicar
+  la siguiente derivación **por longitud del documento** (Argentina: CUIT tiene 11 dígitos; DNI, 7 u 8),
+  reutilizando el mismo espíritu de aproximación de la spec 012 (FR-040c) como regla primaria en ausencia
+  de mejor dato:
 
-  | Tipo de documento informado (`billing_document_type`) | Comprobante |
+  | `cpf_cnpj` (sólo dígitos) | Comprobante |
   |---|---|
-  | CUIT | **A** |
-  | DNI / CUIL | **B** |
-  | Otro (Pasaporte, CDI, u otro valor no reconocido) | **B** |
-  | Sin dato | **B** (se asume Consumidor Final) |
+  | 11 dígitos (CUIT) | **A** |
+  | 7 u 8 dígitos (DNI) | **B** |
+  | Otra longitud, formato no reconocido, o vacío | **B** |
 
-  Sólo CUIT aproxima a **A**; cualquier otro valor —incluidos los no listados explícitamente— aproxima a
-  **B**, por ser la opción fiscalmente más conservadora ante un dato no reconocido.
+  Sólo un documento de 11 dígitos aproxima a **A**; cualquier otro caso —incluido el dominante en la
+  práctica, sin dato— aproxima a **B**, por ser la opción fiscalmente más conservadora. **A diferencia de
+  la redacción original** (que trataba "sin dato" como un edge case), lo verificado indica que **es el
+  caso normal**: casi ninguna orden real trae `cpf_cnpj`, así que en la práctica casi todo Cliente nuevo
+  creado desde Tiendanube va a quedar en Consumidor Final/Factura B salvo que el usuario cargue su
+  condición de IVA real a mano después (FR-043).
 - **FR-040a**: El sistema DEBE, cuando asuma Consumidor Final por falta de dato, persistir
   explícitamente esa condición de IVA en el Cliente, en lugar de dejarla vacía — mismo fundamento que la
   spec 012 (FR-040a): el principio III prohíbe operar con la condición de IVA sin cargar.
@@ -559,7 +635,7 @@ verificando que el listado lo refleja y la Venta permanece intacta.
   cobrada en el mismo acto, dado que Tiendanube ya percibió o confirmó el pago antes de que la orden
   llegue al CRM.
 - **FR-045**: El sistema DEBE imputar esa cobranza a la cuenta de Tesorería **configurada para
-  Tiendanube** (Clarifications), sin importar el `gateway` real de cada orden.
+  Tiendanube** (Clarifications), sin importar el `payment_provider_name` real de cada orden.
 - **FR-045a**: El sistema DEBE impedir la conversión, informando el motivo, cuando no haya ninguna
   cuenta de Tesorería configurada para Tiendanube o esté inactiva.
 - **FR-046**: El sistema DEBE descontar el stock de los productos vendidos, reutilizando el mismo
@@ -613,12 +689,15 @@ verificando que el listado lo refleja y la Venta permanece intacta.
 
 ### Key Entities
 
-- **Orden de Tiendanube**: cada venta sincronizada. Atributos: número de orden en Tiendanube (único),
-  `status`, `payment_status`, `shipping_status`, fecha de creación, monto total, moneda, `storefront`,
-  datos del comprador (`tn_customer_id`, email, nombre, `billing_document_type` y número de documento
-  cuando existan), **estado de conversión** (uno de los cinco de FR-007a), motivo por el que requiere
-  atención cuando corresponda, referencia a la Venta creada, indicador manual/automático, fecha de
-  última actualización. **Nunca incluye** órdenes con `storefront = "meli"` (FR-012a).
+- **Orden de Tiendanube**: cada venta sincronizada. Atributos: `id` de Tiendanube (único, identidad e
+  idempotencia — corrección post-019: no `number`, que es sólo el correlativo visible al comprador),
+  `status`, `payment_status`, `fulfillment_status`, fecha de completado (`completed_at`, único dato de
+  fecha que expone `list_orders` — no hay `created_at`/`updated_at` separados), monto total, moneda,
+  `storefront`, datos del comprador (`tn_customer_id`, email, nombre, `cpf_cnpj` cuando exista —
+  corrección post-019: no hay `billing_document_type`), **estado de conversión** (uno de los cinco de
+  FR-007a), motivo por el que requiere atención cuando corresponda, referencia a la Venta creada,
+  indicador manual/automático, fecha de última actualización. **Nunca incluye** órdenes con
+  `storefront = "meli"` (FR-012a).
 - **Línea de orden de Tiendanube**: cada variante vendida dentro de una orden. Atributos: referencia a
   la orden, `variant_id`, nombre del producto y de la variante en Tiendanube, cantidad, precio unitario
   y total de línea, producto del CRM resuelto en el momento de la conversión.
@@ -684,10 +763,21 @@ verificando que el listado lo refleja y la Venta permanece intacta.
   Comercial) que la spec 012 estableció para Mercado Libre — la API tampoco discrimina impuestos.
   Verificación práctica recomendada al implementar: comparar `total` de una orden real contra lo
   publicado en la tienda.
-- **Tipo de comprobante aproximado por tipo de documento**: dado que Tiendanube no informa condición de
-  IVA, la derivación (FR-040) puede asignar Factura A a un Monotributista con CUIT que en realidad
-  factura B. Riesgo aceptado y mitigado por la corrección manual (FR-043) — mismo mecanismo, mismo
-  riesgo ya aceptado parcialmente en la spec 012 para su propio caso de fallback.
+- **Tipo de comprobante aproximado por longitud de documento**: dado que Tiendanube no informa condición
+  de IVA ni tipo de documento clasificado (sólo `cpf_cnpj` crudo, corrección post-019), la derivación
+  (FR-040) puede asignar Factura A a un Monotributista con CUIT que en realidad factura B. Riesgo
+  aceptado y mitigado por la corrección manual (FR-043) — mismo mecanismo, mismo riesgo ya aceptado
+  parcialmente en la spec 012 para su propio caso de fallback. **En la práctica, verificado contra la
+  cuenta real, casi ninguna orden trae este dato** — el caso dominante es Consumidor Final/Factura B por
+  ausencia de dato, no la aproximación por CUIT.
+- **Sincronización por ventana móvil, no incremental real** (corrección post-019, FR-013/FR-015/FR-016):
+  la tool `list_orders` del servidor MCP no expone ningún filtro de "cambiado desde X" — sólo
+  `completed_at_from`/`completed_at_to`. Cada corrida re-consulta y hace *upsert* sobre la ventana
+  completa de `dias_primera_sync` días, no sólo "lo nuevo". Una orden cuyo estado cambia después de salir
+  de esa ventana (ej. un reembolso tardío sobre una orden completada hace 45 días con ventana de 30) no
+  se refleja automáticamente — riesgo aceptado, mitigado eligiendo una ventana generosa (30 días por
+  defecto) y por la búsqueda manual por `order_number` si hiciera falta revisar una orden puntual fuera
+  de ventana.
 - **Vinculación por variante, no por producto CRM con variantes propias**: no se mapea contra el modelo
   de variantes propio del CRM (`ProductoVariante`) — cada variante de Tiendanube se vincula directamente
   a un Producto del CRM, misma granularidad simple que usó Mercado Libre para sus publicaciones. Modelar
@@ -700,11 +790,11 @@ verificando que el listado lo refleja y la Venta permanece intacta.
   estuviera implementada, así que no hace falta backfill ni limpieza retroactiva.
 - **Sin lista de precios**: mismo criterio que la spec 012 — se usa el precio real de la orden, sin
   relación con las listas de precios del CRM.
-- **Cuenta de Tesorería única para todas las órdenes de Tiendanube**: sin importar el `gateway` real
+- **Cuenta de Tesorería única para todas las órdenes de Tiendanube**: sin importar el `payment_provider_name` real
   informado por cada orden (Clarifications).
-- **Sin webhooks**: sincronización exclusivamente por consulta programada/manual, para no reintroducir
-  el requisito de infraestructura pública que la spec 015 evitó a propósito.
-- **Una sola tienda de Tiendanube**: se mantiene el supuesto single-tenant de la spec 015.
+- **Sin webhooks**: sincronización exclusivamente por consulta programada/manual — el servidor MCP no
+  expone ninguna tool de gestión de webhooks (spec 019, research.md R7).
+- **Una sola tienda de Tiendanube**: se mantiene el supuesto single-tenant de la spec 019.
 - **Número de comprobante autogenerado**: mismo criterio que Mercado Libre — numeración correlativa
   propia del CRM.
 - **Sin vendedor asignado**: las Ventas originadas en Tiendanube no llevan vendedor.
@@ -714,9 +804,11 @@ verificando que el listado lo refleja y la Venta permanece intacta.
 
 ## Dependencies
 
-- **Interna — spec 015 (implementada)**: conexión de Aplicación personalizada, `ClienteTiendanube`,
-  modo sólo lectura, historial de operaciones y pantalla de configuración de Tiendanube, que esta spec
-  extiende.
+- **Interna — spec 019 (implementada y deployada, corrige a la 015)**: conexión OAuth 2.1 vía
+  `admin-mcp.tiendanube.com`, `ClienteTiendanube` (JSON-RPC/MCP, métodos `leer()`/`escribir()` — no
+  `obtener()`/`enviar()` REST de la 015), modo sólo lectura, historial de operaciones y pantalla de
+  configuración de Tiendanube, que esta spec extiende. La conexión real ya está establecida en
+  producción (cuenta de Pompei Sanitarios) — ver `docs/documentacion_principal_crm.md §5.3`.
 - **Interna — spec 012 (implementada)**: `StockDeVenta` (servicio compartido de descuento de stock ya
   generalizado — sin brecha que cerrar acá), patrón de derivación de comprobante por documento (FR-040c
   original), patrón de bloqueo por orden, patrón de estados de conversión.
@@ -725,8 +817,9 @@ verificando que el listado lo refleja y la Venta permanece intacta.
 - **Interna — spec 005 (implementada)**: Depósitos.
 - **Interna — spec 002 (implementada)**: Productos, para la vinculación y el movimiento de stock.
 - **Interna — spec 001 (implementada)**: Clientes, se le agrega `tn_customer_id`.
-- **Externa**: tienda de Tiendanube conectada (spec 015) con el `access_token` de una Aplicación
-  personalizada con permisos de lectura sobre Órdenes y Clientes.
+- **Externa**: tienda de Tiendanube conectada (spec 019) — el `access_token` OAuth ya tiene otorgados
+  **todos** los scopes del servidor (`read_orders`, `read_customers` incluidos), no hace falta pedir
+  permisos adicionales ni una segunda aprobación en el navegador para esta spec.
 - **Sucesora — spec 018**: sincronización de stock del CRM hacia Tiendanube. No es dependencia técnica
   de esta spec, pero es necesaria para cerrar el riesgo de sobreventa que esta spec deja abierto.
 

@@ -3,10 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\Categoria;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
-/** Alta inline de categorías desde los formularios de Presupuesto/Venta/Otro Ingreso (CLAUDE.md §5). */
+/**
+ * ABM inline de categorías desde los formularios de Presupuesto/Venta/Compra/Gasto/Otro
+ * Ingreso (CLAUDE.md §5), con el mismo patrón crear/renombrar/eliminar que "Tipo de
+ * Producto" (ver TipoProductoController).
+ */
 class CategoriaController extends Controller
 {
     /** "Crear Categoría de Ingreso" (modal Otro Ingreso). */
@@ -71,5 +77,41 @@ class CategoriaController extends Controller
             'mensaje' => 'Categoría creada correctamente.',
             'categoria' => $categoria,
         ], 201);
+    }
+
+    /** Renombrar categoría/subcategoría desde el mismo select (patrón Tipo de Producto). */
+    public function update(Request $request, Categoria $categoria): JsonResponse
+    {
+        if ($categoria->es_sistema) {
+            return response()->json(['ok' => false, 'mensaje' => 'La categoría es del sistema y no puede editarse.'], 422);
+        }
+
+        $datos = $request->validate([
+            'nombre' => ['required', 'string', 'max:255', Rule::unique('categorias', 'nombre')->ignore($categoria->id)],
+        ]);
+
+        $categoria->update(['nombre' => $datos['nombre']]);
+
+        return response()->json(['ok' => true, 'mensaje' => 'Categoría renombrada.', 'categoria' => $categoria]);
+    }
+
+    /** Eliminar categoría/subcategoría desde el mismo select (patrón Tipo de Producto). */
+    public function destroy(Categoria $categoria): JsonResponse
+    {
+        if ($categoria->es_sistema) {
+            return response()->json(['ok' => false, 'mensaje' => 'La categoría es del sistema y no puede eliminarse.'], 422);
+        }
+
+        if ($categoria->hijos()->exists()) {
+            return response()->json(['ok' => false, 'mensaje' => 'Tiene subcategorías asociadas: eliminalas primero.'], 422);
+        }
+
+        try {
+            $categoria->delete();
+        } catch (QueryException $e) {
+            return response()->json(['ok' => false, 'mensaje' => 'No se puede eliminar: está en uso.'], 422);
+        }
+
+        return response()->json(['ok' => true, 'mensaje' => 'Categoría eliminada.']);
     }
 }

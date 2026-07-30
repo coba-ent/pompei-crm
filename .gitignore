@@ -32,6 +32,9 @@ yarn-error.log
 # Credenciales locales (no versionar)
 CREDENCIALES_ACCESO.txt
 
+# Resultado del bootstrap OAuth local de Tiendanube (client_secret/access_token en claro)
+/scripts/tn_oauth_bootstrap_resultado.json
+
 # Datos reales del cliente / archivos sueltos de trabajo en la raíz
 /*.csv
 /*.png

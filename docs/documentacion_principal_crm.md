@@ -66,10 +66,17 @@ El modelo de datos completo (entidades, campos y relaciones) está detallado en 
     rojo, incluso si se guarda sin apretar "Verificar" primero (la validación corre igual al guardar).
     Esto **sí está en alcance** y ya está implementado en el backend (`app/Rules/CuitValido.php`,
     usado por `ReglasCliente`/`ReglasProveedor`) — lo que falta es el botón/UI y el auto-formato.
-  - La **verificación contra ARCA/padrón fiscal** (consulta en vivo a un padrón externo para confirmar
-    que el CUIT existe y corroborar su condición de IVA real) es una cosa distinta y **sigue fuera de
-    alcance**, junto con el resto de la integración fiscal (se retoma cuando se rehaga Facturación
-    Electrónica).
+  - La **verificación/autocompletado contra ARCA/padrón fiscal** (consulta en vivo a un padrón externo
+    para confirmar que el CUIT existe, corroborar su condición de IVA real, y **autocompletar razón
+    social/domicilio** en el modal de Cliente/Proveedor a partir del CUIT tipeado) es una cosa distinta
+    del botón "Verificar" (dígito verificador local) y **sigue fuera de alcance** — decisión reconfirmada
+    el 30/07/2026 al evaluar el pedido puntual de autocompletado. Motivo técnico (no sólo de alcance):
+    el webservice oficial de Padrón de ARCA exige autenticación **WSAA** con certificado propio del
+    negocio — la misma pieza de infraestructura que usaría Facturación Electrónica (WSFEv1) — que este
+    proyecto todavía no construyó (ver §7). La alternativa de un proveedor tercero (API paga tipo Nosis/
+    cuitonline, sin necesidad de certificado propio) quedó identificada pero sin decidir. Se retoma con
+    una spec propia cuando se aborde Facturación Electrónica (o antes, si se decide puntualmente ir por
+    el proveedor tercero) — ver §7.
 - Listado: tabla con columnas Id, Cliente, Nombre, Apellido, Mail, Teléfono, Teléfono Celular,
   Domicilio, Localidad, Provincia, DNI, CUIT, Condición de IVA, Usuario de Mercado Libre, Nota,
   Página Web (DNI y CUIT se muestran en columnas separadas según el tipo de documento). Buscador
@@ -297,7 +304,10 @@ Otros Ingresos y Abonos son independientes.
   Cliente, Nota Interna, Lista de Precios, Vendedor, Formas de Pago, Métodos de Envío.
 - Filtros (15 campos): Id, Producto/Servicio, Cliente, Estado del Presupuesto, Categoría de Venta, N°
   de Presupuesto, Etiqueta, Vendedor, Formas de Pago, Métodos de Envío, Usuario, Nota para el Cliente,
-  Nota Interna, Servicio Desde/Hasta.
+  Nota Interna, Servicio Desde/Hasta. **Brecha detectada (spec 020, análisis, 30/07/2026)**: hoy sólo 3
+  de estos 15 campos están implementados en el panel de filtros real (Buscar, Cliente, Creada Desde);
+  el resto —incluidos Vendedor y Usuario— están documentados acá pero no construidos todavía. Pendiente
+  de una spec propia que complete el panel de filtros (brecha de las specs 008/017, no de la 020).
 - Menú de fila (badge de Estado ▾, 10 opciones en 4 bloques): Ver/Editar/Eliminar · cambio de estado
   directo (Pendiente/Rechazado/Aceptado) · **Crear Venta** (convierte el presupuesto) ·
   Ver/Imprimir/Enviar Presupuesto.
@@ -306,7 +316,11 @@ Otros Ingresos y Abonos son independientes.
   formulario de página completa a dos columnas, no modal — excepción documentada al patrón de modales
   de esta app, igual que Importar Datos (§2.4).
 - Formulario: Cliente (buscador) · Categoría (con creación/edición inline) · Emisión/Validez · Servicio
-  Desde/Hasta · Lista de Precios · tabla de Conceptos (producto, cant., precio, desc., subtotal, IVA,
+  Desde/Hasta · Lista de Precios · Vendedor (catálogo propio con ABM inline —crear/renombrar/eliminar
+  desde el mismo select, spec 020— campo opcional; **no** es el usuario logueado: hasta
+  la spec 020 el campo se autocompletaba en silencio con el usuario del sistema y no aparecía en el
+  formulario, distinción confirmada porque Vendedor y Usuario figuran como dos filtros separados más
+  abajo) · tabla de Conceptos (producto, cant., precio, desc., subtotal, IVA,
   total; menú Ver/Editar + tacho por fila) · Nota Cliente/Interna · Formas de Pago y Métodos de Envío
   (texto libre) · Etiquetas (catálogo con buscador + "Nueva Etiqueta") · Descuento General (%) · Total
   · **+ Percepciones / + Impuestos Internos / + Intereses** (cada uno agrega N filas de
@@ -330,7 +344,8 @@ Otros Ingresos y Abonos son independientes.
   Envío de Mail, CUIT, Servicio Desde/Hasta.
 - Filtros (11 campos): Id, Cliente, Estado del Cobro, Categoría de Venta, Facturado, Tipo y N° de
   Factura, Etiqueta, Vendedor, Medio de Cobro, Usuario, Nota Cliente/Interna, Creada Desde, Servicio
-  Desde/Hasta.
+  Desde/Hasta. **Misma brecha que en Presupuestos** (spec 020, análisis): sólo Buscar/Cliente/Creada
+  Desde están implementados hoy; el resto —incluido Vendedor— sigue pendiente.
 - Botón **"Analizar" (IA/Gemini)**: exclusivo de Ventas — genera un resumen del período (producto
   estrella, categoría más rentable, récord de venta, recomendación de negocio), con advertencia
   explícita de que "puede no ser del todo precisa o real". Misma tecnología (Gemini) que "Buscar
@@ -398,6 +413,8 @@ Ver §5.2 para la divergencia deliberada de todo el módulo (aplicación propia 
 - **Conversión a Venta**, manual o **automática** (interruptor en la configuración de Mercado Libre).
   La Venta se crea cobrada contra la cuenta de Tesorería **Mercado Pago** (§3.7) y descuenta stock del
   **depósito configurado**. Cliente emparejado por **Apodo ML** (§2.1) o creado automáticamente.
+  Queda asignada además al **Vendedor por defecto** configurado (opcional, spec 020 —
+  mismo mecanismo que el Depósito/Categoría de Venta por defecto).
 - **Lista de Precios de gestión de precios de Mercado Libre** (spec 016 — implementada):
   la configuración de Mercado Libre permite elegir opcionalmente una Lista de Precios
   (`ml_configuracion.lista_precio_id`) que **gestiona los precios de las publicaciones vinculadas**: al
@@ -506,7 +523,8 @@ Mercado Libre en vez de calcar una pantalla real.
   se crea cobrada contra la **cuenta de Tesorería configurable** (a diferencia de Mercado Libre, que
   siempre usa "Mercado Pago": Tiendanube admite múltiples medios de pago sin una pasarela canónica) y
   descuenta stock del depósito configurado. Cliente emparejado por `tn_customer_id` o, si es la primera
-  vez, por email.
+  vez, por email. Queda asignada además al **Vendedor por defecto** configurado (opcional, spec 020 —
+  independiente del de Mercado Libre).
 - **Tipo de comprobante derivado**: Tiendanube no informa la condición de IVA del comprador (a
   diferencia de Mercado Libre). Se deriva primero de la condición de IVA que el Cliente ya tenga cargada
   en el CRM y, sólo si no la tiene, se aproxima por longitud del documento (`cpf_cnpj`: 11 dígitos → A,
@@ -528,11 +546,13 @@ Mercado Libre en vez de calcar una pantalla real.
 
 *Fuente(s): `specs/017-ventas-tiendanube/`*
 
-### 3.2.quinquies Sincronización de stock hacia Tiendanube (spec 018)
+### 3.2.quinquies Sincronización de stock y precios hacia Tiendanube (spec 018)
 
 Contraparte inversa de §3.2.quater: cierra el circuito de stock en los dos sentidos, mismo patrón que la
-spec 013 aplicó sobre la 012 para Mercado Libre (§3.2.ter). **No agrega pantallas nuevas** — extiende las
-ya construidas por la spec 017.
+spec 013 aplicó sobre la 012 para Mercado Libre (§3.2.ter). **Ampliada (30/07/2026)** para agregar también
+la gestión de precios hacia Tiendanube, mismo patrón que la spec 016 aplicó para Mercado Libre (§3.2.bis,
+"Etapa 4"). **No agrega pantallas nuevas** — extiende las ya construidas por la spec 017 más la pantalla
+de Productos (botón de precios).
 
 - **Disparo**: cualquier movimiento de stock de un producto vinculado, en el **depósito configurado para
   Tiendanube** (`tn_configuracion.deposito_id`, o el depósito por defecto), marca el vínculo como "con
@@ -566,8 +586,29 @@ ya construidas por la spec 017.
   rechazo. La pantalla de **configuración de Tiendanube** muestra fecha y resultado de la última
   sincronización de stock. Todo envío queda además en el historial de operaciones (`tn_operaciones_log`,
   spec 015) como operación de escritura.
-- **Fuera de alcance**: precio, nombre, descripción, imágenes y estado de publicación de la variante —
-  **sólo se sincroniza la cantidad disponible**. Tampoco se despublica automáticamente al llegar a cero.
+- **Fuera de alcance (stock)**: nombre, descripción, imágenes y estado de publicación de la variante —
+  de estos atributos, sólo la cantidad disponible (y, desde la ampliación, el precio) quedan en alcance.
+  Tampoco se despublica automáticamente al llegar a cero.
+
+**Gestión de precios hacia Tiendanube (ampliación 30/07/2026)**: la configuración de Tiendanube permite
+elegir opcionalmente una Lista de Precios (`tn_configuracion.lista_precio_id`) que gestiona los precios de
+las **variantes vinculadas** — mismo rol que `ml_configuracion.lista_precio_id` cumple para Mercado Libre
+(§3.2.bis, spec 016), adaptado a la vinculación por variante:
+
+- **Disparo por evento, sin cron**: a diferencia del stock, el precio se sincroniza en el momento del
+  cambio (modal de Producto o importación masiva) sobre un producto vinculado dentro de la lista
+  configurada — no hay corrida programada para este flujo, porque el precio cambia por una causa directa
+  y deliberada, no por acumulación de movimientos indirectos como el stock.
+- **Acción manual "Sincronizar precios ahora"**: vive en la pantalla de **Productos** (no en Tiendanube),
+  mismo botón ya existente para Mercado Libre (spec 016) — un solo click reintenta los pendientes de
+  ambas integraciones.
+- **Cambiar la Lista de Precios configurada** empuja de inmediato el precio vigente de la nueva lista a
+  todas las variantes vinculadas que tengan precio cargado ahí.
+- **No es fuente de precio de Ventas**: el precio de las líneas de las Ventas creadas al convertir una
+  orden de Tiendanube (spec 017) sigue derivándose exclusivamente del importe pagado en la orden; esas
+  Ventas tampoco quedan etiquetadas con esta Lista de Precios.
+- **Visibilidad**: mismo criterio que stock — la pantalla de Vinculación de variantes muestra el estado
+  de sincronización de precio (sincronizado/pendiente/error) en una columna separada de la de stock.
 
 *Fuente(s): `specs/018-stock-tiendanube/`*
 
@@ -935,8 +976,8 @@ infraestructura ya construida (vinculación 1:1, depósito configurado, cliente 
 e historial de operaciones) y no agrega pantallas propias. Detalle en §3.2.ter; ver
 `specs/013-stock-mercadolibre/` y `docs/modelo_datos.md §10`.
 
-**Etapa 4 — Gestión de precios hacia Mercado Libre desde una Lista de Precios (spec 016, planificada, no
-implementada)**: agrega a la configuración de Mercado Libre una Lista de Precios opcional que, a
+**Etapa 4 — Gestión de precios hacia Mercado Libre desde una Lista de Precios (spec 016, implementada)**:
+agrega a la configuración de Mercado Libre una Lista de Precios opcional que, a
 diferencia del Depósito y la Categoría de Venta (etapa 2), no clasifica nada — es la lista que el negocio
 usa como fuente de los precios que Mercado Libre debe mostrar. Cuando el precio de un producto
 **vinculado** cambia dentro de esa lista (modal de Producto o importación masiva), el CRM sincroniza el
@@ -1037,20 +1078,23 @@ por completo las órdenes del canal Mercado Libre integrado a Tiendanube (`store
 duplicar lo que ya cubre la integración directa de Mercado Libre. Ver §3.2.quater;
 `specs/017-ventas-tiendanube/`.
 
-**Etapa 3 — Stock hacia Tiendanube (spec 018, especificada — lista para implementar)**: cierra el
-riesgo de sobreventa que la etapa 2 dejó documentado, empujando el stock del CRM hacia la variante
-vinculada de Tiendanube, mismo patrón que la spec 013 aplicó sobre la 012 para Mercado Libre. Agrega
-`tn_product_id` a la vinculación variante↔producto (la API de Tiendanube exige el producto, no sólo la
-variante, para actualizar stock). Ver §3.2.quinquies; `specs/018-stock-tiendanube/`.
+**Etapa 3 — Stock y precios hacia Tiendanube (spec 018, especificada — lista para implementar, ampliada
+30/07/2026)**: cierra el riesgo de sobreventa que la etapa 2 dejó documentado, empujando el stock del CRM
+hacia la variante vinculada de Tiendanube, mismo patrón que la spec 013 aplicó sobre la 012 para Mercado
+Libre. Agrega `tn_product_id` a la vinculación variante↔producto (la API de Tiendanube exige el producto,
+no sólo la variante, para actualizar stock). **Ampliación**: agrega también la gestión de precios
+(`tn_configuracion.lista_precio_id`), mismo patrón que la spec 016 para Mercado Libre — disparo por
+evento, sin cron, botón en Productos. Ver §3.2.quinquies; `specs/018-stock-tiendanube/`.
 
-> ⚠️ **Nota de secuencia de implementación**: a la fecha de esta actualización, las specs 017 y 018 tienen
-> sus artefactos de spec-kit completos pero **su código todavía no está construido**. La conexión (spec
-> 015) sí tiene controladores, modelos y migraciones reales deployados, pero **spec 019 los corrige**
-> (mecanismo OAuth/MCP en vez de Aplicación personalizada) — 017/018 deben construirse sobre el resultado
-> de 019, no sobre 015 tal como quedó. La spec 018 además extiende infraestructura que la 017 todavía
-> tiene que crear (`tn_variante_producto`, controladores de Ingresos → Tiendanube): sus tareas de
-> implementación deben ejecutarse después de, o junto con, las de la 017. Ver
-> `specs/018-stock-tiendanube/plan.md`, "Advertencia de secuencia de implementación".
+> ✅ **Actualización (spec 017, 30/07/2026): implementada.** Listado, sincronización (`SincronizadorOrdenes`),
+> vinculación variante↔producto (`TiendanubeVarianteProducto`), conversión manual y automática
+> (`ConversorOrdenAVenta`), configuración de ventas y comando programado (`tiendanube:sincronizar-ordenes`)
+> construidos sobre la conexión OAuth/MCP de la spec 019 (no sobre la 015, ya reemplazada). Suite de tests
+> propia en `tests/Feature/Integraciones/Tiendanube*Test.php`, en verde junto con la regresión de las
+> specs 011-013/015/019. **La spec 018 (Etapa 3, stock hacia Tiendanube) sigue sólo especificada, todavía
+> no implementada** — es la continuación directa: agrega `tn_product_id` a `tn_variante_producto` (ya
+> soportado en el esquema de la 017) y extiende `TiendanubeVarianteProducto`/`TiendanubeConfiguracion` sin
+> tocar lo que la 017 ya dejó funcionando.
 
 *Fuente(s): `docs/informe_contagram_funciones_avanzadas.md` §3; documentación oficial de Mercado Libre
 Developers; `admin-mcp.tiendanube.com` (observado empíricamente, sin doc pública — ver
@@ -1158,11 +1202,19 @@ Otros Ingresos, Abonos) ya se re-relevó** (ver §3), **Tesorería (Cuentas, Mov
 implementó** (ver §3.7), **Egresos (Compras, Gastos) ya se re-relevó** (ver §4), **Inicio / Panel de
 Control ya se implementó** (ver §6.3), **la integración con Mercado Libre + Funciones Avanzadas ya se
 implementaron** (specs 011/012/013/016 — ver §3.2.bis, §3.2.ter, §5.1 y §5.2) y **la integración con
-Tiendanube (conexión + ventas) ya se implementó** (specs 015/017 — ver §3.2.quater, §5.3; etapa 3 — stock
-hacia Tiendanube, spec 018 — ya especificada y lista para implementar, ver §3.2.quinquies) — todos
+Tiendanube (conexión + ventas) ya se implementó** (specs 019/017, corrigiendo a la 015 — ver §3.2.quater, §5.3; etapa 3 — stock
+y precios hacia Tiendanube, spec 018 — ya especificada y lista para implementar (ampliada 30/07/2026 con
+precios), ver §3.2.quinquies) — todos
 salieron de esta lista:
 
 - Facturación Electrónica (ARCA/AFIP — WSAA + WSFEv1)
+  - **Pendiente asociado (30/07/2026)**: autocompletado de datos de Cliente/Proveedor (razón social,
+    domicilio, condición de IVA) a partir del CUIT/CUIL, consultando el Padrón de ARCA. Requiere WSAA
+    (certificado propio del negocio) — misma infraestructura que WSFEv1, se especifica junto con este
+    módulo. Alternativa más rápida evaluada y no descartada: un proveedor tercero (API paga, ej. Nosis/
+    cuitonline) que no requiere certificado propio — si se decide ir por ahí, no hace falta esperar a
+    este módulo. Ver nota en §2 (ficha de Cliente/Proveedor) y spec 014 (`specs/014-verificacion-documento-fiscal/spec.md`,
+    sección Assumptions) para el detalle de la decisión.
 - Informes (Ventas, Compras, Cuenta Corriente, Gastos, Contador, Ranking, Reporte Final) — nota: el
   aging de Cuenta Corriente ya tiene un cálculo mínimo reutilizable (`CuentaCorriente::aging()`, §6.3);
   las pantallas completas de Cuenta Corriente por Cliente/Proveedor siguen pendientes acá.

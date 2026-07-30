@@ -7,7 +7,6 @@
 			<div class="col-lg-6 col-md-12 col-sm-12 mx-auto align-self-center">
 				<div class="login-form">
 					<div class="text-center">
-						<img src="{{ asset('images/logo/logo-full.png') }}" class="mb-3 login-sm-logo mx-auto" alt="Contagram CRM">
 						<h3 class="title">Iniciar sesión</h3>
 						<p>Ingresá a tu cuenta para usar Contagram CRM</p>
 					</div>
@@ -37,11 +36,17 @@
 								<i class="fa fa-eye"></i>
 							</span>
 						</div>
-						<div class="form-row d-flex justify-content-between mt-4 mb-2">
-							<div class="mb-4">
+						<div class="form-row mt-4 mb-2">
+							<div class="mb-2">
 								<div class="form-check custom-checkbox mb-3">
 									<input type="checkbox" class="form-check-input" name="remember" id="remember_me">
 									<label class="form-check-label mt-1" for="remember_me">Recordarme</label>
+								</div>
+							</div>
+							<div class="mb-4">
+								<div class="form-check custom-checkbox mb-3">
+									<input type="checkbox" class="form-check-input" name="mantener_sesion" id="mantener_sesion">
+									<label class="form-check-label mt-1" for="mantener_sesion">Mantener sesión iniciada</label>
 								</div>
 							</div>
 						</div>
@@ -52,15 +57,7 @@
 				</div>
 			</div>
 			<div class="col-xl-6 col-lg-6">
-				<div class="pages-left h-100">
-					<div class="login-content">
-						<img src="{{ asset('images/logo/logofull-white.png') }}" class="mb-3" alt="Contagram CRM">
-						<p>Gestión integral de tu negocio: ingresos, egresos, facturación electrónica e informes en un solo lugar.</p>
-					</div>
-					<div class="login-media text-center">
-						<img src="{{ asset('images/login.png') }}" alt="">
-					</div>
-				</div>
+				<div class="pages-left h-100" style="background-image: url('{{ asset('images/login.png') }}'); background-size: cover; background-position: center; background-repeat: no-repeat;"></div>
 			</div>
 		</div>
 	</div>

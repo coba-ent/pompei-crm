@@ -57,7 +57,7 @@ class Venta extends Model
 
     public function vendedor(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'vendedor_id');
+        return $this->belongsTo(Vendedor::class, 'vendedor_id');
     }
 
     public function presupuesto(): BelongsTo

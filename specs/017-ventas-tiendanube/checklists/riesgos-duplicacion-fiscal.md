@@ -7,6 +7,14 @@ esta spec (dinero duplicado y facturación fiscalmente incorrecta).
 **Created**: 2026-07-29
 **Feature**: [spec.md](../spec.md)
 
+> ⚠️ **Nota post-019 (30/07/2026)**: los ítems de abajo se validaron contra supuestos de la documentación
+> REST pública de Tiendanube (`channels` como parámetro de consulta, `billing_document_type` como campo)
+> que **no existen en la tool MCP real** — ver la corrección de spec.md/research.md. El espíritu de cada
+> ítem (¿está especificado qué pasa si...?) sigue siendo válido; lo que cambió es el mecanismo concreto
+> al que se refieren (`channels` → no existe, exclusión es de una capa; `billing_document_type` →
+> `cpf_cnpj` por longitud). No se re-marcan los checks porque la pregunta de fondo de cada uno sigue
+> resuelta, sólo el detalle técnico subyacente cambió.
+
 ## Requirement Completeness
 
 - [x] CHK001 - ¿Está especificado qué pasa con una orden `storefront=meli` que **ya estaba

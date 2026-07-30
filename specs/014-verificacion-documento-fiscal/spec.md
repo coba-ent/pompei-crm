@@ -181,6 +181,20 @@ como CUIT.
 - Cuando Mercado Libre sí informa la condición frente al IVA del comprador, el comprobante se sigue
   derivando de esa condición como hoy (principio III de la constitución); esta feature sólo afecta la
   rama de aproximación por tipo de documento que se usa cuando ese dato falta.
+- **Autocompletado de datos (razón social/domicilio/condición de IVA) vía Padrón de ARCA — evaluado y
+  diferido, no en alcance de esta spec** (decisión 30/07/2026): se planteó reemplazar/ampliar el botón
+  "Verificar" para que, además de validar el dígito verificador, consulte el Padrón de ARCA y
+  autocomplete los inputs del modal de Cliente/Proveedor (y que la conversión automática de Mercado
+  Libre use ese mismo dato real de condición de IVA en vez de aproximarla por tipo de documento). Se
+  descarta hacerlo dentro de esta spec porque el webservice oficial de Padrón exige autenticación WSAA
+  con certificado propio del negocio — infraestructura que este proyecto no tiene todavía (se comparte
+  con Facturación Electrónica/WSFEv1, ambas quedaron fuera de la lista de módulos construidos, ver
+  `docs/documentacion_principal_crm.md` §7). La alternativa de un proveedor tercero (API paga, sin
+  certificado propio) quedó identificada pero no evaluada en detalle. Queda documentado como pendiente
+  ligado a una futura spec (a especificar cuando se aborde Facturación Electrónica, o antes si se
+  decide puntualmente ir por el proveedor tercero) — no cambia nada del alcance ni del diseño de FR-001
+  a FR-010 de esta spec, que siguen siendo sólo verificación local del dígito verificador.
+
 - **Por qué "usar el fallback" y no "bloquear" ante un documento inválido de Mercado Libre** (FR-006,
   decisión explícita del usuario, 29/07/2026): a diferencia de un Cliente ambiguo (dos posibles
   matches, FR-038 de spec 012) — donde no hay forma automática correcta de elegir — un documento

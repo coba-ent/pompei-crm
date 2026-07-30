@@ -8,8 +8,8 @@
             <div class="modal-body">
                 <p>Se va a borrar el token de acceso guardado.</p>
                 <p class="mb-0 text-muted">
-                    Se conservan los datos de la tienda y el historial de operaciones. Vas a poder volver a
-                    conectarla cuando quieras cargando un token nuevo.
+                    Se conserva el historial de operaciones. Vas a poder volver a conectarla cuando quieras
+                    presionando "Conectar con Tiendanube" de nuevo.
                 </p>
             </div>
             <div class="modal-footer">

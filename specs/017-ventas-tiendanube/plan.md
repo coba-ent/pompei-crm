@@ -6,10 +6,17 @@
 
 ## Summary
 
+> ⚠️ **Corrección post-spec 019**: este plan se escribió asumiendo la conexión REST de spec 015
+> (`store_id`+`access_token`, `ClienteTiendanube::obtener()/enviar()` contra `api.tiendanube.com`). Esa
+> spec quedó inutilizable y fue reemplazada por `specs/019-tiendanube-conexion-mcp/` — OAuth 2.1 contra
+> `admin-mcp.tiendanube.com`, `ClienteTiendanube` reescrito para JSON-RPC (`leer()`/`escribir()` con
+> nombres de tool). La sección "Enfoque técnico por área" abajo ya refleja la interfaz real, verificada
+> contra la cuenta real de Tiendanube el 30/07/2026.
+
 Sincronizar las órdenes de venta de Tiendanube hacia el CRM, listarlas en una pantalla nueva dentro de
 Ingresos, y convertirlas en Ventas del CRM —manual o automáticamente— con su cobranza y su movimiento de
 stock. Es la contraparte de la spec 012 (Mercado Libre) sobre la infraestructura de conexión ya
-construida en la spec 015 (`ClienteTiendanube`, `TiendanubeConfiguracion`, `TiendanubeOperacionLog`).
+construida en la spec 019 (`ClienteTiendanube`, `TiendanubeConfiguracion`, `TiendanubeOperacionLog`).
 
 El enfoque técnico reutiliza al máximo lo ya construido: `StockDeVenta` (spec 012, ya generalizado para
 cualquier Venta — sólo se le agrega una rama `tiendanube`), `Cobranzas`, `CalculoComprobante` (spec 008),
@@ -37,28 +44,30 @@ nueva.
 nuevas en `tn_configuracion` y en `clientes` (`tn_customer_id`). Reutiliza `ventas`/`venta_items`/`cobros`
 sin cambios de esquema salvo el enum `origen` (agregar `'tiendanube'`).
 
-**Testing**: PHPUnit (Feature tests). `Http::fake()` para simular la API de Tiendanube, mismo patrón que
-`tests/Feature/Integraciones/` de la spec 015.
+**Testing**: PHPUnit (Feature tests). `Http::fake()` para simular las tools JSON-RPC de
+`admin-mcp.tiendanube.com`, mismo patrón que `tests/Feature/Integraciones/` de la spec 019.
 
 **Target Platform**: hosting compartido (tarea programada del sistema) y VPS con colas. Mismo código,
 distinta configuración — igual que Mercado Libre, y sin la restricción de infraestructura pública que sí
-tiene Mercado Libre (spec 015 no la requiere: nada de esta spec cambia eso, porque no se usan webhooks,
-Clarifications del spec).
+tiene Mercado Libre (spec 019 no la requiere para operar día a día: nada de esta spec cambia eso, porque
+no se usan webhooks, Clarifications del spec).
 
 **Project Type**: aplicación web monolítica (Laravel + Blade), single-tenant.
 
 **Performance Goals**: una corrida con hasta ~200 órdenes nuevas debe completarse dentro del límite de
 ejecución típico de hosting compartido; la conversión de una orden individual responde de inmediato.
-Respeta el límite documentado de la API de Tiendanube (leaky bucket, ~2 solicitudes/segundo, ráfagas de
-hasta 40 — más laxo que el de Mercado Libre).
+Respeta el límite de tasa de `admin-mcp.tiendanube.com` — **corrección post-019**: no está verificado
+públicamente para las tools MCP (el "leaky bucket ~2/s, ráfagas de 40" de la versión original venía de
+la documentación REST pública); se trata como piso conservador, mismo criterio que spec 019 research.md.
 
 **Constraints**: sin procesos de larga duración garantizados · sin webhooks (decisión deliberada,
 Clarifications) · la primera corrida no debe arrastrar el historial completo de la tienda · debe excluir
-`storefront = "meli"` en el propio punto de consulta, no en un filtro posterior.
+`storefront = "meli"` (corrección post-019: en un filtro posterior a la consulta — `list_orders` no
+admite excluirlo en la propia llamada, no existe el parámetro `channels`).
 
 **Scale/Scope**: un único negocio, una única tienda de Tiendanube. Volumen esperado similar al de
 Mercado Libre. 2 pantallas nuevas (listado + vinculación de variantes) + extensión de la pantalla de
-configuración de Tiendanube ya existente (spec 015).
+configuración de Tiendanube ya existente (spec 019).
 
 ## Constitution Check
 
@@ -115,7 +124,7 @@ app/
 │   ├── TiendanubeOrdenItem.php                 # NUEVO
 │   └── TiendanubeVarianteProducto.php          # NUEVO — vinculación 1:1
 ├── Services/Tiendanube/
-│   ├── ClienteTiendanube.php                   # existente — NO se toca
+│   ├── ClienteTiendanube.php                   # existente (spec 019, JSON-RPC/MCP) — NO se toca
 │   ├── TraductorOrdenes.php                    # NUEVO — mapea 3 estados TN → 5 estados CRM
 │   ├── SincronizadorOrdenes.php                # NUEVO — paginación, exclusión meli, idempotencia
 │   ├── ConversorOrdenAVenta.php                # NUEVO — orquesta la conversión
@@ -152,8 +161,8 @@ funcionalmente a Ingresos, no a Configuración).
 ### 1. Traducción de estados
 
 `TraductorOrdenes` mapea `status`+`payment_status` de Tiendanube a los 5 valores de `EstadoConversion`
-(tabla de FR-007a). `shipping_status` se persiste como dato informativo (`tn_ordenes.shipping_status`)
-sin participar del mapeo. La lógica vive en un traductor separado (no inline en el sincronizador) por el
+(tabla de FR-007a). `fulfillment_status` (corrección post-019: no `shipping_status`) se persiste como
+dato informativo (`tn_ordenes.fulfillment_status`) sin participar del mapeo. La lógica vive en un traductor separado (no inline en el sincronizador) por el
 mismo motivo que la spec 012 aisló `TraductorOrdenes` de Mercado Libre: aísla el formato externo del
 resto del sistema.
 
@@ -161,11 +170,14 @@ resto del sistema.
 
 `SincronizadorOrdenes` corre bajo `Cache::lock` propio (independiente del de Mercado Libre — son
 integraciones distintas). Antes de paginar verifica función desactivada / modo sólo lectura / conexión
-caída (spec 015), registrando un único intento bloqueado. Consulta `GET /orders` con
-`updated_at_min`/`created_at_min` desde la última marca exitosa, **excluyendo `storefront=meli`** con el
-parámetro `channels` de la propia consulta (no se trae y se descarta: no se trae directamente — más
-simple y más barato en solicitudes contra un límite de 2/segundo). Hace *upsert* por número de orden. Si
-la creación automática está activa, delega cada orden apta a `ConversorOrdenAVenta`.
+caída (spec 019), registrando un único intento bloqueado. Llama a
+`ClienteTiendanube::leer('list_orders', ['status' => ['open','closed','cancelled'], 'completed_at_from'
+=> ..., 'completed_at_to' => now(), 'page' => $pagina, 'limit' => 50])` — **corrección post-019**: la
+tool real no tiene `updated_at_min`/`created_at_min` ni parámetro `channels`; la "incrementalidad" se
+logra re-consultando en cada corrida la ventana completa de `dias_primera_sync` días (FR-016 corregido)
+y haciendo *upsert* por `id` (no `number`) sobre lo que traiga, y la exclusión de `storefront=meli` es
+de una sola capa, después de traer cada orden (`TraductorOrdenes`, no en la propia consulta — no existe
+`channels`). Si la creación automática está activa, delega cada orden apta a `ConversorOrdenAVenta`.
 
 ### 3. Conversión
 
@@ -179,12 +191,15 @@ inequívoco, moneda válida, cuenta de Tesorería activa.
 ### 4. Cliente y comprobante
 
 `ResolutorCliente` empareja por `tn_customer_id` primero, `email` después (persistiendo el id la primera
-vez, FR-036a). El tipo de comprobante se deriva **primero** de la condición de IVA que el Cliente
-emparejado ya tenga cargada en el CRM (mismo `CalculoComprobante` que cualquier Venta manual) y, sólo
-para Clientes nuevos o sin esa condición cargada, se aproxima por `billing_document_type` (FR-039/040) —
-a diferencia de Mercado Libre, que siempre usa la condición de IVA que informa la API porque siempre la
-tiene; acá esa fuente no existe, así que el dato ya cargado en el CRM pasa a ser la fuente primaria antes
-de aproximar.
+vez, FR-036a) — los datos del comprador vienen **embebidos en la propia respuesta de `list_orders`**
+(`order.customer.*`), sin necesitar una llamada aparte a `list_customers`. El tipo de comprobante se
+deriva **primero** de la condición de IVA que el Cliente emparejado ya tenga cargada en el CRM (mismo
+`CalculoComprobante` que cualquier Venta manual) y, sólo para Clientes nuevos o sin esa condición
+cargada, se aproxima por longitud de `customer.cpf_cnpj` (FR-039/040, corrección post-019: no existe
+`billing_document_type`) — a diferencia de Mercado Libre, que siempre usa la condición de IVA que
+informa la API porque siempre la tiene; acá esa fuente no existe (y en la práctica tampoco `cpf_cnpj`,
+verificado vacío en las 9 órdenes reales de la tienda), así que el dato ya cargado en el CRM pasa a ser
+la fuente primaria antes de aproximar, y Consumidor Final/B es el resultado dominante en la práctica.
 
 ### 5. Stock
 

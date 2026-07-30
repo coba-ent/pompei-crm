@@ -1,47 +1,60 @@
 # Research: Ventas de Tiendanube
 
-## R1 — Mapeo de estados: `status` + `payment_status` → 5 estados de conversión, `shipping_status` fuera del mapeo
+## R1 — Mapeo de estados: `status` + `payment_status` → 5 estados de conversión, `fulfillment_status` fuera del mapeo
+
+> ⚠️ **Corrección post-019**: la tool real `list_orders` llama `fulfillment_status` al campo que este
+> research (y la primera versión de la spec) llamaba `shipping_status`. Mismo concepto, nombre distinto
+> — corregido en todo lo que sigue.
 
 **Pregunta**: Tiendanube expone tres campos de estado independientes (`status`, `payment_status`,
-`shipping_status`). Mercado Libre expone uno solo. ¿Cómo se preserva el mismo conjunto cerrado de cinco
+`fulfillment_status`). Mercado Libre expone uno solo. ¿Cómo se preserva el mismo conjunto cerrado de cinco
 estados de conversión (FR-007a) sin perder información ni inventar estados nuevos?
 
 **Decisión**: derivar el estado de conversión únicamente de `status` + `payment_status` (tabla FR-007a
-del spec). `shipping_status` se persiste como columna informativa en `tn_ordenes`, mostrada en el
+del spec). `fulfillment_status` se persiste como columna informativa en `tn_ordenes`, mostrada en el
 listado (FR-005), pero no participa de la derivación.
 
 **Rationale**: el estado de conversión responde a una sola pregunta de negocio — "¿está pronta para
 facturarse?" — que depende de si está paga y no cancelada, no de si ya se despachó. Meter
-`shipping_status` en la derivación introduciría estados espurios (ej. "pagada pero no despachada" no es
-un motivo válido para no poder facturarla) y rompería la paridad con el conjunto ya validado en la spec
-012.
+`fulfillment_status` en la derivación introduciría estados espurios (ej. "pagada pero no despachada" no
+es un motivo válido para no poder facturarla) y rompería la paridad con el conjunto ya validado en la
+spec 012.
 
 **Alternativas consideradas**:
 - *Agregar un sexto estado "Pagada, pendiente de envío"*: rechazado — no es un estado de **conversión**
   (no cambia si puede facturarse o no), es información de logística. Se muestra igual, pero como columna
   separada, no como estado excluyente.
 
-## R2 — Exclusión de `storefront=meli`: filtro en la propia consulta, no post-proceso
+## R2 — Exclusión de `storefront=meli`: post-proceso, no filtro en la consulta (CORREGIDO post-019)
 
-**Pregunta**: ¿cómo se implementa la exclusión de órdenes del canal Mercado Libire integrado (spec.md,
+> ⚠️ **Corrección post-019 (verificado 30/07/2026 contra la cuenta real)**: la decisión original de este
+> research (filtrar `channels` en `GET /orders`, la API REST pública de Tiendanube) **no aplica** — el
+> CRM habla contra el servidor MCP (`admin-mcp.tiendanube.com`), y su tool real `list_orders` **no tiene
+> ningún parámetro `channels` ni equivalente**. No hay forma de excluir un canal en la propia consulta.
+> La "defensa en dos capas" que describía este research (filtro en la API + descarte en
+> `TraductorOrdenes`) queda en **una sola capa**: sólo el descarte explícito post-fetch. Esto es un
+> requisito de negocio crítico (una orden `meli` no descartada duplica una venta real), así que
+> `TraductorOrdenes` es la **única** línea de defensa — sin red de seguridad aguas arriba que la
+> respalde. El texto original de la decisión queda abajo tachado conceptualmente, como registro de qué
+> se asumió y por qué estaba mal.
+
+**Pregunta**: ¿cómo se implementa la exclusión de órdenes del canal Mercado Libre integrado (spec.md,
 "Riesgo de duplicación")?
 
-**Decisión**: usar el parámetro `channels` de `GET /orders` para pedir explícitamente sólo los canales
-distintos de `meli` (o, si la API no admite negación directa, pedir la lista completa de canales válidos
-del negocio excluyendo `meli`), en vez de traer todas las órdenes y descartar en el CRM las que tengan
-`storefront=meli`.
+**Decisión (corregida)**: `SincronizadorOrdenes` trae todas las órdenes de la ventana consultada (no hay
+forma de pedirle a Tiendanube que excluya un canal) y `TraductorOrdenes` descarta explícitamente,
+**antes de persistir nada**, toda orden con `storefront === 'meli'` exacto (FR-012a). La ausencia del
+campo o cualquier otro valor no se trata como `meli`.
 
-**Rationale**: con un límite de ~2 solicitudes/segundo, no tiene sentido gastar cupo de API trayendo
-datos que se van a descartar siempre. Además, filtrar en el servidor de Tiendanube es una garantía más
-fuerte que filtrar en el CRM: un bug futuro en el filtrado local podría dejar pasar una orden `meli` sin
-que nada lo impida aguas arriba.
+**Rationale**: sin parámetro de exclusión en la API, no hay alternativa — el costo de traer alguna orden
+`meli` de más (en volumen bajo, spec.md §Scale/Scope) es aceptable frente al riesgo de no poder
+implementar el filtro en absoluto. `TraductorOrdenes` sigue siendo un traductor separado (no inline en
+el sincronizador) para poder testear la exclusión de forma aislada y determinística.
 
-**Alternativas consideradas**:
-- *Traer todo y filtrar en `TraductorOrdenes`*: mantiene un filtro de todos modos como red de seguridad
-  (ver FR-012a — el requisito es "nunca sincronizar", no "filtrar en la consulta"), pero como filtro
-  primario se prefiere el de la API. Se implementan **ambos**: el de la consulta como optimización, y un
-  descarte explícito en `TraductorOrdenes` como garantía — defensa en profundidad sobre un requisito que,
-  si falla, duplica ventas reales.
+**Decisión original (29/07/2026, basada en documentación REST pública — no aplica)**: usar el parámetro
+`channels` de `GET /orders` para pedir explícitamente sólo los canales distintos de `meli`, en vez de
+traer todas las órdenes y descartar en el CRM las que tengan `storefront=meli`. Esa decisión asumía un
+endpoint y un parámetro que **la tool MCP real no tiene**.
 
 ## R3 — Vinculación por `variant_id`, tabla propia `tn_variante_producto`
 
@@ -106,15 +119,21 @@ El costo es duplicar ~40 líneas de un enum; el beneficio es que un cambio futur
 Mercado Libre (por ejemplo, si esa integración necesitara un sexto estado) no obliga a re-evaluar
 Tiendanube, y viceversa.
 
-## R7 — Sin webhooks: reafirmación de la decisión de la spec 015
+## R7 — Sin webhooks: reafirmación, ahora porque el servidor MCP no los expone
+
+> ⚠️ **Corrección post-019**: el motivo original ("Tiendanube ofrece webhooks, pero conectarlos exigiría
+> infraestructura pública") ya no es la razón principal — verificado que el servidor MCP
+> `admin-mcp.tiendanube.com` **no tiene ninguna tool de gestión de webhooks** (24 tools confirmadas, spec
+> 019 research.md R7). No es que se evite un webhook disponible: no hay ningún webhook al que suscribirse
+> desde este transporte. Cualquier sincronización en tiempo real futura tendría que ser por *polling* más
+> frecuente, no por push.
 
 **Pregunta**: Tiendanube ofrece webhooks para `order/created`, `order/paid`, etc. ¿Se usan para bajar la
 latencia de sincronización?
 
 **Decisión**: no, se mantiene consulta programada + manual (ya resuelto en Clarifications del spec).
 
-**Rationale**: un webhook entrante requiere que el CRM sea alcanzable públicamente para recibirlo — la
-spec 015 conectó Tiendanube **específicamente** para no necesitar esa infraestructura
-(`docs/documentacion_principal_crm.md §5.3`, "Sin restricción de infraestructura pública"). Agregar un
-webhook acá reintroduciría, para una parte de la misma integración, exactamente la restricción que el
-resto de la integración evitó a propósito.
+**Rationale**: el servidor MCP contra el que habla el CRM no expone tools de webhooks (ver arriba). Aun
+si las expusiera, un webhook entrante requeriría que el CRM sea alcanzable públicamente para recibirlo,
+reintroduciendo para una parte de la integración exactamente la restricción que el resto evitó a
+propósito (spec 019).

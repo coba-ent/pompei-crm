@@ -41,6 +41,7 @@
                                     <option value="venta">Venta</option>
                                     <option value="presupuesto">Presupuesto</option>
                                     <option value="mercadolibre">MercadoLibre</option>
+                                    <option value="tiendanube">Tiendanube</option>
                                 </select>
                             </div>
                             <div class="col-12 text-end">

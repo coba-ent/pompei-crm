@@ -3,7 +3,6 @@
 namespace Tests\Feature\Integraciones;
 
 use App\Enums\Tiendanube\EstadoConexion;
-use App\Models\FuncionAvanzada;
 use App\Models\Integraciones\TiendanubeConfiguracion;
 use App\Models\Integraciones\TiendanubeOperacionLog;
 use App\Models\Rol;
@@ -14,9 +13,11 @@ use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 /**
- * FR-006b (spec 015): con la función "Tiendanube" desactivada en Funciones
- * Avanzadas, toda operación (lectura y escritura) se rechaza y se registra
- * como bloqueada, sin alterar el estado de la conexión.
+ * FR-006b (heredado de spec 015, sin cambios de intención — tasks.md T029):
+ * con la función "Tiendanube" desactivada en Funciones Avanzadas, toda
+ * operación (lectura y escritura) se rechaza y se registra como bloqueada,
+ * sin alterar el estado de la conexión — re-verificado contra el
+ * ClienteTiendanube basado en MCP.
  */
 class TiendanubeFuncionDesactivadaTest extends TestCase
 {
@@ -33,7 +34,8 @@ class TiendanubeFuncionDesactivadaTest extends TestCase
         // La función queda desactivada (default del seeder): no se hace ->update(['activa' => true]).
 
         TiendanubeConfiguracion::actual()->update([
-            'store_id' => '1234567',
+            'client_id' => 'client-id-de-prueba',
+            'client_secret' => 'client-secret-de-prueba',
             'access_token' => 'token-vigente-de-prueba',
             'estado' => EstadoConexion::Conectada,
         ]);
@@ -43,7 +45,7 @@ class TiendanubeFuncionDesactivadaTest extends TestCase
     {
         Http::fake();
 
-        $respuesta = app(ClienteTiendanube::class)->probarConexion();
+        $respuesta = app(ClienteTiendanube::class)->leer('list_products', ['page' => 1]);
 
         Http::assertNothingSent();
         $this->assertTrue($respuesta->fueBloqueada());
@@ -53,18 +55,19 @@ class TiendanubeFuncionDesactivadaTest extends TestCase
         $this->assertSame('bloqueada', $registro->resultado);
     }
 
-    public function test_probar_conexion_desde_la_pantalla_de_configuracion_omite_el_guard(): void
+    public function test_la_verificacion_fr003a_del_callback_omite_el_guard(): void
     {
-        // El endpoint HTTP "probar" pasa omitir_guard_funcion: true — permite
-        // verificar credenciales aunque la función todavía no esté activa.
-        Http::fake(['api.tiendanube.com/v1/1234567/store' => Http::response([
-            'id' => 1234567, 'name' => ['es' => 'Mi Tienda'], 'original_domain' => 'x.mitiendanube.com',
-            'country' => 'AR', 'currency' => 'ARS',
+        // omitir_guard_funcion: true — permite verificar el token recién
+        // obtenido dentro del propio callback OAuth, aunque la función
+        // "Tiendanube" todavía no esté activa (FR-003a).
+        Http::fake(['admin-mcp.tiendanube.com/' => Http::response([
+            'jsonrpc' => '2.0', 'id' => 1,
+            'result' => ['isError' => false, 'structuredContent' => ['pagination' => ['total_elements' => 3], 'products' => []]],
         ], 200)]);
 
-        $response = $this->postJson(route('configuracion.tiendanube.probar'));
+        $respuesta = app(ClienteTiendanube::class)->leer('list_products', ['page' => 1, 'page_size' => 1], ['omitir_guard_funcion' => true]);
 
-        $response->assertOk()->assertJsonPath('ok', true);
+        $this->assertTrue($respuesta->exito);
         Http::assertSentCount(1);
     }
 }

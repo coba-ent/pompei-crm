@@ -28,6 +28,8 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
+        $request->session()->put('mantener_sesion_activa', $request->boolean('mantener_sesion'));
+
         return redirect()->intended(route('dashboard.index', absolute: false));
     }
 

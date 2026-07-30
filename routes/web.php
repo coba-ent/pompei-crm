@@ -15,6 +15,8 @@ use App\Http\Controllers\Ingresos\MercadoLibreVentaController;
 use App\Http\Controllers\Ingresos\MercadoLibreVinculacionController;
 use App\Http\Controllers\Integraciones\MercadoLibreConfiguracionController;
 use App\Http\Controllers\Integraciones\MercadoLibreOAuthController;
+use App\Http\Controllers\Ingresos\TiendanubeVentaController;
+use App\Http\Controllers\Ingresos\TiendanubeVinculacionController;
 use App\Http\Controllers\Integraciones\TiendanubeConfiguracionController;
 use App\Http\Controllers\Integraciones\TiendanubeOAuthController;
 use App\Http\Controllers\ImportacionController;
@@ -28,6 +30,7 @@ use App\Http\Controllers\ProveedorController;
 use App\Http\Controllers\TesoreriaController;
 use App\Http\Controllers\TipoProductoController;
 use App\Http\Controllers\StockController;
+use App\Http\Controllers\VendedorController;
 use App\Http\Controllers\VentaController;
 use Illuminate\Support\Facades\Route;
 
@@ -72,6 +75,7 @@ Route::post('productos/acciones-masivas', [ProductoController::class, 'accionesM
 // vive en la pantalla de Productos (no en Mercado Libre): sin gate `permiso:ventas.ver`,
 // alcanza con poder llegar a la pantalla de Productos (mismo criterio que el resto de sus rutas).
 Route::post('productos/sincronizar-precios-ml', [MercadoLibreVentaController::class, 'sincronizarPrecios'])->name('productos.sincronizarPreciosMl');
+Route::post('productos/sincronizar-precios-tn', [TiendanubeVentaController::class, 'sincronizarPrecios'])->name('productos.sincronizarPreciosTn');
 Route::post('productos/{producto}/stock', [StockController::class, 'ajuste'])->name('productos.stock.ajuste');
 Route::post('productos/{producto}/transferencia', [StockController::class, 'transferencia'])->name('productos.stock.transferencia');
 Route::get('productos/{producto}/movimientos', [StockController::class, 'movimientos'])->name('productos.movimientos');
@@ -174,6 +178,7 @@ Route::middleware('permiso:ventas.ver')->prefix('ingresos/mercadolibre')->name('
     Route::prefix('vinculaciones')->name('vinculaciones.')->group(function () {
         Route::get('/', [MercadoLibreVinculacionController::class, 'index'])->name('index');
         Route::get('datatable', [MercadoLibreVinculacionController::class, 'datatable'])->name('datatable');
+        Route::get('pendientes', [MercadoLibreVinculacionController::class, 'publicacionesPendientes'])->name('pendientes');
         Route::post('/', [MercadoLibreVinculacionController::class, 'store'])->name('store');
         Route::patch('{vinculacion}', [MercadoLibreVinculacionController::class, 'update'])->name('update');
         Route::delete('{vinculacion}', [MercadoLibreVinculacionController::class, 'destroy'])->name('destroy');
@@ -187,8 +192,35 @@ Route::middleware('permiso:ventas.ver')->prefix('ingresos/mercadolibre')->name('
     Route::get('{orden}', [MercadoLibreVentaController::class, 'show'])->name('show');
 });
 
+// Ingresos → Tiendanube (spec 017) — listado de órdenes, sincronización y conversión a Venta
+Route::middleware('permiso:ventas.ver')->prefix('ingresos/tiendanube')->name('ingresos.tiendanube.')->group(function () {
+    Route::get('/', [TiendanubeVentaController::class, 'index'])->name('index');
+    Route::get('datatable', [TiendanubeVentaController::class, 'datatable'])->name('datatable');
+    Route::post('sincronizar', [TiendanubeVentaController::class, 'sincronizar'])->name('sincronizar');
+    Route::post('sincronizar-stock', [TiendanubeVentaController::class, 'sincronizarStock'])->name('sincronizarStock');
+    Route::prefix('vinculaciones')->name('vinculaciones.')->group(function () {
+        Route::get('/', [TiendanubeVinculacionController::class, 'index'])->name('index');
+        Route::get('datatable', [TiendanubeVinculacionController::class, 'datatable'])->name('datatable');
+        Route::get('pendientes', [TiendanubeVinculacionController::class, 'variantesPendientes'])->name('pendientes');
+        Route::post('/', [TiendanubeVinculacionController::class, 'store'])->name('store');
+        Route::patch('{vinculacion}', [TiendanubeVinculacionController::class, 'update'])->name('update');
+        Route::delete('{vinculacion}', [TiendanubeVinculacionController::class, 'destroy'])->name('destroy');
+    });
+
+    // Rutas con {orden} genérico DEBEN ir después de /vinculaciones — mismo cuidado que
+    // dejó documentado la spec 012 (si no, "vinculaciones" matchea {orden} primero).
+    Route::get('{orden}/convertir', [TiendanubeVentaController::class, 'convertir'])->name('convertir');
+    Route::post('{orden}/convertir', [TiendanubeVentaController::class, 'convertirGuardar'])->name('convertirGuardar');
+    Route::get('{orden}', [TiendanubeVentaController::class, 'show'])->name('show');
+});
+
 Route::post('categorias-ingreso', [CategoriaController::class, 'storeIngreso'])->name('categorias.ingreso.store');
 Route::post('categorias-venta', [CategoriaController::class, 'storeVenta'])->name('categorias.venta.store');
+
+// Vendedores (spec 020) — ABM inline único, usado desde Venta, Presupuesto y config. Tiendanube/MercadoLibre.
+Route::post('vendedores', [VendedorController::class, 'store'])->name('vendedores.store');
+Route::patch('vendedores/{vendedor}', [VendedorController::class, 'update'])->name('vendedores.update');
+Route::delete('vendedores/{vendedor}', [VendedorController::class, 'destroy'])->name('vendedores.destroy');
 
 // Egresos (spec 009) — Compras (+ Pagos/Retenciones/NC-ND/Remitos) y Gastos
 Route::middleware('permiso:compras.ver')->prefix('compras')->name('compras.')->group(function () {
@@ -219,6 +251,8 @@ Route::middleware('permiso:gastos.ver')->prefix('gastos')->name('gastos.')->grou
 Route::post('categorias-compra', [CategoriaController::class, 'storeCompra'])->name('categorias.compra.store');
 Route::post('categorias-gasto', [CategoriaController::class, 'storeGasto'])->name('categorias.gasto.store');
 Route::post('categorias-gasto/{categoria}/subcategorias', [CategoriaController::class, 'storeSubcategoriaGasto'])->name('categorias.gasto.subcategorias.store');
+Route::patch('categorias/{categoria}', [CategoriaController::class, 'update'])->name('categorias.update');
+Route::delete('categorias/{categoria}', [CategoriaController::class, 'destroy'])->name('categorias.destroy');
 
 // Base de Datos → Listas de precio (catálogo global, gestionable desde el modal de producto)
 Route::get('listas-precio', [ListaPrecioController::class, 'index'])->name('listas-precio.index');
@@ -289,6 +323,7 @@ Route::prefix('configuracion')->name('configuracion.')->group(function () {
         Route::get('estado', [TiendanubeConfiguracionController::class, 'estado'])->name('estado');
         Route::post('desconectar', [TiendanubeConfiguracionController::class, 'desconectar'])->name('desconectar');
         Route::patch('modo-solo-lectura', [TiendanubeConfiguracionController::class, 'modoSoloLectura'])->name('modoSoloLectura');
+        Route::patch('ventas', [TiendanubeConfiguracionController::class, 'guardarVentas'])->name('ventas.configurar');
         Route::get('historial', [TiendanubeConfiguracionController::class, 'historial'])->name('historial');
         Route::get('conectar', [TiendanubeOAuthController::class, 'conectar'])->name('conectar');
         Route::get('callback', [TiendanubeOAuthController::class, 'callback'])->name('callback');

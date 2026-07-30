@@ -286,6 +286,7 @@
             tipos: "{{ url('tipos-producto') }}",
             accionesMasivas: "{{ route('productos.acciones-masivas') }}",
             sincronizarPreciosMl: "{{ route('productos.sincronizarPreciosMl') }}",
+            sincronizarPreciosTn: "{{ route('productos.sincronizarPreciosTn') }}",
         },
         listasPrecio: {!! $listasPrecio->map(fn ($l) => ['id' => $l->id, 'nombre' => $l->nombre])->toJson() !!},
         {{-- Mismo orden que el <thead>: las columnas del DataTable tienen que coincidir 1 a 1. --}}

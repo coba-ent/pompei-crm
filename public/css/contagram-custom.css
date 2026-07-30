@@ -249,6 +249,17 @@ textarea.form-control {
     line-height: 1.4;
 }
 
+/* Icono "ojo" de mostrar/ocultar contraseña (login): style.css lo posiciona con
+ * `top: 38px` fijo, calibrado para el alto de input viejo (~45px, antes del
+ * override de arriba). Con el input compacto quedaba mal ubicado. Usamos `bottom`
+ * en vez de `top`: el <span> es el último hijo en el flujo de `.position-relative`,
+ * así que su borde inferior coincide con el del input sin importar cuánto mida el
+ * label de arriba. */
+.eye {
+    top: auto;
+    bottom: 0.5rem;
+}
+
 /* Botones compactos ("sm") por defecto en todo el proyecto.
  * OJO: NexaDash redefine `.btn` MÁS ABAJO en style.css con valores LITERALES
  * (`padding: 10px 20px; font-size: 14px`), que le ganan a un override por

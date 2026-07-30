@@ -19,7 +19,7 @@ class MercadoLibreConfiguracion extends Model
         'client_id', 'client_secret', 'site_id', 'modo_solo_lectura', 'actualizada_por',
         'creacion_automatica', 'frecuencia_sync_minutos', 'deposito_id', 'categoria_venta_id',
         'dias_primera_sync', 'ultima_sync_en', 'ultima_sync_resultado',
-        'stock_ultima_sync_en', 'stock_ultima_sync_resultado', 'lista_precio_id',
+        'stock_ultima_sync_en', 'stock_ultima_sync_resultado', 'lista_precio_id', 'vendedor_id',
     ];
 
     protected $hidden = ['client_secret'];
@@ -71,6 +71,11 @@ class MercadoLibreConfiguracion extends Model
     public function categoriaVenta(): BelongsTo
     {
         return $this->belongsTo(\App\Models\Categoria::class, 'categoria_venta_id');
+    }
+
+    public function vendedor(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Vendedor::class, 'vendedor_id');
     }
 
     /** Lista de Precios que gestiona los precios de las publicaciones vinculadas (spec 016). */

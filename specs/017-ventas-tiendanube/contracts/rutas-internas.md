@@ -39,11 +39,12 @@ Sin cuerpo.
 | Correcta | 200 | `{ ok: true, mensaje: "N órdenes nuevas, M actualizadas.", nuevas, actualizadas, convertidas }` |
 | Ya hay una corrida en curso | 409 | `{ ok: false, mensaje: "Ya hay una sincronización en curso." }` |
 | Función desactivada / modo sólo lectura | 409 | `{ ok: false, mensaje: "<motivo del bloqueo>" }` |
-| Conexión caída o sin configurar | 409 | `{ ok: false, mensaje: "…Recargá el token." }` |
+| Conexión caída o sin configurar | 409 | `{ ok: false, mensaje: "…Hace falta reconectar Tiendanube (soporte técnico)." }` |
 
-Cortes verificados **antes** de paginar (FR-017/FR-018), mismo criterio que Mercado Libre. La consulta a
-Tiendanube excluye `storefront=meli` en el propio filtro (`channels`), no como post-proceso
-(research.md R2).
+Cortes verificados **antes** de paginar (FR-017/FR-018), mismo criterio que Mercado Libre. **Corrección
+post-019**: la consulta a Tiendanube (`list_orders`) no admite excluir `storefront=meli` en el propio
+filtro — no existe el parámetro `channels`. La exclusión es post-proceso, en `TraductorOrdenes`
+(research.md R2 corregido).
 
 ### `POST /{orden}/convertir`
 

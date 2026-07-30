@@ -42,7 +42,7 @@
             <div><strong>CUIT:</strong> {{ optional($presupuesto->cliente)->cuit ?: '-' }}</div>
             <div><strong>Condición IVA:</strong> {{ optional(optional($presupuesto->cliente)->condicionIva)->nombre ?: '-' }}</div>
             <div><strong>Categoría:</strong> {{ optional($presupuesto->categoria)->nombre ?: '-' }}</div>
-            <div><strong>Vendedor:</strong> {{ optional($presupuesto->vendedor)->name ?: '-' }}</div>
+            <div><strong>Vendedor:</strong> {{ optional($presupuesto->vendedor)->nombre ?: '-' }}</div>
         </div>
     </div>
 

@@ -40,6 +40,9 @@
 								@if (\App\Models\FuncionAvanzada::where('clave', 'mercadolibre')->value('activa'))
 									<li><a href="{{ route('ingresos.mercadolibre.index') }}">Mercado Libre</a></li>
 								@endif
+								@if (\App\Models\FuncionAvanzada::where('clave', 'tiendanube')->value('activa'))
+									<li><a href="{{ route('ingresos.tiendanube.index') }}">Tiendanube</a></li>
+								@endif
 							@endcan
 							@can('otros-ingresos.ver')
 								<li><a href="{{ route('otros-ingresos.index') }}">Otros Ingresos</a></li>
@@ -51,7 +54,10 @@
 							<svg width="24" height="24" viewBox="0 0 16 16" fill="none"
 								xmlns="http://www.w3.org/2000/svg">
 								<path
-									d="M2 2a1 1 0 0 1 1-1h4l2 2h4a1 1 0 0 1 1 1v1H2V2zM1 6a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1l-1 8a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1L1 6z"
+									d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"
+									fill="#6F767E" />
+								<path
+									d="M8 4a.5.5 0 0 1 .5.5v5.793l2.146-2.147a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 1 1 .708-.708L7.5 10.293V4.5A.5.5 0 0 1 8 4z"
 									fill="#6F767E" />
 							</svg>
 						</div>

@@ -60,21 +60,35 @@
             }
         });
 
-        // "Sincronizar precios ahora" (spec 016, US3): reintenta el envío de precios
-        // pendientes/con error hacia Mercado Libre. Mismo patrón AJAX + Toastr que el
-        // resto de las acciones de este listado, sin recarga de página.
+        // "Sincronizar precios ahora" (spec 016, US3; ampliado por spec 018, US7):
+        // reintenta el envío de precios pendientes/con error hacia Mercado Libre Y
+        // Tiendanube, en paralelo, combinando ambos resultados en toasts separados —
+        // la fusión es de cliente, cada ruta responde de forma independiente
+        // (research.md R10 de la spec 018). Mismo patrón AJAX + Toastr, sin recarga.
         $('#btn-sincronizar-precios-ml').on('click', function () {
             const $btn = $(this).prop('disabled', true);
 
-            $.post(rutas.sincronizarPreciosMl)
-                .done(function (resp) {
-                    toast('success', resp.mensaje || 'Sincronización de precios completa.');
-                })
-                .fail(function (xhr) {
-                    const resp = xhr.responseJSON || {};
-                    toast('error', resp.mensaje || 'No se pudo sincronizar los precios.');
-                })
-                .always(function () { $btn.prop('disabled', false); });
+            const mlPromise = $.post(rutas.sincronizarPreciosMl)
+                .then((resp) => ({ integracion: 'Mercado Libre', ok: true, mensaje: resp.mensaje }))
+                .catch((xhr) => ({ integracion: 'Mercado Libre', ok: false, mensaje: (xhr.responseJSON || {}).mensaje }));
+
+            const tnPromise = rutas.sincronizarPreciosTn
+                ? $.post(rutas.sincronizarPreciosTn)
+                    .then((resp) => ({ integracion: 'Tiendanube', ok: true, mensaje: resp.mensaje }))
+                    .catch((xhr) => ({ integracion: 'Tiendanube', ok: false, mensaje: (xhr.responseJSON || {}).mensaje }))
+                : $.Deferred().resolve(null).promise();
+
+            $.when(mlPromise, tnPromise)
+                .always(function (resultadoMl, resultadoTn) {
+                    [resultadoMl, resultadoTn].filter(Boolean).forEach((resultado) => {
+                        toast(
+                            resultado.ok ? 'success' : 'error',
+                            resultado.mensaje || (resultado.ok ? 'Sincronización de precios completa.' : 'No se pudo sincronizar los precios.'),
+                            resultado.integracion
+                        );
+                    });
+                    $btn.prop('disabled', false);
+                });
         });
 
         // Select2 (librería de select con buscador del template NexaDash). Se usa

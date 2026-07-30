@@ -4,60 +4,83 @@ namespace App\Http\Controllers\Integraciones;
 
 use App\Enums\Tiendanube\EstadoConexion;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Integraciones\GuardarCredencialesTiendanubeRequest;
+use App\Http\Requests\Integraciones\GuardarConfiguracionVentasTiendanubeRequest;
+use App\Models\Categoria;
+use App\Models\CuentaTesoreria;
+use App\Models\Deposito;
 use App\Models\Integraciones\TiendanubeConfiguracion;
 use App\Models\Integraciones\TiendanubeOperacionLog;
-use App\Services\Tiendanube\ClienteTiendanube;
-use Illuminate\Contracts\Encryption\DecryptException;
+use App\Models\ListaPrecio;
+use App\Models\Vendedor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Yajra\DataTables\Facades\DataTables;
 
 /**
- * Configuración & Ajustes → Tiendanube (spec 015): credenciales de la
- * Aplicación personalizada, panel de estado, modo sólo lectura, prueba de
- * conexión, desconexión e historial. Sin flujo OAuth (research.md §R1).
+ * Configuración & Ajustes → Tiendanube (spec 019, corrige spec 015): panel de
+ * estado de la conexión OAuth/MCP, modo sólo lectura, desconexión e
+ * historial. El flujo de conexión en sí (botón "Conectar con Tiendanube") lo
+ * maneja TiendanubeOAuthController — acá no queda ningún formulario de
+ * credenciales manuales ni una acción "Probar conexión" separada (la
+ * verificación ocurre una sola vez, dentro del callback OAuth, FR-003a).
  */
 class TiendanubeConfiguracionController extends Controller
 {
     public function index()
     {
         $CurrentPage = 'configuracion-tiendanube';
+        $depositos = Deposito::activos()->orderBy('nombre')->get();
+        $categoriasVenta = Categoria::venta()->activas()->orderBy('nombre')->get();
+        $cuentasTesoreria = CuentaTesoreria::visibles()->orderBy('nombre')->get();
+        $depositoPorDefecto = Deposito::porDefecto();
+        $depositoEfectivo = TiendanubeConfiguracion::actual()->depositoEfectivoONulo();
+        $listasPrecio = ListaPrecio::where('activo', true)->orderBy('nombre')->get();
+        $vendedores = Vendedor::orderBy('nombre')->get();
 
-        return view('configuracion.tiendanube.index', compact('CurrentPage'));
+        return view('configuracion.tiendanube.index', compact(
+            'CurrentPage', 'depositos', 'categoriasVenta', 'cuentasTesoreria', 'depositoPorDefecto', 'depositoEfectivo', 'listasPrecio', 'vendedores'
+        ));
     }
 
     public function estado(): JsonResponse
     {
         $configuracion = TiendanubeConfiguracion::actual();
 
-        // "No configurada" es "nunca se cargó ni siquiera un store_id", no "está
-        // incompleta ahora mismo": si usara estaCompleta() (que también exige
-        // access_token), Desconectar (que sólo borra el token, FR-010) colapsaría
-        // siempre a "no_configurada" en vez de "Desconectada" con los datos de
-        // tienda conservados (FR-011). estaCompleta() sigue siendo el gate de
-        // FR-004 para "Probar conexión", pero no el de qué mostrar acá.
-        $noConfigurada = blank($configuracion->store_id);
+        // FR-006: "no configurada" se deriva de la ausencia de access_token —
+        // cubre tanto "nunca conectado" como "desconectado" (data-model.md §1).
+        // Presencia, no legibilidad: no dispara el descifrado.
+        $noConfigurada = blank($configuracion->getRawOriginal('access_token'));
 
         $estado = $noConfigurada ? EstadoConexion::NoConfigurada : $configuracion->estado;
+
         $respuesta = [
             'ok' => true,
             'estado' => $estado->value,
             'configuracion' => $noConfigurada ? null : [
-                'store_id' => $configuracion->store_id,
-                // Presencia, no legibilidad (mismo criterio que estaCompleta()): no
-                // dispara el descifrado, por lo que nunca revienta esta pantalla.
-                'token_cargado' => filled($configuracion->getRawOriginal('access_token')),
+                'conectada_en' => optional($configuracion->conectada_en)->toIso8601String(),
+                'scopes_otorgados' => $configuracion->scopes_otorgados,
+                'productos_total' => $configuracion->productos_total,
                 'modo_solo_lectura' => $configuracion->modo_solo_lectura,
-                'credenciales_guardadas_en' => optional($configuracion->credenciales_guardadas_en)->toIso8601String(),
+                'token_expira_en' => optional($configuracion->token_expira_en)->toIso8601String(),
+                // ceil (no truncar): un token que vence "en 200 días" no debe mostrar 199 sólo porque
+                // pasaron unos milisegundos entre que se guardó la fecha y se calculó este número.
+                'dias_restantes' => $configuracion->token_expira_en
+                    ? max(0, (int) ceil(now()->diffInSeconds($configuracion->token_expira_en, false) / 86400))
+                    : null,
+                // spec 017: configuración de ventas.
+                'creacion_automatica' => $configuracion->creacion_automatica,
+                'frecuencia_sync_minutos' => $configuracion->frecuencia_sync_minutos,
+                'deposito_id' => $configuracion->deposito_id,
+                'categoria_venta_id' => $configuracion->categoria_venta_id,
+                'cuenta_tesoreria_id' => $configuracion->cuenta_tesoreria_id,
+                'dias_primera_sync' => $configuracion->dias_primera_sync,
+                'ultima_sync_en' => optional($configuracion->ultima_sync_en)->toIso8601String(),
+                'ultima_sync_resultado' => $configuracion->ultima_sync_resultado,
+                'stock_ultima_sync_en' => optional($configuracion->stock_ultima_sync_en)->toIso8601String(),
+                'stock_ultima_sync_resultado' => $configuracion->stock_ultima_sync_resultado,
+                'lista_precio_id' => $configuracion->lista_precio_id,
+                'vendedor_id' => $configuracion->vendedor_id,
             ],
-            'tienda' => (! $noConfigurada && ($configuracion->nombre_tienda || $configuracion->dominio)) ? [
-                'nombre' => $configuracion->nombre_tienda,
-                'dominio' => $configuracion->dominio,
-                'pais' => $configuracion->pais,
-                'moneda' => $configuracion->moneda,
-                'ultima_verificacion_en' => optional($configuracion->ultima_verificacion_en)->toIso8601String(),
-            ] : null,
         ];
 
         if ($estado === EstadoConexion::Caida) {
@@ -67,92 +90,29 @@ class TiendanubeConfiguracionController extends Controller
         return response()->json($respuesta);
     }
 
-    public function credenciales(GuardarCredencialesTiendanubeRequest $request): JsonResponse
+    /** Configuración de ventas de Tiendanube (spec 017, contracts §3, FR-010/FR-016/FR-045/FR-047/FR-050). */
+    public function guardarVentas(GuardarConfiguracionVentasTiendanubeRequest $request): JsonResponse
     {
+        $configuracion = TiendanubeConfiguracion::actual();
         $datos = $request->validated();
-        $configuracion = TiendanubeConfiguracion::actual();
+        $listaPrecioIdAnterior = $configuracion->lista_precio_id;
 
-        // Si el token guardado quedó ilegible (edge case spec.md), no se puede comparar
-        // contra el nuevo: se asume distinto, total lo estamos reemplazando igual.
-        try {
-            $tokenAnterior = $configuracion->access_token;
-        } catch (DecryptException $e) {
-            $tokenAnterior = null;
+        $configuracion->update($datos);
+
+        // US9 (spec 018 ampliación, FR-028, contracts §2a): si cambió cuál es la
+        // Lista de Precios configurada, empujar de inmediato el precio vigente de
+        // la nueva lista a los vínculos que tengan precio ahí — mismo mecanismo
+        // que MercadoLibreConfiguracionController::guardarVentas().
+        $listaPrecioIdNueva = $datos['lista_precio_id'] ?? null;
+
+        if ($listaPrecioIdNueva !== null && (int) $listaPrecioIdNueva !== (int) $listaPrecioIdAnterior) {
+            app(\App\Services\Tiendanube\SincronizadorPrecios::class)->sincronizarListaCompleta((int) $listaPrecioIdNueva);
         }
-
-        $cambioToken = filled($datos['access_token'] ?? null) && $datos['access_token'] !== $tokenAnterior;
-
-        if (filled($datos['store_id'] ?? null)) {
-            $configuracion->store_id = $datos['store_id'];
-        }
-        if (filled($datos['access_token'] ?? null)) {
-            $configuracion->access_token = $datos['access_token'];
-        }
-
-        $configuracion->credenciales_guardadas_en = now();
-        $configuracion->actualizada_por = $request->user()->id;
-
-        $advertencia = null;
-
-        // FR-005: reemplazar el token con una conexión activa invalida esa conexión
-        // hasta que se vuelva a probar — no se mantiene "conectada" a ciegas.
-        if ($cambioToken && $configuracion->estado === EstadoConexion::Conectada) {
-            $configuracion->estado = EstadoConexion::Desconectada;
-            $advertencia = 'La conexión anterior queda invalidada hasta que la vuelvas a probar.';
-        }
-
-        $configuracion->save();
-
-        $respuesta = [
-            'ok' => true,
-            'mensaje' => 'Credenciales guardadas. Probá la conexión para verificarlas.',
-        ];
-
-        if ($advertencia) {
-            $respuesta['advertencia'] = $advertencia;
-        }
-
-        return response()->json($respuesta);
-    }
-
-    public function probar(ClienteTiendanube $cliente): JsonResponse
-    {
-        $configuracion = TiendanubeConfiguracion::actual();
-
-        if (! $configuracion->estaCompleta()) {
-            $faltante = blank($configuracion->store_id) ? 'el identificador de tienda' : 'el token de acceso';
-
-            return response()->json([
-                'ok' => false,
-                'mensaje' => "Faltan datos: cargá {$faltante} antes de probar la conexión.",
-            ], 409);
-        }
-
-        // La prueba de conexión debe poder ejecutarse aunque la función "tiendanube"
-        // esté desactivada — es como el usuario verifica que sus credenciales sirven
-        // antes (o después) de decidir si la deja activa (mismo criterio que T051a de ML).
-        $respuesta = $cliente->probarConexion(['omitir_guard_funcion' => true]);
-
-        if ($respuesta->fallo()) {
-            return response()->json([
-                'ok' => false,
-                'mensaje' => $respuesta->mensajeError ?? 'No se pudo probar la conexión.',
-                'estado' => $configuracion->fresh()->estado->value,
-            ]);
-        }
-
-        $tienda = $configuracion->fresh();
 
         return response()->json([
             'ok' => true,
-            'mensaje' => 'Conexión verificada con éxito.',
-            'estado' => EstadoConexion::Conectada->value,
-            'tienda' => [
-                'nombre' => $tienda->nombre_tienda,
-                'dominio' => $tienda->dominio,
-                'pais' => $tienda->pais,
-                'moneda' => $tienda->moneda,
-            ],
+            'mensaje' => 'Configuración de ventas guardada.',
+            'configuracion' => $configuracion->fresh(),
         ]);
     }
 
@@ -160,14 +120,18 @@ class TiendanubeConfiguracionController extends Controller
     {
         $configuracion = TiendanubeConfiguracion::actual();
 
+        // FR-007: se borra el access_token, se CONSERVA client_id/client_secret
+        // (para que una reconexión posterior no dispare un nuevo auto-registro).
         $configuracion->access_token = null;
-        $configuracion->estado = EstadoConexion::Desconectada;
+        $configuracion->scopes_otorgados = null;
+        $configuracion->productos_total = null;
+        $configuracion->conectada_en = null;
+        $configuracion->token_expira_en = null;
+        $configuracion->estado = EstadoConexion::NoConfigurada;
         $configuracion->ultimo_error = null;
         $configuracion->actualizada_por = $request->user()->id;
         $configuracion->save();
 
-        // FR-011/spec.md US2#5: a diferencia de Mercado Libre, acá "Desconectar" queda
-        // registrado en el historial (es una operación de escritura sobre la conexión).
         TiendanubeOperacionLog::registrar([
             'operacion' => 'desconectar',
             'metodo' => 'LOCAL',

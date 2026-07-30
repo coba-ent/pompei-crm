@@ -103,13 +103,260 @@
                 dropdownParent: $modalCredenciales,
                 data: sitios.map(function (s) { return { id: s.id, text: s.texto }; }),
             });
-            $('#ml-deposito-id, #ml-categoria-venta-id, #ml-lista-precio-id').select2({ width: '100%', theme: 'default', allowClear: true });
+            $('#ml-deposito-id, #ml-lista-precio-id').select2({ width: '100%', theme: 'default', allowClear: true });
         } else {
             const $select = $('#ml-cred-site-id');
             sitios.forEach(function (s) {
                 $select.append($('<option>', { value: s.id, text: s.texto }));
             });
         }
+
+        // ---- Vendedor por defecto (catálogo con Select2 + crear/renombrar/eliminar, spec 020) ----
+        let vendedores = (cfg.vendedores || []).slice();
+        const $vendedorSel = $('#ml-vendedor-id');
+        let vendedorPrevio = '';
+
+        function actualizarBotonesVendedor() {
+            const val = $vendedorSel.val();
+            const real = !!val && val !== '__nuevo__';
+            $('#btn-renombrar-vendedor, #btn-eliminar-vendedor').toggleClass('d-none', !real);
+        }
+
+        function refreshSelect2($el) {
+            if (hasSelect2 && $el && $el.length && $el.hasClass('select2-hidden-accessible')) {
+                $el.trigger('change.select2');
+            }
+        }
+
+        function renderVendedores(selectedId) {
+            const sel = selectedId ? String(selectedId) : '';
+            $vendedorSel.empty();
+            $vendedorSel.append(new Option('Sin vendedor por defecto', '', false, !sel));
+            $vendedorSel.append(new Option('＋ Crear Vendedor', '__nuevo__', false, false));
+            vendedores.forEach((v) => $vendedorSel.append(new Option(v.nombre, v.id, false, String(v.id) === sel)));
+            refreshSelect2($vendedorSel);
+            vendedorPrevio = sel;
+            actualizarBotonesVendedor();
+        }
+
+        if (hasSelect2) { $vendedorSel.select2({ width: '100%', theme: 'default', allowClear: true }); }
+        renderVendedores('');
+
+        $vendedorSel.on('change', function () {
+            const val = $(this).val();
+            if (val === '__nuevo__') {
+                $(this).val(vendedorPrevio).trigger('change.select2');
+                abrirModalVendedor('crear', '', '');
+            } else {
+                vendedorPrevio = val || '';
+                actualizarBotonesVendedor();
+            }
+        });
+
+        let modoVendedor = 'crear';
+        let idVendedorEditar = null;
+
+        function abrirModalVendedor(modo, id, nombreActual) {
+            modoVendedor = modo;
+            idVendedorEditar = id || null;
+            $('#nuevo-vendedor-nombre').val(nombreActual || '').removeClass('is-invalid');
+            $('#nuevo-vendedor-error').text('');
+            $('#modal-nuevo-vendedor-titulo').text(modo === 'renombrar' ? 'Renombrar Vendedor' : 'Crear Vendedor');
+            $('#btn-crear-vendedor').text(modo === 'renombrar' ? 'Guardar' : 'Crear');
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-nuevo-vendedor')).show();
+            setTimeout(() => $('#nuevo-vendedor-nombre').trigger('focus'), 300);
+        }
+
+        $('#btn-renombrar-vendedor').on('click', function (e) {
+            e.preventDefault();
+            const id = $vendedorSel.val();
+            if (!id || id === '__nuevo__') { return; }
+            const v = vendedores.find((x) => String(x.id) === String(id));
+            abrirModalVendedor('renombrar', id, v ? v.nombre : '');
+        });
+
+        $('#btn-crear-vendedor').on('click', function () {
+            const nombre = $('#nuevo-vendedor-nombre').val().trim();
+            $('#nuevo-vendedor-nombre').removeClass('is-invalid');
+            $('#nuevo-vendedor-error').text('');
+            if (!nombre) {
+                $('#nuevo-vendedor-nombre').addClass('is-invalid');
+                $('#nuevo-vendedor-error').text('Ingresá un nombre.');
+                return;
+            }
+
+            const esRenombrar = modoVendedor === 'renombrar';
+            const url = esRenombrar ? rutas.vendedorUpdateBase + '/' + idVendedorEditar : rutas.vendedorStore;
+            const datos = esRenombrar ? { _method: 'PATCH', nombre } : { nombre };
+
+            $.post(url, datos)
+                .done((resp) => {
+                    if (esRenombrar) {
+                        const v = vendedores.find((x) => String(x.id) === String(idVendedorEditar));
+                        if (v) { v.nombre = resp.vendedor.nombre; }
+                        vendedores.sort((a, b) => a.nombre.localeCompare(b.nombre));
+                        renderVendedores(idVendedorEditar);
+                    } else {
+                        vendedores.push({ id: resp.vendedor.id, nombre: resp.vendedor.nombre });
+                        vendedores.sort((a, b) => a.nombre.localeCompare(b.nombre));
+                        renderVendedores(resp.vendedor.id);
+                    }
+                    bootstrap.Modal.getInstance(document.getElementById('modal-nuevo-vendedor'))?.hide();
+                    toast('success', resp.mensaje || 'Vendedor guardado.');
+                })
+                .fail((xhr) => {
+                    const msg = xhr.responseJSON?.mensaje || xhr.responseJSON?.errors?.nombre?.[0] || 'No se pudo guardar el vendedor.';
+                    $('#nuevo-vendedor-nombre').addClass('is-invalid');
+                    $('#nuevo-vendedor-error').text(msg);
+                });
+        });
+
+        let idVendedorAEliminar = null;
+        $('#btn-eliminar-vendedor').on('click', function (e) {
+            e.preventDefault();
+            const id = $vendedorSel.val();
+            if (!id || id === '__nuevo__') { return; }
+            const v = vendedores.find((x) => String(x.id) === String(id));
+            idVendedorAEliminar = id;
+            $('#vendedor-eliminar-nombre').text(v ? v.nombre : '');
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-vendedor-eliminar')).show();
+        });
+        $('#btn-confirmar-eliminar-vendedor').on('click', function () {
+            if (!idVendedorAEliminar) { return; }
+            const id = idVendedorAEliminar;
+            $.post(rutas.vendedorDestroyBase + '/' + id, { _method: 'DELETE' })
+                .done((resp) => {
+                    vendedores = vendedores.filter((x) => String(x.id) !== String(id));
+                    renderVendedores('');
+                    toast('success', resp.mensaje || 'Vendedor eliminado.');
+                })
+                .fail((xhr) => toast('error', xhr.responseJSON?.mensaje || 'No se pudo eliminar el vendedor.'))
+                .always(() => {
+                    bootstrap.Modal.getInstance(document.getElementById('modal-vendedor-eliminar'))?.hide();
+                    idVendedorAEliminar = null;
+                });
+        });
+
+        // ---- Categoría de las Ventas (catálogo con Select2 + crear/renombrar/eliminar) ----
+        let categorias = (cfg.categorias || []).slice();
+        const $categoriaSel = $('#ml-categoria-venta-id');
+        let categoriaPrevia = '';
+
+        function actualizarBotonesCategoria() {
+            const val = $categoriaSel.val();
+            const cat = categorias.find((c) => String(c.id) === String(val));
+            const real = !!val && val !== '__nuevo__' && !(cat && cat.es_sistema);
+            $('#btn-renombrar-categoria, #btn-eliminar-categoria').toggleClass('d-none', !real);
+        }
+
+        function renderCategorias(selectedId) {
+            const sel = selectedId ? String(selectedId) : '';
+            $categoriaSel.empty();
+            $categoriaSel.append(new Option('Sin categoría', '', false, !sel));
+            $categoriaSel.append(new Option('＋ Crear Categoría de ventas', '__nuevo__', false, false));
+            categorias.forEach((c) => $categoriaSel.append(new Option(c.nombre, c.id, false, String(c.id) === sel)));
+            refreshSelect2($categoriaSel);
+            categoriaPrevia = sel;
+            actualizarBotonesCategoria();
+        }
+
+        if (hasSelect2) { $categoriaSel.select2({ width: '100%', theme: 'default', allowClear: true }); }
+        renderCategorias('');
+
+        $categoriaSel.on('change', function () {
+            const val = $(this).val();
+            if (val === '__nuevo__') {
+                $(this).val(categoriaPrevia).trigger('change.select2');
+                abrirModalCategoria('crear', '', '');
+            } else {
+                categoriaPrevia = val || '';
+                actualizarBotonesCategoria();
+            }
+        });
+
+        let modoCategoria = 'crear';
+        let idCategoriaEditar = null;
+
+        function abrirModalCategoria(modo, id, nombreActual) {
+            modoCategoria = modo;
+            idCategoriaEditar = id || null;
+            $('#nueva-categoria-nombre').val(nombreActual || '').removeClass('is-invalid');
+            $('#nueva-categoria-error').text('');
+            $('#modal-nueva-categoria-titulo').text(modo === 'renombrar' ? 'Renombrar Categoría de ventas' : 'Crear Categoría de ventas');
+            $('#btn-crear-categoria').text(modo === 'renombrar' ? 'Guardar' : 'Crear');
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-nueva-categoria')).show();
+            setTimeout(() => $('#nueva-categoria-nombre').trigger('focus'), 300);
+        }
+
+        $('#btn-renombrar-categoria').on('click', function (e) {
+            e.preventDefault();
+            const id = $categoriaSel.val();
+            if (!id || id === '__nuevo__') { return; }
+            const c = categorias.find((x) => String(x.id) === String(id));
+            abrirModalCategoria('renombrar', id, c ? c.nombre : '');
+        });
+
+        $('#btn-crear-categoria').on('click', function () {
+            const nombre = $('#nueva-categoria-nombre').val().trim();
+            $('#nueva-categoria-nombre').removeClass('is-invalid');
+            $('#nueva-categoria-error').text('');
+            if (!nombre) {
+                $('#nueva-categoria-nombre').addClass('is-invalid');
+                $('#nueva-categoria-error').text('Ingresá un nombre.');
+                return;
+            }
+
+            const esRenombrar = modoCategoria === 'renombrar';
+            const url = esRenombrar ? rutas.categoriaUpdateBase + '/' + idCategoriaEditar : rutas.categoriaVentaStore;
+            const datos = esRenombrar ? { _method: 'PATCH', nombre } : { nombre };
+
+            $.post(url, datos)
+                .done((resp) => {
+                    if (esRenombrar) {
+                        const c = categorias.find((x) => String(x.id) === String(idCategoriaEditar));
+                        if (c) { c.nombre = resp.categoria.nombre; }
+                        categorias.sort((a, b) => a.nombre.localeCompare(b.nombre));
+                        renderCategorias(idCategoriaEditar);
+                    } else {
+                        categorias.push({ id: resp.categoria.id, nombre: resp.categoria.nombre, es_sistema: false });
+                        categorias.sort((a, b) => a.nombre.localeCompare(b.nombre));
+                        renderCategorias(resp.categoria.id);
+                    }
+                    bootstrap.Modal.getInstance(document.getElementById('modal-nueva-categoria'))?.hide();
+                    toast('success', resp.mensaje || 'Categoría guardada.');
+                })
+                .fail((xhr) => {
+                    const msg = xhr.responseJSON?.mensaje || xhr.responseJSON?.errors?.nombre?.[0] || 'No se pudo guardar la categoría.';
+                    $('#nueva-categoria-nombre').addClass('is-invalid');
+                    $('#nueva-categoria-error').text(msg);
+                });
+        });
+
+        let idCategoriaAEliminar = null;
+        $('#btn-eliminar-categoria').on('click', function (e) {
+            e.preventDefault();
+            const id = $categoriaSel.val();
+            if (!id || id === '__nuevo__') { return; }
+            const c = categorias.find((x) => String(x.id) === String(id));
+            idCategoriaAEliminar = id;
+            $('#categoria-eliminar-nombre').text(c ? c.nombre : '');
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-categoria-eliminar')).show();
+        });
+        $('#btn-confirmar-eliminar-categoria').on('click', function () {
+            if (!idCategoriaAEliminar) { return; }
+            const id = idCategoriaAEliminar;
+            $.post(rutas.categoriaDestroyBase + '/' + id, { _method: 'DELETE' })
+                .done((resp) => {
+                    categorias = categorias.filter((x) => String(x.id) !== String(id));
+                    renderCategorias('');
+                    toast('success', resp.mensaje || 'Categoría eliminada.');
+                })
+                .fail((xhr) => toast('error', xhr.responseJSON?.mensaje || 'No se pudo eliminar la categoría.'))
+                .always(() => {
+                    bootstrap.Modal.getInstance(document.getElementById('modal-categoria-eliminar'))?.hide();
+                    idCategoriaAEliminar = null;
+                });
+        });
 
         // --- Panel de estado ---
         function pintarEstado(resp) {
@@ -131,10 +378,15 @@
                 $('#ml-deposito-id').val(conf.deposito_id || '').trigger('change.select2');
             }
             if ($('#ml-categoria-venta-id').val() !== undefined) {
-                $('#ml-categoria-venta-id').val(conf.categoria_venta_id || '').trigger('change.select2');
+                renderCategorias(conf.categoria_venta_id || '');
             }
             if ($('#ml-lista-precio-id').val() !== undefined) {
                 $('#ml-lista-precio-id').val(conf.lista_precio_id || '').trigger('change.select2');
+            }
+            if ($('#ml-vendedor-id').val() !== undefined) {
+                $('#ml-vendedor-id').val(conf.vendedor_id || '').trigger('change.select2');
+                vendedorPrevio = conf.vendedor_id ? String(conf.vendedor_id) : '';
+                actualizarBotonesVendedor();
             }
             $('#ml-ultima-sync-info').text(
                 conf.ultima_sync_en
@@ -206,6 +458,7 @@
                 deposito_id: $('#ml-deposito-id').val() || null,
                 categoria_venta_id: $('#ml-categoria-venta-id').val() || null,
                 lista_precio_id: $('#ml-lista-precio-id').val() || null,
+                vendedor_id: $('#ml-vendedor-id').val() || null,
                 dias_primera_sync: $('#ml-dias-primera-sync').val(),
             };
 

@@ -151,7 +151,8 @@ class FuncionesAvanzadasTest extends TestCase
         $funcion->update(['activa' => true]);
 
         TiendanubeConfiguracion::actual()->update([
-            'store_id' => '1234567',
+            'client_id' => 'client-id-de-prueba',
+            'client_secret' => 'client-secret-de-prueba',
             'access_token' => 'token-vigente',
             'estado' => EstadoConexionTiendanube::Conectada,
         ]);

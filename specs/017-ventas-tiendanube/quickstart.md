@@ -8,8 +8,8 @@ Guía de validación end-to-end. No contiene código de implementación.
 
 ## Prerrequisitos
 
-1. **Todo lo de `specs/015-tiendanube-conexion/quickstart.md`** ya validado: tienda conectada
-   (`store_id` + `access_token`), función avanzada "Tiendanube" activa, modo sólo lectura desactivado.
+1. **Tienda conectada** vía OAuth (`specs/019-tiendanube-conexion-mcp/`, ya validado y en producción),
+   función avanzada "Tiendanube" activa, modo sólo lectura desactivado.
 2. **Al menos una cuenta de Tesorería activa** para imputar cobranzas (FR-045a).
 3. **Al menos un depósito activo**.
 
@@ -46,11 +46,17 @@ npm run build
 
 ## Escenario 3 — Tipo de comprobante derivado del documento
 
-1. Convertir una orden de un comprador **nuevo** (sin Cliente previo en el CRM) que informa
-   `billing_document_type = CUIT` → Venta con comprobante A (aproximación de FR-040).
-2. Convertir una orden de un comprador nuevo con `DNI` o sin documento → Venta con comprobante B.
+**Corrección post-019**: no existe `billing_document_type` en la tool real (`list_orders`) — el dato
+disponible es `customer.cpf_cnpj`, verificado vacío en las 9 órdenes reales de la tienda. Este escenario
+requiere una orden de prueba con `cpf_cnpj` cargado (poco frecuente en la práctica); si no hay ninguna
+disponible, el caso realista a validar es el punto 2 (sin dato → B), no el 1.
+
+1. Convertir una orden de un comprador **nuevo** (sin Cliente previo en el CRM) cuyo `cpf_cnpj` tenga 11
+   dígitos (formato CUIT) → Venta con comprobante A (aproximación de FR-040 corregida).
+2. Convertir una orden de un comprador nuevo con `cpf_cnpj` de 7-8 dígitos o vacío (caso dominante en la
+   cuenta real) → Venta con comprobante B.
 3. Convertir una orden cuyo comprador **ya es Cliente** en el CRM con condición de IVA "Monotributista"
-   cargada de antes, aunque su `billing_document_type` sea CUIT → Venta con comprobante **B** (usa la
+   cargada de antes, aunque su `cpf_cnpj` tenga 11 dígitos → Venta con comprobante **B** (usa la
    condición ya cargada, FR-039, no la aproximación).
 4. Corregir manualmente el comprobante de una de las Ventas creadas (FR-043) y confirmar que se guarda.
 

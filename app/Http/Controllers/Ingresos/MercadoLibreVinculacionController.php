@@ -9,6 +9,7 @@ use App\Models\Integraciones\MercadoLibreOrdenItem;
 use App\Models\Integraciones\MercadoLibrePublicacionProducto;
 use App\Services\Stock\StockService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Yajra\DataTables\Facades\DataTables;
 
 /**
@@ -70,6 +71,40 @@ class MercadoLibreVinculacionController extends Controller
         }
 
         return $v->precio_pendiente ? 'pendiente' : 'sincronizado';
+    }
+
+    /**
+     * Publicaciones vistas en órdenes sincronizadas que todavía no tienen
+     * vínculo (para el selector con buscador de la pantalla de vinculación) —
+     * mismo criterio que TiendanubeVinculacionController::variantesPendientes:
+     * no hay endpoint de catálogo en alcance, sale de ml_orden_items ya
+     * sincronizados. Excluye publicaciones con variante (FR-027, no soportadas).
+     */
+    public function publicacionesPendientes(Request $request)
+    {
+        $vinculadas = MercadoLibrePublicacionProducto::pluck('ml_item_id');
+
+        $query = MercadoLibreOrdenItem::whereNotIn('ml_item_id', $vinculadas)
+            ->whereNull('ml_variation_id')
+            ->select('ml_item_id', 'titulo')
+            ->orderByDesc('id');
+
+        if ($request->filled('q')) {
+            $termino = $request->input('q');
+            $query->where(fn ($q) => $q->where('titulo', 'like', "%{$termino}%")
+                ->orWhere('ml_item_id', 'like', "%{$termino}%"));
+        }
+
+        $publicaciones = $query->get()
+            ->unique('ml_item_id')
+            ->take(50)
+            ->map(fn (MercadoLibreOrdenItem $item) => [
+                'id' => $item->ml_item_id,
+                'text' => $item->ml_item_id.' — '.$item->titulo,
+                'titulo' => $item->titulo,
+            ]);
+
+        return response()->json(['data' => $publicaciones]);
     }
 
     public function store(VincularPublicacionRequest $request): JsonResponse

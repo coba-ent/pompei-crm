@@ -16,10 +16,11 @@
                     <input type="number" step="0.01" class="form-control" id="ingreso-monto">
                 </div>
                 <div class="mb-3">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <label class="form-label mb-0">Categoría</label>
-                        <a href="#" id="btn-nueva-categoria-ingreso" class="small">Crear Categoría de Ingreso</a>
-                    </div>
+                    <label class="form-label d-flex align-items-center gap-1">
+                        <span class="flex-grow-1">Categoría</span>
+                        <a href="#" id="btn-renombrar-categoria-ingreso" class="text-primary d-none" title="Renombrar"><i class="fas fa-pencil-alt"></i></a>
+                        <a href="#" id="btn-eliminar-categoria-ingreso" class="text-danger d-none" title="Eliminar"><i class="fas fa-trash-alt"></i></a>
+                    </label>
                     <select id="ingreso-categoria" class="form-select" style="width:100%"></select>
                 </div>
                 <div class="mb-3" id="ingreso-cuenta-wrapper">

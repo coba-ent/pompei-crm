@@ -36,6 +36,11 @@
         if (!hasSelect2 || !$el || !$el.length) { return; }
         $el.select2(Object.assign({ width: '100%', theme: 'default', dropdownParent: $('#modal-ingreso') }, opts || {}));
     }
+    function refreshSelect2($el) {
+        if (hasSelect2 && $el && $el.length && $el.hasClass('select2-hidden-accessible')) {
+            $el.trigger('change.select2');
+        }
+    }
     function money(v) {
         return '$ ' + (Number(v) || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
@@ -44,10 +49,27 @@
         const $tabla = $('#tabla-otros-ingresos');
         if (!$tabla.length) { return; }
 
+        // ---- Categoría de Ingreso (catálogo con Select2 + crear/renombrar/eliminar) ----
+        let categorias = (cfg.categorias || []).slice();
+        const $categoriaSel = $('#ingreso-categoria');
+        let categoriaPrevia = '';
+
+        function actualizarBotonesCategoria() {
+            const val = $categoriaSel.val();
+            const cat = categorias.find((c) => String(c.id) === String(val));
+            const real = !!val && val !== '__nuevo__' && !(cat && cat.es_sistema);
+            $('#btn-renombrar-categoria-ingreso, #btn-eliminar-categoria-ingreso').toggleClass('d-none', !real);
+        }
+
         function llenarCategorias(seleccion) {
-            const $sel = $('#ingreso-categoria').empty();
-            $sel.append(new Option('', ''));
-            (cfg.categorias || []).forEach((c) => $sel.append(new Option(c.nombre, c.id, false, c.id === seleccion)));
+            const sel = seleccion ? String(seleccion) : '';
+            $categoriaSel.empty();
+            $categoriaSel.append(new Option('', '', false, !sel));
+            $categoriaSel.append(new Option('＋ Crear Categoría de Ingreso', '__nuevo__', false, false));
+            categorias.forEach((c) => $categoriaSel.append(new Option(c.nombre, c.id, false, String(c.id) === sel)));
+            refreshSelect2($categoriaSel);
+            categoriaPrevia = sel;
+            actualizarBotonesCategoria();
         }
         function llenarCuentas(seleccion) {
             const $sel = $('#ingreso-cuenta').empty();
@@ -55,10 +77,21 @@
             (cfg.cuentas || []).forEach((c) => $sel.append(new Option(c.nombre, c.id, false, c.id === seleccion)));
         }
 
-        initSelect2($('#ingreso-categoria'), { placeholder: 'Seleccioná una Categoría' });
+        initSelect2($categoriaSel, { placeholder: 'Seleccioná una Categoría' });
         initSelect2($('#ingreso-cuenta'), { placeholder: 'Seleccioná un Medio de Cobro', allowClear: true });
         llenarCategorias(null);
         llenarCuentas(null);
+
+        $categoriaSel.on('change', function () {
+            const val = $(this).val();
+            if (val === '__nuevo__') {
+                $(this).val(categoriaPrevia).trigger('change.select2');
+                abrirModalCategoriaIngreso('crear', '', '');
+            } else {
+                categoriaPrevia = val || '';
+                actualizarBotonesCategoria();
+            }
+        });
 
         function filtrosActuales() {
             return { buscar: $('#filtro-buscar').val() };
@@ -117,22 +150,94 @@
             abrirModal(row);
         });
 
-        $('#btn-nueva-categoria-ingreso').on('click', function (e) {
+        // Modal crear/renombrar Categoría de Ingreso.
+        const $modalCategoriaNombre = $('#modal-nueva-categoria-ingreso');
+        let modoCategoriaIngreso = 'crear';
+        let idCategoriaIngresoEditar = null;
+
+        function abrirModalCategoriaIngreso(modo, id, nombreActual) {
+            modoCategoriaIngreso = modo;
+            idCategoriaIngresoEditar = id || null;
+            $('#nueva-categoria-ingreso-nombre').val(nombreActual || '').removeClass('is-invalid');
+            $('#nueva-categoria-ingreso-error').text('');
+            $('#modal-nueva-categoria-ingreso-titulo').text(modo === 'renombrar' ? 'Renombrar Categoría de Ingreso' : 'Crear Categoría de Ingreso');
+            $('#btn-crear-categoria-ingreso').text(modo === 'renombrar' ? 'Guardar' : 'Crear');
+            bootstrap.Modal.getOrCreateInstance($modalCategoriaNombre[0]).show();
+            setTimeout(() => $('#nueva-categoria-ingreso-nombre').trigger('focus'), 300);
+        }
+
+        $('#btn-renombrar-categoria-ingreso').on('click', function (e) {
             e.preventDefault();
-            bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-nueva-categoria-ingreso')).show();
+            const id = $categoriaSel.val();
+            if (!id || id === '__nuevo__') { return; }
+            const c = categorias.find((x) => String(x.id) === String(id));
+            abrirModalCategoriaIngreso('renombrar', id, c ? c.nombre : '');
         });
+
         $('#btn-crear-categoria-ingreso').on('click', function () {
-            const nombre = $('#nueva-categoria-ingreso-nombre').val();
-            if (!nombre) { return; }
-            $.post(rutas.categoriaIngresoStore, { nombre })
+            const nombre = $('#nueva-categoria-ingreso-nombre').val().trim();
+            $('#nueva-categoria-ingreso-nombre').removeClass('is-invalid');
+            $('#nueva-categoria-ingreso-error').text('');
+            if (!nombre) {
+                $('#nueva-categoria-ingreso-nombre').addClass('is-invalid');
+                $('#nueva-categoria-ingreso-error').text('Ingresá un nombre.');
+                return;
+            }
+
+            const esRenombrar = modoCategoriaIngreso === 'renombrar';
+            const url = esRenombrar ? rutas.categoriaUpdateBase + '/' + idCategoriaIngresoEditar : rutas.categoriaIngresoStore;
+            const datos = esRenombrar ? { _method: 'PATCH', nombre } : { nombre };
+
+            $.post(url, datos)
                 .done((resp) => {
-                    cfg.categorias.push({ id: resp.categoria.id, nombre: resp.categoria.nombre });
-                    llenarCategorias(resp.categoria.id);
-                    $('#nueva-categoria-ingreso-nombre').val('');
-                    bootstrap.Modal.getInstance(document.getElementById('modal-nueva-categoria-ingreso'))?.hide();
-                    toast('success', 'Categoría creada.');
+                    if (esRenombrar) {
+                        const c = categorias.find((x) => String(x.id) === String(idCategoriaIngresoEditar));
+                        if (c) { c.nombre = resp.categoria.nombre; }
+                        categorias.sort((a, b) => a.nombre.localeCompare(b.nombre));
+                        llenarCategorias(idCategoriaIngresoEditar);
+                    } else {
+                        categorias.push({ id: resp.categoria.id, nombre: resp.categoria.nombre, es_sistema: false });
+                        categorias.sort((a, b) => a.nombre.localeCompare(b.nombre));
+                        llenarCategorias(resp.categoria.id);
+                    }
+                    bootstrap.Modal.getInstance($modalCategoriaNombre[0])?.hide();
+                    toast('success', resp.mensaje || 'Categoría guardada.');
                 })
-                .fail((xhr) => toast('error', xhr.responseJSON?.mensaje || 'No se pudo crear la categoría.'));
+                .fail((xhr) => {
+                    const msg = xhr.responseJSON?.mensaje || xhr.responseJSON?.errors?.nombre?.[0] || 'No se pudo guardar la categoría.';
+                    $('#nueva-categoria-ingreso-nombre').addClass('is-invalid');
+                    $('#nueva-categoria-ingreso-error').text(msg);
+                });
+        });
+
+        // Eliminar Categoría de Ingreso (modal de confirmación).
+        const $modalCategoriaEliminar = $('#modal-categoria-ingreso-eliminar');
+        let idCategoriaIngresoAEliminar = null;
+
+        $('#btn-eliminar-categoria-ingreso').on('click', function (e) {
+            e.preventDefault();
+            const id = $categoriaSel.val();
+            if (!id || id === '__nuevo__') { return; }
+            const c = categorias.find((x) => String(x.id) === String(id));
+            idCategoriaIngresoAEliminar = id;
+            $('#categoria-ingreso-eliminar-nombre').text(c ? c.nombre : '');
+            bootstrap.Modal.getOrCreateInstance($modalCategoriaEliminar[0]).show();
+        });
+
+        $('#btn-confirmar-eliminar-categoria-ingreso').on('click', function () {
+            if (!idCategoriaIngresoAEliminar) { return; }
+            const id = idCategoriaIngresoAEliminar;
+            $.post(rutas.categoriaDestroyBase + '/' + id, { _method: 'DELETE' })
+                .done((resp) => {
+                    categorias = categorias.filter((x) => String(x.id) !== String(id));
+                    llenarCategorias('');
+                    toast('success', resp.mensaje || 'Categoría eliminada.');
+                })
+                .fail((xhr) => toast('error', xhr.responseJSON?.mensaje || 'No se pudo eliminar la categoría.'))
+                .always(() => {
+                    bootstrap.Modal.getInstance($modalCategoriaEliminar[0])?.hide();
+                    idCategoriaIngresoAEliminar = null;
+                });
         });
 
         $('#btn-guardar-ingreso').on('click', function () {

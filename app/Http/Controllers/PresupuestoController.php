@@ -9,6 +9,7 @@ use App\Models\Cliente;
 use App\Models\Etiqueta;
 use App\Models\ListaPrecio;
 use App\Models\Presupuesto;
+use App\Models\Vendedor;
 use App\Models\Venta;
 use App\Services\Ingresos\CalculoComprobante;
 use Illuminate\Database\Eloquent\Builder;
@@ -94,13 +95,14 @@ class PresupuestoController extends Controller
             'submitToken' => $submitToken,
             'categoriasVenta' => Categoria::venta()->activas()->orderBy('nombre')->get(),
             'listasPrecio' => ListaPrecio::where('activo', true)->orderBy('nombre')->get(),
+            'vendedores' => Vendedor::orderBy('nombre')->get(),
         ]);
     }
 
     public function store(StorePresupuestoRequest $request): JsonResponse
     {
         $datos = $request->validated();
-        $vendedorId = $request->user()?->id;
+        $vendedorId = $datos['vendedor_id'] ?? null;
 
         if (Presupuesto::where('submit_token', $datos['submit_token'])->exists()) {
             // Doble submit con el mismo token (SC-007): devolvemos el ya creado, sin duplicar.
@@ -158,11 +160,12 @@ class PresupuestoController extends Controller
     public function edit(Presupuesto $presupuesto)
     {
         $CurrentPage = 'presupuestos';
-        $presupuesto->load(['items', 'conceptos', 'etiquetas', 'cliente', 'categoria', 'listaPrecio']);
+        $presupuesto->load(['items', 'conceptos', 'etiquetas', 'cliente', 'categoria', 'listaPrecio', 'vendedor']);
         $categoriasVenta = Categoria::venta()->activas()->orderBy('nombre')->get();
         $listasPrecio = ListaPrecio::where('activo', true)->orderBy('nombre')->get();
+        $vendedores = Vendedor::orderBy('nombre')->get();
 
-        return view('presupuestos.form', compact('CurrentPage', 'presupuesto', 'categoriasVenta', 'listasPrecio'));
+        return view('presupuestos.form', compact('CurrentPage', 'presupuesto', 'categoriasVenta', 'listasPrecio', 'vendedores'));
     }
 
     public function update(UpdatePresupuestoRequest $request, Presupuesto $presupuesto): JsonResponse
@@ -193,6 +196,7 @@ class PresupuestoController extends Controller
                 'nota_interna' => $datos['nota_interna'] ?? null,
                 'formas_pago' => $datos['formas_pago'] ?? null,
                 'metodos_envio' => $datos['metodos_envio'] ?? null,
+                'vendedor_id' => $datos['vendedor_id'] ?? null,
             ]);
 
             $presupuesto->items()->delete();

@@ -14,6 +14,13 @@
 </head>
 
 <body>
+<script>
+	try {
+		if (localStorage.getItem('contagram-theme') === 'dark') {
+			document.body.setAttribute('data-theme-version', 'dark');
+		}
+	} catch (e) {}
+</script>
 
 	<!--*******************
         Preloader start

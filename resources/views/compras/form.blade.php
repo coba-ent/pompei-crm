@@ -23,19 +23,13 @@
                         <label class="form-label">Proveedor</label>
                         <select id="f-proveedor" class="form-select" style="width:100%"></select>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Categoría</label>
-                        <select id="f-categoria" class="form-select" style="width:100%">
-                            <option value=""></option>
-                            @foreach ($categoriasCompra as $categoria)
-                                <option value="{{ $categoria->id }}">{{ $categoria->nombre }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-1 d-flex align-items-end">
-                        <button type="button" class="btn btn-outline-secondary w-100" id="btn-nueva-categoria" title="Crear Categoría de Compras">
-                            <i class="fas fa-plus"></i>
-                        </button>
+                    <div class="col-md-4">
+                        <label class="form-label d-flex align-items-center gap-1">
+                            <span class="flex-grow-1">Categoría</span>
+                            <a href="#" id="btn-renombrar-categoria" class="text-primary d-none" title="Renombrar"><i class="fas fa-pencil-alt"></i></a>
+                            <a href="#" id="btn-eliminar-categoria" class="text-danger d-none" title="Eliminar"><i class="fas fa-trash-alt"></i></a>
+                        </label>
+                        <select id="f-categoria" class="form-select" style="width:100%"></select>
                     </div>
                     <div class="col-md-2">
                         <label class="form-label">Tipo de Comprobante</label>
@@ -146,7 +140,10 @@
             proveedoresOpciones: "{{ route('proveedores.opciones') }}",
             productosOpciones: "{{ route('productos.opciones') }}",
             categoriaCompraStore: "{{ route('categorias.compra.store') }}",
+            categoriaUpdateBase: "{{ url('categorias') }}",
+            categoriaDestroyBase: "{{ url('categorias') }}",
         },
+        categorias: @json($categoriasCompra->map(fn ($c) => ['id' => $c->id, 'nombre' => $c->nombre, 'es_sistema' => $c->es_sistema])),
     };
 </script>
 @vite(['resources/js/compras.js'])

@@ -11,6 +11,7 @@ use App\Models\Deposito;
 use App\Models\Integraciones\MercadoLibreConfiguracion;
 use App\Models\Integraciones\MercadoLibreCuenta;
 use App\Models\Integraciones\MercadoLibreOperacionLog;
+use App\Models\Vendedor;
 use App\Services\MercadoLibre\ClienteMercadoLibre;
 use App\Services\MercadoLibre\Excepciones\VinculacionRechazadaException;
 use App\Services\MercadoLibre\VinculacionMercadoLibre;
@@ -32,6 +33,7 @@ class MercadoLibreConfiguracionController extends Controller
         $depositos = Deposito::activos()->orderBy('nombre')->get();
         $categoriasVenta = Categoria::venta()->activas()->orderBy('nombre')->get();
         $listasPrecio = \App\Models\ListaPrecio::where('activo', true)->orderBy('nombre')->get();
+        $vendedores = Vendedor::orderBy('nombre')->get();
 
         // Se nombran ambos para que la pantalla pueda decir de qué depósito sale
         // el stock publicado, en vez de un genérico "por defecto del CRM". Versión
@@ -41,7 +43,7 @@ class MercadoLibreConfiguracionController extends Controller
         $depositoEfectivo = MercadoLibreConfiguracion::actual()->depositoEfectivoONulo();
 
         return view('configuracion.mercadolibre.index', compact(
-            'CurrentPage', 'depositos', 'categoriasVenta', 'listasPrecio', 'depositoPorDefecto', 'depositoEfectivo'
+            'CurrentPage', 'depositos', 'categoriasVenta', 'listasPrecio', 'depositoPorDefecto', 'depositoEfectivo', 'vendedores'
         ));
     }
 
@@ -69,6 +71,7 @@ class MercadoLibreConfiguracionController extends Controller
                 'deposito_id' => $configuracion->deposito_id,
                 'categoria_venta_id' => $configuracion->categoria_venta_id,
                 'lista_precio_id' => $configuracion->lista_precio_id,
+                'vendedor_id' => $configuracion->vendedor_id,
                 'dias_primera_sync' => $configuracion->dias_primera_sync,
                 'ultima_sync_en' => optional($configuracion->ultima_sync_en)->toIso8601String(),
                 'ultima_sync_resultado' => $configuracion->ultima_sync_resultado,

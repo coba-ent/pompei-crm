@@ -83,7 +83,7 @@
 @endsection
 
 @php
-    $datosCategorias = $categorias->map(fn ($c) => ['id' => $c->id, 'nombre' => $c->nombre]);
+    $datosCategorias = $categorias->map(fn ($c) => ['id' => $c->id, 'nombre' => $c->nombre, 'es_sistema' => $c->es_sistema]);
     $datosCuentas = $cuentas->map(fn ($c) => ['id' => $c->id, 'nombre' => $c->nombre]);
 @endphp
 @section('local-js')
@@ -94,6 +94,8 @@
             store: "{{ route('otros-ingresos.store') }}",
             updateBase: "{{ url('otros-ingresos') }}",
             categoriaIngresoStore: "{{ route('categorias.ingreso.store') }}",
+            categoriaUpdateBase: "{{ url('categorias') }}",
+            categoriaDestroyBase: "{{ url('categorias') }}",
         },
         categorias: @json($datosCategorias),
         cuentas: @json($datosCuentas),

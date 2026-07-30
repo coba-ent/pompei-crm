@@ -22,23 +22,17 @@
         <div class="card">
             <div class="card-body">
                 <div class="row g-3">
-                    <div class="col-md-3">
+                    <div class="col-md-4">
                         <label class="form-label">Cliente</label>
                         <select id="f-cliente" class="form-select" style="width:100%"></select>
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label">Categoría</label>
-                        <select id="f-categoria" class="form-select" style="width:100%">
-                            <option value=""></option>
-                            @foreach ($categoriasVenta as $categoria)
-                                <option value="{{ $categoria->id }}">{{ $categoria->nombre }}</option>
-                            @endforeach
-                        </select>
+                        <label class="form-label">Emisión</label>
+                        <input type="date" id="f-fecha-emision" class="form-control" value="{{ old('fecha_emision', now()->format('Y-m-d')) }}">
                     </div>
-                    <div class="col-md-1 d-flex align-items-end">
-                        <button type="button" class="btn btn-outline-secondary w-100" id="btn-nueva-categoria" title="Crear Categoría de ventas">
-                            <i class="fas fa-plus"></i>
-                        </button>
+                    <div class="col-md-3">
+                        <label class="form-label">Vto. del Cobro <i class="fas fa-question-circle text-info" data-bs-toggle="tooltip" title="Fecha estimada de cobro"></i></label>
+                        <input type="date" id="f-fecha-vto-cobro" class="form-control">
                     </div>
                     <div class="col-md-2">
                         <label class="form-label">Tipo de Comprobante</label>
@@ -49,7 +43,24 @@
                             <option value="E">E</option>
                         </select>
                     </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label d-flex align-items-center gap-1">
+                            <span class="flex-grow-1">Categoría</span>
+                            <a href="#" id="btn-renombrar-categoria" class="text-primary d-none" title="Renombrar"><i class="fas fa-pencil-alt"></i></a>
+                            <a href="#" id="btn-eliminar-categoria" class="text-danger d-none" title="Eliminar"><i class="fas fa-trash-alt"></i></a>
+                        </label>
+                        <select id="f-categoria" class="form-select" style="width:100%"></select>
+                    </div>
                     <div class="col-md-3">
+                        <label class="form-label">Servicio Desde</label>
+                        <input type="date" id="f-servicio-desde" class="form-control">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Servicio Hasta</label>
+                        <input type="date" id="f-servicio-hasta" class="form-control">
+                    </div>
+                    <div class="col-md-2">
                         <label class="form-label">Lista de Precios</label>
                         <select id="f-lista-precio" class="form-select" style="width:100%">
                             <option value=""></option>
@@ -58,13 +69,14 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Emisión</label>
-                        <input type="date" id="f-fecha-emision" class="form-control" value="{{ old('fecha_emision', now()->format('Y-m-d')) }}">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Vto. del Cobro <i class="fas fa-question-circle text-info" data-bs-toggle="tooltip" title="Fecha estimada de cobro"></i></label>
-                        <input type="date" id="f-fecha-vto-cobro" class="form-control">
+
+                    <div class="col-md-4">
+                        <label class="form-label d-flex align-items-center gap-1">
+                            <span class="flex-grow-1">Vendedor</span>
+                            <a href="#" id="btn-renombrar-vendedor" class="text-primary d-none" title="Renombrar"><i class="fas fa-pencil-alt"></i></a>
+                            <a href="#" id="btn-eliminar-vendedor" class="text-danger d-none" title="Eliminar"><i class="fas fa-trash-alt"></i></a>
+                        </label>
+                        <select id="f-vendedor" class="form-select" style="width:100%"></select>
                     </div>
                 </div>
 
@@ -144,11 +156,12 @@
 </div>
 
 @include('presupuestos._modal_categoria')
+@include('presupuestos._modal_vendedor')
 @endsection
 
 @php
     $clienteOrigen = $venta?->cliente ?? $presupuestoOrigen?->cliente;
-    $datosVenta = $venta ? $venta->only(['id', 'cliente_id', 'categoria_id', 'lista_precio_id', 'descuento_general_pct', 'tipo_comprobante', 'nota_cliente', 'nota_interna', 'formas_pago', 'metodos_envio']) : null;
+    $datosVenta = $venta ? $venta->only(['id', 'cliente_id', 'categoria_id', 'lista_precio_id', 'vendedor_id', 'descuento_general_pct', 'tipo_comprobante', 'nota_cliente', 'nota_interna', 'formas_pago', 'metodos_envio']) : null;
     $datosItems = ($venta?->items ?? $presupuestoOrigen?->items ?? collect())->map(fn ($i) => $i->only(['producto_id', 'descripcion', 'cantidad', 'precio_unitario', 'descuento_pct', 'iva_pct']))->values();
     $datosConceptos = ($venta?->conceptos ?? $presupuestoOrigen?->conceptos ?? collect())->map(fn ($c) => $c->only(['tipo', 'concepto', 'monto']))->values();
     $datosEtiquetas = ($venta?->etiquetas ?? $presupuestoOrigen?->etiquetas ?? collect())->pluck('nombre');
@@ -166,6 +179,9 @@
         descuentoGeneralPct: @json($venta?->descuento_general_pct ?? $presupuestoOrigen?->descuento_general_pct),
         categoriaId: @json($venta?->categoria_id ?? $presupuestoOrigen?->categoria_id),
         listaPrecioId: @json($venta?->lista_precio_id ?? $presupuestoOrigen?->lista_precio_id),
+        vendedorId: @json($venta?->vendedor_id),
+        servicioDesde: @json(optional($venta?->servicio_desde ?? $presupuestoOrigen?->servicio_desde)->format('Y-m-d')),
+        servicioHasta: @json(optional($venta?->servicio_hasta ?? $presupuestoOrigen?->servicio_hasta)->format('Y-m-d')),
         notaCliente: @json($venta?->nota_cliente ?? $presupuestoOrigen?->nota_cliente),
         notaInterna: @json($venta?->nota_interna ?? $presupuestoOrigen?->nota_interna),
         formasPago: @json($venta?->formas_pago ?? $presupuestoOrigen?->formas_pago),
@@ -180,7 +196,14 @@
             clientesOpciones: "{{ route('clientes.opciones') }}",
             productosOpciones: "{{ route('productos.opciones') }}",
             categoriaVentaStore: "{{ route('categorias.venta.store') }}",
+            categoriaUpdateBase: "{{ url('categorias') }}",
+            categoriaDestroyBase: "{{ url('categorias') }}",
+            vendedorStore: "{{ route('vendedores.store') }}",
+            vendedorUpdateBase: "{{ url('vendedores') }}",
+            vendedorDestroyBase: "{{ url('vendedores') }}",
         },
+        categorias: @json($categoriasVenta->map(fn ($c) => ['id' => $c->id, 'nombre' => $c->nombre, 'es_sistema' => $c->es_sistema])),
+        vendedores: @json($vendedores->map(fn ($v) => ['id' => $v->id, 'nombre' => $v->nombre])),
     };
 </script>
 @vite(['resources/js/ventas.js'])

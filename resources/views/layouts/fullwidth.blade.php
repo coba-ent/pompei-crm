@@ -14,6 +14,13 @@
 </head>
 
 <body class="vh-100">
+<script>
+	try {
+		if (localStorage.getItem('contagram-theme') === 'dark') {
+			document.body.setAttribute('data-theme-version', 'dark');
+		}
+	} catch (e) {}
+</script>
 
 	@yield('content')
 

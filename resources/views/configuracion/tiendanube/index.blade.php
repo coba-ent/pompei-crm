@@ -8,34 +8,12 @@
             <div class="col-12">
                 <h4 class="mb-0 text-primary fw-bold">Tiendanube</h4>
                 <p class="text-muted mb-0">
-                    Conectá tu tienda de Tiendanube (Aplicación personalizada) para operar catálogo y ventas
-                    desde el CRM.
+                    Conectá tu tienda de Tiendanube por OAuth para operar catálogo y ventas desde el CRM.
                 </p>
             </div>
         </div>
 
         @include('configuracion.tiendanube._panel_estado')
-
-        <div class="card mb-3">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0 fw-bold">Credenciales de la Aplicación personalizada</h6>
-                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modal-credenciales-tn">
-                    <i class="fas fa-pencil-alt me-1"></i> Editar
-                </button>
-            </div>
-            <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label text-muted mb-1">Identificador de tienda</label>
-                        <div class="fw-bold" id="tn-info-store-id">—</div>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label text-muted mb-1">Token de acceso</label>
-                        <div class="fw-bold" id="tn-info-token">—</div>
-                    </div>
-                </div>
-            </div>
-        </div>
 
         <div class="card mb-3">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -54,6 +32,99 @@
                     <i class="fas fa-exclamation-triangle me-1"></i>
                     Modo sólo lectura activo: las escrituras hacia Tiendanube están bloqueadas.
                 </div>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header">
+                <h6 class="mb-0 fw-bold">Ventas de Tiendanube</h6>
+            </div>
+            <div class="card-body">
+                <form id="form-ventas-tn">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="tn-creacion-automatica">
+                                <label class="form-check-label" for="tn-creacion-automatica">Creación automática de ventas</label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Frecuencia de sincronización</label>
+                            <select class="form-select" id="tn-frecuencia-sync">
+                                <option value="5">Cada 5 minutos</option>
+                                <option value="10">Cada 10 minutos</option>
+                                <option value="15">Cada 15 minutos</option>
+                                <option value="30">Cada 30 minutos</option>
+                                <option value="60">Cada hora</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Antigüedad de la ventana de sincronización (días)</label>
+                            <input type="number" min="1" max="365" class="form-control" id="tn-dias-primera-sync">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Depósito de descuento de stock</label>
+                            <select class="form-select" id="tn-deposito-id" style="width:100%">
+                                <option value="">Usar el depósito por defecto{{ $depositoPorDefecto ? ' — '.$depositoPorDefecto->nombre : '' }}</option>
+                                @foreach ($depositos as $deposito)
+                                    <option value="{{ $deposito->id }}">{{ $deposito->nombre }}</option>
+                                @endforeach
+                            </select>
+                            <div class="form-text">
+                                Se descuenta de <strong id="tn-deposito-efectivo">{{ $depositoEfectivo?->nombre ?? '—' }}</strong>.
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label d-flex align-items-center gap-1">
+                                <span class="flex-grow-1">Categoría de las Ventas</span>
+                                <a href="#" id="btn-renombrar-categoria" class="text-primary d-none" title="Renombrar"><i class="fas fa-pencil-alt"></i></a>
+                                <a href="#" id="btn-eliminar-categoria" class="text-danger d-none" title="Eliminar"><i class="fas fa-trash-alt"></i></a>
+                            </label>
+                            <select class="form-select" id="tn-categoria-venta-id" style="width:100%"></select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label d-flex align-items-center gap-1">
+                                <span class="flex-grow-1">Vendedor por defecto</span>
+                                <a href="#" id="btn-renombrar-vendedor" class="text-primary d-none" title="Renombrar"><i class="fas fa-pencil-alt"></i></a>
+                                <a href="#" id="btn-eliminar-vendedor" class="text-danger d-none" title="Eliminar"><i class="fas fa-trash-alt"></i></a>
+                            </label>
+                            <select class="form-select" id="tn-vendedor-id" style="width:100%"></select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Cuenta de Tesorería para las cobranzas</label>
+                            <select class="form-select" id="tn-cuenta-tesoreria-id" style="width:100%">
+                                <option value="">Sin cuenta configurada (bloquea la conversión)</option>
+                                @foreach ($cuentasTesoreria as $cuenta)
+                                    <option value="{{ $cuenta->id }}">{{ $cuenta->nombre }}</option>
+                                @endforeach
+                            </select>
+                            <div class="form-text">
+                                Tiendanube admite varios medios de pago sin una pasarela única: todas las
+                                cobranzas se imputan a esta cuenta, sin importar el medio real de cada orden.
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Lista de Precios que gestiona Tiendanube</label>
+                            <select class="form-select" id="tn-lista-precio-id" style="width:100%">
+                                <option value="">Sin Lista de Precios (sin sincronización de precios)</option>
+                                @foreach ($listasPrecio as $lista)
+                                    <option value="{{ $lista->id }}">{{ $lista->nombre }}</option>
+                                @endforeach
+                            </select>
+                            <div class="form-text">
+                                Cuando cambia el precio de un producto vinculado dentro de esta lista, el CRM
+                                lo envía de inmediato a la variante de Tiendanube correspondiente.
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="text-muted small" id="tn-ultima-sync-info"></div>
+                            <div class="text-muted small" id="tn-stock-ultima-sync-info"></div>
+                        </div>
+                        <div class="col-12 text-end">
+                            <button type="submit" class="btn btn-primary" id="btn-guardar-ventas-tn">Guardar</button>
+                        </div>
+                    </div>
+                </form>
             </div>
         </div>
 
@@ -106,8 +177,9 @@
     </div>
 </div>
 
-@include('configuracion.tiendanube._modal_credenciales')
 @include('configuracion.tiendanube._modal_desconectar')
+@include('presupuestos._modal_vendedor')
+@include('presupuestos._modal_categoria')
 @endsection
 
 @section('local-js')
@@ -115,13 +187,29 @@
     window.TiendanubeConfig = {
         rutas: {
             estado: @json(route('configuracion.tiendanube.estado')),
-            credenciales: @json(route('configuracion.tiendanube.credenciales')),
-            probar: @json(route('configuracion.tiendanube.probar')),
             desconectar: @json(route('configuracion.tiendanube.desconectar')),
             modoSoloLectura: @json(route('configuracion.tiendanube.modoSoloLectura')),
+            guardarVentas: @json(route('configuracion.tiendanube.ventas.configurar')),
             historial: @json(route('configuracion.tiendanube.historial')),
+            vendedorStore: @json(route('vendedores.store')),
+            vendedorUpdateBase: @json(url('vendedores')),
+            vendedorDestroyBase: @json(url('vendedores')),
+            categoriaVentaStore: @json(route('categorias.venta.store')),
+            categoriaUpdateBase: @json(url('categorias')),
+            categoriaDestroyBase: @json(url('categorias')),
         },
+        vendedores: @json($vendedores->map(fn ($v) => ['id' => $v->id, 'nombre' => $v->nombre])),
+        categorias: @json($categoriasVenta->map(fn ($c) => ['id' => $c->id, 'nombre' => $c->nombre, 'es_sistema' => $c->es_sistema])),
     };
 </script>
+@if (session('tn_exito'))
+<script>document.addEventListener('DOMContentLoaded', function () { if (window.toastr) { window.toastr.success(@json(session('tn_exito'))); } });</script>
+@endif
+@if (session('tn_error'))
+<script>document.addEventListener('DOMContentLoaded', function () { if (window.toastr) { window.toastr.error(@json(session('tn_error'))); } });</script>
+@endif
+@if (session('tn_info'))
+<script>document.addEventListener('DOMContentLoaded', function () { if (window.toastr) { window.toastr.info(@json(session('tn_info'))); } });</script>
+@endif
 @vite(['resources/js/tiendanube.js'])
 @endsection

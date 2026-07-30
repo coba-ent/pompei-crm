@@ -145,13 +145,20 @@
                             </div>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Categoría de las Ventas</label>
-                            <select class="form-select" id="ml-categoria-venta-id" style="width:100%">
-                                <option value="">Sin categoría</option>
-                                @foreach ($categoriasVenta as $categoria)
-                                    <option value="{{ $categoria->id }}">{{ $categoria->nombre }}</option>
-                                @endforeach
-                            </select>
+                            <label class="form-label d-flex align-items-center gap-1">
+                                <span class="flex-grow-1">Categoría de las Ventas</span>
+                                <a href="#" id="btn-renombrar-categoria" class="text-primary d-none" title="Renombrar"><i class="fas fa-pencil-alt"></i></a>
+                                <a href="#" id="btn-eliminar-categoria" class="text-danger d-none" title="Eliminar"><i class="fas fa-trash-alt"></i></a>
+                            </label>
+                            <select class="form-select" id="ml-categoria-venta-id" style="width:100%"></select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label d-flex align-items-center gap-1">
+                                <span class="flex-grow-1">Vendedor por defecto</span>
+                                <a href="#" id="btn-renombrar-vendedor" class="text-primary d-none" title="Renombrar"><i class="fas fa-pencil-alt"></i></a>
+                                <a href="#" id="btn-eliminar-vendedor" class="text-danger d-none" title="Eliminar"><i class="fas fa-trash-alt"></i></a>
+                            </label>
+                            <select class="form-select" id="ml-vendedor-id" style="width:100%"></select>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Lista de Precios que gestiona Mercado Libre</label>
@@ -230,6 +237,8 @@
 @include('configuracion.mercadolibre._modal_credenciales')
 @include('configuracion.mercadolibre._modal_desconectar')
 @include('configuracion.mercadolibre._modal_reemplazo_cuenta')
+@include('presupuestos._modal_vendedor')
+@include('presupuestos._modal_categoria')
 @endsection
 
 @section('local-js')
@@ -256,8 +265,16 @@
             pendiente: @json(route('configuracion.mercadolibre.pendiente')),
             confirmarReemplazo: @json(route('configuracion.mercadolibre.confirmarReemplazo')),
             descartarPendiente: @json(route('configuracion.mercadolibre.descartarPendiente')),
+            vendedorStore: @json(route('vendedores.store')),
+            vendedorUpdateBase: @json(url('vendedores')),
+            vendedorDestroyBase: @json(url('vendedores')),
+            categoriaVentaStore: @json(route('categorias.venta.store')),
+            categoriaUpdateBase: @json(url('categorias')),
+            categoriaDestroyBase: @json(url('categorias')),
         },
         sitios: @json(\App\Services\MercadoLibre\Sitios::paraSelect()),
+        vendedores: @json($vendedores->map(fn ($v) => ['id' => $v->id, 'nombre' => $v->nombre])),
+        categorias: @json($categoriasVenta->map(fn ($c) => ['id' => $c->id, 'nombre' => $c->nombre, 'es_sistema' => $c->es_sistema])),
     };
 </script>
 @vite(['resources/js/mercadolibre.js'])

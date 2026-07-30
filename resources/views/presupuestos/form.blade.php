@@ -23,29 +23,6 @@
                         <label class="form-label">Cliente</label>
                         <select id="f-cliente" class="form-select" style="width:100%"></select>
                     </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Categoría</label>
-                        <select id="f-categoria" class="form-select" style="width:100%">
-                            <option value=""></option>
-                            @foreach ($categoriasVenta as $categoria)
-                                <option value="{{ $categoria->id }}">{{ $categoria->nombre }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-1 d-flex align-items-end">
-                        <button type="button" class="btn btn-outline-secondary w-100" id="btn-nueva-categoria" title="Crear Categoría de ventas">
-                            <i class="fas fa-plus"></i>
-                        </button>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Lista de Precios</label>
-                        <select id="f-lista-precio" class="form-select" style="width:100%">
-                            <option value=""></option>
-                            @foreach ($listasPrecio as $lista)
-                                <option value="{{ $lista->id }}">{{ $lista->nombre }}</option>
-                            @endforeach
-                        </select>
-                    </div>
                     <div class="col-md-3">
                         <label class="form-label">Emisión</label>
                         <input type="date" id="f-fecha-emision" class="form-control" value="{{ old('fecha_emision', optional($presupuesto?->fecha_emision)->format('Y-m-d') ?? now()->format('Y-m-d')) }}">
@@ -54,6 +31,19 @@
                         <label class="form-label">Validez</label>
                         <input type="date" id="f-fecha-validez" class="form-control" value="{{ optional($presupuesto?->fecha_validez)->format('Y-m-d') }}">
                     </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Formas de Pago</label>
+                        <input type="text" id="f-formas-pago" class="form-control" value="{{ $presupuesto?->formas_pago }}">
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label d-flex align-items-center gap-1">
+                            <span class="flex-grow-1">Categoría</span>
+                            <a href="#" id="btn-renombrar-categoria" class="text-primary d-none" title="Renombrar"><i class="fas fa-pencil-alt"></i></a>
+                            <a href="#" id="btn-eliminar-categoria" class="text-danger d-none" title="Eliminar"><i class="fas fa-trash-alt"></i></a>
+                        </label>
+                        <select id="f-categoria" class="form-select" style="width:100%"></select>
+                    </div>
                     <div class="col-md-3">
                         <label class="form-label">Servicio Desde</label>
                         <input type="date" id="f-servicio-desde" class="form-control" value="{{ optional($presupuesto?->servicio_desde)->format('Y-m-d') }}">
@@ -61,6 +51,28 @@
                     <div class="col-md-3">
                         <label class="form-label">Servicio Hasta</label>
                         <input type="date" id="f-servicio-hasta" class="form-control" value="{{ optional($presupuesto?->servicio_hasta)->format('Y-m-d') }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Métodos de Envío</label>
+                        <input type="text" id="f-metodos-envio" class="form-control" value="{{ $presupuesto?->metodos_envio }}">
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label d-flex align-items-center gap-1">
+                            <span class="flex-grow-1">Vendedor</span>
+                            <a href="#" id="btn-renombrar-vendedor" class="text-primary d-none" title="Renombrar"><i class="fas fa-pencil-alt"></i></a>
+                            <a href="#" id="btn-eliminar-vendedor" class="text-danger d-none" title="Eliminar"><i class="fas fa-trash-alt"></i></a>
+                        </label>
+                        <select id="f-vendedor" class="form-select" style="width:100%"></select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Lista de Precios</label>
+                        <select id="f-lista-precio" class="form-select" style="width:100%">
+                            <option value=""></option>
+                            @foreach ($listasPrecio as $lista)
+                                <option value="{{ $lista->id }}">{{ $lista->nombre }}</option>
+                            @endforeach
+                        </select>
                     </div>
                 </div>
 
@@ -105,16 +117,6 @@
                             <label class="form-label">Nota interna</label>
                             <textarea id="f-nota-interna" class="form-control" rows="2">{{ $presupuesto?->nota_interna }}</textarea>
                         </div>
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label">Formas de Pago</label>
-                                <input type="text" id="f-formas-pago" class="form-control" value="{{ $presupuesto?->formas_pago }}">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Métodos de Envío</label>
-                                <input type="text" id="f-metodos-envio" class="form-control" value="{{ $presupuesto?->metodos_envio }}">
-                            </div>
-                        </div>
                     </div>
 
                     <div class="col-lg-6">
@@ -146,10 +148,11 @@
 </div>
 
 @include('presupuestos._modal_categoria')
+@include('presupuestos._modal_vendedor')
 @endsection
 
 @php
-    $datosPresupuesto = $presupuesto ? $presupuesto->only(['id', 'cliente_id', 'categoria_id', 'lista_precio_id', 'descuento_general_pct']) : null;
+    $datosPresupuesto = $presupuesto ? $presupuesto->only(['id', 'cliente_id', 'categoria_id', 'lista_precio_id', 'vendedor_id', 'descuento_general_pct']) : null;
     $datosItems = $presupuesto ? $presupuesto->items->map(fn ($i) => $i->only(['producto_id', 'descripcion', 'cantidad', 'precio_unitario', 'descuento_pct', 'iva_pct']))->values() : [];
     $datosConceptos = $presupuesto ? $presupuesto->conceptos->map(fn ($c) => $c->only(['tipo', 'concepto', 'monto']))->values() : [];
     $datosEtiquetas = $presupuesto ? $presupuesto->etiquetas->pluck('nombre') : [];
@@ -177,7 +180,14 @@
             clientesOpciones: "{{ route('clientes.opciones') }}",
             productosOpciones: "{{ route('productos.opciones') }}",
             categoriaVentaStore: "{{ route('categorias.venta.store') }}",
+            categoriaUpdateBase: "{{ url('categorias') }}",
+            categoriaDestroyBase: "{{ url('categorias') }}",
+            vendedorStore: "{{ route('vendedores.store') }}",
+            vendedorUpdateBase: "{{ url('vendedores') }}",
+            vendedorDestroyBase: "{{ url('vendedores') }}",
         },
+        categorias: @json($categoriasVenta->map(fn ($c) => ['id' => $c->id, 'nombre' => $c->nombre, 'es_sistema' => $c->es_sistema])),
+        vendedores: @json($vendedores->map(fn ($v) => ['id' => $v->id, 'nombre' => $v->nombre])),
     };
 </script>
 @vite(['resources/js/presupuestos.js'])

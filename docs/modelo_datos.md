@@ -282,6 +282,16 @@ id, nombre (unique). Usado por Presupuestos y Ventas ("+ Nueva Etiqueta" en el p
 etiqueta_id (FK → etiquetas), etiquetable_type, etiquetable_id. Permite reutilizar el mismo catálogo
 de etiquetas entre `presupuestos` y `ventas` sin dos pivots separados.
 
+### `vendedores` (catálogo global — spec 020, implementada)
+id, nombre (unique). Catálogo plano: sin jerarquía, sin tipo, sin `activo`, sin `es_sistema` — a
+diferencia de `categorias` (no lo necesita, ver `specs/020-vendedores/research.md` R1). ABM inline
+desde el select de Vendedor de Presupuestos/Ventas y desde el select de "Vendedor por defecto" de
+Configuración Tiendanube/MercadoLibre (mismo patrón que Categorías: crear/renombrar/eliminar sin
+pantalla propia; eliminar está bloqueado si el vendedor está en uso en cualquiera de las cuatro
+tablas que lo referencian). Reemplaza al `vendedor_id → usuarios` que existía hasta la spec 020 (ver
+nota en `presupuestos`/`ventas` más abajo); la migración a esta tabla preserva el historial existente
+(un vendedor por cada usuario que ya aparecía como vendedor de alguna Venta/Presupuesto).
+
 ### `presupuestos`
 | Campo | Tipo | Notas |
 |---|---|---|
@@ -297,7 +307,7 @@ de etiquetas entre `presupuestos` y `ventas` sin dos pivots separados.
 | subtotal_sin_descuento, descuento, subtotal_con_descuento, total | decimal(14,2) | descuento = `descuento_general_pct` aplicado sobre el subtotal de ítems |
 | descuento_general_pct | decimal, nullable | 0–100 |
 | nota_cliente, nota_interna | text, nullable | |
-| vendedor_id | FK → usuarios, nullable | |
+| vendedor_id | FK → vendedores, nullable | **Corregido spec 020**: hasta la spec 020 apuntaba a `usuarios` y se autocompletaba en silencio con el usuario logueado; desde la spec 020 es un catálogo propio (tabla `vendedores`, ver §Vendedores) elegido explícitamente en el formulario — "Vendedor" (quién vendió) y "Usuario" (quién está logueado) son conceptos independientes, confirmado por el informe de relevamiento real (Vendedor y Usuario son dos filtros distintos). |
 | formas_pago, metodos_envio | string, nullable | texto libre, sin autocompletado detectado |
 
 ### `presupuesto_items`
@@ -711,6 +721,12 @@ Vinculación **estrictamente 1:1**, infraestructura compartida con la spec 013. 
 > concepto no existe para Listas de Precios en ningún otro punto del sistema. Detalle completo en
 > `specs/016-lista-precio-mercadolibre/data-model.md`.
 
+> **Columna nueva (spec 020, implementada)**: `vendedor_id` (FK →
+> `vendedores`, nullable, `restrictOnDelete`). "Vendedor por defecto" asignado a las Ventas que se
+> crean automáticamente por sincronización de Mercado Libre — mismo patrón que `categoria_venta_id`,
+> independiente del default de Tiendanube (sin fallback compartido entre integraciones). Detalle
+> completo en `specs/020-vendedores/data-model.md`.
+
 ### `ventas` (columna nueva)
 `origen` (enum `manual`/`presupuesto`/`mercadolibre`, default `manual`). Explicita el tercer origen;
 "Creada Desde" hoy se deriva de `presupuesto_id`.
@@ -772,12 +788,19 @@ Mismo esquema exacto que `ml_operaciones_log` (§8), tabla separada — historia
 Retención: 30 días o 5.000 registros, depurada de forma oportunista — mismo criterio y mecanismo que
 `ml_operaciones_log`.
 
-**Continuación (spec 017, especificada — código todavía no construido)**: tablas de órdenes de
-Tiendanube, líneas de orden y vinculación variante↔producto — ver §12.
+**Continuación (spec 017, implementada)**: tablas de órdenes de Tiendanube, líneas de orden y
+vinculación variante↔producto — ver §12.
 
 ---
 
-## 12. Ventas de Tiendanube (spec 017) y stock hacia Tiendanube (spec 018)
+## 12. Ventas de Tiendanube (spec 017) y stock/precios hacia Tiendanube (spec 018)
+
+> ✅ **Spec 017 implementada (30/07/2026)**: `tn_ordenes`, `tn_orden_items` y `tn_variante_producto` ya
+> existen (migraciones `2026_08_09_*`), junto con las columnas de ventas de `tn_configuracion`,
+> `clientes.tn_customer_id` y el valor `tiendanube` de `ventas.origen`. Las columnas listadas más abajo
+> como "spec 018" (`tn_variante_producto.tn_product_id`/columnas de stock y precio, `tn_configuracion`
+> columnas de stock y `lista_precio_id`) **todavía no existen** — spec 018 sigue especificada (ampliada
+> 30/07/2026 con precios), no implementada.
 
 Extiende §11 (integración Tiendanube, spec 019, corrige a la 015). Detalle completo, con enums y
 transiciones de estado, en `specs/017-ventas-tiendanube/data-model.md` y
@@ -842,6 +865,16 @@ siempre expone `variant_id` por línea. `variant_id` (**unique**), `producto_id`
 Mismo criterio que `ml_publicacion_producto` (§10): sin índice adicional (volumen esperado de decenas de
 filas); eliminar el vínculo elimina estas columnas junto con la fila.
 
+**Columnas nuevas (spec 018 — ampliación de precios, 30/07/2026)**, calcadas de las cuatro que la spec 016
+agregó a `ml_publicacion_producto` para el mismo propósito:
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| `precio_pendiente` | boolean, default `false` | `true` cuando hay un precio vigente en la Lista de Precios configurada para Tiendanube sin confirmar como enviado (cambio reciente, envío fallido, o vínculo creado después de un cambio ya ocurrido). |
+| `precio_sincronizado_en` | timestamp, nullable | Fecha del último envío de precio **exitoso**. |
+| `precio_error` | string(255), nullable | Motivo del último rechazo de Tiendanube al actualizar el precio. |
+| `precio_error_en` | timestamp, nullable | Fecha de ese rechazo. |
+
 ### `tn_configuracion` (columnas nuevas)
 `creacion_automatica` (bool, default false), `frecuencia_sync_minutos` (default 15), `deposito_id` (FK →
 depositos, nullable — null usa el depósito por defecto), `categoria_venta_id` (FK → categorias,
@@ -855,6 +888,18 @@ vez la sincronización de stock), `stock_ultima_sync_resultado` (string(255), nu
 resultado de esa corrida, mismo patrón que `ultima_sync_resultado`). Sin columna de activar/desactivar
 propia: gobernada por la función avanzada "Tiendanube" + modo sólo lectura, igual que el resto de la
 integración.
+
+**Columna nueva (spec 018 — ampliación de precios, 30/07/2026)**: `lista_precio_id` (FK →
+`listas_precio`, nullable, `nullOnDelete()`) — Lista de Precios que gestiona los precios de las variantes
+vinculadas de Tiendanube, mismo rol que `ml_configuracion.lista_precio_id` (spec 016, §10). Opcional: sin
+ninguna configurada, no hay sincronización de precio. **Sin columna de "última sincronización" para
+precio** (mismo criterio que Mercado Libre): a diferencia de stock, no hay corrida programada cuyo
+resultado persistir acá.
+
+**Columna nueva (spec 020, implementada)**: `vendedor_id` (FK →
+`vendedores`, nullable, `restrictOnDelete`). "Vendedor por defecto" para las Ventas creadas
+automáticamente por sincronización de Tiendanube, independiente del de Mercado Libre. Detalle
+completo en `specs/020-vendedores/data-model.md`.
 
 ### `clientes` (columna nueva)
 `tn_customer_id` (bigint, nullable) — análogo a `ml_user_id` (§8): emparejamiento estable del comprador,
