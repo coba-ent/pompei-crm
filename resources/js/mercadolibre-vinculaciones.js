@@ -79,6 +79,10 @@
                     data: 'stock_estado', name: 'stock_estado', orderable: false, searchable: false,
                     render: (data, type, row) => renderEstadoStock(data, row),
                 },
+                {
+                    data: 'precio_estado', name: 'precio_estado', orderable: false, searchable: false,
+                    render: (data, type, row) => renderEstadoPrecio(data, row),
+                },
             ],
         });
     }
@@ -100,6 +104,29 @@
         if (estado === 'error' && row.stock_error) {
             html += ' <i class="fas fa-circle-info text-danger ms-1" title="'
                 + $('<div>').text(row.stock_error + (row.stock_error_en ? ' (' + row.stock_error_en + ')' : '')).html()
+                + '"></i>';
+        }
+
+        return html;
+    }
+
+    const ESTADOS_PRECIO = {
+        sincronizado: { color: 'success', etiqueta: 'Sincronizado' },
+        pendiente: { color: 'warning', etiqueta: 'Pendiente' },
+        error: { color: 'danger', etiqueta: 'Error' },
+    };
+
+    function renderEstadoPrecio(estado, row) {
+        const info = ESTADOS_PRECIO[estado] || ESTADOS_PRECIO.pendiente;
+        let html = '<span class="badge bg-' + info.color + '">' + info.etiqueta + '</span>';
+
+        if (estado === 'sincronizado' && row.precio_sincronizado_en) {
+            html += ' <span class="text-muted small">' + row.precio_sincronizado_en + '</span>';
+        }
+
+        if (estado === 'error' && row.precio_error) {
+            html += ' <i class="fas fa-circle-info text-danger ms-1" title="'
+                + $('<div>').text(row.precio_error + (row.precio_error_en ? ' (' + row.precio_error_en + ')' : '')).html()
                 + '"></i>';
         }
 

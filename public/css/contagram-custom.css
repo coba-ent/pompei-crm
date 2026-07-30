@@ -285,8 +285,11 @@ textarea.form-control {
 
 /* Garantía de scroll: aunque el template ya lo define para
  * .modal-dialog-scrollable, lo reforzamos por si el contenido supera la
- * altura de viewport en pantallas chicas (laptops). */
-#modal-cliente .modal-dialog-scrollable .modal-body {
+ * altura de viewport en pantallas chicas (laptops). Regla GLOBAL: aplica a
+ * cualquier modal del proyecto con esa clase (Cliente, Producto, Proveedor,
+ * y los que se agreguen a futuro) — antes estaba sólo en #modal-cliente y el
+ * mismo problema reapareció en #modal-producto por no estar generalizada. */
+.modal-dialog-scrollable .modal-body {
     overflow-y: auto;
     max-height: calc(100vh - 12rem);
 }

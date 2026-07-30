@@ -21,12 +21,16 @@ class MercadoLibrePublicacionProducto extends Model
     protected $fillable = [
         'ml_item_id', 'producto_id', 'titulo_ml', 'vinculada_por',
         'stock_pendiente', 'stock_sincronizado_en', 'stock_error', 'stock_error_en',
+        'precio_pendiente', 'precio_sincronizado_en', 'precio_error', 'precio_error_en',
     ];
 
     protected $casts = [
         'stock_pendiente' => 'boolean',
         'stock_sincronizado_en' => 'datetime',
         'stock_error_en' => 'datetime',
+        'precio_pendiente' => 'boolean',
+        'precio_sincronizado_en' => 'datetime',
+        'precio_error_en' => 'datetime',
     ];
 
     public function producto(): BelongsTo
@@ -43,5 +47,11 @@ class MercadoLibrePublicacionProducto extends Model
     public function scopePendientes(Builder $query): Builder
     {
         return $query->where('stock_pendiente', true);
+    }
+
+    /** Vínculos con un cambio de precio sin empujar todavía a Mercado Libre (spec 016, FR-014). */
+    public function scopePendientesPrecio(Builder $query): Builder
+    {
+        return $query->where('precio_pendiente', true);
     }
 }

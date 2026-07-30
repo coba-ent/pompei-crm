@@ -16,6 +16,7 @@ use App\Http\Controllers\Ingresos\MercadoLibreVinculacionController;
 use App\Http\Controllers\Integraciones\MercadoLibreConfiguracionController;
 use App\Http\Controllers\Integraciones\MercadoLibreOAuthController;
 use App\Http\Controllers\Integraciones\TiendanubeConfiguracionController;
+use App\Http\Controllers\Integraciones\TiendanubeOAuthController;
 use App\Http\Controllers\ImportacionController;
 use App\Http\Controllers\Informes\InformeStockController;
 use App\Http\Controllers\ListaPrecioController;
@@ -67,6 +68,10 @@ Route::patch('productos/{producto}/estado', [ProductoController::class, 'estado'
 Route::get('productos/opciones', [ProductoController::class, 'opciones'])->name('productos.opciones');
 Route::post('productos/{producto}/copia', [ProductoController::class, 'copia'])->name('productos.copia');
 Route::post('productos/acciones-masivas', [ProductoController::class, 'accionesMasivas'])->name('productos.acciones-masivas');
+// Botón "Sincronizar precios ahora" (spec 016) — reutiliza MercadoLibreVentaController,
+// vive en la pantalla de Productos (no en Mercado Libre): sin gate `permiso:ventas.ver`,
+// alcanza con poder llegar a la pantalla de Productos (mismo criterio que el resto de sus rutas).
+Route::post('productos/sincronizar-precios-ml', [MercadoLibreVentaController::class, 'sincronizarPrecios'])->name('productos.sincronizarPreciosMl');
 Route::post('productos/{producto}/stock', [StockController::class, 'ajuste'])->name('productos.stock.ajuste');
 Route::post('productos/{producto}/transferencia', [StockController::class, 'transferencia'])->name('productos.stock.transferencia');
 Route::get('productos/{producto}/movimientos', [StockController::class, 'movimientos'])->name('productos.movimientos');
@@ -278,15 +283,15 @@ Route::prefix('configuracion')->name('configuracion.')->group(function () {
         Route::get('callback', [MercadoLibreOAuthController::class, 'callback'])->name('callback');
     });
 
-    // Configuración & Ajustes → Tiendanube (spec 015)
+    // Configuración & Ajustes → Tiendanube (spec 019: conexión OAuth/MCP, corrige spec 015)
     Route::middleware('permiso:configuracion.funciones')->prefix('tiendanube')->name('tiendanube.')->group(function () {
         Route::get('/', [TiendanubeConfiguracionController::class, 'index'])->name('index');
         Route::get('estado', [TiendanubeConfiguracionController::class, 'estado'])->name('estado');
-        Route::put('credenciales', [TiendanubeConfiguracionController::class, 'credenciales'])->name('credenciales');
-        Route::post('probar', [TiendanubeConfiguracionController::class, 'probar'])->name('probar');
         Route::post('desconectar', [TiendanubeConfiguracionController::class, 'desconectar'])->name('desconectar');
         Route::patch('modo-solo-lectura', [TiendanubeConfiguracionController::class, 'modoSoloLectura'])->name('modoSoloLectura');
         Route::get('historial', [TiendanubeConfiguracionController::class, 'historial'])->name('historial');
+        Route::get('conectar', [TiendanubeOAuthController::class, 'conectar'])->name('conectar');
+        Route::get('callback', [TiendanubeOAuthController::class, 'callback'])->name('callback');
     });
 });
 

@@ -153,6 +153,19 @@
                                 @endforeach
                             </select>
                         </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Lista de Precios que gestiona Mercado Libre</label>
+                            <select class="form-select" id="ml-lista-precio-id" style="width:100%">
+                                <option value="">Sin Lista de Precios (sin sincronización de precios)</option>
+                                @foreach ($listasPrecio as $lista)
+                                    <option value="{{ $lista->id }}">{{ $lista->nombre }}</option>
+                                @endforeach
+                            </select>
+                            <div class="form-text">
+                                Cuando cambia el precio de un producto vinculado dentro de esta lista, el CRM
+                                lo envía de inmediato a la publicación de Mercado Libre correspondiente.
+                            </div>
+                        </div>
                         <div class="col-12">
                             <div class="text-muted small" id="ml-ultima-sync-info"></div>
                             <div class="text-muted small" id="ml-stock-ultima-sync-info"></div>

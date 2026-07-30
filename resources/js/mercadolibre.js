@@ -103,7 +103,7 @@
                 dropdownParent: $modalCredenciales,
                 data: sitios.map(function (s) { return { id: s.id, text: s.texto }; }),
             });
-            $('#ml-deposito-id, #ml-categoria-venta-id').select2({ width: '100%', theme: 'default', allowClear: true });
+            $('#ml-deposito-id, #ml-categoria-venta-id, #ml-lista-precio-id').select2({ width: '100%', theme: 'default', allowClear: true });
         } else {
             const $select = $('#ml-cred-site-id');
             sitios.forEach(function (s) {
@@ -132,6 +132,9 @@
             }
             if ($('#ml-categoria-venta-id').val() !== undefined) {
                 $('#ml-categoria-venta-id').val(conf.categoria_venta_id || '').trigger('change.select2');
+            }
+            if ($('#ml-lista-precio-id').val() !== undefined) {
+                $('#ml-lista-precio-id').val(conf.lista_precio_id || '').trigger('change.select2');
             }
             $('#ml-ultima-sync-info').text(
                 conf.ultima_sync_en
@@ -202,6 +205,7 @@
                 frecuencia_sync_minutos: $('#ml-frecuencia-sync').val(),
                 deposito_id: $('#ml-deposito-id').val() || null,
                 categoria_venta_id: $('#ml-categoria-venta-id').val() || null,
+                lista_precio_id: $('#ml-lista-precio-id').val() || null,
                 dias_primera_sync: $('#ml-dias-primera-sync').val(),
             };
 

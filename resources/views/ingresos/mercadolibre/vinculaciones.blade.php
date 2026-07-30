@@ -34,6 +34,7 @@
                                     Stock publicado
                                 </th>
                                 <th>Sincronización</th>
+                                <th>Precio</th>
                             </tr>
                         </thead>
                         <tbody></tbody>

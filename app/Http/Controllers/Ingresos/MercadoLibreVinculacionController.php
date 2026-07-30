@@ -42,9 +42,12 @@ class MercadoLibreVinculacionController extends Controller
                 : null)
             ->addColumn('acciones', fn (MercadoLibrePublicacionProducto $v) => view('ingresos.mercadolibre._row_actions_vinculacion', ['vinculacion' => $v])->render())
             ->addColumn('stock_estado', fn (MercadoLibrePublicacionProducto $v) => $this->stockEstado($v))
+            ->addColumn('precio_estado', fn (MercadoLibrePublicacionProducto $v) => $this->precioEstado($v))
             ->editColumn('created_at', fn (MercadoLibrePublicacionProducto $v) => $v->created_at->format('d/m/Y'))
             ->editColumn('stock_sincronizado_en', fn (MercadoLibrePublicacionProducto $v) => optional($v->stock_sincronizado_en)->format('d/m/Y H:i'))
             ->editColumn('stock_error_en', fn (MercadoLibrePublicacionProducto $v) => optional($v->stock_error_en)->format('d/m/Y H:i'))
+            ->editColumn('precio_sincronizado_en', fn (MercadoLibrePublicacionProducto $v) => optional($v->precio_sincronizado_en)->format('d/m/Y H:i'))
+            ->editColumn('precio_error_en', fn (MercadoLibrePublicacionProducto $v) => optional($v->precio_error_en)->format('d/m/Y H:i'))
             ->rawColumns(['acciones'])
             ->toJson();
     }
@@ -57,6 +60,16 @@ class MercadoLibreVinculacionController extends Controller
         }
 
         return $v->stock_pendiente ? 'pendiente' : 'sincronizado';
+    }
+
+    /** Estado de sincronización de precio del vínculo (spec 016, FR-017). */
+    private function precioEstado(MercadoLibrePublicacionProducto $v): string
+    {
+        if ($v->precio_error) {
+            return 'error';
+        }
+
+        return $v->precio_pendiente ? 'pendiente' : 'sincronizado';
     }
 
     public function store(VincularPublicacionRequest $request): JsonResponse

@@ -18,6 +18,7 @@
                 <button type="button" class="btn btn-outline-primary me-1" id="btn-sincronizar-stock-ml">
                     <i class="fas fa-boxes-stacked me-1"></i> Sincronizar stock ahora
                 </button>
+                {{-- "Sincronizar precios ahora" vive en Productos (spec 016, corrección de UX): --}}
                 <button type="button" class="btn btn-primary" id="btn-sincronizar-ml">
                     <i class="fas fa-sync-alt me-1"></i> Sincronizar ahora
                 </button>

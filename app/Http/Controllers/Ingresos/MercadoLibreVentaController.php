@@ -10,6 +10,7 @@ use App\Models\Venta;
 use App\Services\MercadoLibre\ConversorOrdenAVenta;
 use App\Services\MercadoLibre\ResolutorCliente;
 use App\Services\MercadoLibre\SincronizadorOrdenes;
+use App\Services\MercadoLibre\SincronizadorPrecios;
 use App\Services\MercadoLibre\SincronizadorStock;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
@@ -28,6 +29,7 @@ class MercadoLibreVentaController extends Controller
         private readonly SincronizadorOrdenes $sincronizador,
         private readonly ConversorOrdenAVenta $conversor,
         private readonly SincronizadorStock $sincronizadorStock,
+        private readonly SincronizadorPrecios $sincronizadorPrecios,
         private readonly ResolutorCliente $resolutorCliente,
     ) {
     }
@@ -88,6 +90,14 @@ class MercadoLibreVentaController extends Controller
     public function sincronizarStock(): JsonResponse
     {
         $resultado = $this->sincronizadorStock->ejecutar();
+
+        return response()->json($resultado, $resultado['ok'] ? 200 : 409);
+    }
+
+    /** "Sincronizar precios ahora" (spec 016, US3, FR-014, contracts §1). */
+    public function sincronizarPrecios(): JsonResponse
+    {
+        $resultado = $this->sincronizadorPrecios->ejecutar();
 
         return response()->json($resultado, $resultado['ok'] ? 200 : 409);
     }

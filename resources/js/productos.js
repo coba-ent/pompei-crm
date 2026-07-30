@@ -60,6 +60,23 @@
             }
         });
 
+        // "Sincronizar precios ahora" (spec 016, US3): reintenta el envío de precios
+        // pendientes/con error hacia Mercado Libre. Mismo patrón AJAX + Toastr que el
+        // resto de las acciones de este listado, sin recarga de página.
+        $('#btn-sincronizar-precios-ml').on('click', function () {
+            const $btn = $(this).prop('disabled', true);
+
+            $.post(rutas.sincronizarPreciosMl)
+                .done(function (resp) {
+                    toast('success', resp.mensaje || 'Sincronización de precios completa.');
+                })
+                .fail(function (xhr) {
+                    const resp = xhr.responseJSON || {};
+                    toast('error', resp.mensaje || 'No se pudo sincronizar los precios.');
+                })
+                .always(function () { $btn.prop('disabled', false); });
+        });
+
         // Select2 (librería de select con buscador del template NexaDash). Se usa
         // en todos los selects de datos dinámicos (producto, depósitos).
         const hasSelect2 = !!($.fn && $.fn.select2);

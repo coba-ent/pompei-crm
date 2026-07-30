@@ -22,6 +22,10 @@
                 <a href="{{ route('importacion.index', 'productos') }}" class="btn btn-outline-primary me-1">
                     <i class="fas fa-file-import me-1"></i> Importar datos
                 </a>
+                <button type="button" class="btn btn-outline-primary me-1" id="btn-sincronizar-precios-ml"
+                    title="Reintenta el envío de precios pendientes/con error hacia Mercado Libre (spec 016) — sólo productos vinculados a una publicación.">
+                    <i class="fas fa-tags me-1"></i> Sincronizar precios ahora
+                </button>
                 <button type="button" class="btn btn-primary" id="btn-nuevo-producto">
                     <i class="fas fa-plus me-1"></i> Nuevo Producto
                 </button>
@@ -281,6 +285,7 @@
             listas: "{{ url('listas-precio') }}",
             tipos: "{{ url('tipos-producto') }}",
             accionesMasivas: "{{ route('productos.acciones-masivas') }}",
+            sincronizarPreciosMl: "{{ route('productos.sincronizarPreciosMl') }}",
         },
         listasPrecio: {!! $listasPrecio->map(fn ($l) => ['id' => $l->id, 'nombre' => $l->nombre])->toJson() !!},
         {{-- Mismo orden que el <thead>: las columnas del DataTable tienen que coincidir 1 a 1. --}}

@@ -31,6 +31,7 @@ class MercadoLibreConfiguracionController extends Controller
         $CurrentPage = 'configuracion-mercadolibre';
         $depositos = Deposito::activos()->orderBy('nombre')->get();
         $categoriasVenta = Categoria::venta()->activas()->orderBy('nombre')->get();
+        $listasPrecio = \App\Models\ListaPrecio::where('activo', true)->orderBy('nombre')->get();
 
         // Se nombran ambos para que la pantalla pueda decir de qué depósito sale
         // el stock publicado, en vez de un genérico "por defecto del CRM". Versión
@@ -40,7 +41,7 @@ class MercadoLibreConfiguracionController extends Controller
         $depositoEfectivo = MercadoLibreConfiguracion::actual()->depositoEfectivoONulo();
 
         return view('configuracion.mercadolibre.index', compact(
-            'CurrentPage', 'depositos', 'categoriasVenta', 'depositoPorDefecto', 'depositoEfectivo'
+            'CurrentPage', 'depositos', 'categoriasVenta', 'listasPrecio', 'depositoPorDefecto', 'depositoEfectivo'
         ));
     }
 
@@ -67,6 +68,7 @@ class MercadoLibreConfiguracionController extends Controller
                 'frecuencia_sync_minutos' => $configuracion->frecuencia_sync_minutos,
                 'deposito_id' => $configuracion->deposito_id,
                 'categoria_venta_id' => $configuracion->categoria_venta_id,
+                'lista_precio_id' => $configuracion->lista_precio_id,
                 'dias_primera_sync' => $configuracion->dias_primera_sync,
                 'ultima_sync_en' => optional($configuracion->ultima_sync_en)->toIso8601String(),
                 'ultima_sync_resultado' => $configuracion->ultima_sync_resultado,
@@ -128,7 +130,24 @@ class MercadoLibreConfiguracionController extends Controller
     public function guardarVentas(GuardarConfiguracionVentasMercadoLibreRequest $request): JsonResponse
     {
         $configuracion = MercadoLibreConfiguracion::actual();
-        $configuracion->update($request->validated());
+        $datos = $request->validated();
+        $listaPrecioIdAnterior = $configuracion->lista_precio_id;
+
+        $configuracion->update($datos);
+
+        // FR-007 (spec 016, US5): si cambió cuál es la Lista de Precios configurada,
+        // empujar de inmediato el precio vigente de la nueva lista a los vínculos
+        // actuales. No se expone en esta misma respuesta (contracts §3) — el
+        // resultado se ve reflejado en el estado por-vínculo de "Vinculaciones".
+        // Comparación por (int): el valor recién guardado llega del request como
+        // string (form-urlencoded), mientras que $listaPrecioIdAnterior es el
+        // entero que ya había devuelto Eloquent — comparar con !== sin castear
+        // los consideraba "distintos" en cada guardado, aunque no hubiera cambio.
+        $listaPrecioIdNueva = $datos['lista_precio_id'] ?? null;
+
+        if ($listaPrecioIdNueva !== null && (int) $listaPrecioIdNueva !== (int) $listaPrecioIdAnterior) {
+            app(\App\Services\MercadoLibre\SincronizadorPrecios::class)->sincronizarListaCompleta((int) $listaPrecioIdNueva);
+        }
 
         return response()->json([
             'ok' => true,
