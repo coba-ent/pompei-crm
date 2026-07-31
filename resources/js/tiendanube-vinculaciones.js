@@ -64,7 +64,81 @@
         inicializarListado();
         inicializarModalAlta();
         inicializarEliminar();
+        inicializarImportar();
     });
+
+    const MOTIVOS_TN = {
+        producto_no_encontrado: 'El SKU no corresponde a ningún producto',
+        tiendanube_no_encontrado: 'El "Identificador de URL" no existe en el catálogo en vivo de Tiendanube',
+        ya_vinculado: 'Ya está vinculado',
+    };
+
+    function inicializarImportar() {
+        const modalEl = document.getElementById('modal-importar-vinculaciones');
+        const $btnAbrir = $('#btn-importar-vinculaciones');
+        if (!modalEl || !$btnAbrir.length) { return; }
+        const modal = new bootstrap.Modal(modalEl);
+
+        $btnAbrir.on('click', () => {
+            $('#form-importar-vinculaciones')[0].reset();
+            $('#importar-archivo').removeClass('is-invalid');
+            $('#error-importar-archivo').text('');
+            $('#resultado-importar-vinculaciones').empty();
+            modal.show();
+        });
+
+        $('#form-importar-vinculaciones').on('submit', function (e) {
+            e.preventDefault();
+
+            const archivo = $('#importar-archivo')[0].files[0];
+            $('#importar-archivo').removeClass('is-invalid');
+            $('#error-importar-archivo').text('');
+
+            if (!archivo) {
+                $('#importar-archivo').addClass('is-invalid');
+                $('#error-importar-archivo').text('Elegí un archivo.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('archivo', archivo);
+
+            const $btn = $('#btn-confirmar-importar-vinculaciones');
+            $btn.prop('disabled', true);
+
+            $.ajax({
+                url: rutas.importar, method: 'POST', data: formData,
+                contentType: false, processData: false,
+            })
+                .done((resp) => {
+                    toast('success', resp.mensaje || 'Importación ejecutada.');
+                    $('#resultado-importar-vinculaciones').html(renderResultadoImportar(resp));
+                    if (tabla && resp.vinculadas > 0) { tabla.ajax.reload(null, false); }
+                })
+                .fail((xhr) => {
+                    const resp = xhr.responseJSON || {};
+                    if (xhr.status === 422 && resp.errors && resp.errors.archivo) {
+                        $('#importar-archivo').addClass('is-invalid');
+                        $('#error-importar-archivo').text(resp.errors.archivo[0]);
+                    }
+                    toast('error', resp.message || resp.mensaje || 'No se pudo importar el archivo.');
+                })
+                .always(() => {
+                    $btn.prop('disabled', false);
+                });
+        });
+    }
+
+    function renderResultadoImportar(resp) {
+        const filas = (resp.detalle_fallidas || []).map((f) => (
+            '<tr><td>' + $('<div>').text(f.referencia).html() + '</td><td>'
+            + $('<div>').text(MOTIVOS_TN[f.motivo] || f.motivo).html() + '</td></tr>'
+        )).join('');
+
+        return '<hr><p>' + resp.vinculadas + ' vinculada(s), ' + resp.fallidas + ' sin vincular de ' + resp.total + ' filas.</p>'
+            + '<div class="table-responsive"><table class="table table-sm"><thead><tr><th>SKU</th><th>Motivo</th></tr></thead><tbody>'
+            + filas + '</tbody></table></div>';
+    }
 
     function inicializarListado() {
         const $tabla = $('#tabla-tn-vinculaciones');

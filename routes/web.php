@@ -19,6 +19,7 @@ use App\Http\Controllers\Ingresos\TiendanubeVentaController;
 use App\Http\Controllers\Ingresos\TiendanubeVinculacionController;
 use App\Http\Controllers\Integraciones\TiendanubeConfiguracionController;
 use App\Http\Controllers\Integraciones\TiendanubeOAuthController;
+use App\Http\Controllers\Integraciones\TiendanubeWebhookController;
 use App\Http\Controllers\ImportacionController;
 use App\Http\Controllers\Informes\InformeStockController;
 use App\Http\Controllers\ListaPrecioController;
@@ -35,6 +36,15 @@ use App\Http\Controllers\VentaController;
 use Illuminate\Support\Facades\Route;
 
 require __DIR__.'/auth.php';
+
+// Webhooks obligatorios de privacidad de la Application de Tiendanube (partner
+// portal) — Tiendanube los llama sin sesión ni cookie, por eso van fuera del
+// grupo `auth` y están exceptuados de CSRF (ver bootstrap/app.php).
+Route::prefix('webhooks/tiendanube')->name('webhooks.tiendanube.')->group(function () {
+    Route::post('store-redact', [TiendanubeWebhookController::class, 'storeRedact'])->name('storeRedact');
+    Route::post('customers-redact', [TiendanubeWebhookController::class, 'customersRedact'])->name('customersRedact');
+    Route::post('customers-data-request', [TiendanubeWebhookController::class, 'customersDataRequest'])->name('customersDataRequest');
+});
 
 // Toda la app requiere sesión iniciada (spec 013 — controla el acceso al sistema completo).
 Route::middleware('auth')->group(function () {
@@ -179,7 +189,7 @@ Route::middleware('permiso:ventas.ver')->prefix('ingresos/mercadolibre')->name('
         Route::get('/', [MercadoLibreVinculacionController::class, 'index'])->name('index');
         Route::get('datatable', [MercadoLibreVinculacionController::class, 'datatable'])->name('datatable');
         Route::get('pendientes', [MercadoLibreVinculacionController::class, 'publicacionesPendientes'])->name('pendientes');
-        Route::post('/', [MercadoLibreVinculacionController::class, 'store'])->name('store');
+        Route::post('vincular-automaticamente', [MercadoLibreVinculacionController::class, 'vincularAutomaticamente'])->name('vincularAutomaticamente');
         Route::patch('{vinculacion}', [MercadoLibreVinculacionController::class, 'update'])->name('update');
         Route::delete('{vinculacion}', [MercadoLibreVinculacionController::class, 'destroy'])->name('destroy');
     });
@@ -203,6 +213,7 @@ Route::middleware('permiso:ventas.ver')->prefix('ingresos/tiendanube')->name('in
         Route::get('datatable', [TiendanubeVinculacionController::class, 'datatable'])->name('datatable');
         Route::get('pendientes', [TiendanubeVinculacionController::class, 'variantesPendientes'])->name('pendientes');
         Route::post('/', [TiendanubeVinculacionController::class, 'store'])->name('store');
+        Route::post('importar', [TiendanubeVinculacionController::class, 'importar'])->name('importar');
         Route::patch('{vinculacion}', [TiendanubeVinculacionController::class, 'update'])->name('update');
         Route::delete('{vinculacion}', [TiendanubeVinculacionController::class, 'destroy'])->name('destroy');
     });

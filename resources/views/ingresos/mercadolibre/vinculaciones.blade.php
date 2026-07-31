@@ -13,8 +13,8 @@
                 <a href="{{ route('ingresos.mercadolibre.index') }}" class="btn btn-outline-secondary me-1">
                     <i class="fas fa-arrow-left me-1"></i> Volver a Mercado Libre
                 </a>
-                <button type="button" class="btn btn-primary" id="btn-nueva-vinculacion">
-                    <i class="fas fa-plus me-1"></i> Nueva vinculación
+                <button type="button" class="btn btn-primary" id="btn-vincular-automaticamente">
+                    <i class="fas fa-bolt me-1"></i> Vincular automáticamente
                 </button>
             </div>
         </div>
@@ -51,7 +51,7 @@
         <div class="modal-content">
             <form id="form-vinculacion">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="modal-vinculacion-titulo">Nueva vinculación</h5>
+                    <h5 class="modal-title" id="modal-vinculacion-titulo">Editar vinculación</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                 </div>
                 <div class="modal-body">
@@ -99,6 +99,21 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="modal-resultado-vinculacion-automatica" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Resultado de la vinculación automática</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body" id="resultado-vinculacion-automatica-body"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('local-js')
@@ -107,7 +122,7 @@
         rutas: {
             datatable: @json(route('ingresos.mercadolibre.vinculaciones.datatable')),
             pendientes: @json(route('ingresos.mercadolibre.vinculaciones.pendientes')),
-            store: @json(route('ingresos.mercadolibre.vinculaciones.store')),
+            vincularAutomaticamente: @json(route('ingresos.mercadolibre.vinculaciones.vincularAutomaticamente')),
             base: @json(url('ingresos/mercadolibre/vinculaciones')),
             productosOpciones: @json(route('productos.opciones')),
         },

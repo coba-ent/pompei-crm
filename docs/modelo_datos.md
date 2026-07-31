@@ -727,6 +727,14 @@ Vinculación **estrictamente 1:1**, infraestructura compartida con la spec 013. 
 > independiente del default de Tiendanube (sin fallback compartido entre integraciones). Detalle
 > completo en `specs/020-vendedores/data-model.md`.
 
+> **Mecanismo de vinculación (spec 021, planificada) — sin columna nueva**: `ml_item_id`/`producto_id`
+> se siguen creando igual que hoy, pero el `producto_id` deja de elegirse a mano — se resuelve
+> automáticamente comparando `ml_orden_items.sku_vendedor` (más reciente para ese `ml_item_id`) contra
+> el **`id`** (clave primaria) de `productos`, no contra `codigo`. Confirmado que no hace falta ningún
+> campo nuevo: el negocio va a asignar a propósito ese mismo `id` al dar de alta los productos que hoy
+> sólo existen en Mercado Libre. Detalle completo en
+> `specs/021-vinculacion-automatica-sku/data-model.md`.
+
 ### `ventas` (columna nueva)
 `origen` (enum `manual`/`presupuesto`/`mercadolibre`, default `manual`). Explicita el tercer origen;
 "Creada Desde" hoy se deriva de `presupuesto_id`.
@@ -900,6 +908,14 @@ resultado persistir acá.
 `vendedores`, nullable, `restrictOnDelete`). "Vendedor por defecto" para las Ventas creadas
 automáticamente por sincronización de Tiendanube, independiente del de Mercado Libre. Detalle
 completo en `specs/020-vendedores/data-model.md`.
+
+**Mecanismo de importación masiva (spec 021, planificada) — sin columna nueva**: además del alta
+manual ya existente, `variant_id`/`tn_product_id`/`producto_id` se pueden crear en lote importando el
+archivo de productos que Tiendanube ya exporta. `producto_id` se resuelve por `productos.codigo` (match
+exacto o por el número inicial); `variant_id`/`tn_product_id` se resuelven consultando el catálogo de
+Tiendanube en vivo (tool `list_products` del MCP ya conectado) por el "Identificador de URL" de cada
+fila del archivo — el SKU de Tiendanube nunca viaja por esa integración, sólo por el archivo. Detalle
+completo en `specs/021-vinculacion-automatica-sku/data-model.md`.
 
 ### `clientes` (columna nueva)
 `tn_customer_id` (bigint, nullable) — análogo a `ml_user_id` (§8): emparejamiento estable del comprador,

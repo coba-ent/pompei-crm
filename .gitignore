@@ -38,6 +38,13 @@ CREDENCIALES_ACCESO.txt
 # Datos reales del cliente / archivos sueltos de trabajo en la raíz
 /*.csv
 /*.png
+/*.json
+!/composer.json
+!/package.json
+!/package-lock.json
+
+# Archivos subidos por el flujo de Importación (datos reales del cliente)
+/public/imports
 
 # Permisos locales de Claude Code (por maquina, no se versiona)
 /.claude/settings.local.json

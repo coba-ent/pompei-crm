@@ -7,6 +7,7 @@ use App\Http\Requests\Integraciones\VincularPublicacionRequest;
 use App\Models\Integraciones\MercadoLibreConfiguracion;
 use App\Models\Integraciones\MercadoLibreOrdenItem;
 use App\Models\Integraciones\MercadoLibrePublicacionProducto;
+use App\Services\MercadoLibre\VinculadorAutomatico;
 use App\Services\Stock\StockService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -107,18 +108,16 @@ class MercadoLibreVinculacionController extends Controller
         return response()->json(['data' => $publicaciones]);
     }
 
-    public function store(VincularPublicacionRequest $request): JsonResponse
+    /** FR-001..FR-005: reemplaza al alta manual por selector (ver contracts/rutas-internas.md). */
+    public function vincularAutomaticamente(Request $request, VinculadorAutomatico $vinculador): JsonResponse
     {
-        $vinculacion = MercadoLibrePublicacionProducto::create([
-            ...$request->validated(),
-            'vinculada_por' => $request->user()->id,
-        ]);
+        $resumen = $vinculador->ejecutar($request->user());
 
         return response()->json([
             'ok' => true,
-            'mensaje' => 'Publicación vinculada.',
-            'vinculacion' => $vinculacion->load('producto:id,nombre,codigo'),
-        ], 201);
+            'mensaje' => "{$resumen['vinculadas']} de {$resumen['total']} publicaciones vinculadas.",
+            ...$resumen,
+        ]);
     }
 
     public function update(VincularPublicacionRequest $request, MercadoLibrePublicacionProducto $vinculacion): JsonResponse

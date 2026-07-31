@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Ingresos;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Integraciones\ImportarVinculacionesTiendanubeRequest;
 use App\Http\Requests\Integraciones\VincularVarianteRequest;
 use App\Models\Integraciones\TiendanubeOrdenItem;
 use App\Models\Integraciones\TiendanubeVarianteProducto;
+use App\Services\Tiendanube\ImportadorVinculaciones;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Yajra\DataTables\Facades\DataTables;
@@ -94,6 +96,18 @@ class TiendanubeVinculacionController extends Controller
             ]);
 
         return response()->json(['data' => $variantes]);
+    }
+
+    /** FR-009..FR-016: importación masiva desde el export nativo de Tiendanube (contracts/rutas-internas.md). */
+    public function importar(ImportarVinculacionesTiendanubeRequest $request, ImportadorVinculaciones $importador): JsonResponse
+    {
+        $resumen = $importador->importar($request->file('archivo')->getRealPath(), $request->user());
+
+        return response()->json([
+            'ok' => true,
+            'mensaje' => "{$resumen['vinculadas']} de {$resumen['total']} vinculaciones creadas.",
+            ...$resumen,
+        ]);
     }
 
     public function store(VincularVarianteRequest $request): JsonResponse

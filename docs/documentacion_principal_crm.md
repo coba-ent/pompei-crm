@@ -410,6 +410,13 @@ Ver §5.2 para la divergencia deliberada de todo el módulo (aplicación propia 
   **estrictamente 1:1**, garantizada por índices únicos. Es infraestructura compartida con la spec 013.
   Las publicaciones **con variantes no están soportadas** (el negocio no las usa) y se rechazan en vez
   de vincularse de forma ambigua.
+  > 📋 **Vinculación automática por SKU (spec 021, planificada)**: el SKU del vendedor visto en las
+  > órdenes ya sincronizadas corresponde al `id` (clave primaria) del producto en el CRM — el negocio
+  > va a crear cada producto nuevo asignándole a propósito ese mismo identificador, sin necesidad de
+  > ningún campo adicional. La pantalla deja de tener alta manual por selector: un botón "Vincular
+  > automáticamente" resuelve `Producto::find((int) $sku)` por cada publicación pendiente y crea el
+  > vínculo solo. Editar el producto de un vínculo existente y eliminarlo siguen disponibles. Ver
+  > `specs/021-vinculacion-automatica-sku/`.
 - **Conversión a Venta**, manual o **automática** (interruptor en la configuración de Mercado Libre).
   La Venta se crea cobrada contra la cuenta de Tesorería **Mercado Pago** (§3.7) y descuenta stock del
   **depósito configurado**. Cliente emparejado por **Apodo ML** (§2.1) o creado automáticamente.
@@ -519,6 +526,16 @@ Mercado Libre en vez de calcar una pantalla real.
   Tiendanube siempre expone un identificador de **variante** por línea de pedido —incluso los productos
   sin variantes reales tienen una "variante virtual" única—, así que el vínculo persistente 1:1 es
   variante↔producto del CRM. Pantalla propia de administración, igual patrón que Mercado Libre.
+  > 📋 **Importación de vinculaciones desde el export nativo (spec 021, planificada)**: la integración
+  > conectada (MCP oficial de Tiendanube) no expone el SKU de ningún producto por ninguna vía —
+  > confirmado exhaustivamente contra la tienda real. El SKU sí corresponde al `codigo` del producto en
+  > el CRM (confirmado con 98.8% de coincidencia sobre datos reales), pero sólo se puede obtener del
+  > archivo que el negocio exporta a mano desde el panel de Tiendanube — nunca en vivo. La pantalla suma
+  > una importación masiva que sube ese archivo tal cual (sin plantilla propia): resuelve el producto por
+  > `codigo` y el `product_id`/`variant_id` real de Tiendanube consultando el catálogo en vivo
+  > (`list_products`) por el "Identificador de URL" de cada fila — sin depender de que el producto haya
+  > vendido antes. El alta manual con selector (spec 017) sigue intacta. Ver
+  > `specs/021-vinculacion-automatica-sku/`.
 - **Conversión a Venta**, manual o automática (interruptor en la configuración de Tiendanube). La Venta
   se crea cobrada contra la **cuenta de Tesorería configurable** (a diferencia de Mercado Libre, que
   siempre usa "Mercado Pago": Tiendanube admite múltiples medios de pago sin una pasarela canónica) y
@@ -990,9 +1007,18 @@ creadas al convertir una orden sigue derivándose exclusivamente del importe pag
 como en las etapas 2 y 3; esas Ventas tampoco quedan etiquetadas con esta Lista de Precios. Ver §3.2.bis;
 `specs/016-lista-precio-mercadolibre/`.
 
-**Sigue fuera de alcance** (etapas 2, 3 y 4 combinadas): sincronización de título, descripción, imágenes
-o estado (pausar/activar) de la publicación; comisión de Mercado Libre y costo de envío; importación
-masiva de publicaciones; preguntas, mensajería y webhooks de negocio.
+**Etapa 5 — Vinculación automática por SKU (spec 021, planificada)**: reemplaza el alta manual de la
+vinculación publicación↔producto (§3.2.bis) por un botón que la resuelve sola, comparando el SKU del
+vendedor visto en órdenes ya sincronizadas contra el `id` del producto en el CRM — sin campo nuevo, sin
+migración de esquema. Confirmado en vivo contra la cuenta real: el endpoint de búsqueda por SKU de
+Mercado Libre funciona, pero esta spec no lo necesita (resuelve contra órdenes ya sincronizadas, igual
+que el resto del módulo). Ver §3.2.bis; `specs/021-vinculacion-automatica-sku/`.
+
+**Sigue fuera de alcance** (etapas 2, 3, 4 y 5 combinadas): sincronización de título, descripción,
+imágenes o estado (pausar/activar) de la publicación; comisión de Mercado Libre y costo de envío;
+importación masiva de publicaciones (catálogo); vinculación de publicaciones que nunca vendieron
+(requeriría consultar el catálogo de ML en vivo, fuera de alcance); preguntas, mensajería y webhooks de
+negocio.
 
 **Restricciones de infraestructura** (aplican a todo el módulo): requiere que el CRM esté publicado en
 una dirección pública con conexión segura — Mercado Libre no admite direcciones locales ni sin cifrar,
@@ -1085,6 +1111,15 @@ Libre. Agrega `tn_product_id` a la vinculación variante↔producto (la API de T
 no sólo la variante, para actualizar stock). **Ampliación**: agrega también la gestión de precios
 (`tn_configuracion.lista_precio_id`), mismo patrón que la spec 016 para Mercado Libre — disparo por
 evento, sin cron, botón en Productos. Ver §3.2.quinquies; `specs/018-stock-tiendanube/`.
+
+**Etapa 4 — Importación de vinculaciones desde el export nativo (spec 021, planificada)**: agrega a la
+pantalla de vinculación (§3.2.quater) la posibilidad de subir el archivo de productos que Tiendanube ya
+permite exportar (sin plantilla propia) para crear vinculaciones en lote — el alta manual con selector
+sigue intacta. La integración conectada (MCP oficial) no expone el SKU de ningún producto, así que el
+SKU sólo sale de ese archivo; el `codigo` del producto en el CRM lo matchea (confirmado 98.8% sobre
+datos reales), y los ids reales de Tiendanube se resuelven consultando el catálogo en vivo por el
+"Identificador de URL" de cada fila (confirmado 100% sobre datos reales) — sin depender de que el
+producto haya vendido antes. Ver §3.2.quater; `specs/021-vinculacion-automatica-sku/`.
 
 > ✅ **Actualización (spec 017, 30/07/2026): implementada.** Listado, sincronización (`SincronizadorOrdenes`),
 > vinculación variante↔producto (`TiendanubeVarianteProducto`), conversión manual y automática

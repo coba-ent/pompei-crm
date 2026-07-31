@@ -45,7 +45,56 @@
         inicializarListado();
         inicializarModalAlta();
         inicializarEliminar();
+        inicializarVinculacionAutomatica();
     });
+
+    const MOTIVOS_ML = {
+        sin_sku: 'Sin SKU de vendedor cargado',
+        producto_no_encontrado: 'El SKU no corresponde a ningún producto',
+        ya_vinculado: 'El producto ya está vinculado a otra publicación',
+    };
+
+    function inicializarVinculacionAutomatica() {
+        const $btn = $('#btn-vincular-automaticamente');
+        if (!$btn.length) { return; }
+
+        const modalEl = document.getElementById('modal-resultado-vinculacion-automatica');
+        const modal = modalEl ? new bootstrap.Modal(modalEl) : null;
+
+        $btn.on('click', function () {
+            $btn.prop('disabled', true);
+
+            $.ajax({ url: rutas.vincularAutomaticamente, method: 'POST' })
+                .done((resp) => {
+                    toast('success', resp.mensaje || 'Vinculación automática ejecutada.');
+
+                    if (resp.fallidas > 0 && modal) {
+                        $('#resultado-vinculacion-automatica-body').html(renderResultadoVinculacionAutomatica(resp));
+                        modal.show();
+                    }
+
+                    if (tabla && resp.vinculadas > 0) { tabla.ajax.reload(null, false); }
+                })
+                .fail((xhr) => {
+                    const resp = xhr.responseJSON || {};
+                    toast('error', resp.mensaje || resp.message || 'No se pudo ejecutar la vinculación automática.');
+                })
+                .always(() => {
+                    $btn.prop('disabled', false);
+                });
+        });
+    }
+
+    function renderResultadoVinculacionAutomatica(resp) {
+        const filas = (resp.detalle_fallidas || []).map((f) => (
+            '<tr><td>' + $('<div>').text(f.referencia).html() + '</td><td>'
+            + $('<div>').text(MOTIVOS_ML[f.motivo] || f.motivo).html() + '</td></tr>'
+        )).join('');
+
+        return '<p>' + resp.vinculadas + ' vinculada(s), ' + resp.fallidas + ' sin vincular de ' + resp.total + ' publicaciones pendientes.</p>'
+            + '<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Publicación</th><th>Motivo</th></tr></thead><tbody>'
+            + filas + '</tbody></table></div>';
+    }
 
     function inicializarListado() {
         const $tabla = $('#tabla-ml-vinculaciones');
@@ -202,17 +251,6 @@
         if (!modalEl) { return; }
         const modal = new bootstrap.Modal(modalEl);
 
-        $('#btn-nueva-vinculacion').on('click', () => {
-            idEnEdicion = null;
-            limpiarErrores();
-            $('#modal-vinculacion-titulo').text('Nueva vinculación');
-            $('#vinculacion-id').val('');
-            $('#vinculacion-titulo-ml').val('');
-            mostrarSelectPublicacion(null, false);
-            mostrarSelectProducto(null);
-            modal.show();
-        });
-
         $(document).on('click', '.js-editar-vinculacion', function (e) {
             e.preventDefault();
             const $btn = $(this);
@@ -242,11 +280,8 @@
                 producto_id: $('#vinculacion-producto-id').val(),
             };
 
-            const esEdicion = !!idEnEdicion;
-            const url = esEdicion ? rutas.base + '/' + idEnEdicion : rutas.store;
-            const metodo = esEdicion ? 'PATCH' : 'POST';
-
-            $.ajax({ url, method: metodo, data: payload })
+            // Sólo edición: el alta manual se reemplazó por la vinculación automática.
+            $.ajax({ url: rutas.base + '/' + idEnEdicion, method: 'PATCH', data: payload })
                 .done((resp) => {
                     toast('success', resp.mensaje || 'Vinculación guardada.');
                     modal.hide();

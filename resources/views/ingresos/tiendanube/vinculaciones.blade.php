@@ -16,6 +16,9 @@
                 <button type="button" class="btn btn-primary" id="btn-nueva-vinculacion">
                     <i class="fas fa-plus me-1"></i> Nueva vinculación
                 </button>
+                <button type="button" class="btn btn-outline-primary" id="btn-importar-vinculaciones">
+                    <i class="fas fa-file-import me-1"></i> Importar desde Tiendanube
+                </button>
             </div>
         </div>
 
@@ -98,6 +101,32 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="modal-importar-vinculaciones" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <form id="form-importar-vinculaciones">
+                <div class="modal-header">
+                    <h5 class="modal-title">Importar desde Tiendanube</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Archivo de productos exportado desde Tiendanube</label>
+                        <input type="file" class="form-control" id="importar-archivo" accept=".xlsx,.xls,.csv">
+                        <div class="form-text">Subí el archivo tal como lo exporta Tiendanube (Productos → Exportar), sin editarlo.</div>
+                        <div class="invalid-feedback" id="error-importar-archivo"></div>
+                    </div>
+                    <div id="resultado-importar-vinculaciones"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cerrar</button>
+                    <button type="submit" class="btn btn-primary" id="btn-confirmar-importar-vinculaciones">Importar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('local-js')
@@ -107,6 +136,7 @@
             datatable: @json(route('ingresos.tiendanube.vinculaciones.datatable')),
             pendientes: @json(route('ingresos.tiendanube.vinculaciones.pendientes')),
             store: @json(route('ingresos.tiendanube.vinculaciones.store')),
+            importar: @json(route('ingresos.tiendanube.vinculaciones.importar')),
             base: @json(url('ingresos/tiendanube/vinculaciones')),
             productosOpciones: @json(route('productos.opciones')),
         },
