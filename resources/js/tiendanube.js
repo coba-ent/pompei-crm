@@ -1,8 +1,8 @@
 /**
- * Configuración & Ajustes → Tiendanube (spec 019: conexión OAuth/MCP).
- * Panel de estado, modo sólo lectura e historial — todo por AJAX, sin
- * recarga de página. "Conectar con Tiendanube" es un link normal (redirige
- * fuera del sitio a admin-mcp.tiendanube.com/authorize), no un submit AJAX.
+ * Configuración & Ajustes → Tiendanube (spec 022/024: conexión Application
+ * REST clásica). Panel de estado, configuración de ventas, modo sólo lectura
+ * e historial — todo por AJAX, sin recarga de página. "Conectar" es un link
+ * normal (redirige fuera del sitio al Partner Portal), no un submit AJAX.
  */
 (function () {
     'use strict';
@@ -39,12 +39,6 @@
     const CSRF = $('meta[name="csrf-token"]').attr('content');
     $.ajaxSetup({ headers: { 'X-CSRF-TOKEN': CSRF } });
 
-    const ESTADOS = {
-        no_configurada: { etiqueta: 'No configurada', color: 'secondary' },
-        conectada: { etiqueta: 'Conectada', color: 'success' },
-        caida: { etiqueta: 'Caída', color: 'danger' },
-    };
-
     function formatearFecha(iso) {
         if (!iso) {
             return '—';
@@ -57,7 +51,7 @@
     }
 
     $(function () {
-        const $pagina = $('#tn-panel-estado');
+        const $pagina = $('#form-ventas-tn');
         if (!$pagina.length) {
             return;
         }
@@ -314,88 +308,6 @@
                 });
         });
 
-        // --- Panel de estado ---
-        function pintarEstado(resp) {
-            const info = ESTADOS[resp.estado] || ESTADOS.no_configurada;
-            $('#tn-badge-estado').attr('class', 'badge bg-' + info.color).text(info.etiqueta);
-
-            const conf = resp.configuracion || {};
-            const conectada = resp.estado === 'conectada';
-            const caida = resp.estado === 'caida';
-
-            $('#tn-datos-conexion').toggle(conectada || caida);
-            if (conectada || caida) {
-                $('#tn-conectada-en').text(formatearFecha(conf.conectada_en));
-                $('#tn-productos-total').text(conf.productos_total != null ? conf.productos_total : '—');
-                $('#tn-scopes-otorgados').text(conf.scopes_otorgados || '—');
-
-                const $dias = $('#tn-dias-restantes');
-                if (conf.dias_restantes != null) {
-                    const dias = conf.dias_restantes;
-                    const texto = dias <= 0
-                        ? 'El token venció (o vence hoy) — hay que renovarlo con soporte técnico.'
-                        : 'Vence en ' + dias + ' día' + (dias === 1 ? '' : 's') + ' (' + formatearFecha(conf.token_expira_en) + ').';
-                    $dias.text(texto).removeClass('text-muted text-warning text-danger')
-                        .addClass(dias <= 0 ? 'text-danger fw-bold' : (dias <= 30 ? 'text-warning fw-bold' : 'text-muted'));
-                } else {
-                    $dias.text('—').attr('class', 'small text-muted');
-                }
-            }
-
-            // spec 017 — configuración de ventas.
-            $('#tn-creacion-automatica').prop('checked', !!conf.creacion_automatica);
-            $('#tn-frecuencia-sync').val(conf.frecuencia_sync_minutos || 15);
-            $('#tn-dias-primera-sync').val(conf.dias_primera_sync || 30);
-            if ($('#tn-deposito-id').val() !== undefined) {
-                $('#tn-deposito-id').val(conf.deposito_id || '').trigger('change.select2');
-            }
-            if ($('#tn-categoria-venta-id').val() !== undefined) {
-                renderCategorias(conf.categoria_venta_id || '');
-            }
-            if ($('#tn-cuenta-tesoreria-id').val() !== undefined) {
-                $('#tn-cuenta-tesoreria-id').val(conf.cuenta_tesoreria_id || '').trigger('change.select2');
-            }
-            if ($('#tn-lista-precio-id').val() !== undefined) {
-                $('#tn-lista-precio-id').val(conf.lista_precio_id || '').trigger('change.select2');
-            }
-            if ($('#tn-vendedor-id').val() !== undefined) {
-                $('#tn-vendedor-id').val(conf.vendedor_id || '').trigger('change.select2');
-                vendedorPrevio = conf.vendedor_id ? String(conf.vendedor_id) : '';
-                actualizarBotonesVendedor();
-            }
-            $('#tn-ultima-sync-info').text(
-                conf.ultima_sync_en
-                    ? 'Última sincronización: ' + formatearFecha(conf.ultima_sync_en) + (conf.ultima_sync_resultado ? ' — ' + conf.ultima_sync_resultado : '')
-                    : 'Todavía no se sincronizó ninguna orden.'
-            );
-            // spec 018 — última corrida de sincronización de stock.
-            $('#tn-stock-ultima-sync-info').text(
-                conf.stock_ultima_sync_en
-                    ? 'Última sincronización de stock: ' + formatearFecha(conf.stock_ultima_sync_en) + (conf.stock_ultima_sync_resultado ? ' — ' + conf.stock_ultima_sync_resultado : '')
-                    : 'Todavía no se sincronizó stock hacia Tiendanube.'
-            );
-
-            // El botón "Conectar con Tiendanube" queda deshabilitado a propósito: admin-mcp.tiendanube.com
-            // sólo acepta conexiones OAuth con redirect_uri local (localhost), nunca desde el dominio
-            // público del CRM — no hay flujo self-service posible desde el navegador (ver aviso).
-            $('#btn-conectar-tn').toggle(!conectada);
-            $('#btn-desconectar-tn').toggle(conectada || caida);
-
-            $('#tn-aviso-sin-conexion').toggleClass('d-none', conectada);
-            if (!conectada) {
-                const mensaje = caida
-                    ? (resp.ultimo_error || 'La conexión está caída.')
-                    : 'Tiendanube todavía no está conectado.';
-                $('#tn-aviso-sin-conexion-mensaje').text(mensaje + ' ');
-            }
-        }
-
-        function cargarEstado() {
-            return $.getJSON(rutas.estado).done(pintarEstado).fail(function () {
-                toast('error', 'No se pudo cargar el estado de la conexión.');
-            });
-        }
-
         // --- Ventas de Tiendanube (spec 017) ---
         $('#form-ventas-tn').on('submit', function (e) {
             e.preventDefault();
@@ -414,7 +326,7 @@
             $.ajax({ url: rutas.guardarVentas, method: 'PATCH', dataType: 'json', data: datos })
                 .done(function (resp) {
                     toast('success', resp.mensaje);
-                    cargarEstado();
+                    cargarEstadoRest();
                 })
                 .fail(function (xhr) {
                     const resp = xhr.responseJSON || {};
@@ -435,26 +347,6 @@
                 .fail(function () {
                     $checkbox.prop('checked', !activo);
                     toast('error', 'No se pudo actualizar el modo sólo lectura.');
-                });
-        });
-
-        // --- Desconectar ---
-        $('#btn-confirmar-desconectar-tn').on('click', function () {
-            const $btn = window.AppBtn.loading($(this), true);
-            $.ajax({ url: rutas.desconectar, method: 'POST', dataType: 'json' })
-                .done(function (resp) {
-                    toast('success', resp.mensaje);
-                    cargarEstado();
-                })
-                .fail(function (xhr) {
-                    const resp = xhr.responseJSON || {};
-                    toast('error', resp.mensaje || 'No se pudo desconectar.');
-                })
-                .always(function () {
-                    window.AppBtn.loading($btn, false);
-                    const $modal = $('#modal-desconectar-tn');
-                    const instancia = window.bootstrap ? window.bootstrap.Modal.getInstance($modal[0]) : null;
-                    instancia ? instancia.hide() : $modal.hide();
                 });
         });
 
@@ -509,11 +401,6 @@
             });
         }
 
-        cargarEstado();
-
-        // ---- Conexión REST (Application del Partner Portal, spec 022) ----
-        // Aislada del panel de arriba: rutas, estado y toasts propios, sin tocar
-        // nada del manejo de la conexión MCP definido más arriba en este archivo.
         const ESTADOS_REST = {
             no_configurada: { etiqueta: 'No configurada', color: 'secondary' },
             conectada: { etiqueta: 'Conectada', color: 'success' },
@@ -543,14 +430,45 @@
             if (caida) {
                 $('#tn-rest-aviso-caida-mensaje').text(resp.ultimo_error || 'La conexión está caída. Volvé a conectar.');
             }
+
+            // spec 024 (retiro MCP) — configuración de ventas, ahora parte de esta misma respuesta.
+            $('#tn-modo-solo-lectura').prop('checked', !!conexion.modo_solo_lectura);
+            $('#tn-aviso-solo-lectura').toggleClass('d-none', !conexion.modo_solo_lectura);
+            $('#tn-creacion-automatica').prop('checked', !!conexion.creacion_automatica);
+            $('#tn-frecuencia-sync').val(conexion.frecuencia_sync_minutos || 15);
+            $('#tn-dias-primera-sync').val(conexion.dias_primera_sync || 30);
+            if ($('#tn-deposito-id').val() !== undefined) {
+                $('#tn-deposito-id').val(conexion.deposito_id || '').trigger('change.select2');
+            }
+            if ($('#tn-categoria-venta-id').val() !== undefined) {
+                renderCategorias(conexion.categoria_venta_id || '');
+            }
+            if ($('#tn-cuenta-tesoreria-id').val() !== undefined) {
+                $('#tn-cuenta-tesoreria-id').val(conexion.cuenta_tesoreria_id || '').trigger('change.select2');
+            }
+            if ($('#tn-lista-precio-id').val() !== undefined) {
+                $('#tn-lista-precio-id').val(conexion.lista_precio_id || '').trigger('change.select2');
+            }
+            if ($('#tn-vendedor-id').val() !== undefined) {
+                $('#tn-vendedor-id').val(conexion.vendedor_id || '').trigger('change.select2');
+                vendedorPrevio = conexion.vendedor_id ? String(conexion.vendedor_id) : '';
+                actualizarBotonesVendedor();
+            }
+            $('#tn-ultima-sync-info').text(
+                conexion.ultima_sync_en
+                    ? 'Última sincronización: ' + formatearFecha(conexion.ultima_sync_en) + (conexion.ultima_sync_resultado ? ' — ' + conexion.ultima_sync_resultado : '')
+                    : 'Todavía no se sincronizó ninguna orden.'
+            );
+            $('#tn-stock-ultima-sync-info').text(
+                conexion.stock_ultima_sync_en
+                    ? 'Última sincronización de stock: ' + formatearFecha(conexion.stock_ultima_sync_en) + (conexion.stock_ultima_sync_resultado ? ' — ' + conexion.stock_ultima_sync_resultado : '')
+                    : 'Todavía no se sincronizó stock hacia Tiendanube.'
+            );
         }
 
         function cargarEstadoRest() {
-            if (!rutas.estadoRest) {
-                return;
-            }
             $.getJSON(rutas.estadoRest).done(pintarEstadoRest).fail(function () {
-                toast('error', 'No se pudo cargar el estado de la conexión REST.');
+                toast('error', 'No se pudo cargar el estado de la conexión.');
             });
         }
 

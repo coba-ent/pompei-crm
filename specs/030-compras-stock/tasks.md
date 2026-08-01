@@ -40,12 +40,12 @@ Proyecto único Laravel (monolito): `app/`, `tests/` en la raíz del repo — ve
 
 **⚠️ CRITICAL**: Ninguna user story puede completarse sin esta fase.
 
-- [ ] T001 En `app/Services/Stock/StockService.php`, agregar `?string $fecha = null` como **último**
+- [X] T001 En `app/Services/Stock/StockService.php`, agregar `?string $fecha = null` como **último**
   parámetro (después de `$usuario`) de `registrarEntrada()`, `registrarSalida()` y del método privado
   `mover()` que ambos delegan — así ninguna llamada posicional existente de `StockDeVenta` (que no pasa
   `$usuario` ni `$fecha`) se rompe; usar `$fecha ?: now()->toDateString()` en el
   `MovimientoStock::create([...'fecha' => ...])` dentro de `mover()`.
-- [ ] T002 [P] Crear `app/Services/Egresos/StockDeCompra.php` (namespace `App\Services\Egresos`, espejo
+- [X] T002 [P] Crear `app/Services/Egresos/StockDeCompra.php` (namespace `App\Services\Egresos`, espejo
   de `App\Services\Ingresos\StockDeVenta`): constructor con `StockService`; método privado
   `itemsQueMuevenStock(Collection $items)` que filtra `fn (CompraItem $item) => $item->producto &&
   $item->producto->controlaStock()`; método privado `depositoPorDefecto()` que devuelve
@@ -69,23 +69,23 @@ con `origen_type=Compra`.
 
 > Escribir primero, deben fallar antes de implementar T005/T006.
 
-- [ ] T003 [P] [US1] Test en `tests/Feature/CompraStockTest.php`:
+- [X] T003 [P] [US1] Test en `tests/Feature/CompraStockTest.php`:
   `test_alta_de_compra_suma_stock_de_items_que_controlan_stock()` — crea Compra con 1 ítem de producto
   `controla_stock=true` cantidad 10, asert stock depósito por defecto +10, y `MovimientoStock` existe con
   `tipo=entrada`, `cantidad=10`, `origen_type=Compra::class`, `origen_id=$compra->id`,
   `fecha=$compra->fecha_emision`.
-- [ ] T004 [P] [US1] Test en `tests/Feature/CompraStockTest.php`:
+- [X] T004 [P] [US1] Test en `tests/Feature/CompraStockTest.php`:
   `test_alta_de_compra_no_mueve_stock_de_items_que_no_controlan_stock()` — ítem de producto
   `controla_stock=false`, assert cero `MovimientoStock` generados para ese ítem.
 
 ### Implementation for User Story 1
 
-- [ ] T005 [US1] Agregar método público `aplicarAlta(Compra $compra): void` a `StockDeCompra`
+- [X] T005 [US1] Agregar método público `aplicarAlta(Compra $compra): void` a `StockDeCompra`
   (`app/Services/Egresos/StockDeCompra.php`): filtra ítems con `itemsQueMuevenStock($compra->items)`; si
   está vacío, `return`; si no, resuelve `depositoPorDefecto()` y por cada ítem llama
   `$this->stock->registrarEntrada($item->producto, null, $deposito, (float) $item->cantidad, $compra,
   fecha: $compra->fecha_emision->toDateString())`.
-- [ ] T006 [US1] En `app/Http/Controllers/CompraController.php`, inyectar `StockDeCompra` en el
+- [X] T006 [US1] En `app/Http/Controllers/CompraController.php`, inyectar `StockDeCompra` en el
   constructor (junto a `CalculoComprobante`/`Pagos` existentes) y, en `store()`, después de
   `$this->guardarItems($compra, $resultado['items']);` (dentro de la misma transacción `DB::transaction`),
   llamar `$this->stockDeCompra->aplicarAlta($compra->load('items.producto'));`.
@@ -104,21 +104,21 @@ stock neto atribuible a la Compra = +6.
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T007 [P] [US2] Test en `tests/Feature/CompraStockTest.php`:
+- [X] T007 [P] [US2] Test en `tests/Feature/CompraStockTest.php`:
   `test_edicion_de_compra_reintegra_cantidad_anterior_y_aplica_la_nueva()` — Compra con ítem cantidad 10;
   editar a cantidad 6; assert stock neto de la Compra es +6 (no +16 ni +10), y quedan los movimientos de
   reintegro (−10) y reaplicación (+6) en `movimientos_stock`.
-- [ ] T008 [P] [US2] Test en `tests/Feature/CompraStockTest.php`:
+- [X] T008 [P] [US2] Test en `tests/Feature/CompraStockTest.php`:
   `test_edicion_de_compra_reemplaza_producto_del_item()` — Compra con ítem de producto A cantidad 5;
   editar reemplazando por producto B cantidad 5; assert stock de A vuelve a su valor previo y stock de B
   sube en 5.
 
 ### Implementation for User Story 2
 
-- [ ] T009 [US2] Agregar método público `reaplicarPorEdicion(Compra $compra, Collection $itemsAnteriores):
+- [X] T009 [US2] Agregar método público `reaplicarPorEdicion(Compra $compra, Collection $itemsAnteriores):
   void` a `StockDeCompra`: reintegra (via `registrarSalida`, mismo depósito por defecto, misma fecha
   `now()`) los ítems de `$itemsAnteriores` que muevan stock, y luego llama `$this->aplicarAlta($compra)`.
-- [ ] T010 [US2] En `CompraController::update()`, capturar `$itemsAnteriores =
+- [X] T010 [US2] En `CompraController::update()`, capturar `$itemsAnteriores =
   $compra->items()->with('producto')->get();` ANTES de `$compra->items()->delete();` (mismo patrón que
   `VentaController::update()`), y después de `$this->guardarItems($compra, $resultado['items']);` llamar
   `$this->stockDeCompra->reaplicarPorEdicion($compra->load('items.producto'), $itemsAnteriores);`.
@@ -136,17 +136,18 @@ vuelve al valor previo.
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T011 [P] [US3] Test en `tests/Feature/CompraStockTest.php`:
+- [X] T011 [P] [US3] Test en `tests/Feature/CompraStockTest.php`:
   `test_baja_de_compra_reintegra_stock_sumado()` — Compra con ítem cantidad 10; `$compra->delete()`;
-  assert stock del producto vuelve al valor previo al alta, y queda `MovimientoStock` `tipo=entrada`
-  `cantidad=-10` (reintegro) con `origen_type=Compra`.
+  assert stock del producto vuelve al valor previo al alta, y queda `MovimientoStock` `tipo=salida`
+  `cantidad=-10` (reintegro) con `origen_type=Compra` (corregido de "tipo=entrada": `registrarSalida()`
+  siempre persiste `tipo=salida`, T012).
 
 ### Implementation for User Story 3
 
-- [ ] T012 [US3] Agregar método público `reintegrarPorEliminacion(Compra $compra): void` a
+- [X] T012 [US3] Agregar método público `reintegrarPorEliminacion(Compra $compra): void` a
   `StockDeCompra`: filtra ítems que mueven stock y por cada uno llama `registrarSalida(...)` con la
   misma cantidad que había sumado `aplicarAlta` (sin `$fecha` explícito → usa el default `now()`).
-- [ ] T013 [US3] En `app/Observers/CompraObserver.php`, dentro del `DB::transaction` existente del método
+- [X] T013 [US3] En `app/Observers/CompraObserver.php`, dentro del `DB::transaction` existente del método
   `deleting()` (después de revertir los pagos), agregar
   `App::make(\App\Services\Egresos\StockDeCompra::class)->reintegrarPorEliminacion($compra->load('items.producto'));`
   — mismo patrón exacto que `VentaObserver::deleting()` usa para `StockDeVenta`.
@@ -159,7 +160,7 @@ vuelve al valor previo.
 
 **Purpose**: Cierre de la feature — validar atomicidad de punta a punta y dejar corrido el quickstart.
 
-- [ ] T014 [P] Test en `tests/Feature/CompraStockTest.php`:
+- [X] T014 [P] Test en `tests/Feature/CompraStockTest.php`:
   `test_alta_de_compra_es_atomica_con_movimientos_de_stock()` — forzar un fallo de validación en un ítem
   posterior de la misma request (o simular excepción dentro de la transacción) y assert que no queda
   ningún `MovimientoStock` huérfano ni la Compra persistida (FR-007, Edge Cases).

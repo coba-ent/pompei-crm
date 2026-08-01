@@ -128,8 +128,6 @@
             </div>
         </div>
 
-        @include('configuracion.tiendanube._panel_estado')
-
         <div class="card">
             <div class="card-header">
                 <h6 class="mb-0 fw-bold">Historial de operaciones</h6>
@@ -179,7 +177,6 @@
     </div>
 </div>
 
-@include('configuracion.tiendanube._modal_desconectar')
 @include('presupuestos._modal_vendedor')
 @include('presupuestos._modal_categoria')
 @endsection
@@ -188,8 +185,6 @@
 <script>
     window.TiendanubeConfig = {
         rutas: {
-            estado: @json(route('configuracion.tiendanube.estado')),
-            desconectar: @json(route('configuracion.tiendanube.desconectar')),
             estadoRest: @json(route('configuracion.tiendanube.estadoRest')),
             desconectarRest: @json(route('configuracion.tiendanube.desconectarRest')),
             modoSoloLectura: @json(route('configuracion.tiendanube.modoSoloLectura')),
@@ -206,15 +201,6 @@
         categorias: @json($categoriasVenta->map(fn ($c) => ['id' => $c->id, 'nombre' => $c->nombre, 'es_sistema' => $c->es_sistema])),
     };
 </script>
-@if (session('tn_exito'))
-<script>document.addEventListener('DOMContentLoaded', function () { if (window.toastr) { window.toastr.success(@json(session('tn_exito'))); } });</script>
-@endif
-@if (session('tn_error'))
-<script>document.addEventListener('DOMContentLoaded', function () { if (window.toastr) { window.toastr.error(@json(session('tn_error'))); } });</script>
-@endif
-@if (session('tn_info'))
-<script>document.addEventListener('DOMContentLoaded', function () { if (window.toastr) { window.toastr.info(@json(session('tn_info'))); } });</script>
-@endif
 @if (session('tn_rest_exito'))
 <script>document.addEventListener('DOMContentLoaded', function () { if (window.toastr) { window.toastr.success(@json(session('tn_rest_exito'))); } });</script>
 @endif

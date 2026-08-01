@@ -209,7 +209,7 @@ no es una tarea automatizable.
 
 ### Tests for User Story 3
 
-- [ ] T023 [US3] Crear `tests/Feature/Integraciones/TiendanubeRetiroMcpTest.php`: confirmar que
+- [X] T023 [US3] Crear `tests/Feature/Integraciones/TiendanubeRetiroMcpTest.php`: confirmar que
   `SincronizadorOrdenes`, `SincronizadorStock`, `SincronizadorPrecios`, `VinculadorAutomatico` funcionan
   correctamente sin que exista `App\Services\Tiendanube\ClienteTiendanube` en el árbol de clases cargado
   (test de humo post-retiro); confirmar que `Configuración → Tiendanube` (`GET tiendanube`) sólo devuelve el
@@ -217,30 +217,30 @@ no es una tarea automatizable.
 
 ### Implementation for User Story 3
 
-- [ ] T024 [US3] **Backup de base de datos** antes de aplicar la migración destructiva siguiente (paso
+- [X] T024 [US3] **Backup de base de datos** antes de aplicar la migración destructiva siguiente (paso
   operativo manual, spec.md Assumptions — no automatizable, documentar en el checklist de deploy)
-- [ ] T025 [US3] Migración `database/migrations/2026_XX_XX_drop_tn_configuracion_y_tn_operaciones_log_tables.php`:
+- [X] T025 [US3] Migración `database/migrations/2026_XX_XX_drop_tn_configuracion_y_tn_operaciones_log_tables.php`:
   `Schema::dropIfExists('tn_configuracion')` y `Schema::dropIfExists('tn_operaciones_log')` — depende de
   T004 (datos ya migrados) y de la confirmación del gate manual
-- [ ] T026 [P] [US3] Eliminar `App\Services\Tiendanube\ClienteTiendanube`
+- [X] T026 [P] [US3] Eliminar `App\Services\Tiendanube\ClienteTiendanube`
   (`app/Services/Tiendanube/ClienteTiendanube.php`) y `App\Services\Tiendanube\Excepciones\CredencialesIlegiblesException`
   si sólo la usaba esa clase — depende de T018, T019, T020 (ya no tienen esta dependencia)
-- [ ] T027 [P] [US3] Eliminar `App\Http\Controllers\Integraciones\TiendanubeOAuthController`
+- [X] T027 [P] [US3] Eliminar `App\Http\Controllers\Integraciones\TiendanubeOAuthController`
   (`app/Http/Controllers/Integraciones/TiendanubeOAuthController.php`)
-- [ ] T028 [P] [US3] Eliminar `App\Models\Integraciones\TiendanubeConfiguracion`
+- [X] T028 [P] [US3] Eliminar `App\Models\Integraciones\TiendanubeConfiguracion`
   (`app/Models/Integraciones/TiendanubeConfiguracion.php`) y `App\Models\Integraciones\TiendanubeOperacionLog`
   (`app/Models/Integraciones/TiendanubeOperacionLog.php`) — depende de T025
-- [ ] T029 [US3] Editar `routes/web.php` (grupo `tiendanube`, líneas ~332-341): eliminar rutas `conectar`,
+- [X] T029 [US3] Editar `routes/web.php` (grupo `tiendanube`, líneas ~332-341): eliminar rutas `conectar`,
   `callback`, `estado`, `desconectar` (MCP); mantener `modo-solo-lectura`, `ventas`, `historial` apuntando
   ahora al apartado REST (o redirigir `historial` a `tn_rest_operaciones_log`, contracts/rutas-internas.md
   §3) — depende de T027
-- [ ] T030 [US3] Editar `App\Http\Controllers\Integraciones\TiendanubeConfiguracionController`: eliminar
+- [X] T030 [US3] Editar `App\Http\Controllers\Integraciones\TiendanubeConfiguracionController`: eliminar
   `estado()`/`desconectar()` (MCP); `historial()` pasa a consultar `TiendanubeRestOperacionLog` — depende de
   T029
-- [ ] T031 [US3] Editar `resources/views/configuracion/tiendanube/index.blade.php`: eliminar el apartado
+- [X] T031 [US3] Editar `resources/views/configuracion/tiendanube/index.blade.php`: eliminar el apartado
   visual de la conexión MCP, dejando sólo el apartado REST (spec 022) con el formulario de configuración de
   negocio ya trasladado en T022 — depende de T030
-- [ ] T032 [US3] Buscar y eliminar tests obsoletos de la conexión MCP (`tests/Feature/Integraciones/Tiendanube*`
+- [X] T032 [US3] Buscar y eliminar tests obsoletos de la conexión MCP (`tests/Feature/Integraciones/Tiendanube*`
   relacionados a `TiendanubeOAuthController`/`TiendanubeConfiguracion` que ya no aplican) — depende de T026-T031
 
 **Checkpoint**: Historia 3 completa — la integración MCP deja de existir en código y base de datos, sin

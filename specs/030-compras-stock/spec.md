@@ -82,7 +82,7 @@ stock del producto vuelve al valor previo a la Compra.
 
 1. **Given** una Compra guardada que sumó 10 unidades de un producto en el depósito por defecto,
    **When** se elimina la Compra (borrado lógico), **Then** el stock de ese producto en ese depósito
-   disminuye en 10 y queda un `MovimientoStock` de tipo `entrada` por −10 (reintegro) con origen la
+   disminuye en 10 y queda un `MovimientoStock` de tipo `salida` por −10 (reintegro) con origen la
    Compra.
 
 ---

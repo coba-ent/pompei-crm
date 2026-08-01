@@ -129,13 +129,14 @@ class StockService
         float $cantidad,
         ?Model $origen = null,
         ?User $usuario = null,
+        ?string $fecha = null,
     ): float {
-        return $this->mover('salida', $producto, $variante, $deposito, abs($cantidad), $origen, $usuario);
+        return $this->mover('salida', $producto, $variante, $deposito, abs($cantidad), $origen, $usuario, $fecha);
     }
 
     /**
-     * Registra una entrada de stock (reintegro por edición/baja de venta) con
-     * `origen` polimórfico.
+     * Registra una entrada de stock (reintegro por edición/baja de venta, o
+     * alta de compra) con `origen` polimórfico.
      *
      * @return float El stock resultante en el depósito para esa variante.
      */
@@ -146,8 +147,9 @@ class StockService
         float $cantidad,
         ?Model $origen = null,
         ?User $usuario = null,
+        ?string $fecha = null,
     ): float {
-        return $this->mover('entrada', $producto, $variante, $deposito, abs($cantidad), $origen, $usuario);
+        return $this->mover('entrada', $producto, $variante, $deposito, abs($cantidad), $origen, $usuario, $fecha);
     }
 
     /** Stock disponible actual de una variante en un depósito. */
@@ -173,10 +175,11 @@ class StockService
         float $cantidad,
         ?Model $origen,
         ?User $usuario,
+        ?string $fecha = null,
     ): float {
         $signo = $tipo === 'salida' ? -1 : 1;
 
-        return DB::transaction(function () use ($tipo, $signo, $producto, $variante, $deposito, $cantidad, $origen, $usuario) {
+        return DB::transaction(function () use ($tipo, $signo, $producto, $variante, $deposito, $cantidad, $origen, $usuario, $fecha) {
             $stock = Stock::lockForUpdate()->firstOrNew([
                 'producto_id' => $producto->id,
                 'variante_id' => $variante?->id,
@@ -194,7 +197,7 @@ class StockService
                 'cantidad' => $signo * $cantidad,
                 'origen_type' => $origen ? $origen->getMorphClass() : null,
                 'origen_id' => $origen?->getKey(),
-                'fecha' => now()->toDateString(),
+                'fecha' => $fecha ?: now()->toDateString(),
                 'usuario_id' => $usuario?->id,
             ]);
 

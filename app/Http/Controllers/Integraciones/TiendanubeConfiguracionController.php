@@ -2,15 +2,13 @@
 
 namespace App\Http\Controllers\Integraciones;
 
-use App\Enums\Tiendanube\EstadoConexion;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Integraciones\GuardarConfiguracionVentasTiendanubeRequest;
 use App\Models\Categoria;
 use App\Models\CuentaTesoreria;
 use App\Models\Deposito;
 use App\Models\Integraciones\TiendanubeConexionRest;
-use App\Models\Integraciones\TiendanubeConfiguracion;
-use App\Models\Integraciones\TiendanubeOperacionLog;
+use App\Models\Integraciones\TiendanubeRestOperacionLog;
 use App\Models\ListaPrecio;
 use App\Models\Vendedor;
 use Illuminate\Http\JsonResponse;
@@ -18,15 +16,11 @@ use Illuminate\Http\Request;
 use Yajra\DataTables\Facades\DataTables;
 
 /**
- * Configuración & Ajustes → Tiendanube (spec 019, corrige spec 015): panel de
- * estado de la conexión OAuth/MCP, modo sólo lectura, desconexión e
- * historial. El flujo de conexión en sí (botón "Conectar con Tiendanube") lo
- * maneja TiendanubeOAuthController — acá no queda ningún formulario de
- * credenciales manuales ni una acción "Probar conexión" separada (la
- * verificación ocurre una sola vez, dentro del callback OAuth, FR-003a).
- * Desde spec 024, la configuración de negocio (`ventas()`,
- * `modoSoloLectura()`) pasa a leer/escribir sobre `TiendanubeConexionRest`
- * (REST), no sobre `TiendanubeConfiguracion` (MCP, a retirar en Historia 3).
+ * Configuración & Ajustes → Tiendanube: modo sólo lectura, configuración de
+ * ventas e historial de la conexión Application REST (spec 022/024). El
+ * flujo de conexión en sí (botón "Conectar") lo maneja
+ * TiendanubeConexionRestController — acá no queda ningún formulario de
+ * credenciales manuales ni una acción "Probar conexión" separada.
  */
 class TiendanubeConfiguracionController extends Controller
 {
@@ -44,54 +38,6 @@ class TiendanubeConfiguracionController extends Controller
         return view('configuracion.tiendanube.index', compact(
             'CurrentPage', 'depositos', 'categoriasVenta', 'cuentasTesoreria', 'depositoPorDefecto', 'depositoEfectivo', 'listasPrecio', 'vendedores'
         ));
-    }
-
-    public function estado(): JsonResponse
-    {
-        $configuracion = TiendanubeConfiguracion::actual();
-
-        // FR-006: "no configurada" se deriva de la ausencia de access_token —
-        // cubre tanto "nunca conectado" como "desconectado" (data-model.md §1).
-        // Presencia, no legibilidad: no dispara el descifrado.
-        $noConfigurada = blank($configuracion->getRawOriginal('access_token'));
-
-        $estado = $noConfigurada ? EstadoConexion::NoConfigurada : $configuracion->estado;
-
-        $respuesta = [
-            'ok' => true,
-            'estado' => $estado->value,
-            'configuracion' => $noConfigurada ? null : [
-                'conectada_en' => optional($configuracion->conectada_en)->toIso8601String(),
-                'scopes_otorgados' => $configuracion->scopes_otorgados,
-                'productos_total' => $configuracion->productos_total,
-                'modo_solo_lectura' => $configuracion->modo_solo_lectura,
-                'token_expira_en' => optional($configuracion->token_expira_en)->toIso8601String(),
-                // ceil (no truncar): un token que vence "en 200 días" no debe mostrar 199 sólo porque
-                // pasaron unos milisegundos entre que se guardó la fecha y se calculó este número.
-                'dias_restantes' => $configuracion->token_expira_en
-                    ? max(0, (int) ceil(now()->diffInSeconds($configuracion->token_expira_en, false) / 86400))
-                    : null,
-                // spec 017: configuración de ventas.
-                'creacion_automatica' => $configuracion->creacion_automatica,
-                'frecuencia_sync_minutos' => $configuracion->frecuencia_sync_minutos,
-                'deposito_id' => $configuracion->deposito_id,
-                'categoria_venta_id' => $configuracion->categoria_venta_id,
-                'cuenta_tesoreria_id' => $configuracion->cuenta_tesoreria_id,
-                'dias_primera_sync' => $configuracion->dias_primera_sync,
-                'ultima_sync_en' => optional($configuracion->ultima_sync_en)->toIso8601String(),
-                'ultima_sync_resultado' => $configuracion->ultima_sync_resultado,
-                'stock_ultima_sync_en' => optional($configuracion->stock_ultima_sync_en)->toIso8601String(),
-                'stock_ultima_sync_resultado' => $configuracion->stock_ultima_sync_resultado,
-                'lista_precio_id' => $configuracion->lista_precio_id,
-                'vendedor_id' => $configuracion->vendedor_id,
-            ],
-        ];
-
-        if ($estado === EstadoConexion::Caida) {
-            $respuesta['ultimo_error'] = $configuracion->ultimo_error;
-        }
-
-        return response()->json($respuesta);
     }
 
     /** Configuración de ventas de Tiendanube (spec 017, contracts §3, FR-010/FR-016/FR-045/FR-047/FR-050). */
@@ -120,37 +66,6 @@ class TiendanubeConfiguracionController extends Controller
         ]);
     }
 
-    public function desconectar(Request $request): JsonResponse
-    {
-        $configuracion = TiendanubeConfiguracion::actual();
-
-        // FR-007: se borra el access_token, se CONSERVA client_id/client_secret
-        // (para que una reconexión posterior no dispare un nuevo auto-registro).
-        $configuracion->access_token = null;
-        $configuracion->scopes_otorgados = null;
-        $configuracion->productos_total = null;
-        $configuracion->conectada_en = null;
-        $configuracion->token_expira_en = null;
-        $configuracion->estado = EstadoConexion::NoConfigurada;
-        $configuracion->ultimo_error = null;
-        $configuracion->actualizada_por = $request->user()->id;
-        $configuracion->save();
-
-        TiendanubeOperacionLog::registrar([
-            'operacion' => 'desconectar',
-            'metodo' => 'LOCAL',
-            'endpoint' => '-',
-            'sentido' => 'escritura',
-            'resultado' => 'exito',
-            'usuario_id' => $request->user()->id,
-        ]);
-
-        return response()->json([
-            'ok' => true,
-            'mensaje' => 'Tiendanube desconectado.',
-        ]);
-    }
-
     public function modoSoloLectura(Request $request): JsonResponse
     {
         $datos = $request->validate(['activo' => ['required', 'boolean']]);
@@ -171,7 +86,7 @@ class TiendanubeConfiguracionController extends Controller
 
     public function historial(Request $request)
     {
-        $query = TiendanubeOperacionLog::query()->orderByDesc('created_at');
+        $query = TiendanubeRestOperacionLog::query()->orderByDesc('created_at');
 
         if ($request->filled('desde')) {
             $query->whereDate('created_at', '>=', $request->get('desde'));
@@ -184,7 +99,7 @@ class TiendanubeConfiguracionController extends Controller
         }
 
         return DataTables::eloquent($query)
-            ->editColumn('created_at', fn (TiendanubeOperacionLog $op) => $op->created_at?->format('Y-m-d H:i:s'))
+            ->editColumn('created_at', fn (TiendanubeRestOperacionLog $op) => $op->created_at?->format('Y-m-d H:i:s'))
             ->toJson();
     }
 }

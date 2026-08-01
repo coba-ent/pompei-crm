@@ -21,7 +21,7 @@ class TiendanubeRestOperacionLog extends Model
 
     protected $fillable = [
         'operacion', 'metodo', 'endpoint', 'sentido', 'resultado',
-        'codigo_http', 'duracion_ms', 'mensaje_error', 'usuario_id', 'created_at',
+        'codigo_http', 'duracion_ms', 'mensaje_error', 'payload_bloqueado', 'usuario_id', 'created_at',
     ];
 
     protected $casts = [

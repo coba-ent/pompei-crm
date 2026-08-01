@@ -1,6 +1,6 @@
 <div class="card mb-3" id="tn-rest-panel-estado">
     <div class="card-header">
-        <h6 class="mb-0 fw-bold">Conexión REST (Application del Partner Portal)</h6>
+        <h6 class="mb-0 fw-bold">Conexión con Tiendanube</h6>
     </div>
     <div class="card-body">
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
@@ -43,8 +43,8 @@
             <div class="modal-body">
                 <p>Se va a borrar el token de acceso de esta Application.</p>
                 <p class="mb-0 text-muted">
-                    Se conserva el historial de operaciones. No afecta a la conexión MCP de arriba. Vas a
-                    poder volver a conectarla cuando quieras presionando "Conectar" de nuevo.
+                    Se conserva el historial de operaciones. Vas a poder volver a conectarla cuando quieras
+                    presionando "Conectar" de nuevo.
                 </p>
             </div>
             <div class="modal-footer">

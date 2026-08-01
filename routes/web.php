@@ -19,7 +19,6 @@ use App\Http\Controllers\Ingresos\TiendanubeVentaController;
 use App\Http\Controllers\Ingresos\TiendanubeVinculacionController;
 use App\Http\Controllers\Integraciones\TiendanubeConexionRestController;
 use App\Http\Controllers\Integraciones\TiendanubeConfiguracionController;
-use App\Http\Controllers\Integraciones\TiendanubeOAuthController;
 use App\Http\Controllers\Integraciones\TiendanubeWebhookController;
 use App\Http\Controllers\ImportacionController;
 use App\Http\Controllers\Informes\CuentaCorrienteController;
@@ -335,18 +334,13 @@ Route::prefix('configuracion')->name('configuracion.')->group(function () {
         Route::get('callback', [MercadoLibreOAuthController::class, 'callback'])->name('callback');
     });
 
-    // Configuración & Ajustes → Tiendanube (spec 019: conexión OAuth/MCP, corrige spec 015)
+    // Configuración & Ajustes → Tiendanube (spec 022/024: conexión Application REST clásica)
     Route::middleware('permiso:configuracion.funciones')->prefix('tiendanube')->name('tiendanube.')->group(function () {
         Route::get('/', [TiendanubeConfiguracionController::class, 'index'])->name('index');
-        Route::get('estado', [TiendanubeConfiguracionController::class, 'estado'])->name('estado');
-        Route::post('desconectar', [TiendanubeConfiguracionController::class, 'desconectar'])->name('desconectar');
         Route::patch('modo-solo-lectura', [TiendanubeConfiguracionController::class, 'modoSoloLectura'])->name('modoSoloLectura');
         Route::patch('ventas', [TiendanubeConfiguracionController::class, 'guardarVentas'])->name('ventas.configurar');
         Route::get('historial', [TiendanubeConfiguracionController::class, 'historial'])->name('historial');
-        Route::get('conectar', [TiendanubeOAuthController::class, 'conectar'])->name('conectar');
-        Route::get('callback', [TiendanubeOAuthController::class, 'callback'])->name('callback');
 
-        // Conexión Application REST del Partner Portal (spec 022, aditiva — no reemplaza lo de arriba)
         Route::get('conectar-rest', [TiendanubeConexionRestController::class, 'conectarRest'])->name('conectarRest');
         Route::get('callback-rest', [TiendanubeConexionRestController::class, 'callbackRest'])->name('callbackRest');
         Route::get('estado-rest', [TiendanubeConexionRestController::class, 'estadoRest'])->name('estadoRest');

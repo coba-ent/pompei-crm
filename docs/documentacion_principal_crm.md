@@ -554,9 +554,9 @@ nuevas** — extiende las ya construidas por la spec 012.
   publicación — **sólo se sincroniza la cantidad disponible**. Tampoco se pausa ni cierra la publicación
   al llegar a cero: informar cantidad cero ya alcanza para que Mercado Libre deje de venderla.
 
-> **Nota — Compras todavía no mueven stock** (§6.2): el disparo reacciona a *cualquier* movimiento de
-> stock, pero hoy sólo las Ventas y los ajustes los generan. El día que Egresos cierre esa brecha, las
-> Compras quedan cubiertas por este mecanismo sin cambios adicionales.
+> **Nota — Compras también mueven stock** (spec 030, §6.2): el disparo reacciona a *cualquier* movimiento
+> de stock, y desde spec 030 las Compras generan los suyos igual que Ventas y ajustes — quedan cubiertas
+> por este mecanismo sin cambios adicionales.
 
 *Fuente(s): `specs/013-stock-mercadolibre/`*
 
@@ -1324,8 +1324,7 @@ para el form de Ajuste de Stock); navega a una **pantalla propia** (`/informes/s
   > `registrarSalida()`/`registrarEntrada()` sin consumidores. La spec 012 cierra esa brecha para
   > **Ventas** (manuales y de Mercado Libre), porque sin movimiento de stock local la sincronización
   > hacia Mercado Libre (spec 013) no tendría nada que propagar y el riesgo de sobreventa sería
-  > insoluble. **Compras sigue sin afectar stock** — brecha pendiente, a resolver cuando se retome
-  > Egresos.
+  > insoluble. La spec 030 (01/08/2026) cierra la brecha simétrica para **Compras**: ver §3.1 más abajo.
 - **KPIs** (recalculados según los filtros de producto vigentes): Unidades en Stock, Costo Total, Valor
   Venta Total — misma fórmula que los KPIs en $ de Productos (§2.2).
 - **Tabla**: Fecha, Operación, Detalle, Producto, Cantidad, **Stock Saldo** (saldo corrido por

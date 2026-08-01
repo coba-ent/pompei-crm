@@ -239,6 +239,21 @@ class TiendanubeConexionRestController extends Controller
             'scopes_otorgados' => $conexion->scopes_otorgados,
             'tienda_nombre' => $conexion->tienda_nombre,
             'tienda_dominio' => $conexion->tienda_dominio,
+            // spec 024 (retiro MCP): configuración de negocio, antes expuesta sólo
+            // por TiendanubeConfiguracionController::estado() (conexión MCP).
+            'modo_solo_lectura' => $conexion->modo_solo_lectura,
+            'creacion_automatica' => $conexion->creacion_automatica,
+            'frecuencia_sync_minutos' => $conexion->frecuencia_sync_minutos,
+            'deposito_id' => $conexion->deposito_id,
+            'categoria_venta_id' => $conexion->categoria_venta_id,
+            'cuenta_tesoreria_id' => $conexion->cuenta_tesoreria_id,
+            'dias_primera_sync' => $conexion->dias_primera_sync,
+            'ultima_sync_en' => optional($conexion->ultima_sync_en)->toIso8601String(),
+            'ultima_sync_resultado' => $conexion->ultima_sync_resultado,
+            'stock_ultima_sync_en' => optional($conexion->stock_ultima_sync_en)->toIso8601String(),
+            'stock_ultima_sync_resultado' => $conexion->stock_ultima_sync_resultado,
+            'lista_precio_id' => $conexion->lista_precio_id,
+            'vendedor_id' => $conexion->vendedor_id,
         ];
     }
 

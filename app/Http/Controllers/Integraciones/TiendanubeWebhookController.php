@@ -3,17 +3,16 @@
 namespace App\Http\Controllers\Integraciones;
 
 use App\Http\Controllers\Controller;
-use App\Models\Integraciones\TiendanubeOperacionLog;
+use App\Models\Integraciones\TiendanubeRestOperacionLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Webhooks obligatorios de privacidad de la Application (partner portal),
- * distinta de la conexión MCP de spec 019 — requisito de Tiendanube para
- * completar el alta de la app (api-documentation/resources/webhook). Se
- * limitan a registrar la solicitud y responder 2xx (plazo de 3s); el borrado
- * real de datos de cliente queda pendiente de spec propia antes de ir a
- * producción con un comerciante real.
+ * Webhooks obligatorios de privacidad de la Application (partner portal) —
+ * requisito de Tiendanube para completar el alta de la app
+ * (api-documentation/resources/webhook). Se limitan a registrar la solicitud
+ * y responder 2xx (plazo de 3s); el borrado real de datos de cliente queda
+ * pendiente de spec propia antes de ir a producción con un comerciante real.
  */
 class TiendanubeWebhookController extends Controller
 {
@@ -35,7 +34,7 @@ class TiendanubeWebhookController extends Controller
     private function recibir(Request $request, string $operacion): JsonResponse
     {
         if (! $this->firmaValida($request)) {
-            TiendanubeOperacionLog::registrar([
+            TiendanubeRestOperacionLog::registrar([
                 'operacion' => $operacion,
                 'metodo' => 'POST',
                 'endpoint' => $request->path(),
@@ -47,7 +46,7 @@ class TiendanubeWebhookController extends Controller
             return response()->json(['ok' => false], 401);
         }
 
-        TiendanubeOperacionLog::registrar([
+        TiendanubeRestOperacionLog::registrar([
             'operacion' => $operacion,
             'metodo' => 'POST',
             'endpoint' => $request->path(),

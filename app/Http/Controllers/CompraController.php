@@ -11,6 +11,7 @@ use App\Models\CuentaTesoreria;
 use App\Models\Pago;
 use App\Models\Remito;
 use App\Services\Egresos\Pagos;
+use App\Services\Egresos\StockDeCompra;
 use App\Services\Ingresos\CalculoComprobante;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -25,6 +26,7 @@ class CompraController extends Controller
     public function __construct(
         private readonly CalculoComprobante $calculo,
         private readonly Pagos $pagos,
+        private readonly StockDeCompra $stockDeCompra,
     ) {
     }
 
@@ -142,6 +144,8 @@ class CompraController extends Controller
             $this->guardarItems($compra, $resultado['items']);
             $this->guardarConceptos($compra, $datos['conceptos'] ?? []);
 
+            $this->stockDeCompra->aplicarAlta($compra->load('items.producto'));
+
             return $compra;
         });
 
@@ -168,6 +172,7 @@ class CompraController extends Controller
 
         DB::transaction(function () use ($datos, $compra) {
             $resultado = $this->calculo->calcular($datos['items'], $datos['descuento_general_pct'] ?? null, $datos['conceptos'] ?? []);
+            $itemsAnteriores = $compra->items()->with('producto')->get();
 
             $compra->update([
                 'proveedor_id' => $datos['proveedor_id'],
@@ -189,6 +194,8 @@ class CompraController extends Controller
             $compra->conceptos()->delete();
             $this->guardarItems($compra, $resultado['items']);
             $this->guardarConceptos($compra, $datos['conceptos'] ?? []);
+
+            $this->stockDeCompra->reaplicarPorEdicion($compra->load('items.producto'), $itemsAnteriores);
         });
 
         return response()->json([
