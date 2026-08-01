@@ -140,7 +140,7 @@
             const url = esRenombrar ? rutas.base + '/' + id : rutas.store;
             const datos = esRenombrar ? { _method: 'PATCH', nombre: nombre } : { nombre: nombre };
 
-            $('#btn-guardar-deposito-nombre').prop('disabled', true);
+            window.AppBtn.loading('#btn-guardar-deposito-nombre', true);
             $.ajax({ url: url, method: 'POST', dataType: 'json', data: datos })
                 .done(function (resp) {
                     if (esRenombrar) {
@@ -159,7 +159,7 @@
                     $('#deposito-nombre-input').addClass('is-invalid');
                     $('#deposito-nombre-error').text(msg);
                 })
-                .always(function () { $('#btn-guardar-deposito-nombre').prop('disabled', false); });
+                .always(function () { window.AppBtn.loading('#btn-guardar-deposito-nombre', false); });
         });
 
         // --- Toggle activo/inactivo ---

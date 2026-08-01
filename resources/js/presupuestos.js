@@ -43,6 +43,88 @@
         }
     }
 
+    // Select2 "catálogo editable": opción fija "Crear X" (ícono +) siempre primera
+    // en el dropdown, y un ícono de lápiz por fila que abre la edición de ESE ítem
+    // sin seleccionarlo (spec 028). Sirve tanto para selects locales (Categoría,
+    // Vendedor) como para selects con `ajax` (Cliente).
+    const ID_CREAR = '__crear__';
+
+    function matcherConCrear(params, data) {
+        if (data.id === ID_CREAR) { return data; }
+        const term = $.trim(params.term || '');
+        if (term === '') { return data; }
+        if (typeof data.text === 'undefined') { return null; }
+        return data.text.toUpperCase().indexOf(term.toUpperCase()) > -1 ? data : null;
+    }
+
+    function templateResultCatalogo($el, opts) {
+        return function (data) {
+            if (!data.id || data.loading) { return data.text; }
+            if (data.id === ID_CREAR) {
+                // Fidelidad estructural con Contagram real (docs/capturas/saldos): texto a la
+                // izquierda, ícono "+" a la derecha, misma posición que el lápiz de las demás filas.
+                const $fila = $('<span class="d-flex align-items-center justify-content-between w-100 text-primary fw-semibold select2-resultado-crear"></span>');
+                $fila.append($('<span></span>').text(data.text));
+                $fila.append('<i class="fas fa-plus-circle ms-2"></i>');
+                return $fila;
+            }
+            const $fila = $('<span class="d-flex align-items-center justify-content-between w-100"></span>');
+            $fila.append($('<span></span>').text(data.text));
+            if (typeof opts.onEditar === 'function') {
+                const $lapiz = $('<a href="#" class="js-editar-item text-muted ms-2" title="Editar"><i class="fas fa-pencil-alt"></i></a>');
+                // Select2 selecciona el resultado en "mouseup" (antes de que llegue el "click"),
+                // así que hay que frenar la propagación desde el propio ícono en ambos eventos
+                // para que el lápiz no dispare la selección de la fila (spec 028, FR-002).
+                $lapiz.on('mousedown mouseup', function (e) { e.stopPropagation(); });
+                $lapiz.on('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    $el.select2('close');
+                    opts.onEditar(data.id, data);
+                });
+                $fila.append($lapiz);
+            }
+            return $fila;
+        };
+    }
+
+    function iniciarSelect2Catalogo($el, opciones) {
+        if (!hasSelect2 || !$el || !$el.length) { return; }
+        const opts = opciones || {};
+        const select2Opts = Object.assign({}, opts.select2 || {});
+        let ultimoTermino = '';
+
+        if (select2Opts.ajax) {
+            const ajaxOrig = select2Opts.ajax;
+            const processResultsOrig = ajaxOrig.processResults;
+            select2Opts.ajax = Object.assign({}, ajaxOrig, {
+                processResults: function (resp, params) {
+                    ultimoTermino = (params && params.term) || '';
+                    const out = processResultsOrig ? processResultsOrig(resp, params) : { results: resp };
+                    if (!params.page) {
+                        out.results = [{ id: ID_CREAR, text: opts.textoCrear || 'Crear' }].concat(out.results || []);
+                    }
+                    return out;
+                },
+            });
+        } else {
+            select2Opts.matcher = function (params, data) {
+                ultimoTermino = (params && params.term) || '';
+                return matcherConCrear(params, data);
+            };
+        }
+
+        select2Opts.templateResult = templateResultCatalogo($el, opts);
+        initSelect2($el, select2Opts);
+
+        $el.on('select2:selecting', function (e) {
+            if (e.params.args.data.id === ID_CREAR) {
+                e.preventDefault();
+                if (typeof opts.onCrear === 'function') { opts.onCrear(ultimoTermino); }
+            }
+        });
+    }
+
     function money(v) {
         return '$ ' + (Number(v) || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
@@ -167,88 +249,70 @@
         let items = Array.isArray(data.items) && data.items.length ? data.items.slice() : [];
         let conceptos = Array.isArray(data.conceptos) && data.conceptos.length ? data.conceptos.slice() : [];
 
-        // ---- Categoría de ventas (catálogo con Select2 + crear/renombrar/eliminar) ----
+        // ---- Categoría de ventas (catálogo editable inline: "Crear X" + lápiz por fila) ----
         let categoriasVenta = (cfg.categorias || []).slice();
         const $categoriaSel = $('#f-categoria');
-        let categoriaPrevia = '';
-
-        function actualizarBotonesCategoria() {
-            const val = $categoriaSel.val();
-            const cat = categoriasVenta.find((c) => String(c.id) === String(val));
-            const real = !!val && val !== '__nuevo__' && !(cat && cat.es_sistema);
-            $('#btn-renombrar-categoria, #btn-eliminar-categoria').toggleClass('d-none', !real);
-        }
 
         function renderCategorias(selectedId) {
             const sel = selectedId ? String(selectedId) : '';
             $categoriaSel.empty();
             $categoriaSel.append(new Option('', '', false, !sel));
-            $categoriaSel.append(new Option('＋ Crear Categoría de ventas', '__nuevo__', false, false));
+            $categoriaSel.append(new Option('Crear Categoría de ventas', ID_CREAR, false, false));
             categoriasVenta.forEach((c) => $categoriaSel.append(new Option(c.nombre, c.id, false, String(c.id) === sel)));
             refreshSelect2($categoriaSel);
-            categoriaPrevia = sel;
-            actualizarBotonesCategoria();
         }
 
-        initSelect2($categoriaSel, { placeholder: 'Seleccioná una Categoría', allowClear: true });
+        iniciarSelect2Catalogo($categoriaSel, {
+            select2: { placeholder: 'Seleccioná una Categoría', allowClear: true },
+            onCrear: (termino) => abrirModalCategoria('crear', '', termino || ''),
+            onEditar: (id) => {
+                const c = categoriasVenta.find((x) => String(x.id) === String(id));
+                abrirModalCategoria('renombrar', id, c ? c.nombre : '');
+            },
+        });
         renderCategorias('');
 
-        $categoriaSel.on('change', function () {
-            const val = $(this).val();
-            if (val === '__nuevo__') {
-                $(this).val(categoriaPrevia).trigger('change.select2');
-                abrirModalCategoria('crear', '', '');
-            } else {
-                categoriaPrevia = val || '';
-                actualizarBotonesCategoria();
-            }
-        });
-
-        // ---- Vendedor (catálogo con Select2 + crear/renombrar/eliminar, spec 020) ----
+        // ---- Vendedor (catálogo editable inline: "Crear X" + lápiz por fila, spec 020/028) ----
         let vendedores = (cfg.vendedores || []).slice();
         const $vendedorSel = $('#f-vendedor');
-        let vendedorPrevio = '';
-
-        function actualizarBotonesVendedor() {
-            const val = $vendedorSel.val();
-            const real = !!val && val !== '__nuevo__';
-            $('#btn-renombrar-vendedor, #btn-eliminar-vendedor').toggleClass('d-none', !real);
-        }
 
         function renderVendedores(selectedId) {
             const sel = selectedId ? String(selectedId) : '';
             $vendedorSel.empty();
             $vendedorSel.append(new Option('', '', false, !sel));
-            $vendedorSel.append(new Option('＋ Crear Vendedor', '__nuevo__', false, false));
+            $vendedorSel.append(new Option('Crear Vendedor', ID_CREAR, false, false));
             vendedores.forEach((v) => $vendedorSel.append(new Option(v.nombre, v.id, false, String(v.id) === sel)));
             refreshSelect2($vendedorSel);
-            vendedorPrevio = sel;
-            actualizarBotonesVendedor();
         }
 
-        initSelect2($vendedorSel, { placeholder: 'Seleccioná un Vendedor', allowClear: true });
-        renderVendedores((data.presupuesto && data.presupuesto.vendedor_id) || '');
-
-        $vendedorSel.on('change', function () {
-            const val = $(this).val();
-            if (val === '__nuevo__') {
-                $(this).val(vendedorPrevio).trigger('change.select2');
-                abrirModalVendedor('crear', '', '');
-            } else {
-                vendedorPrevio = val || '';
-                actualizarBotonesVendedor();
-            }
+        iniciarSelect2Catalogo($vendedorSel, {
+            select2: { placeholder: 'Seleccioná un Vendedor', allowClear: true },
+            onCrear: (termino) => abrirModalVendedor('crear', '', termino || ''),
+            onEditar: (id) => {
+                const v = vendedores.find((x) => String(x.id) === String(id));
+                abrirModalVendedor('renombrar', id, v ? v.nombre : '');
+            },
         });
+        renderVendedores((data.presupuesto && data.presupuesto.vendedor_id) || '');
 
         initSelect2($('#f-lista-precio'), { placeholder: 'Seleccioná una Lista de Precios', allowClear: true });
         initSelect2($('#f-etiquetas'), { tags: true, tokenSeparators: [','], placeholder: 'Buscar o crear etiqueta...' });
 
-        initSelect2($('#f-cliente'), {
-            placeholder: 'Seleccionar Cliente',
-            ajax: {
-                url: rutas.clientesOpciones,
-                data: (params) => ({ q: params.term }),
-                processResults: (resp) => ({ results: resp.data.map((c) => ({ id: c.id, text: c.nombre, cliente: c })) }),
+        // ---- Cliente (catálogo editable inline vía ajax: "Crear Cliente" + lápiz por fila) ----
+        iniciarSelect2Catalogo($('#f-cliente'), {
+            select2: {
+                placeholder: 'Seleccionar Cliente',
+                ajax: {
+                    url: rutas.clientesOpciones,
+                    data: (params) => ({ q: params.term }),
+                    processResults: (resp) => ({ results: resp.data.map((c) => ({ id: c.id, text: c.nombre, cliente: c })) }),
+                },
+            },
+            textoCrear: 'Crear Cliente',
+            onCrear: (termino) => abrirModalClienteRapido('crear', '', termino || ''),
+            onEditar: (id, itemData) => {
+                const nombreActual = (itemData && itemData.cliente && itemData.cliente.nombre) || (itemData && itemData.text) || '';
+                abrirModalClienteRapido('renombrar', id, nombreActual);
             },
         });
 
@@ -429,7 +493,6 @@
         renderItems();
         renderConceptos();
 
-        // "Crear Categoría de ventas" inline.
         // Modal crear/renombrar Categoría de ventas.
         let modoCategoria = 'crear';
         let idCategoriaEditar = null;
@@ -445,14 +508,6 @@
             setTimeout(() => $('#nueva-categoria-nombre').trigger('focus'), 300);
         }
 
-        $('#btn-renombrar-categoria').on('click', function (e) {
-            e.preventDefault();
-            const id = $categoriaSel.val();
-            if (!id || id === '__nuevo__') { return; }
-            const c = categoriasVenta.find((x) => String(x.id) === String(id));
-            abrirModalCategoria('renombrar', id, c ? c.nombre : '');
-        });
-
         $('#btn-crear-categoria').on('click', function () {
             const nombre = $('#nueva-categoria-nombre').val().trim();
             $('#nueva-categoria-nombre').removeClass('is-invalid');
@@ -466,6 +521,7 @@
             const esRenombrar = modoCategoria === 'renombrar';
             const url = esRenombrar ? rutas.categoriaUpdateBase + '/' + idCategoriaEditar : rutas.categoriaVentaStore;
             const datos = esRenombrar ? { _method: 'PATCH', nombre } : { nombre };
+            const seleccionVigente = $categoriaSel.val();
 
             $.post(url, datos)
                 .done((resp) => {
@@ -473,7 +529,7 @@
                         const c = categoriasVenta.find((x) => String(x.id) === String(idCategoriaEditar));
                         if (c) { c.nombre = resp.categoria.nombre; }
                         categoriasVenta.sort((a, b) => a.nombre.localeCompare(b.nombre));
-                        renderCategorias(idCategoriaEditar);
+                        renderCategorias(seleccionVigente);
                     } else {
                         categoriasVenta.push({ id: resp.categoria.id, nombre: resp.categoria.nombre, es_sistema: false });
                         categoriasVenta.sort((a, b) => a.nombre.localeCompare(b.nombre));
@@ -486,33 +542,6 @@
                     const msg = xhr.responseJSON?.mensaje || xhr.responseJSON?.errors?.nombre?.[0] || 'No se pudo guardar la categoría.';
                     $('#nueva-categoria-nombre').addClass('is-invalid');
                     $('#nueva-categoria-error').text(msg);
-                });
-        });
-
-        // Eliminar Categoría de ventas (modal de confirmación).
-        let idCategoriaAEliminar = null;
-        $('#btn-eliminar-categoria').on('click', function (e) {
-            e.preventDefault();
-            const id = $categoriaSel.val();
-            if (!id || id === '__nuevo__') { return; }
-            const c = categoriasVenta.find((x) => String(x.id) === String(id));
-            idCategoriaAEliminar = id;
-            $('#categoria-eliminar-nombre').text(c ? c.nombre : '');
-            bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-categoria-eliminar')).show();
-        });
-        $('#btn-confirmar-eliminar-categoria').on('click', function () {
-            if (!idCategoriaAEliminar) { return; }
-            const id = idCategoriaAEliminar;
-            $.post(rutas.categoriaDestroyBase + '/' + id, { _method: 'DELETE' })
-                .done((resp) => {
-                    categoriasVenta = categoriasVenta.filter((x) => String(x.id) !== String(id));
-                    renderCategorias('');
-                    toast('success', resp.mensaje || 'Categoría eliminada.');
-                })
-                .fail((xhr) => toast('error', xhr.responseJSON?.mensaje || 'No se pudo eliminar la categoría.'))
-                .always(() => {
-                    bootstrap.Modal.getInstance(document.getElementById('modal-categoria-eliminar'))?.hide();
-                    idCategoriaAEliminar = null;
                 });
         });
 
@@ -531,14 +560,6 @@
             setTimeout(() => $('#nuevo-vendedor-nombre').trigger('focus'), 300);
         }
 
-        $('#btn-renombrar-vendedor').on('click', function (e) {
-            e.preventDefault();
-            const id = $vendedorSel.val();
-            if (!id || id === '__nuevo__') { return; }
-            const v = vendedores.find((x) => String(x.id) === String(id));
-            abrirModalVendedor('renombrar', id, v ? v.nombre : '');
-        });
-
         $('#btn-crear-vendedor').on('click', function () {
             const nombre = $('#nuevo-vendedor-nombre').val().trim();
             $('#nuevo-vendedor-nombre').removeClass('is-invalid');
@@ -552,6 +573,7 @@
             const esRenombrar = modoVendedor === 'renombrar';
             const url = esRenombrar ? rutas.vendedorUpdateBase + '/' + idVendedorEditar : rutas.vendedorStore;
             const datos = esRenombrar ? { _method: 'PATCH', nombre } : { nombre };
+            const seleccionVigente = $vendedorSel.val();
 
             $.post(url, datos)
                 .done((resp) => {
@@ -559,7 +581,7 @@
                         const v = vendedores.find((x) => String(x.id) === String(idVendedorEditar));
                         if (v) { v.nombre = resp.vendedor.nombre; }
                         vendedores.sort((a, b) => a.nombre.localeCompare(b.nombre));
-                        renderVendedores(idVendedorEditar);
+                        renderVendedores(seleccionVigente);
                     } else {
                         vendedores.push({ id: resp.vendedor.id, nombre: resp.vendedor.nombre });
                         vendedores.sort((a, b) => a.nombre.localeCompare(b.nombre));
@@ -575,30 +597,53 @@
                 });
         });
 
-        // Eliminar Vendedor (modal de confirmación).
-        let idVendedorAEliminar = null;
-        $('#btn-eliminar-vendedor').on('click', function (e) {
-            e.preventDefault();
-            const id = $vendedorSel.val();
-            if (!id || id === '__nuevo__') { return; }
-            const v = vendedores.find((x) => String(x.id) === String(id));
-            idVendedorAEliminar = id;
-            $('#vendedor-eliminar-nombre').text(v ? v.nombre : '');
-            bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-vendedor-eliminar')).show();
-        });
-        $('#btn-confirmar-eliminar-vendedor').on('click', function () {
-            if (!idVendedorAEliminar) { return; }
-            const id = idVendedorAEliminar;
-            $.post(rutas.vendedorDestroyBase + '/' + id, { _method: 'DELETE' })
+        // Modal crear/renombrar Cliente (alta rápida — sólo Nombre, spec 028).
+        let modoClienteRapido = 'crear';
+        let idClienteEditar = null;
+
+        function abrirModalClienteRapido(modo, id, nombreActual) {
+            modoClienteRapido = modo;
+            idClienteEditar = id || null;
+            $('#cliente-rapido-nombre').val(nombreActual || '').removeClass('is-invalid');
+            $('#cliente-rapido-error').text('');
+            $('#modal-cliente-rapido-titulo').text(modo === 'renombrar' ? 'Renombrar Cliente' : 'Crear Cliente');
+            $('#btn-crear-cliente-rapido').text(modo === 'renombrar' ? 'Guardar' : 'Crear');
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-cliente-rapido')).show();
+            setTimeout(() => $('#cliente-rapido-nombre').trigger('focus'), 300);
+        }
+
+        $('#btn-crear-cliente-rapido').on('click', function () {
+            const nombre = $('#cliente-rapido-nombre').val().trim();
+            $('#cliente-rapido-nombre').removeClass('is-invalid');
+            $('#cliente-rapido-error').text('');
+            if (!nombre) {
+                $('#cliente-rapido-nombre').addClass('is-invalid');
+                $('#cliente-rapido-error').text('Ingresá un nombre.');
+                return;
+            }
+
+            const esRenombrar = modoClienteRapido === 'renombrar';
+            const url = esRenombrar ? rutas.clientesUpdateBase + '/' + idClienteEditar : rutas.clientesStore;
+            const datos = esRenombrar ? { _method: 'PATCH', nombre } : { nombre };
+
+            $.post(url, datos)
                 .done((resp) => {
-                    vendedores = vendedores.filter((x) => String(x.id) !== String(id));
-                    renderVendedores('');
-                    toast('success', resp.mensaje || 'Vendedor eliminado.');
+                    const $clienteSel = $('#f-cliente');
+                    if (esRenombrar) {
+                        const seleccionado = String($clienteSel.val()) === String(idClienteEditar);
+                        $clienteSel.find('option[value="' + idClienteEditar + '"]').remove();
+                        $clienteSel.append(new Option(resp.cliente.nombre, resp.cliente.id, seleccionado, seleccionado));
+                    } else {
+                        $clienteSel.append(new Option(resp.cliente.nombre, resp.cliente.id, true, true));
+                    }
+                    refreshSelect2($clienteSel);
+                    bootstrap.Modal.getInstance(document.getElementById('modal-cliente-rapido'))?.hide();
+                    toast('success', resp.mensaje || 'Cliente guardado.');
                 })
-                .fail((xhr) => toast('error', xhr.responseJSON?.mensaje || 'No se pudo eliminar el vendedor.'))
-                .always(() => {
-                    bootstrap.Modal.getInstance(document.getElementById('modal-vendedor-eliminar'))?.hide();
-                    idVendedorAEliminar = null;
+                .fail((xhr) => {
+                    const msg = xhr.responseJSON?.mensaje || xhr.responseJSON?.errors?.nombre?.[0] || 'No se pudo guardar el cliente.';
+                    $('#cliente-rapido-nombre').addClass('is-invalid');
+                    $('#cliente-rapido-error').text(msg);
                 });
         });
 
@@ -630,7 +675,7 @@
             };
 
             enviando = true;
-            $('#btn-guardar-presupuesto').prop('disabled', true);
+            window.AppBtn.loading('#btn-guardar-presupuesto', true);
 
             const url = rutas.update || rutas.store;
             const method = rutas.update ? 'PUT' : 'POST';
@@ -643,7 +688,7 @@
                 .fail((xhr) => {
                     toast('error', xhr.responseJSON?.message || 'No se salvó el Presupuesto, revise el formulario.');
                     enviando = false;
-                    $('#btn-guardar-presupuesto').prop('disabled', false);
+                    window.AppBtn.loading('#btn-guardar-presupuesto', false);
                 });
         });
     }

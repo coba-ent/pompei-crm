@@ -7,6 +7,7 @@ use App\Http\Requests\Integraciones\VincularPublicacionRequest;
 use App\Models\Integraciones\MercadoLibreConfiguracion;
 use App\Models\Integraciones\MercadoLibreOrdenItem;
 use App\Models\Integraciones\MercadoLibrePublicacionProducto;
+use App\Services\MercadoLibre\Excepciones\VinculacionAutomaticaFallidaException;
 use App\Services\MercadoLibre\VinculadorAutomatico;
 use App\Services\Stock\StockService;
 use Illuminate\Http\JsonResponse;
@@ -111,7 +112,11 @@ class MercadoLibreVinculacionController extends Controller
     /** FR-001..FR-005: reemplaza al alta manual por selector (ver contracts/rutas-internas.md). */
     public function vincularAutomaticamente(Request $request, VinculadorAutomatico $vinculador): JsonResponse
     {
-        $resumen = $vinculador->ejecutar($request->user());
+        try {
+            $resumen = $vinculador->ejecutar($request->user());
+        } catch (VinculacionAutomaticaFallidaException $e) {
+            return response()->json(['ok' => false, 'mensaje' => $e->getMessage()], 502);
+        }
 
         return response()->json([
             'ok' => true,

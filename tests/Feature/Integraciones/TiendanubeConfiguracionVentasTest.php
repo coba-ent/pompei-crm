@@ -6,7 +6,7 @@ use App\Enums\Tiendanube\EstadoConexion;
 use App\Models\CuentaTesoreria;
 use App\Models\Deposito;
 use App\Models\FuncionAvanzada;
-use App\Models\Integraciones\TiendanubeConfiguracion;
+use App\Models\Integraciones\TiendanubeConexionRest;
 use App\Models\Integraciones\TiendanubeVarianteProducto;
 use App\Models\ListaPrecio;
 use App\Models\Producto;
@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 /** US4 (spec 017): configuración de ventas de Tiendanube. FR-010/FR-016/FR-045a/FR-047/FR-050. */
-class TiendanubeConfiguracionVentasTest extends TestCase
+class TiendanubeConexionRestVentasTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -48,7 +48,7 @@ class TiendanubeConfiguracionVentasTest extends TestCase
 
         $respuesta->assertOk()->assertJsonPath('ok', true);
 
-        $configuracion = TiendanubeConfiguracion::actual();
+        $configuracion = TiendanubeConexionRest::actual();
         $this->assertTrue((bool) $configuracion->creacion_automatica);
         $this->assertSame(30, $configuracion->frecuencia_sync_minutos);
         $this->assertSame($deposito->id, $configuracion->deposito_id);
@@ -77,7 +77,7 @@ class TiendanubeConfiguracionVentasTest extends TestCase
         ]);
 
         $respuesta->assertOk();
-        $this->assertNull(TiendanubeConfiguracion::actual()->cuenta_tesoreria_id);
+        $this->assertNull(TiendanubeConexionRest::actual()->cuenta_tesoreria_id);
     }
 
     /** US5 (spec 018 ampliación, FR-021/FR-022/FR-023). */
@@ -93,7 +93,7 @@ class TiendanubeConfiguracionVentasTest extends TestCase
         ]);
 
         $respuesta->assertOk();
-        $this->assertSame($lista->id, TiendanubeConfiguracion::actual()->lista_precio_id);
+        $this->assertSame($lista->id, TiendanubeConexionRest::actual()->lista_precio_id);
     }
 
     public function test_rechaza_una_lista_de_precios_inexistente(): void
@@ -118,20 +118,20 @@ class TiendanubeConfiguracionVentasTest extends TestCase
         ]);
 
         $respuesta->assertOk();
-        $this->assertNull(TiendanubeConfiguracion::actual()->lista_precio_id);
+        $this->assertNull(TiendanubeConexionRest::actual()->lista_precio_id);
     }
 
     /** US9 (spec 018 ampliación, FR-028, SC-013). */
     public function test_cambiar_la_lista_de_precios_empuja_de_inmediato_a_los_vinculados(): void
     {
-        TiendanubeConfiguracion::actual()->update([
+        TiendanubeConexionRest::actual()->update([
             'client_id' => 'client-id-de-prueba', 'client_secret' => 'client-secret-de-prueba',
             'access_token' => 'token-vigente-de-prueba', 'estado' => EstadoConexion::Conectada,
         ]);
 
         $listaVieja = ListaPrecio::create(['nombre' => 'Lista Vieja', 'activo' => true]);
         $listaNueva = ListaPrecio::create(['nombre' => 'Lista Nueva', 'activo' => true]);
-        TiendanubeConfiguracion::actual()->update(['lista_precio_id' => $listaVieja->id]);
+        TiendanubeConexionRest::actual()->update(['lista_precio_id' => $listaVieja->id]);
 
         $productoConPrecio = Producto::factory()->create();
         $vinculoConPrecio = TiendanubeVarianteProducto::create(['variant_id' => 1, 'tn_product_id' => '10', 'producto_id' => $productoConPrecio->id]);
@@ -167,7 +167,7 @@ class TiendanubeConfiguracionVentasTest extends TestCase
 
     public function test_con_modo_solo_lectura_activo_el_push_no_se_ejecuta_y_queda_pendiente(): void
     {
-        TiendanubeConfiguracion::actual()->update([
+        TiendanubeConexionRest::actual()->update([
             'client_id' => 'client-id-de-prueba', 'client_secret' => 'client-secret-de-prueba',
             'access_token' => 'token-vigente-de-prueba', 'estado' => EstadoConexion::Conectada,
             'modo_solo_lectura' => true,
@@ -189,7 +189,7 @@ class TiendanubeConfiguracionVentasTest extends TestCase
 
         $respuesta->assertOk();
         Http::assertNothingSent();
-        $this->assertSame($listaNueva->id, TiendanubeConfiguracion::actual()->lista_precio_id);
+        $this->assertSame($listaNueva->id, TiendanubeConexionRest::actual()->lista_precio_id);
         $this->assertTrue($vinculo->fresh()->precio_pendiente);
     }
 }

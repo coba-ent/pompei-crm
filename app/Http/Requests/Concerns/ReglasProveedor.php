@@ -3,11 +3,12 @@
 namespace App\Http\Requests\Concerns;
 
 use App\Rules\CuitValido;
-use Illuminate\Validation\Rule;
 
 /**
  * Reglas de validación compartidas entre alta y edición de proveedor.
  * Clon de ReglasCliente sin `apodo_ml`/`lista_precio_id`/`descuento_general_pct`.
+ * El CUIT/DNI NO es único entre proveedores (ver nota en ReglasCliente, misma
+ * decisión 31/07/2026 aplicada a ambas entidades por consistencia).
  */
 trait ReglasProveedor
 {
@@ -22,7 +23,6 @@ trait ReglasProveedor
         if (in_array($tipoDoc, ['CUIT', 'CUIL'], true)) {
             $reglaDoc[] = new CuitValido;
         }
-        $reglaDoc[] = Rule::unique('proveedores', 'cuit')->ignore($proveedorId);
 
         return [
             // Datos básicos

@@ -102,6 +102,14 @@ class MercadoLibreVentaController extends Controller
         return response()->json($resultado, $resultado['ok'] ? 200 : 409);
     }
 
+    /** "Transformar todas en Venta" (spec 025, FR-001/FR-002, contracts §1). */
+    public function transformarTodasEnVenta(Request $request): JsonResponse
+    {
+        $resultado = $this->conversor->convertirTodasLasListas($request->user()->id);
+
+        return response()->json($resultado, $resultado['ok'] ? 200 : 409);
+    }
+
     /** Detalle de la orden en modal (FR-005). */
     public function show(MercadoLibreOrden $orden): JsonResponse
     {

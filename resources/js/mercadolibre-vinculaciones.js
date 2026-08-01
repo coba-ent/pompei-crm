@@ -62,7 +62,7 @@
         const modal = modalEl ? new bootstrap.Modal(modalEl) : null;
 
         $btn.on('click', function () {
-            $btn.prop('disabled', true);
+            window.AppBtn.loading($btn, true);
 
             $.ajax({ url: rutas.vincularAutomaticamente, method: 'POST' })
                 .done((resp) => {
@@ -80,7 +80,7 @@
                     toast('error', resp.mensaje || resp.message || 'No se pudo ejecutar la vinculación automática.');
                 })
                 .always(() => {
-                    $btn.prop('disabled', false);
+                    window.AppBtn.loading($btn, false);
                 });
         });
     }

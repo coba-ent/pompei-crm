@@ -296,4 +296,20 @@
     };
 </script>
 @vite(['resources/js/productos.js'])
+@if (request()->boolean('crear'))
+<script>
+    (function () {
+        var intentos = 0;
+        var intervalo = setInterval(function () {
+            intentos++;
+            var btn = document.getElementById('btn-nuevo-producto');
+            var eventos = (window.jQuery && jQuery._data && btn) ? jQuery._data(btn, 'events') : null;
+            if ((eventos && eventos.click) || intentos >= 100) {
+                clearInterval(intervalo);
+                if (btn) { btn.click(); }
+            }
+        }, 100);
+    })();
+</script>
+@endif
 @endsection

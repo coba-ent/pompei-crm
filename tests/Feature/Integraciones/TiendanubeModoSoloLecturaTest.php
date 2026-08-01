@@ -4,6 +4,7 @@ namespace Tests\Feature\Integraciones;
 
 use App\Enums\Tiendanube\EstadoConexion;
 use App\Models\FuncionAvanzada;
+use App\Models\Integraciones\TiendanubeConexionRest;
 use App\Models\Integraciones\TiendanubeConfiguracion;
 use App\Models\Integraciones\TiendanubeOperacionLog;
 use App\Models\Rol;
@@ -17,7 +18,11 @@ use Tests\TestCase;
  * US3 (spec 019, sin cambios de intención respecto de spec 015): kill-switch
  * de sólo lectura (FR-012) e historial, re-verificados contra el
  * ClienteTiendanube basado en MCP (research.md §R2). La verificación vive en
- * un único punto (ClienteTiendanube::peticion()).
+ * un único punto (ClienteTiendanube::peticion()). Desde spec 024, el
+ * endpoint `configuracion.tiendanube.modoSoloLectura` pasa a controlar el
+ * kill-switch de `TiendanubeConexionRest` (REST, usado por los flujos de
+ * negocio) — el de esta clase (`TiendanubeConfiguracion`, MCP) se mantiene
+ * como conexión aparte hasta el retiro del MCP (Historia 3).
  */
 class TiendanubeModoSoloLecturaTest extends TestCase
 {
@@ -72,20 +77,19 @@ class TiendanubeModoSoloLecturaTest extends TestCase
         $this->assertTrue($respuesta->exito);
     }
 
+    /** Desde spec 024, el interruptor controla el kill-switch de `ClienteTiendanubeRest`, no el de `ClienteTiendanube` (MCP). */
     public function test_el_cambio_del_interruptor_tiene_efecto_inmediato(): void
     {
-        Http::fake(['admin-mcp.tiendanube.com/' => Http::response([
-            'jsonrpc' => '2.0', 'id' => 1,
-            'result' => ['isError' => false, 'structuredContent' => ['id' => 1]],
-        ], 200)]);
+        TiendanubeConexionRest::actual()->update(['access_token' => 'atk', 'store_id' => '999', 'estado' => EstadoConexion::Conectada]);
+        Http::fake(['api.tiendanube.com/v1/*/products/*/variants/*' => Http::response(['id' => 1], 200)]);
 
-        $respuesta1 = app(ClienteTiendanube::class)->escribir('update_stock_and_price', ['product_id' => 1, 'stock' => 5]);
+        $respuesta1 = app(\App\Services\Tiendanube\ClienteTiendanubeRest::class)->escribir('PUT', 'products/1/variants/1', ['stock' => 5]);
         $this->assertFalse($respuesta1->fueBloqueada());
 
         $this->patchJson(route('configuracion.tiendanube.modoSoloLectura'), ['activo' => true])
             ->assertOk()->assertJsonPath('modo_solo_lectura', true);
 
-        $respuesta2 = app(ClienteTiendanube::class)->escribir('update_stock_and_price', ['product_id' => 1, 'stock' => 5]);
+        $respuesta2 = app(\App\Services\Tiendanube\ClienteTiendanubeRest::class)->escribir('PUT', 'products/1/variants/1', ['stock' => 5]);
         $this->assertTrue($respuesta2->fueBloqueada());
     }
 

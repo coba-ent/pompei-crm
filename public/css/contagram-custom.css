@@ -160,6 +160,32 @@
     background: rgba(40, 172, 227, 0.5);
 }
 
+/* Icono "+" al lado de un ítem de submenú (crea y abre el modal de alta
+ * directo). El template asume un único <a> de ancho completo por <li> con
+ * padding-left grande y un guioncito ":before" absoluto — sin este reset el
+ * segundo <a> hereda ambos y el guioncito queda flotando antes del ícono. */
+.deznav .metismenu ul li .menu-crear-btn {
+    display: inline-flex !important;
+    align-items: center;
+    padding: 0 0.9375rem 0 0.5rem !important;
+    flex: 0 0 auto;
+}
+
+.deznav .metismenu ul li .menu-crear-btn:before {
+    content: none !important;
+}
+
+/* `.deznav .metismenu > li a > i` (style.css) fuerza font-family: 'Material
+ * Icons' + font-weight normal en CUALQUIER <i> descendiente de un <a> bajo un
+ * <li> de primer nivel — alcanza también a este ícono anidado y lo dibujaba
+ * con el glyph equivocado (el "marcador raro"). Se lo devuelve a Font Awesome. */
+.deznav .metismenu ul li .menu-crear-btn i {
+    font-family: "Font Awesome 6 Free" !important;
+    font-weight: 900 !important;
+    font-size: 0.75rem;
+    margin-right: 0;
+}
+
 /* --------------------------------------------------------------------------
  * DataTables — paginación
  * Fix: los botones "Anterior/Siguiente" se apilaban en vertical (una letra
@@ -241,6 +267,27 @@
     margin-bottom: 0.25rem;
     font-size: 0.8125rem;
     font-weight: 500;
+    color: #495057;
+}
+
+/* Contraste de inputs/selects: el default de NexaDash usa borde casi blanco
+ * (#e6e6e6) y placeholder muy claro, y dentro de una card queda todo "lavado".
+ * Subimos el contraste del borde (reposo y focus) y del placeholder, sin
+ * perder el look flat del template. Regla GLOBAL. */
+.form-control,
+.form-select {
+    border-color: #c9ced4;
+}
+
+.form-control::placeholder {
+    color: #8a929b;
+    opacity: 1;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: #28ACE3;
+    box-shadow: 0 0 0 0.2rem rgba(40, 172, 227, 0.15);
 }
 
 /* Textareas: alto acorde al nuevo tamaño. */
@@ -386,8 +433,13 @@ table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control:before {
     padding: 0.375rem 0.85rem;
     font-size: 0.8125rem;
     line-height: 1.4;
-    border: 1px solid var(--bs-border-color, #e6e6e6);
+    border: 1px solid #c9ced4;
     border-radius: 0.5rem;
+}
+.select2-container--default.select2-container--focus .select2-selection--single,
+.select2-container--default.select2-container--open .select2-selection--single {
+    border-color: #28ACE3;
+    box-shadow: 0 0 0 0.2rem rgba(40, 172, 227, 0.15);
 }
 .select2-container--default .select2-selection--single .select2-selection__rendered {
     min-height: 0;
@@ -401,7 +453,23 @@ table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control:before {
     right: 4px;
 }
 .select2-container--default .select2-selection--single .select2-selection__placeholder {
-    color: #9aa0a6;
+    color: #8a929b;
+}
+/* style.css (NexaDash) oculta el botón "x" de allowClear con display:none
+ * global — se reactiva y se reposiciona a la izquierda de la flecha, que en
+ * este override queda fija en right:4px (ver arriba). */
+.select2-container--default .select2-selection--single .select2-selection__clear {
+    display: inline-block;
+    position: absolute;
+    top: 50%;
+    right: 22px;
+    transform: translateY(-50%);
+    margin: 0;
+    font-size: 1rem;
+    color: #8a929b;
+}
+.select2-container--default .select2-selection--single .select2-selection__clear:hover {
+    color: #495057;
 }
 .select2-container .select2-search--dropdown .select2-search__field {
     font-size: 0.8125rem;
@@ -434,4 +502,38 @@ table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control:before {
 }
 #toast-container > .toast-warning {
     background-color: #f89406 !important;
+}
+
+/* --------------------------------------------------------------------------
+ * Spinner de carga en botones (window.AppBtn.loading, ver elements/btn-loading).
+ * El helper reemplaza el HTML del botón por este spinner mientras dura la
+ * llamada AJAX; `currentColor` hace que el spinner tome el color de texto que
+ * ya tenía el botón (funciona igual para btn-primary, btn-outline-*, btn-light, etc.).
+ * ------------------------------------------------------------------------ */
+.btn-loading-spinner {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    vertical-align: -0.15em;
+    border: 0.15em solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: btn-loading-spin 0.75s linear infinite;
+}
+
+@keyframes btn-loading-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ---------------------------------------------------------------------------
+ * Select2 "catálogo editable" (spec 028): la fila fija "Crear X" usa
+ * text-primary sobre fondo blanco, pero el resultado resaltado de Select2
+ * pinta el fondo con el mismo azul primario (_form-addons-select2.scss) — sin
+ * esta regla el texto queda invisible (azul sobre azul) al recorrer el
+ * dropdown con el teclado o el mouse.
+ * ------------------------------------------------------------------------ */
+.select2-results__option--highlighted .select2-resultado-crear {
+    color: #fff !important;
 }

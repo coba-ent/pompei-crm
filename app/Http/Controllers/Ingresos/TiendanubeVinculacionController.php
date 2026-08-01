@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\Ingresos;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Integraciones\ImportarVinculacionesTiendanubeRequest;
 use App\Http\Requests\Integraciones\VincularVarianteRequest;
 use App\Models\Integraciones\TiendanubeOrdenItem;
 use App\Models\Integraciones\TiendanubeVarianteProducto;
-use App\Services\Tiendanube\ImportadorVinculaciones;
+use App\Services\Tiendanube\Excepciones\VinculacionAutomaticaFallidaException;
+use App\Services\Tiendanube\VinculadorAutomatico;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Yajra\DataTables\Facades\DataTables;
@@ -15,7 +15,9 @@ use Yajra\DataTables\Facades\DataTables;
 /**
  * Vinculación de variantes de Tiendanube con productos del CRM (FR-021..FR-026,
  * contracts §2). Relación 1:1 — infraestructura propia, independiente de la
- * de Mercado Libre (research.md R3).
+ * de Mercado Libre (research.md R3). Desde spec 024, la resolución de
+ * vínculos nuevos pasa por `VinculadorAutomatico` (catálogo REST en vivo);
+ * el selector manual/importación por Excel se retiraron.
  */
 class TiendanubeVinculacionController extends Controller
 {
@@ -64,64 +66,20 @@ class TiendanubeVinculacionController extends Controller
         return $v->precio_pendiente ? 'pendiente' : 'sincronizado';
     }
 
-    /**
-     * Variantes vistas en órdenes sincronizadas que todavía no tienen vínculo
-     * (para el selector con buscador de la pantalla de vinculación, FR-023):
-     * esta spec no importa catálogo de Tiendanube (Alcance, Excluye), así que
-     * las variantes disponibles para vincular salen de `tn_orden_items` ya
-     * sincronizados, no de una consulta en vivo a la tienda.
-     */
-    public function variantesPendientes(Request $request)
+    /** FR-001..FR-013: reemplaza al selector manual y a la importación por Excel (contracts/rutas-internas.md). */
+    public function vincularAutomaticamente(Request $request, VinculadorAutomatico $vinculador): JsonResponse
     {
-        $vinculadas = TiendanubeVarianteProducto::pluck('variant_id');
-
-        $query = TiendanubeOrdenItem::whereNotIn('variant_id', $vinculadas)
-            ->select('tn_product_id', 'variant_id', 'nombre_producto', 'nombre_variante')
-            ->orderByDesc('id');
-
-        if ($request->filled('q')) {
-            $termino = $request->input('q');
-            $query->where(fn ($q) => $q->where('nombre_producto', 'like', "%{$termino}%")
-                ->orWhere('nombre_variante', 'like', "%{$termino}%"));
+        try {
+            $resumen = $vinculador->ejecutar($request->user());
+        } catch (VinculacionAutomaticaFallidaException $e) {
+            return response()->json(['ok' => false, 'mensaje' => $e->getMessage()], 502);
         }
 
-        $variantes = $query->get()
-            ->unique('variant_id')
-            ->take(50)
-            ->map(fn (TiendanubeOrdenItem $item) => [
-                'id' => $item->variant_id,
-                'text' => $item->nombre_producto.($item->nombre_variante ? " ({$item->nombre_variante})" : ''),
-                'nombre' => $item->nombre_producto.($item->nombre_variante ? " ({$item->nombre_variante})" : ''),
-                'tn_product_id' => $item->tn_product_id,
-            ]);
-
-        return response()->json(['data' => $variantes]);
-    }
-
-    /** FR-009..FR-016: importación masiva desde el export nativo de Tiendanube (contracts/rutas-internas.md). */
-    public function importar(ImportarVinculacionesTiendanubeRequest $request, ImportadorVinculaciones $importador): JsonResponse
-    {
-        $resumen = $importador->importar($request->file('archivo')->getRealPath(), $request->user());
-
         return response()->json([
             'ok' => true,
-            'mensaje' => "{$resumen['vinculadas']} de {$resumen['total']} vinculaciones creadas.",
+            'mensaje' => "{$resumen['vinculadas']} de {$resumen['total']} variantes vinculadas.",
             ...$resumen,
         ]);
-    }
-
-    public function store(VincularVarianteRequest $request): JsonResponse
-    {
-        $vinculacion = TiendanubeVarianteProducto::create([
-            ...$request->validated(),
-            'vinculada_por' => $request->user()->id,
-        ]);
-
-        return response()->json([
-            'ok' => true,
-            'mensaje' => 'Variante vinculada.',
-            'vinculacion' => $vinculacion->load('producto:id,nombre,codigo'),
-        ], 201);
     }
 
     public function update(VincularVarianteRequest $request, TiendanubeVarianteProducto $vinculacion): JsonResponse

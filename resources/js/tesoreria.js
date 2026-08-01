@@ -251,7 +251,7 @@
                 promesa = $.ajax({ url: rutas.cuentasStore, method: 'POST', dataType: 'json', data: datos });
             }
 
-            $('#btn-guardar-cuenta').prop('disabled', true);
+            window.AppBtn.loading('#btn-guardar-cuenta', true);
             promesa.done(function (resp) {
                 toast('success', resp.mensaje);
                 modalCuenta ? modalCuenta.hide() : $modalCuenta.hide();
@@ -262,7 +262,7 @@
                 if (resp.errors) { mostrarErroresCuenta(resp.errors); }
                 toast('error', resp.message || resp.mensaje || 'No se pudo guardar la cuenta.');
             }).always(function () {
-                $('#btn-guardar-cuenta').prop('disabled', false);
+                window.AppBtn.loading('#btn-guardar-cuenta', false);
             });
         });
 
@@ -341,7 +341,7 @@
                 observacion: $('#transferencia-observacion').val(),
             };
 
-            $formTransf.find('button[type="submit"]').prop('disabled', true);
+            window.AppBtn.loading($formTransf.find('button[type="submit"]'), true);
             $.ajax({ url: rutas.transferenciasStore, method: 'POST', dataType: 'json', data: datos })
                 .done(function (resp) {
                     toast('success', resp.mensaje);
@@ -360,7 +360,7 @@
                     toast('error', resp.message || 'No se pudo registrar el movimiento.');
                 })
                 .always(function () {
-                    $formTransf.find('button[type="submit"]').prop('disabled', false);
+                    window.AppBtn.loading($formTransf.find('button[type="submit"]'), false);
                 });
         });
 

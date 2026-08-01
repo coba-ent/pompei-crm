@@ -8,6 +8,7 @@ use App\Http\Requests\Integraciones\GuardarConfiguracionVentasTiendanubeRequest;
 use App\Models\Categoria;
 use App\Models\CuentaTesoreria;
 use App\Models\Deposito;
+use App\Models\Integraciones\TiendanubeConexionRest;
 use App\Models\Integraciones\TiendanubeConfiguracion;
 use App\Models\Integraciones\TiendanubeOperacionLog;
 use App\Models\ListaPrecio;
@@ -23,6 +24,9 @@ use Yajra\DataTables\Facades\DataTables;
  * maneja TiendanubeOAuthController — acá no queda ningún formulario de
  * credenciales manuales ni una acción "Probar conexión" separada (la
  * verificación ocurre una sola vez, dentro del callback OAuth, FR-003a).
+ * Desde spec 024, la configuración de negocio (`ventas()`,
+ * `modoSoloLectura()`) pasa a leer/escribir sobre `TiendanubeConexionRest`
+ * (REST), no sobre `TiendanubeConfiguracion` (MCP, a retirar en Historia 3).
  */
 class TiendanubeConfiguracionController extends Controller
 {
@@ -33,7 +37,7 @@ class TiendanubeConfiguracionController extends Controller
         $categoriasVenta = Categoria::venta()->activas()->orderBy('nombre')->get();
         $cuentasTesoreria = CuentaTesoreria::visibles()->orderBy('nombre')->get();
         $depositoPorDefecto = Deposito::porDefecto();
-        $depositoEfectivo = TiendanubeConfiguracion::actual()->depositoEfectivoONulo();
+        $depositoEfectivo = TiendanubeConexionRest::actual()->depositoEfectivoONulo();
         $listasPrecio = ListaPrecio::where('activo', true)->orderBy('nombre')->get();
         $vendedores = Vendedor::orderBy('nombre')->get();
 
@@ -93,11 +97,11 @@ class TiendanubeConfiguracionController extends Controller
     /** Configuración de ventas de Tiendanube (spec 017, contracts §3, FR-010/FR-016/FR-045/FR-047/FR-050). */
     public function guardarVentas(GuardarConfiguracionVentasTiendanubeRequest $request): JsonResponse
     {
-        $configuracion = TiendanubeConfiguracion::actual();
+        $conexion = TiendanubeConexionRest::actual();
         $datos = $request->validated();
-        $listaPrecioIdAnterior = $configuracion->lista_precio_id;
+        $listaPrecioIdAnterior = $conexion->lista_precio_id;
 
-        $configuracion->update($datos);
+        $conexion->update($datos);
 
         // US9 (spec 018 ampliación, FR-028, contracts §2a): si cambió cuál es la
         // Lista de Precios configurada, empujar de inmediato el precio vigente de
@@ -112,7 +116,7 @@ class TiendanubeConfiguracionController extends Controller
         return response()->json([
             'ok' => true,
             'mensaje' => 'Configuración de ventas guardada.',
-            'configuracion' => $configuracion->fresh(),
+            'configuracion' => $conexion->fresh(),
         ]);
     }
 
@@ -151,17 +155,17 @@ class TiendanubeConfiguracionController extends Controller
     {
         $datos = $request->validate(['activo' => ['required', 'boolean']]);
 
-        $configuracion = TiendanubeConfiguracion::actual();
-        $configuracion->modo_solo_lectura = $datos['activo'];
-        $configuracion->actualizada_por = $request->user()->id;
-        $configuracion->save();
+        $conexion = TiendanubeConexionRest::actual();
+        $conexion->modo_solo_lectura = $datos['activo'];
+        $conexion->actualizada_por = $request->user()->id;
+        $conexion->save();
 
         return response()->json([
             'ok' => true,
             'mensaje' => $datos['activo']
                 ? 'Modo sólo lectura activado. Las escrituras hacia Tiendanube quedan bloqueadas.'
                 : 'Modo sólo lectura desactivado.',
-            'modo_solo_lectura' => $configuracion->modo_solo_lectura,
+            'modo_solo_lectura' => $conexion->modo_solo_lectura,
         ]);
     }
 

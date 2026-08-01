@@ -462,7 +462,7 @@
                 dias_primera_sync: $('#ml-dias-primera-sync').val(),
             };
 
-            $('#btn-guardar-ventas-ml').prop('disabled', true);
+            window.AppBtn.loading('#btn-guardar-ventas-ml', true);
             $.ajax({ url: rutas.guardarVentas, method: 'PATCH', dataType: 'json', data: datos })
                 .done(function (resp) {
                     toast('success', resp.mensaje);
@@ -472,7 +472,7 @@
                     const resp = xhr.responseJSON || {};
                     toast('error', resp.message || 'No se pudo guardar la configuración de ventas.');
                 })
-                .always(function () { $('#btn-guardar-ventas-ml').prop('disabled', false); });
+                .always(function () { window.AppBtn.loading('#btn-guardar-ventas-ml', false); });
         });
 
         // --- Credenciales ---
@@ -490,7 +490,7 @@
                 site_id: $('#ml-cred-site-id').val(),
             };
 
-            $('#btn-guardar-credenciales-ml').prop('disabled', true);
+            window.AppBtn.loading('#btn-guardar-credenciales-ml', true);
             $.ajax({ url: rutas.guardar, method: 'PUT', dataType: 'json', data: datos })
                 .done(function (resp) {
                     modalCredenciales ? modalCredenciales.hide() : $modalCredenciales.hide();
@@ -504,7 +504,7 @@
                         toast('error', resp.message || 'No se pudo guardar la configuración.');
                     }
                 })
-                .always(function () { $('#btn-guardar-credenciales-ml').prop('disabled', false); });
+                .always(function () { window.AppBtn.loading('#btn-guardar-credenciales-ml', false); });
         });
 
         // --- Copiar Redirect URI ---
@@ -544,8 +544,7 @@
 
         // --- Probar conexión ---
         $('#btn-probar-ml').on('click', function () {
-            const $btn = $(this);
-            $btn.prop('disabled', true);
+            const $btn = window.AppBtn.loading($(this), true);
             $.ajax({ url: rutas.probar, method: 'POST', dataType: 'json' })
                 .done(function (resp) {
                     toast(resp.ok ? 'success' : 'error', resp.mensaje);
@@ -555,13 +554,12 @@
                     const resp = xhr.responseJSON || {};
                     toast('error', resp.mensaje || 'No se pudo probar la conexión.');
                 })
-                .always(function () { $btn.prop('disabled', false); });
+                .always(function () { window.AppBtn.loading($btn, false); });
         });
 
         // --- Desconectar ---
         $('#btn-confirmar-desconectar-ml').on('click', function () {
-            const $btn = $(this);
-            $btn.prop('disabled', true);
+            const $btn = window.AppBtn.loading($(this), true);
             $.ajax({ url: rutas.desconectar, method: 'DELETE', dataType: 'json' })
                 .done(function (resp) {
                     toast('success', resp.mensaje);
@@ -572,7 +570,7 @@
                     toast('error', resp.mensaje || 'No se pudo desconectar la cuenta.');
                 })
                 .always(function () {
-                    $btn.prop('disabled', false);
+                    window.AppBtn.loading($btn, false);
                     const $modal = $('#modal-desconectar-ml');
                     const instancia = window.bootstrap ? window.bootstrap.Modal.getInstance($modal[0]) : null;
                     instancia ? instancia.hide() : $modal.hide();

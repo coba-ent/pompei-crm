@@ -343,6 +343,25 @@ return [
 				'js/custom.js',
 			],
 		],
+		'informe-cuenta-corriente' => [
+			'title' => 'Cuenta Corriente',
+			'css' => [
+				'vendor/datatables/css/jquery.dataTables.min.css',
+				'vendor/datatables/responsive/responsive.css',
+				'vendor/toastr/css/toastr.min.css',
+				'vendor/select2/css/select2.min.css',
+				'vendor/bootstrap-daterangepicker/daterangepicker.css',
+			],
+			'js' => [
+				'vendor/datatables/js/jquery.dataTables.min.js',
+				'vendor/datatables/responsive/responsive.js',
+				'vendor/toastr/js/toastr.min.js',
+				'vendor/select2/js/select2.full.min.js',
+				'vendor/moment/moment.min.js',
+				'vendor/bootstrap-daterangepicker/daterangepicker.js',
+				'js/custom.js',
+			],
+		],
 		'informe-gastos' => [
 			'title' => 'Informe de Gastos',
 			'css' => [

@@ -173,6 +173,7 @@
             const url = id ? rutas.show + '/' + id : rutas.store;
             const method = id ? 'PUT' : 'POST';
 
+            const $btn = window.AppBtn.loading($form.find('button[type="submit"]'), true);
             $.ajax({ url, method, dataType: 'json', data: datos }).done(function (resp) {
                 toast('success', resp.mensaje);
                 modalRol.hide();
@@ -185,6 +186,8 @@
                 } else {
                     toast('error', 'No se pudo guardar el rol.');
                 }
+            }).always(function () {
+                window.AppBtn.loading($btn, false);
             });
         });
     });

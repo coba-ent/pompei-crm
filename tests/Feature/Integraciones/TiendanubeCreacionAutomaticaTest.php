@@ -6,7 +6,7 @@ use App\Enums\Tiendanube\EstadoConexion;
 use App\Models\CuentaTesoreria;
 use App\Models\Deposito;
 use App\Models\FuncionAvanzada;
-use App\Models\Integraciones\TiendanubeConfiguracion;
+use App\Models\Integraciones\TiendanubeConexionRest;
 use App\Models\Integraciones\TiendanubeVarianteProducto;
 use App\Models\Producto;
 use App\Models\Rol;
@@ -35,24 +35,24 @@ class TiendanubeCreacionAutomaticaTest extends TestCase
         FuncionAvanzada::where('clave', 'tiendanube')->update(['activa' => true]);
         (new CondicionIvaSeeder())->run();
 
-        TiendanubeConfiguracion::actual()->update([
-            'access_token' => 'token-vigente', 'estado' => EstadoConexion::Conectada,
+        TiendanubeConexionRest::actual()->update([
+            'access_token' => 'token-vigente', 'store_id' => '999', 'estado' => EstadoConexion::Conectada,
         ]);
         Deposito::create(['nombre' => 'Principal', 'activo' => true]);
         $this->cuentaTesoreria = CuentaTesoreria::create(['nombre' => 'Pago Nube', 'tipo' => 'banco', 'visible' => true]);
-        TiendanubeConfiguracion::actual()->update(['cuenta_tesoreria_id' => $this->cuentaTesoreria->id]);
+        TiendanubeConexionRest::actual()->update(['cuenta_tesoreria_id' => $this->cuentaTesoreria->id]);
     }
 
     private function ordenCruda(int $id, int $variantId = 1): array
     {
         return [
-            'id' => $id, 'status' => 'closed', 'payment_status' => 'paid', 'fulfillment_status' => 'unpacked',
-            'completed_at' => now()->toIso8601String(), 'total' => ['amount' => 1210.0, 'currency' => 'ARS'],
+            'id' => $id, 'status' => 'closed', 'payment_status' => 'paid', 'shipping_status' => 'unpacked',
+            'completed_at' => now()->toIso8601String(), 'total' => 1210.0, 'currency' => 'ARS',
             'storefront' => 'store',
-            'customer' => ['id' => 900 + $id, 'email' => "comprador{$id}@test.com", 'name' => 'Comprador', 'cpf_cnpj' => null],
-            'items' => [[
+            'contact_email' => "comprador{$id}@test.com", 'contact_name' => 'Comprador', 'contact_identification' => '',
+            'products' => [[
                 'product_id' => 10, 'variant_id' => $variantId, 'name' => 'Producto',
-                'variant_values' => [], 'quantity' => 1, 'price' => ['amount' => 1210.0, 'currency' => 'ARS'],
+                'variant_values' => [], 'quantity' => 1, 'price' => 1210.0,
             ]],
         ];
     }
@@ -60,16 +60,13 @@ class TiendanubeCreacionAutomaticaTest extends TestCase
     private function fakearListado(array $ordenes): void
     {
         Http::fake([
-            'admin-mcp.tiendanube.com/' => Http::response([
-                'jsonrpc' => '2.0', 'id' => 1,
-                'result' => ['isError' => false, 'structuredContent' => ['orders' => $ordenes]],
-            ], 200),
+            'api.tiendanube.com/v1/*/orders*' => Http::response($ordenes, 200),
         ]);
     }
 
     public function test_orden_resoluble_se_convierte_sola_con_la_creacion_automatica_activa(): void
     {
-        TiendanubeConfiguracion::actual()->update(['creacion_automatica' => true]);
+        TiendanubeConexionRest::actual()->update(['creacion_automatica' => true]);
         $producto = Producto::factory()->create(['tipo' => 'producto', 'iva_venta_pct' => '21', 'activo' => true]);
         TiendanubeVarianteProducto::create(['variant_id' => 1, 'producto_id' => $producto->id]);
 
@@ -83,7 +80,7 @@ class TiendanubeCreacionAutomaticaTest extends TestCase
 
     public function test_orden_sin_vincular_no_crea_venta_ni_mueve_stock_y_queda_requiere_atencion(): void
     {
-        TiendanubeConfiguracion::actual()->update(['creacion_automatica' => true]);
+        TiendanubeConexionRest::actual()->update(['creacion_automatica' => true]);
 
         $this->fakearListado([$this->ordenCruda(1002, 999)]);
 
@@ -98,7 +95,7 @@ class TiendanubeCreacionAutomaticaTest extends TestCase
 
     public function test_resolver_el_motivo_vuelve_a_dejar_la_orden_convertible(): void
     {
-        TiendanubeConfiguracion::actual()->update(['creacion_automatica' => false]);
+        TiendanubeConexionRest::actual()->update(['creacion_automatica' => false]);
 
         $this->fakearListado([$this->ordenCruda(1003, 998)]);
         app(SincronizadorOrdenes::class)->ejecutar();
@@ -115,7 +112,7 @@ class TiendanubeCreacionAutomaticaTest extends TestCase
 
     public function test_interruptor_apagado_no_crea_ninguna_venta(): void
     {
-        TiendanubeConfiguracion::actual()->update(['creacion_automatica' => false]);
+        TiendanubeConexionRest::actual()->update(['creacion_automatica' => false]);
         $producto = Producto::factory()->create(['tipo' => 'producto', 'activo' => true]);
         TiendanubeVarianteProducto::create(['variant_id' => 1, 'producto_id' => $producto->id]);
 
@@ -129,7 +126,7 @@ class TiendanubeCreacionAutomaticaTest extends TestCase
     /** Un fallo a mitad de camino no deja Venta, cobranza ni movimiento de stock huérfanos. */
     public function test_fallo_durante_la_conversion_automatica_no_deja_venta_parcial(): void
     {
-        TiendanubeConfiguracion::actual()->update(['creacion_automatica' => true]);
+        TiendanubeConexionRest::actual()->update(['creacion_automatica' => true]);
         // Sin cuenta de Tesorería visible → ConversorOrdenAVenta rechaza antes de crear nada.
         $this->cuentaTesoreria->update(['visible' => false]);
 

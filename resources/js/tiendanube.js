@@ -410,7 +410,7 @@
                 vendedor_id: $('#tn-vendedor-id').val() || null,
             };
 
-            $('#btn-guardar-ventas-tn').prop('disabled', true);
+            window.AppBtn.loading('#btn-guardar-ventas-tn', true);
             $.ajax({ url: rutas.guardarVentas, method: 'PATCH', dataType: 'json', data: datos })
                 .done(function (resp) {
                     toast('success', resp.mensaje);
@@ -420,7 +420,7 @@
                     const resp = xhr.responseJSON || {};
                     toast('error', resp.message || 'No se pudo guardar la configuración de ventas.');
                 })
-                .always(function () { $('#btn-guardar-ventas-tn').prop('disabled', false); });
+                .always(function () { window.AppBtn.loading('#btn-guardar-ventas-tn', false); });
         });
 
         // --- Modo sólo lectura ---
@@ -440,8 +440,7 @@
 
         // --- Desconectar ---
         $('#btn-confirmar-desconectar-tn').on('click', function () {
-            const $btn = $(this);
-            $btn.prop('disabled', true);
+            const $btn = window.AppBtn.loading($(this), true);
             $.ajax({ url: rutas.desconectar, method: 'POST', dataType: 'json' })
                 .done(function (resp) {
                     toast('success', resp.mensaje);
@@ -452,7 +451,7 @@
                     toast('error', resp.mensaje || 'No se pudo desconectar.');
                 })
                 .always(function () {
-                    $btn.prop('disabled', false);
+                    window.AppBtn.loading($btn, false);
                     const $modal = $('#modal-desconectar-tn');
                     const instancia = window.bootstrap ? window.bootstrap.Modal.getInstance($modal[0]) : null;
                     instancia ? instancia.hide() : $modal.hide();
@@ -511,5 +510,71 @@
         }
 
         cargarEstado();
+
+        // ---- Conexión REST (Application del Partner Portal, spec 022) ----
+        // Aislada del panel de arriba: rutas, estado y toasts propios, sin tocar
+        // nada del manejo de la conexión MCP definido más arriba en este archivo.
+        const ESTADOS_REST = {
+            no_configurada: { etiqueta: 'No configurada', color: 'secondary' },
+            conectada: { etiqueta: 'Conectada', color: 'success' },
+            caida: { etiqueta: 'Caída', color: 'danger' },
+        };
+
+        function pintarEstadoRest(resp) {
+            const info = ESTADOS_REST[resp.estado] || ESTADOS_REST.no_configurada;
+            $('#tn-rest-badge-estado').attr('class', 'badge bg-' + info.color).text(info.etiqueta);
+
+            const conexion = resp.conexion || {};
+            const conectada = resp.estado === 'conectada';
+            const caida = resp.estado === 'caida';
+
+            $('#tn-rest-datos-conexion').toggle(conectada || caida);
+            if (conectada || caida) {
+                $('#tn-rest-conectada-en').text(formatearFecha(conexion.conectada_en));
+                $('#tn-rest-tienda-nombre').text(conexion.tienda_nombre || '—');
+                $('#tn-rest-tienda-dominio').text(conexion.tienda_dominio || '—');
+                $('#tn-rest-scopes-otorgados').text(conexion.scopes_otorgados || '—');
+            }
+
+            $('#btn-conectar-tn-rest').toggle(!conectada);
+            $('#btn-desconectar-tn-rest').toggle(conectada || caida);
+
+            $('#tn-rest-aviso-caida').toggleClass('d-none', !caida);
+            if (caida) {
+                $('#tn-rest-aviso-caida-mensaje').text(resp.ultimo_error || 'La conexión está caída. Volvé a conectar.');
+            }
+        }
+
+        function cargarEstadoRest() {
+            if (!rutas.estadoRest) {
+                return;
+            }
+            $.getJSON(rutas.estadoRest).done(pintarEstadoRest).fail(function () {
+                toast('error', 'No se pudo cargar el estado de la conexión REST.');
+            });
+        }
+
+        $('#btn-confirmar-desconectar-tn-rest').on('click', function () {
+            const $btn = window.AppBtn.loading($(this), true);
+            $.ajax({ url: rutas.desconectarRest, method: 'POST', dataType: 'json' })
+                .done(function (resp) {
+                    toast('success', resp.mensaje);
+                    cargarEstadoRest();
+                })
+                .fail(function (xhr) {
+                    const resp = xhr.responseJSON || {};
+                    toast('error', resp.mensaje || 'No se pudo desconectar.');
+                })
+                .always(function () {
+                    window.AppBtn.loading($btn, false);
+                    const $modal = $('#modal-desconectar-tn-rest');
+                    const instancia = window.bootstrap ? window.bootstrap.Modal.getInstance($modal[0]) : null;
+                    instancia ? instancia.hide() : $modal.hide();
+                });
+        });
+
+        if ($('#tn-rest-panel-estado').length) {
+            cargarEstadoRest();
+        }
     });
 })();

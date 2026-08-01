@@ -41,6 +41,7 @@
         inicializarSincronizar();
         inicializarSincronizarStock();
         inicializarDetalle();
+        inicializarTransformarTodasEnVenta();
     });
 
     function inicializarListado() {
@@ -114,7 +115,7 @@
 
     function inicializarSincronizar() {
         $('#btn-sincronizar-ml').on('click', function () {
-            const $btn = $(this).prop('disabled', true);
+            const $btn = window.AppBtn.loading($(this), true);
 
             $.post(rutas.sincronizar)
                 .done((resp) => {
@@ -125,13 +126,13 @@
                     const resp = xhr.responseJSON || {};
                     toast('error', resp.mensaje || 'No se pudo sincronizar.');
                 })
-                .always(() => $btn.prop('disabled', false));
+                .always(() => window.AppBtn.loading($btn, false));
         });
     }
 
     function inicializarSincronizarStock() {
         $('#btn-sincronizar-stock-ml').on('click', function () {
-            const $btn = $(this).prop('disabled', true);
+            const $btn = window.AppBtn.loading($(this), true);
 
             $.post(rutas.sincronizarStock)
                 .done((resp) => {
@@ -141,8 +142,51 @@
                     const resp = xhr.responseJSON || {};
                     toast('error', resp.mensaje || 'No se pudo sincronizar el stock.');
                 })
-                .always(() => $btn.prop('disabled', false));
+                .always(() => window.AppBtn.loading($btn, false));
         });
+    }
+
+    function inicializarTransformarTodasEnVenta() {
+        const $btn = $('#btn-transformar-todas-en-venta-ml');
+        if (!$btn.length) { return; }
+
+        const modalEl = document.getElementById('modal-resultado-transformar-venta-ml');
+        const modal = modalEl ? new bootstrap.Modal(modalEl) : null;
+
+        $btn.on('click', function () {
+            window.AppBtn.loading($btn, true);
+
+            $.ajax({ url: rutas.transformarTodasEnVenta, method: 'POST' })
+                .done((resp) => {
+                    toast('success', resp.mensaje || 'Transformación en Venta ejecutada.');
+
+                    if (resp.fallidas > 0 && modal) {
+                        $('#resultado-transformar-venta-ml-body').html(renderResultadoTransformarEnVenta(resp));
+                        modal.show();
+                    }
+
+                    if (resp.convertidas > 0 && window._mlOrdenesTabla) { window._mlOrdenesTabla.ajax.reload(null, false); }
+                })
+                .fail((xhr) => {
+                    const resp = xhr.responseJSON || {};
+                    toast('error', resp.mensaje || resp.message || 'No se pudo ejecutar la transformación en Venta.');
+                })
+                .always(() => {
+                    window.AppBtn.loading($btn, false);
+                });
+        });
+    }
+
+    function renderResultadoTransformarEnVenta(resp) {
+        const filas = (resp.detalle_fallidas || []).map((f) => (
+            '<tr><td>' + $('<div>').text(f.orden).html() + '</td><td>'
+            + $('<div>').text(f.motivo).html() + '</td><td>'
+            + $('<div>').text(f.motivo_detalle || '').html() + '</td></tr>'
+        )).join('');
+
+        return '<p>' + resp.convertidas + ' de ' + resp.total + ' órdenes convertidas.</p>'
+            + '<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Orden</th><th>Motivo</th><th>Detalle</th></tr></thead><tbody>'
+            + filas + '</tbody></table></div>';
     }
 
     function inicializarDetalle() {

@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Integraciones\TiendanubeConfiguracion;
+use App\Models\Integraciones\TiendanubeConexionRest;
 use App\Services\Tiendanube\SincronizadorStock;
 use Illuminate\Console\Command;
 
@@ -21,7 +21,7 @@ class SincronizarStockTiendanube extends Command
 
     public function handle(SincronizadorStock $sincronizador): int
     {
-        $configuracion = TiendanubeConfiguracion::actual();
+        $configuracion = TiendanubeConexionRest::actual();
 
         if (! $this->option('forzar') && ! $this->correspondeEjecutar($configuracion)) {
             $this->info('Todavía no corresponde sincronizar según la frecuencia configurada.');
@@ -42,7 +42,7 @@ class SincronizarStockTiendanube extends Command
         return self::SUCCESS;
     }
 
-    private function correspondeEjecutar(TiendanubeConfiguracion $configuracion): bool
+    private function correspondeEjecutar(TiendanubeConexionRest $configuracion): bool
     {
         if (! $configuracion->stock_ultima_sync_en) {
             return true;

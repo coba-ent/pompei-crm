@@ -4,7 +4,7 @@ namespace App\Observers;
 
 use App\Models\Integraciones\MercadoLibreConfiguracion;
 use App\Models\Integraciones\MercadoLibrePublicacionProducto;
-use App\Models\Integraciones\TiendanubeConfiguracion;
+use App\Models\Integraciones\TiendanubeConexionRest;
 use App\Models\Integraciones\TiendanubeVarianteProducto;
 use App\Models\PrecioProducto;
 use App\Services\MercadoLibre\SincronizadorPrecios as SincronizadorPreciosMercadoLibre;
@@ -50,7 +50,7 @@ class PrecioProductoObserver
     /** Rama Tiendanube (spec 018 ampliación, FR-024/FR-026/FR-027). */
     private function ramaTiendanube(PrecioProducto $precio): void
     {
-        $listaConfigurada = TiendanubeConfiguracion::actual()->lista_precio_id;
+        $listaConfigurada = TiendanubeConexionRest::actual()->lista_precio_id;
 
         if (! $listaConfigurada || (int) $precio->lista_precio_id !== (int) $listaConfigurada) {
             return;

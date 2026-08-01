@@ -5,7 +5,8 @@ namespace App\Services\Tiendanube;
 use App\Enums\Tiendanube\EstadoConversion;
 use App\Models\CuentaTesoreria;
 use App\Models\Cliente;
-use App\Models\Integraciones\TiendanubeConfiguracion;
+use App\Models\FuncionAvanzada;
+use App\Models\Integraciones\TiendanubeConexionRest;
 use App\Models\Integraciones\TiendanubeOrden;
 use App\Models\Integraciones\TiendanubeOrdenItem;
 use App\Models\Integraciones\TiendanubeVarianteProducto;
@@ -62,6 +63,69 @@ class ConversorOrdenAVenta
         } finally {
             $lock->release();
         }
+    }
+
+    /**
+     * "Transformar todas en Venta" (spec 025, FR-002/FR-005/FR-006): convierte,
+     * de una en una, todas las órdenes en `Lista` de la conexión vigente, reusando
+     * el mismo candado/transacción por orden que `convertir()`. Guardrails
+     * idénticos a `SincronizadorOrdenes::verificarCortes()` (función avanzada +
+     * modo sólo lectura) — si alguno bloquea, no toca ninguna orden.
+     *
+     * @return array{ok: bool, tipo?: string, mensaje: string, total?: int, convertidas?: int, fallidas?: int, detalle_fallidas?: array}
+     */
+    public function convertirTodasLasListas(?int $usuarioId): array
+    {
+        if ($bloqueo = $this->verificarCortesBatch()) {
+            return $bloqueo;
+        }
+
+        $ordenes = TiendanubeOrden::where('estado_conversion', EstadoConversion::Lista->value)->get();
+
+        $total = $ordenes->count();
+        $convertidas = 0;
+        $detalleFallidas = [];
+
+        foreach ($ordenes as $orden) {
+            $resultado = $this->convertir($orden, $usuarioId, automatica: false);
+
+            if ($resultado['ok']) {
+                $convertidas++;
+
+                continue;
+            }
+
+            $detalleFallidas[] = [
+                'orden' => $orden->tn_order_id,
+                'motivo' => $orden->fresh()->motivo?->etiqueta() ?? $resultado['mensaje'],
+                'motivo_detalle' => $orden->fresh()->motivo_detalle,
+            ];
+        }
+
+        $fallidas = $total - $convertidas;
+
+        return [
+            'ok' => true,
+            'mensaje' => "{$convertidas} de {$total} órdenes convertidas.",
+            'total' => $total,
+            'convertidas' => $convertidas,
+            'fallidas' => $fallidas,
+            'detalle_fallidas' => $detalleFallidas,
+        ];
+    }
+
+    /** Mismos cortes que `SincronizadorOrdenes::verificarCortes()` (función avanzada + modo sólo lectura). */
+    private function verificarCortesBatch(): ?array
+    {
+        if (! (bool) FuncionAvanzada::where('clave', 'tiendanube')->value('activa')) {
+            return ['ok' => false, 'tipo' => 'bloqueada', 'mensaje' => 'La función "Tiendanube" está desactivada en Funciones Avanzadas.'];
+        }
+
+        if (TiendanubeConexionRest::actual()->modo_solo_lectura) {
+            return ['ok' => false, 'tipo' => 'bloqueada', 'mensaje' => 'Bloqueada por el modo sólo lectura: la conversión está deshabilitada mientras esté activo.'];
+        }
+
+        return null;
     }
 
     /**
@@ -141,8 +205,8 @@ class ConversorOrdenAVenta
                 $venta = Venta::create([
                     'origen' => 'tiendanube',
                     'cliente_id' => $clienteFinal->id,
-                    'categoria_id' => TiendanubeConfiguracion::actual()->categoria_venta_id,
-                    'vendedor_id' => TiendanubeConfiguracion::actual()->vendedor_id,
+                    'categoria_id' => TiendanubeConexionRest::actual()->categoria_venta_id,
+                    'vendedor_id' => TiendanubeConexionRest::actual()->vendedor_id,
                     'fecha_emision' => $fechaEmision,
                     'tipo_comprobante' => $tipoComprobante,
                     'nro_comprobante' => Venta::siguienteNroComprobante($tipoComprobante),
@@ -256,7 +320,7 @@ class ConversorOrdenAVenta
     /** FR-045/FR-045a, research.md R5: FK configurable, no lookup por nombre fijo. */
     private function cuentaTesoreriaConfigurada(): ?CuentaTesoreria
     {
-        $cuenta = TiendanubeConfiguracion::actual()->cuentaTesoreria;
+        $cuenta = TiendanubeConexionRest::actual()->cuentaTesoreria;
 
         return ($cuenta && $cuenta->visible) ? $cuenta : null;
     }

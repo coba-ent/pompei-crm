@@ -23,6 +23,7 @@ class DefinicionCamposImportables
     public static function clientes(): array
     {
         return [
+            'id' => ['etiqueta' => 'Id', 'obligatorio' => false, 'id' => true],
             'nombre' => ['etiqueta' => 'Cliente (Nombre)', 'obligatorio' => true],
             'nombre_pila' => ['etiqueta' => 'Nombre', 'obligatorio' => false],
             'apellido' => ['etiqueta' => 'Apellido', 'obligatorio' => false],
@@ -36,6 +37,22 @@ class DefinicionCamposImportables
             'condicion_iva_id' => ['etiqueta' => 'Condición de IVA', 'obligatorio' => false, 'fk' => ['modelo' => CondicionIva::class]],
             'categoria_id' => ['etiqueta' => 'Categoría Ventas', 'obligatorio' => false, 'fk' => ['modelo' => Categoria::class, 'scope' => 'venta']],
             'nota' => ['etiqueta' => 'Nota', 'obligatorio' => false],
+            'razon_social' => ['etiqueta' => 'Razón Social', 'obligatorio' => false],
+            'tipo_documento' => ['etiqueta' => 'Tipo de Documento', 'obligatorio' => false],
+            'domicilio_fiscal' => ['etiqueta' => 'Domicilio Fiscal', 'obligatorio' => false],
+            'localidad_fiscal' => ['etiqueta' => 'Localidad Fiscal', 'obligatorio' => false],
+            'provincia_fiscal' => ['etiqueta' => 'Provincia Fiscal', 'obligatorio' => false],
+            'cp_fiscal' => ['etiqueta' => 'Código Postal Fiscal', 'obligatorio' => false],
+            'telefono_fiscal' => ['etiqueta' => 'Teléfono Fiscal', 'obligatorio' => false],
+            'telefono_celular_fiscal' => ['etiqueta' => 'Teléfono Celular Fiscal', 'obligatorio' => false],
+            'cp' => ['etiqueta' => 'Código Postal', 'obligatorio' => false],
+            'pagina_web' => ['etiqueta' => 'Página Web', 'obligatorio' => false],
+            'saldo_inicial' => ['etiqueta' => 'Saldo Inicial', 'obligatorio' => false, 'numerico' => true],
+            'saldo_inicial_fecha' => ['etiqueta' => 'Fecha de Saldo Inicial', 'obligatorio' => false, 'fecha' => true],
+            'nota_cliente' => ['etiqueta' => 'Nota para Ventas', 'obligatorio' => false],
+            'descuento_general_pct' => ['etiqueta' => 'Descuento General', 'obligatorio' => false, 'numerico' => true],
+            'lista_precio_id' => ['etiqueta' => 'Lista de Precios', 'obligatorio' => false, 'fk' => ['modelo' => ListaPrecio::class]],
+            'apodo_ml' => ['etiqueta' => 'Usuario de Mercado Libre', 'obligatorio' => false],
         ];
     }
 
@@ -53,6 +70,9 @@ class DefinicionCamposImportables
         $campos['categoria_id']['fk']['scope'] = 'compra';
         $campos['nota']['etiqueta'] = 'Nota Interna';
 
+        // No existen en Proveedor (data-model.md §Proveedores).
+        unset($campos['apodo_ml'], $campos['nota_cliente'], $campos['descuento_general_pct'], $campos['lista_precio_id']);
+
         return $campos;
     }
 
@@ -62,6 +82,7 @@ class DefinicionCamposImportables
     public static function productos(): array
     {
         $campos = [
+            'id' => ['etiqueta' => 'Id', 'obligatorio' => false, 'id' => true],
             'nombre' => ['etiqueta' => 'Nombre', 'obligatorio' => true],
             'codigo' => ['etiqueta' => 'Código/SKU', 'obligatorio' => false],
             'tipo' => ['etiqueta' => 'Tipo', 'obligatorio' => false, 'default' => 'producto'],
@@ -72,6 +93,9 @@ class DefinicionCamposImportables
             'iva_venta_pct' => ['etiqueta' => 'IVA Ventas', 'obligatorio' => false],
             'iva_compra_pct' => ['etiqueta' => 'IVA Compras', 'obligatorio' => false],
             'descripcion' => ['etiqueta' => 'Descripción', 'obligatorio' => false],
+            'activo' => ['etiqueta' => 'Activo', 'obligatorio' => false, 'booleano' => true],
+            'mostrar_en_ventas' => ['etiqueta' => 'Mostrar en Ventas', 'obligatorio' => false, 'booleano' => true],
+            'mostrar_en_compras' => ['etiqueta' => 'Mostrar en Compras', 'obligatorio' => false, 'booleano' => true],
         ];
 
         // Una entrada de mapeo por cada lista de precios activa (equivalente a las

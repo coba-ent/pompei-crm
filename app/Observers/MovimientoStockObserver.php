@@ -4,7 +4,7 @@ namespace App\Observers;
 
 use App\Models\Integraciones\MercadoLibreConfiguracion;
 use App\Models\Integraciones\MercadoLibrePublicacionProducto;
-use App\Models\Integraciones\TiendanubeConfiguracion;
+use App\Models\Integraciones\TiendanubeConexionRest;
 use App\Models\Integraciones\TiendanubeVarianteProducto;
 use App\Models\MovimientoStock;
 use App\Models\Venta;
@@ -50,7 +50,7 @@ class MovimientoStockObserver
     /** Rama Tiendanube (spec 018, FR-001/FR-002/FR-005): mismo esqueleto que la de Mercado Libre. */
     private function ramaTiendanube(MovimientoStock $movimiento): void
     {
-        $depositoTn = TiendanubeConfiguracion::actual()->depositoEfectivo();
+        $depositoTn = TiendanubeConexionRest::actual()->depositoEfectivo();
 
         if ((int) $movimiento->deposito_id !== $depositoTn->id) {
             return;

@@ -4,29 +4,27 @@ namespace App\Services\Tiendanube;
 
 use App\Enums\Tiendanube\EstadoConexion;
 use App\Models\FuncionAvanzada;
-use App\Models\Integraciones\TiendanubeConfiguracion;
-use App\Models\Integraciones\TiendanubeOperacionLog;
+use App\Models\Integraciones\TiendanubeConexionRest;
+use App\Models\Integraciones\TiendanubeRestOperacionLog;
 use App\Models\Integraciones\TiendanubeVarianteProducto;
 use App\Services\Stock\StockService;
 use Illuminate\Support\Facades\Cache;
 
 /**
  * Empuja hacia Tiendanube el stock de los vínculos marcados pendientes por
- * MovimientoStockObserver (spec 018, plan.md §"Enfoque técnico" punto 2).
- * Candado propio (FR-008), cortes previos al bucle (FR-009/FR-010,
- * research.md R7) y continuidad ante el rechazo de un vínculo puntual
- * (FR-014/FR-015). A diferencia de la contraparte de Mercado Libre, agrupa
- * los envíos en lotes de hasta 50 (`update_stock_and_price`, research.md R6)
- * en vez de una llamada por vínculo.
+ * MovimientoStockObserver (spec 018, plan.md §"Enfoque técnico" punto 2), vía
+ * el cliente REST (spec 024). Candado propio (FR-008), cortes previos al
+ * bucle (FR-009/FR-010, research.md R7) y continuidad ante el rechazo de un
+ * vínculo puntual (FR-014/FR-015). La REST API clásica no tiene equivalente
+ * al batch `update_stock_and_price` del MCP (research.md R4 de spec 024): se
+ * envía una `PUT` por vínculo pendiente, sin loteo.
  */
 class SincronizadorStock
 {
     public const LOCK_KEY = 'tn:sincronizar_stock';
 
-    private const TAMANO_LOTE = 50;
-
     public function __construct(
-        private readonly ClienteTiendanube $cliente,
+        private readonly ClienteTiendanubeRest $cliente,
         private readonly StockService $stock,
     ) {
     }
@@ -56,8 +54,8 @@ class SincronizadorStock
     /**
      * Cortes previos al bucle de vínculos pendientes (FR-009/FR-010): función
      * desactivada, modo sólo lectura o conexión caída/no configurada. Un único
-     * registro en el historial por corte, nunca uno por chunk — mismo criterio
-     * que SincronizadorOrdenes::verificarCortes() (research.md R7).
+     * registro en el historial por corte, nunca uno por vínculo — mismo
+     * criterio que SincronizadorOrdenes::verificarCortes() (research.md R7).
      */
     private function verificarCortes(): ?array
     {
@@ -65,13 +63,13 @@ class SincronizadorStock
             return $this->bloquear('La función "Tiendanube" está desactivada en Funciones Avanzadas.');
         }
 
-        $configuracion = TiendanubeConfiguracion::actual();
+        $conexion = TiendanubeConexionRest::actual();
 
-        if ($configuracion->modo_solo_lectura) {
+        if ($conexion->modo_solo_lectura) {
             return $this->bloquear('Bloqueada por el modo sólo lectura: las escrituras hacia Tiendanube están deshabilitadas.');
         }
 
-        if (! $configuracion->estaCompleta() || $configuracion->estado === EstadoConexion::Caida) {
+        if (! $conexion->estaCompleta() || $conexion->estado === EstadoConexion::Caida) {
             return $this->bloquear('No hay una conexión con Tiendanube establecida. Hace falta reconectar Tiendanube (soporte técnico).');
         }
 
@@ -80,9 +78,9 @@ class SincronizadorStock
 
     private function bloquear(string $mensaje): array
     {
-        TiendanubeOperacionLog::registrar([
+        TiendanubeRestOperacionLog::registrar([
             'operacion' => 'sincronizar_stock',
-            'metodo' => 'POST',
+            'metodo' => 'PUT',
             'endpoint' => '/',
             'sentido' => 'escritura',
             'resultado' => 'bloqueada',
@@ -94,14 +92,13 @@ class SincronizadorStock
 
     private function sincronizar(): array
     {
-        $configuracion = TiendanubeConfiguracion::actual();
-        $depositoTn = $configuracion->depositoEfectivo();
+        $conexion = TiendanubeConexionRest::actual();
+        $depositoTn = $conexion->depositoEfectivo();
 
         $actualizados = 0;
         $conError = 0;
 
         $vinculos = TiendanubeVarianteProducto::pendientes()->with('producto')->get();
-        $porEnviar = [];
 
         foreach ($vinculos as $vinculo) {
             if (! $vinculo->producto) {
@@ -124,16 +121,14 @@ class SincronizadorStock
 
             $cantidad = (int) max(0, $this->stock->disponibilidad($vinculo->producto, null, $depositoTn));
 
-            $porEnviar[] = ['vinculo' => $vinculo, 'cantidad' => $cantidad];
+            if ($this->enviarUno($vinculo, $cantidad)) {
+                $actualizados++;
+            } else {
+                $conError++;
+            }
         }
 
-        foreach (array_chunk($porEnviar, self::TAMANO_LOTE) as $lote) {
-            [$okLote, $errorLote] = $this->enviarLote($lote);
-            $actualizados += $okLote;
-            $conError += $errorLote;
-        }
-
-        $configuracion->update([
+        $conexion->update([
             'stock_ultima_sync_en' => now(),
             'stock_ultima_sync_resultado' => "OK: {$actualizados} variantes actualizadas, {$conError} con error.",
         ]);
@@ -146,67 +141,31 @@ class SincronizadorStock
         ];
     }
 
-    /**
-     * @param  array<int, array{vinculo: TiendanubeVarianteProducto, cantidad: int}>  $lote
-     * @return array{0: int, 1: int} [actualizados, con_error]
-     */
-    private function enviarLote(array $lote): array
+    /** `PUT /products/{product_id}/variants/{variant_id}` con `{"stock": N}` — sin batch (research.md R4). */
+    private function enviarUno(TiendanubeVarianteProducto $vinculo, int $cantidad): bool
     {
-        $updates = array_map(fn (array $item) => [
-            'product_id' => $item['vinculo']->tn_product_id,
-            'variant_id' => $item['vinculo']->variant_id,
-            'stock' => $item['cantidad'],
-        ], $lote);
-
-        $respuesta = $this->cliente->escribir('update_stock_and_price', ['updates' => $updates]);
+        $respuesta = $this->cliente->escribir(
+            'PUT',
+            "products/{$vinculo->tn_product_id}/variants/{$vinculo->variant_id}",
+            ['stock' => $cantidad]
+        );
 
         if ($respuesta->fallo()) {
-            // Fallo a nivel de todo el chunk (protocolo/red): ningún ítem del lote
-            // se pudo confirmar, pero los chunks siguientes igual se intentan
-            // (FR-015) — el bucle exterior sigue con el próximo array_chunk.
-            $mensaje = $respuesta->mensajeError ?? 'Tiendanube rechazó la actualización.';
-
-            foreach ($lote as $item) {
-                $item['vinculo']->update(['stock_error' => $mensaje, 'stock_error_en' => now()]);
-            }
-
-            return [0, count($lote)];
-        }
-
-        // Formato de respuesta ante fallos parciales no verificado empíricamente
-        // (research.md R6, T032a pendiente): se asume, por analogía con
-        // `bulk_delete_products`, un resultado por ítem en `datos['results']`
-        // (`variant_id` + `success`/`error`). Un ítem sin resultado explícito se
-        // considera exitoso, ya que la llamada en su conjunto no falló.
-        $resultadosPorItem = collect($respuesta->datos['results'] ?? [])->keyBy('variant_id');
-
-        $actualizados = 0;
-        $conError = 0;
-
-        foreach ($lote as $item) {
-            $vinculo = $item['vinculo'];
-            $resultado = $resultadosPorItem->get((string) $vinculo->variant_id) ?? $resultadosPorItem->get($vinculo->variant_id);
-            $exito = $resultado === null || (bool) ($resultado['success'] ?? true);
-
-            if (! $exito) {
-                $conError++;
-                $vinculo->update([
-                    'stock_error' => $resultado['error'] ?? $resultado['message'] ?? 'Tiendanube rechazó la actualización.',
-                    'stock_error_en' => now(),
-                ]);
-
-                continue;
-            }
-
-            $actualizados++;
             $vinculo->update([
-                'stock_pendiente' => false,
-                'stock_sincronizado_en' => now(),
-                'stock_error' => null,
-                'stock_error_en' => null,
+                'stock_error' => $respuesta->mensajeError ?? 'Tiendanube rechazó la actualización.',
+                'stock_error_en' => now(),
             ]);
+
+            return false;
         }
 
-        return [$actualizados, $conError];
+        $vinculo->update([
+            'stock_pendiente' => false,
+            'stock_sincronizado_en' => now(),
+            'stock_error' => null,
+            'stock_error_en' => null,
+        ]);
+
+        return true;
     }
 }

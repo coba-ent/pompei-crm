@@ -65,8 +65,11 @@ class ClienteFacturacionTest extends TestCase
         $this->assertSame(0, Cliente::count());
     }
 
-    public function test_rechaza_cuit_duplicado_presente(): void
+    public function test_permite_cuit_duplicado_entre_clientes(): void
     {
+        // El CUIT/DNI no es único entre clientes (decisión 31/07/2026): nada del
+        // sistema matchea clientes por CUIT, y exigir unicidad bloqueaba migrar
+        // datos reales con duplicados legítimos del sistema anterior.
         Cliente::create(['nombre' => 'Primero', 'cuit' => '20111111112']);
 
         $response = $this->postJson(route('clientes.store'), [
@@ -74,7 +77,8 @@ class ClienteFacturacionTest extends TestCase
             'cuit' => '20111111112',
         ]);
 
-        $response->assertStatus(422)->assertJsonStructure(['errors' => ['cuit']]);
+        $response->assertOk();
+        $this->assertSame(2, Cliente::where('cuit', '20111111112')->count());
     }
 
     public function test_permite_varios_clientes_sin_cuit(): void

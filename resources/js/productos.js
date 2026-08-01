@@ -66,7 +66,7 @@
         // la fusión es de cliente, cada ruta responde de forma independiente
         // (research.md R10 de la spec 018). Mismo patrón AJAX + Toastr, sin recarga.
         $('#btn-sincronizar-precios-ml').on('click', function () {
-            const $btn = $(this).prop('disabled', true);
+            const $btn = window.AppBtn.loading($(this), true);
 
             const mlPromise = $.post(rutas.sincronizarPreciosMl)
                 .then((resp) => ({ integracion: 'Mercado Libre', ok: true, mensaje: resp.mensaje }))
@@ -87,7 +87,7 @@
                             resultado.integracion
                         );
                     });
-                    $btn.prop('disabled', false);
+                    window.AppBtn.loading($btn, false);
                 });
         });
 
@@ -418,7 +418,7 @@
         const $form = $('#form-producto');
 
         initSelect2($form.find('select[name="stock_inicial_deposito_id"]'), { dropdownParent: $modal });
-        initSelect2($('#producto-proveedor'), { dropdownParent: $modal, placeholder: 'Elija Proveedor' });
+        initSelect2($('#producto-proveedor'), { dropdownParent: $modal, placeholder: 'Elija Proveedor', allowClear: true });
 
         // ---- Tipo de Producto (catálogo con Select2 + crear/renombrar/eliminar) ----
         let tiposProducto = (cfg.tiposProducto || []).slice();
@@ -488,7 +488,7 @@
             const esRen = !!id;
             const url = esRen ? rutas.tipos + '/' + id : rutas.tipos;
             const datos = esRen ? { _method: 'PATCH', nombre: nombre } : { nombre: nombre };
-            $('#btn-guardar-tipo-nombre').prop('disabled', true);
+            window.AppBtn.loading('#btn-guardar-tipo-nombre', true);
             $.ajax({ url: url, method: 'POST', dataType: 'json', data: datos })
                 .done(function (resp) {
                     if (esRen) {
@@ -511,7 +511,7 @@
                     $('#tipo-nombre-input').addClass('is-invalid');
                     $('#tipo-nombre-error').text(msg);
                 })
-                .always(function () { $('#btn-guardar-tipo-nombre').prop('disabled', false); });
+                .always(function () { window.AppBtn.loading('#btn-guardar-tipo-nombre', false); });
         });
 
         $('#btn-renombrar-tipo-producto').on('click', function (e) {
@@ -717,7 +717,7 @@
             const url = esRenombrar ? rutas.listas + '/' + id : rutas.listas;
             const datos = esRenombrar ? { _method: 'PATCH', nombre: nombre } : { nombre: nombre };
 
-            $('#btn-guardar-lista-nombre').prop('disabled', true);
+            window.AppBtn.loading('#btn-guardar-lista-nombre', true);
             $.ajax({ url: url, method: 'POST', dataType: 'json', data: datos })
                 .done(function (resp) {
                     if (esRenombrar) {
@@ -738,7 +738,7 @@
                     $('#lista-nombre-input').addClass('is-invalid');
                     $('#lista-nombre-error').text(msg);
                 })
-                .always(function () { $('#btn-guardar-lista-nombre').prop('disabled', false); });
+                .always(function () { window.AppBtn.loading('#btn-guardar-lista-nombre', false); });
         });
 
         // Recolecta los precios cargados en el form para no perderlos al re-render.
@@ -890,7 +890,7 @@
                 datos.append('_method', 'PATCH');
             }
 
-            $('#btn-guardar-producto').prop('disabled', true);
+            window.AppBtn.loading('#btn-guardar-producto', true);
 
             $.ajax({
                 url: url,
@@ -916,7 +916,7 @@
                     }
                 })
                 .always(function () {
-                    $('#btn-guardar-producto').prop('disabled', false);
+                    window.AppBtn.loading('#btn-guardar-producto', false);
                 });
         });
 
@@ -1018,7 +1018,7 @@
             e.preventDefault();
             const id = $('#stock-producto-id').val();
             $formStock.find('.is-invalid').removeClass('is-invalid');
-            $('#btn-guardar-stock').prop('disabled', true);
+            window.AppBtn.loading('#btn-guardar-stock', true);
 
             $.ajax({
                 url: rutas.show + '/' + id + '/stock',
@@ -1045,7 +1045,7 @@
                     }
                 })
                 .always(function () {
-                    $('#btn-guardar-stock').prop('disabled', false);
+                    window.AppBtn.loading('#btn-guardar-stock', false);
                 });
         });
 
@@ -1171,7 +1171,7 @@
                 datos.deposito_id = $formOp.find('[name="deposito_id"]').val();
             }
 
-            $('#btn-guardar-stock-op').prop('disabled', true);
+            window.AppBtn.loading('#btn-guardar-stock-op', true);
             $.ajax({
                 url: url,
                 method: 'POST',
@@ -1199,7 +1199,7 @@
                     }
                 })
                 .always(function () {
-                    $('#btn-guardar-stock-op').prop('disabled', false);
+                    window.AppBtn.loading('#btn-guardar-stock-op', false);
                 });
         });
 
@@ -1334,7 +1334,7 @@
 
             const payload = Object.assign({ accion: accion, valor: valorAccionMasiva(accion) }, payloadSeleccion());
 
-            $('#btn-confirmar-acciones-masivas').prop('disabled', true);
+            window.AppBtn.loading('#btn-confirmar-acciones-masivas', true);
             ejecutarAccionMasiva(payload)
                 .done(function (resp) {
                     modalMasivas ? modalMasivas.hide() : $modalMasivas.hide();
@@ -1357,7 +1357,7 @@
                     }
                 })
                 .always(function () {
-                    $('#btn-confirmar-acciones-masivas').prop('disabled', false);
+                    window.AppBtn.loading('#btn-confirmar-acciones-masivas', false);
                 });
         });
 
@@ -1444,7 +1444,7 @@
                 campos: campos,
             }, payloadSeleccion());
 
-            $('#btn-actualizar-precios').prop('disabled', true);
+            window.AppBtn.loading('#btn-actualizar-precios', true);
             ejecutarAccionMasiva(payload)
                 .done(function (resp) {
                     modalPrecios ? modalPrecios.hide() : $modalPrecios.hide();
@@ -1456,7 +1456,7 @@
                     toast('error', msg);
                 })
                 .always(function () {
-                    $('#btn-actualizar-precios').prop('disabled', false);
+                    window.AppBtn.loading('#btn-actualizar-precios', false);
                 });
         });
 
@@ -1478,14 +1478,14 @@
                 valor_compra: $('#masiva-iva-compra').val(),
             }, payloadSeleccion());
 
-            const $btn = $formIva.find('button[type="submit"]').prop('disabled', true);
+            const $btn = window.AppBtn.loading($formIva.find('button[type="submit"]'), true);
             ejecutarAccionMasiva(payload)
                 .done(function (resp) {
                     modalIva ? modalIva.hide() : $modalIva.hide();
                     avisarResultadoAccionMasiva(resp, 'iva');
                 })
                 .fail(function () { toast('error', 'No se pudo aplicar la acción.'); })
-                .always(function () { $btn.prop('disabled', false); });
+                .always(function () { window.AppBtn.loading($btn, false); });
         });
 
         // ---- Modificar Tipo de Producto ----
@@ -1522,14 +1522,14 @@
                 valor_servicio: valorServicio,
             }, payloadSeleccion());
 
-            const $btn = $formTipoProd.find('button[type="submit"]').prop('disabled', true);
+            const $btn = window.AppBtn.loading($formTipoProd.find('button[type="submit"]'), true);
             ejecutarAccionMasiva(payload)
                 .done(function (resp) {
                     modalTipoProd ? modalTipoProd.hide() : $modalTipoProd.hide();
                     avisarResultadoAccionMasiva(resp, 'tipo_producto_id');
                 })
                 .fail(function () { toast('error', 'No se pudo aplicar la acción.'); })
-                .always(function () { $btn.prop('disabled', false); });
+                .always(function () { window.AppBtn.loading($btn, false); });
         });
     });
 })();

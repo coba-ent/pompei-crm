@@ -28,5 +28,12 @@
                 <i class="fas fa-trash-alt me-2 text-danger"></i> Eliminar
             </button>
         </li>
+        @can('informes.ver')
+            <li>
+                <a class="dropdown-item" href="{{ route('informes.cuenta-corriente.index', ['cliente_id' => $cliente->id]) }}">
+                    <i class="fas fa-file-invoice-dollar me-2 text-secondary"></i> Cta Cte
+                </a>
+            </li>
+        @endcan
     </ul>
 </div>

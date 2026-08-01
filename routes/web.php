@@ -17,10 +17,12 @@ use App\Http\Controllers\Integraciones\MercadoLibreConfiguracionController;
 use App\Http\Controllers\Integraciones\MercadoLibreOAuthController;
 use App\Http\Controllers\Ingresos\TiendanubeVentaController;
 use App\Http\Controllers\Ingresos\TiendanubeVinculacionController;
+use App\Http\Controllers\Integraciones\TiendanubeConexionRestController;
 use App\Http\Controllers\Integraciones\TiendanubeConfiguracionController;
 use App\Http\Controllers\Integraciones\TiendanubeOAuthController;
 use App\Http\Controllers\Integraciones\TiendanubeWebhookController;
 use App\Http\Controllers\ImportacionController;
+use App\Http\Controllers\Informes\CuentaCorrienteController;
 use App\Http\Controllers\Informes\InformeStockController;
 use App\Http\Controllers\ListaPrecioController;
 use App\Http\Controllers\NotaCreditoDebitoController;
@@ -116,6 +118,11 @@ Route::get('informes/stock', [InformeStockController::class, 'index'])->name('in
 Route::get('informes/stock/data', [InformeStockController::class, 'data'])->name('informes.stock.data');
 Route::get('informes/stock/stats', [InformeStockController::class, 'stats'])->name('informes.stock.stats');
 
+// Informes → Cuenta Corriente (spec 029)
+Route::get('informes/cuenta-corriente', [CuentaCorrienteController::class, 'index'])->name('informes.cuenta-corriente.index');
+Route::get('informes/cuenta-corriente/saldos', [CuentaCorrienteController::class, 'saldosData'])->name('informes.cuenta-corriente.saldos.data');
+Route::get('informes/cuenta-corriente/movimientos', [CuentaCorrienteController::class, 'movimientosData'])->name('informes.cuenta-corriente.movimientos.data');
+
 // Tesorería (spec 007) — Saldos, Movimientos, config de cuentas, transferencias, ficha/ledger
 Route::middleware('permiso:tesoreria.ver')->prefix('tesoreria')->name('tesoreria.')->group(function () {
     Route::get('/', [TesoreriaController::class, 'saldos'])->name('saldos');
@@ -185,6 +192,7 @@ Route::middleware('permiso:ventas.ver')->prefix('ingresos/mercadolibre')->name('
     Route::get('datatable', [MercadoLibreVentaController::class, 'datatable'])->name('datatable');
     Route::post('sincronizar', [MercadoLibreVentaController::class, 'sincronizar'])->name('sincronizar');
     Route::post('sincronizar-stock', [MercadoLibreVentaController::class, 'sincronizarStock'])->name('sincronizarStock');
+    Route::post('transformar-todas-en-venta', [MercadoLibreVentaController::class, 'transformarTodasEnVenta'])->name('transformarTodasEnVenta');
     Route::prefix('vinculaciones')->name('vinculaciones.')->group(function () {
         Route::get('/', [MercadoLibreVinculacionController::class, 'index'])->name('index');
         Route::get('datatable', [MercadoLibreVinculacionController::class, 'datatable'])->name('datatable');
@@ -208,12 +216,11 @@ Route::middleware('permiso:ventas.ver')->prefix('ingresos/tiendanube')->name('in
     Route::get('datatable', [TiendanubeVentaController::class, 'datatable'])->name('datatable');
     Route::post('sincronizar', [TiendanubeVentaController::class, 'sincronizar'])->name('sincronizar');
     Route::post('sincronizar-stock', [TiendanubeVentaController::class, 'sincronizarStock'])->name('sincronizarStock');
+    Route::post('transformar-todas-en-venta', [TiendanubeVentaController::class, 'transformarTodasEnVenta'])->name('transformarTodasEnVenta');
     Route::prefix('vinculaciones')->name('vinculaciones.')->group(function () {
         Route::get('/', [TiendanubeVinculacionController::class, 'index'])->name('index');
         Route::get('datatable', [TiendanubeVinculacionController::class, 'datatable'])->name('datatable');
-        Route::get('pendientes', [TiendanubeVinculacionController::class, 'variantesPendientes'])->name('pendientes');
-        Route::post('/', [TiendanubeVinculacionController::class, 'store'])->name('store');
-        Route::post('importar', [TiendanubeVinculacionController::class, 'importar'])->name('importar');
+        Route::post('vincular-automaticamente', [TiendanubeVinculacionController::class, 'vincularAutomaticamente'])->name('vincularAutomaticamente');
         Route::patch('{vinculacion}', [TiendanubeVinculacionController::class, 'update'])->name('update');
         Route::delete('{vinculacion}', [TiendanubeVinculacionController::class, 'destroy'])->name('destroy');
     });
@@ -338,6 +345,12 @@ Route::prefix('configuracion')->name('configuracion.')->group(function () {
         Route::get('historial', [TiendanubeConfiguracionController::class, 'historial'])->name('historial');
         Route::get('conectar', [TiendanubeOAuthController::class, 'conectar'])->name('conectar');
         Route::get('callback', [TiendanubeOAuthController::class, 'callback'])->name('callback');
+
+        // Conexión Application REST del Partner Portal (spec 022, aditiva — no reemplaza lo de arriba)
+        Route::get('conectar-rest', [TiendanubeConexionRestController::class, 'conectarRest'])->name('conectarRest');
+        Route::get('callback-rest', [TiendanubeConexionRestController::class, 'callbackRest'])->name('callbackRest');
+        Route::get('estado-rest', [TiendanubeConexionRestController::class, 'estadoRest'])->name('estadoRest');
+        Route::post('desconectar-rest', [TiendanubeConexionRestController::class, 'desconectarRest'])->name('desconectarRest');
     });
 });
 

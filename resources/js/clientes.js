@@ -390,7 +390,7 @@
                 datos.push({ name: '_method', value: 'PATCH' });
             }
 
-            $('#btn-guardar-cliente').prop('disabled', true);
+            window.AppBtn.loading('#btn-guardar-cliente', true);
 
             $.ajax({
                 url: url,
@@ -414,7 +414,7 @@
                     }
                 })
                 .always(function () {
-                    $('#btn-guardar-cliente').prop('disabled', false);
+                    window.AppBtn.loading('#btn-guardar-cliente', false);
                 });
         });
 

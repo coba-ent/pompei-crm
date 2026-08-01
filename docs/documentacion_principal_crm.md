@@ -192,6 +192,12 @@ asociadas").
   por producto (acción "Movimientos").
 - Productos inactivos: no se pueden eliminar productos con operaciones cargadas (movimientos de stock)
   — se marcan como "Inactivo".
+- **Brecha pendiente — Punto de Reposición** (detectada en spec 026, 31/07/2026): el archivo real de
+  Productos del negocio trae una columna "Punto Reposición" sin campo equivalente en el modelo
+  `Producto` hoy (no está en `$fillable` ni en la migración). Fuera de alcance de spec 026 (decisión
+  explícita del usuario, ver `specs/026-importador-datos-campos-completos/spec.md` Assumptions) —
+  queda pendiente de un spec futuro de Productos que agregue el campo (y su regla de negocio de
+  alerta de stock bajo) antes de poder ofrecerlo como destino de mapeo en el importador.
 - **Variantes** (talle, color): la UI de alta de variantes está **oculta** en el modal — Contagram no
   la expone (su propio tooltip del Nombre sugiere cargar talle/color en el nombre). Se conserva la
   infraestructura (`producto_variantes`) para cuando se retome la integración con canales externos: el
@@ -262,12 +268,48 @@ porque ya son un único modelo (`Producto` con campo `tipo`).
   elección — no disponible para Productos, que no tiene campos personalizables). No se puede
   confirmar sin el campo obligatorio (Cliente/Proveedor/Nombre) mapeado, ni con dos columnas
   mapeadas al mismo campo.
+  - **Clientes/Proveedores** (spec 026, 31/07/2026): además de los campos ya vigentes, el select
+    ofrece el bloque fiscal completo (Razón Social, Tipo de Documento —texto libre, sin catálogo—,
+    Domicilio/Localidad/Provincia/CP Fiscal, Teléfono Fiscal, Teléfono Celular Fiscal), Código Postal,
+    Saldo Inicial y Fecha de Saldo Inicial (acepta fecha nativa de Excel, `DD/MM/YYYY` o `YYYY-MM-DD`),
+    y Página Web. Sólo en Clientes, además: Nota para Ventas, Descuento General, Lista de Precios
+    (resuelta por nombre, misma advertencia no bloqueante que Proveedor en Productos) y Usuario de
+    Mercado Libre.
+  - **Productos & Servicios** (spec 026): además de los campos ya vigentes, el select ofrece Activo,
+    Mostrar en Ventas y Mostrar en Compras (booleano: `Si/No`, `1/0`, `true/false`, sin distinguir
+    mayúsculas/acentos; celda vacía usa el default de columna vigente en el alta manual —`true`—, un
+    valor no reconocido marca la fila como fallida).
 - **Paso 3** (confirmar → resumen): cada fila se valida y se crea de forma independiente
   (`ReglasCliente`/`ReglasProveedor`/`ReglasProducto`, las mismas del alta manual); una fila inválida
   se omite y se reporta con su motivo, sin abortar el resto del archivo. En Productos, la columna
   "Proveedor" (y Categoría/Condición de IVA/Tipo de Producto) se resuelve por nombre existente sin
   distinguir mayúsculas/acentos — si no matchea, el producto se crea igual sin ese dato, reportado
   como advertencia (no como fallo); "Tipo" sin mapear o vacío usa "Producto" por defecto.
+  - **Actualizar por Id (upsert)** (spec 027, 31/07/2026 — ajustado 31/07/2026): las 3 solapas ofrecen,
+    además de los campos propios de cada entidad, un campo destino "Id" (el id interno que el sistema
+    le asignó al registro, o el id que traía el sistema de origen de una migración). Por fila: celda
+    "Id" ausente o vacía → alta nueva sin id forzado (comportamiento sin cambios); valor no numérico o
+    no entero → fila fallida ("Id "{valor}" no es un id válido"); valor numérico **con match** →
+    **actualización parcial** del registro existente (`update()`, no `create()`): sólo se pisan los
+    campos efectivamente mapeados con valor no vacío en esa fila, el resto del registro queda intacto;
+    valor numérico **sin match** → **alta nueva, preservando ese id** en el registro creado (no
+    "fila fallida" ni "actualiza con ese id" porque no hay nada que actualizar) — pensado para migrar
+    datos de un sistema anterior conservando sus ids: si el mismo archivo se reimporta más adelante, esa
+    fila ya matchea como actualización en vez de generar un duplicado. Si el id preservado choca con uno
+    ya tomado por otro registro (carrera entre filas de la misma corrida), esa fila puntual queda como
+    fallida ("Id {valor} ya está en uso por otro registro") sin abortar el resto del archivo. En una fila
+    de actualización, el campo obligatorio (Cliente (Nombre)/Proveedor/Nombre) no se exige por valor
+    (puede venir vacío), pero la columna igual tiene que estar mapeada en el archivo (regla de mapeo del
+    Paso 2, sin cambios); en una fila de alta (con o sin id preservado) sigue exigiéndose igual que
+    siempre. La unicidad de CUIT/SKU en una fila de actualización no bloquea al propio registro que se
+    está actualizando (ignora su propio id).
+  - **DNI y CUIT en columnas separadas mapeadas al mismo campo "CUIT"** (corrección, 31/07/2026): en Clientes y
+    Proveedores, el campo destino "CUIT" acepta mapear hasta 2 columnas del archivo (el resto de los campos
+    sigue permitiendo sólo una). Por fila, se toma el valor de la que tenga dato; el tipo de documento
+    (DNI/CUIT) se infiere por el **encabezado original de esa columna en el archivo** (si matchea "DNI" → tipo
+    DNI; cualquier otro caso → CUIT) — no por el formato del número. Si ambas columnas tienen valor en la misma
+    fila (dato excepcional), gana la que matchea "DNI". La validación de dígito verificador sólo se exige
+    cuando el tipo resuelto es CUIT/CUIL, igual que en el alta manual.
 - Cancelable en cualquier paso antes de confirmar, sin dejar ningún registro creado. El archivo
   subido y el mapeo elegido son estado transitorio (disco temporal `storage/app/private/imports/` +
   sesión) — nunca se persisten en base de datos, y no hay detección de duplicados en esta versión
@@ -315,9 +357,8 @@ Otros Ingresos y Abonos son independientes.
   de Clientes/Proveedores/Productos). Igual criterio para "Nuevo Presupuesto" (`/budgets/new`):
   formulario de página completa a dos columnas, no modal — excepción documentada al patrón de modales
   de esta app, igual que Importar Datos (§2.4).
-- Formulario: Cliente (buscador) · Categoría (con creación/edición inline) · Emisión/Validez · Servicio
-  Desde/Hasta · Lista de Precios · Vendedor (catálogo propio con ABM inline —crear/renombrar/eliminar
-  desde el mismo select, spec 020— campo opcional; **no** es el usuario logueado: hasta
+- Formulario: Cliente (buscador) · Categoría · Emisión/Validez · Servicio
+  Desde/Hasta · Lista de Precios · Vendedor (campo opcional; **no** es el usuario logueado: hasta
   la spec 020 el campo se autocompletaba en silencio con el usuario del sistema y no aparecía en el
   formulario, distinción confirmada porque Vendedor y Usuario figuran como dos filtros separados más
   abajo) · tabla de Conceptos (producto, cant., precio, desc., subtotal, IVA,
@@ -325,6 +366,18 @@ Otros Ingresos y Abonos son independientes.
   (texto libre) · Etiquetas (catálogo con buscador + "Nueva Etiqueta") · Descuento General (%) · Total
   · **+ Percepciones / + Impuestos Internos / + Intereses** (cada uno agrega N filas de
   selector+monto+tacho). Botones Cancelar/Guardar/Guardar y Enviar.
+- **Catálogo editable inline en los selects de Cliente/Categoría de Venta/Vendedor (spec 028)**: el
+  patrón real de Contagram no es un link "Renombrar"/"Eliminar" al lado del label, sino que vive
+  *dentro* del propio dropdown Select2: una fila fija "Crear X" con ícono "+" siempre arriba del
+  listado (aun con texto de búsqueda sin resultados), y un ícono de lápiz a la derecha de cada ítem
+  existente que abre su edición puntual sin necesidad de seleccionarlo primero ni de alterar la
+  selección vigente del formulario. Reutiliza los modales/endpoints ya existentes de Categoría
+  (`categorias.venta.store`/`categorias.update`) y Vendedor (`vendedores.store`/`vendedores.update`);
+  para Cliente se agregó un modal de alta/edición rápida (sólo Nombre) sobre los endpoints ya
+  existentes de `ClienteController`. La eliminación de Categoría de Venta/Vendedor se retiró de este
+  formulario sin reemplazo (no está en las capturas reales). Este patrón sólo está aplicado en
+  Presupuestos por ahora — Ventas, Otros Ingresos y Compras siguen con el mecanismo anterior
+  (link junto al label) hasta que se extienda en una spec futura.
 - **Autocompletado por Cliente**: si el cliente tiene Categoría de Ventas y Descuento General cargados
   en su ficha (§2.1), el formulario los autocompleta al seleccionarlo — confirma en la práctica lo que
   ya documentaba el formulario de Cliente.
@@ -410,13 +463,19 @@ Ver §5.2 para la divergencia deliberada de todo el módulo (aplicación propia 
   **estrictamente 1:1**, garantizada por índices únicos. Es infraestructura compartida con la spec 013.
   Las publicaciones **con variantes no están soportadas** (el negocio no las usa) y se rechazan en vez
   de vincularse de forma ambigua.
-  > 📋 **Vinculación automática por SKU (spec 021, planificada)**: el SKU del vendedor visto en las
-  > órdenes ya sincronizadas corresponde al `id` (clave primaria) del producto en el CRM — el negocio
-  > va a crear cada producto nuevo asignándole a propósito ese mismo identificador, sin necesidad de
-  > ningún campo adicional. La pantalla deja de tener alta manual por selector: un botón "Vincular
-  > automáticamente" resuelve `Producto::find((int) $sku)` por cada publicación pendiente y crea el
-  > vínculo solo. Editar el producto de un vínculo existente y eliminarlo siguen disponibles. Ver
-  > `specs/021-vinculacion-automatica-sku/`.
+  > 📋 **Vinculación automática por SKU (spec 021, implementada; corregida por spec 023)**: el SKU del
+  > vendedor corresponde al `id` (clave primaria) del producto en el CRM — el negocio crea cada producto
+  > nuevo asignándole a propósito ese mismo identificador, sin necesidad de ningún campo adicional. La
+  > pantalla no tiene alta manual por selector: un botón "Vincular automáticamente" resuelve
+  > `Producto::find((int) $sku)` por cada publicación pendiente y crea el vínculo solo. Editar el producto
+  > de un vínculo existente y eliminarlo siguen disponibles. **El SKU se resuelve consultando el catálogo
+  > en vivo del vendedor conectado** (recorrido completo vía modo `scan` de la API, sin el tope de 1000
+  > resultados del paginado clásico — necesario porque el catálogo real tiene miles de publicaciones), no
+  > contra las órdenes ya sincronizadas: cubre publicaciones que nunca vendieron y siempre usa el SKU
+  > vigente en Mercado Libre en el momento de la corrida, no un valor viejo grabado en una orden pasada
+  > (spec 021 original quedó reemplazada en este punto). Publicaciones con variantes siguen sin poder
+  > vincularse por esta vía. Ver `specs/021-vinculacion-automatica-sku/` y
+  > `specs/023-mercadolibre-catalogo-vivo/`.
 - **Conversión a Venta**, manual o **automática** (interruptor en la configuración de Mercado Libre).
   La Venta se crea cobrada contra la cuenta de Tesorería **Mercado Pago** (§3.7) y descuenta stock del
   **depósito configurado**. Cliente emparejado por **Apodo ML** (§2.1) o creado automáticamente.
@@ -440,6 +499,14 @@ Ver §5.2 para la divergencia deliberada de todo el módulo (aplicación propia 
 - **Fuera de alcance**: comisión de Mercado Libre y costo de envío (la Venta se crea por el monto
   bruto, por lo que el saldo de Mercado Pago en el CRM no coincidirá con el real, neto de comisiones).
   Las cancelaciones posteriores se señalan pero **no** modifican la Venta ya creada.
+  > 📋 **Transformar todas en Venta (spec 025, implementada)**: botón siempre visible en el listado,
+  > independiente de que la creación automática esté activa o no. Convierte en un único request
+  > síncrono todas las órdenes en estado "Lista para convertir" de la conexión (ignorando filtros de
+  > la tabla), reusando exactamente las mismas reglas de conversión que el flujo manual individual. Al
+  > terminar muestra un modal con el resumen (total/convertidas/fallidas) y, si hubo fallidas, el
+  > detalle por orden (motivo y explicación ya persistidos). Sirve tanto para ponerse al día cuando la
+  > creación automática estuvo apagada como para forzar la conversión inmediata sin esperar a la
+  > próxima corrida programada. Ver `specs/025-conversion-manual-lote-ordenes/`.
 
 > ✅ **Riesgo de sobreventa — cerrado por la spec 013 (implementada)**: al cierre de la spec 012 el flujo
 > de stock era unidireccional (ML → CRM), por lo que una venta manual del CRM bajaba el stock local pero
@@ -515,7 +582,10 @@ Mercado Libre en vez de calcar una pantalla real.
   de conversión; el tercero es sólo informativo) y **estado de conversión** en el CRM (los mismos cinco
   valores que Mercado Libre: Pendiente de pago · Lista para convertir · Requiere atención · Convertida ·
   Cancelada). Botón "Sincronizar ahora" + tarea programada con frecuencia configurable — **sin
-  webhooks** (el servidor MCP no expone ninguna tool de webhooks, spec 019).
+  webhooks** todavía, aunque desde la spec 024 la sincronización habla contra la REST API estándar
+  (`GET /orders`, que sí soporta webhooks) en vez del servidor MCP: migrar a webhooks reales queda como
+  trabajo futuro, condicionado a que el proyecto migre de XAMPP local a un VPS con endpoint público
+  estable.
 - **⚠️ Exclusión del canal Mercado Libre integrado a Tiendanube**: las órdenes con `storefront = "meli"`
   (ventas hechas en Mercado Libre pero importadas a Tiendanube por su canal integrado) **nunca** se
   sincronizan ni aparecen en el listado — descarte explícito antes de persistir, en `TraductorOrdenes`
@@ -526,16 +596,16 @@ Mercado Libre en vez de calcar una pantalla real.
   Tiendanube siempre expone un identificador de **variante** por línea de pedido —incluso los productos
   sin variantes reales tienen una "variante virtual" única—, así que el vínculo persistente 1:1 es
   variante↔producto del CRM. Pantalla propia de administración, igual patrón que Mercado Libre.
-  > 📋 **Importación de vinculaciones desde el export nativo (spec 021, planificada)**: la integración
-  > conectada (MCP oficial de Tiendanube) no expone el SKU de ningún producto por ninguna vía —
-  > confirmado exhaustivamente contra la tienda real. El SKU sí corresponde al `codigo` del producto en
-  > el CRM (confirmado con 98.8% de coincidencia sobre datos reales), pero sólo se puede obtener del
-  > archivo que el negocio exporta a mano desde el panel de Tiendanube — nunca en vivo. La pantalla suma
-  > una importación masiva que sube ese archivo tal cual (sin plantilla propia): resuelve el producto por
-  > `codigo` y el `product_id`/`variant_id` real de Tiendanube consultando el catálogo en vivo
-  > (`list_products`) por el "Identificador de URL" de cada fila — sin depender de que el producto haya
-  > vendido antes. El alta manual con selector (spec 017) sigue intacta. Ver
-  > `specs/021-vinculacion-automatica-sku/`.
+  > 📋 **Vinculación automática por catálogo REST en vivo (spec 024, reemplaza a specs 017/021)**: un
+  > único botón "Vincular automáticamente" recorre el catálogo REST en vivo del vendedor conectado (`GET
+  > /products`, paginado) y compara el `sku` de cada variante —expuesto directo en esa misma respuesta,
+  > sin llamada adicional— contra el `id` del producto del CRM, igual patrón que Mercado Libre (spec 023).
+  > Reemplaza por completo tanto el selector manual que sólo conocía variantes vistas en pedidos ya
+  > sincronizados (spec 017) como la importación por Excel que matcheaba por `codigo`/slug (spec 021,
+  > retirada): ahora se puede vincular un producto que nunca vendió por Tiendanube con sólo cargarle el
+  > `id` del producto del CRM como SKU en Tiendanube. A diferencia de Mercado Libre, acá no se excluyen
+  > productos con variantes múltiples: cada variante ya es su propia unidad de vinculación. Ver
+  > `specs/024-tiendanube-migracion-rest/`.
 - **Conversión a Venta**, manual o automática (interruptor en la configuración de Tiendanube). La Venta
   se crea cobrada contra la **cuenta de Tesorería configurable** (a diferencia de Mercado Libre, que
   siempre usa "Mercado Pago": Tiendanube admite múltiples medios de pago sin una pasarela canónica) y
@@ -550,6 +620,10 @@ Mercado Libre en vez de calcar una pantalla real.
   la práctica, verificado contra la tienda real, casi ninguna orden trae este dato — Consumidor
   Final/Factura B es el resultado dominante.
 - **Fuera de alcance**: comisión de Tiendanube y costo de envío; importación masiva de catálogo.
+  > 📋 **Transformar todas en Venta (spec 025, implementada)**: mismo botón y comportamiento que en
+  > Mercado Libre (§3.2.bis) — siempre visible, procesa en un único request síncrono todas las
+  > órdenes "Lista para convertir" de la conexión de Tiendanube y muestra un modal con el resumen y el
+  > detalle de fallidas. Ver `specs/025-conversion-manual-lote-ordenes/`.
 
 > ✅ **Numeración de specs**: esta continuación de la spec 015 se documentó originalmente como "specs 016
 > y 017" antes de que la 016 terminara siendo un feature chico no relacionado (gestión de precios de
@@ -835,6 +909,16 @@ Categoría, tabla de Conceptos, panel de totales, Observaciones. Botones Imprimi
 Detalle/Editar Compra. Sección "Notas de Crédito y Débito" (tabla + enlace + Agregar, igual patrón que
 Ventas §3.2). Botón "Crear Remito" visible en la parte superior de la ficha.
 
+**Compras suma stock (spec 030, cierra la brecha simétrica a la de Ventas §3.2):** al guardar una
+Compra, cada ítem cuyo producto controla stock suma su cantidad al stock del depósito por defecto del
+CRM (mismo depósito único que usan las Ventas manuales — sin selector de depósito en el formulario, no
+relevado en el informe real de Contagram). Editar una Compra reintegra el stock de la versión anterior y
+aplica el de la nueva; eliminarla reintegra todo el stock que había sumado. El movimiento queda fechado
+con la `fecha_emision` de la Compra (no la fecha de guardado), para que el histórico de stock refleje
+cuándo entró realmente la mercadería aunque la carga sea retroactiva. Las Notas de Crédito/Débito de
+Compra ya movían stock desde antes (con su propio selector de depósito en el modal, ver más abajo) — no
+cambian con esta feature.
+
 ### 4.2 Gastos (`/expenses`)
 
 Módulo deliberadamente más simple que Compras: **sin KPIs**, sin vínculo a proveedores de la Base de
@@ -876,6 +960,10 @@ registrarMovimiento()`) usados por Pagos y Gastos — no quedó pendiente al cie
 - **Remitos**: "Crear Remito" en Compras crea sólo el encabezado (fecha + número); detalle de ítems
   pendiente de relevamiento propio — apunta al mismo hueco de estructura de pantalla que en Ventas.
 - **Recibos de Pagos**: análogo a Recibos de Cobros (§3.5), sin relevamiento propio con capturas.
+- **Variantes de producto en Compras**: `CompraItem` no tiene `variante_id` (a diferencia de lo que
+  necesitaría para productos con variantes); el movimiento de stock que suma una Compra (spec 030) se
+  aplica siempre a la variante `null`. Si el negocio compra productos con variantes por Compra, falta
+  relevamiento propio para agregar el selector de variante a la grilla de ítems.
 
 *Fuente(s): `docs/informe_contagram_egresos.md`*
 
@@ -890,7 +978,7 @@ registrarMovimiento()`) usados por Pagos y Gastos — no quedó pendiente al cie
 | Depósitos | ABM de depósitos/almacenes (spec 005) |
 | Funciones Avanzadas | Lista de las 10 funciones activables, con toggle Sí/No (spec 011) — ver §5.1 |
 | Mercado Libre | Configuración de la integración y vinculación de cuenta (spec 011) — ver §5.2 |
-| Tiendanube | Configuración de la integración (OAuth 2.1 vía admin-mcp.tiendanube.com) (spec 019, corrige a spec 015) — ver §5.3 |
+| Tiendanube | Configuración de la integración (OAuth 2.1 vía admin-mcp.tiendanube.com, spec 019, corrige a spec 015) + apartado aislado de conexión vía Application REST del Partner Portal (spec 022) — ver §5.3 |
 
 > **Adaptación single-tenant:** este CRM es single-tenant, sin plan contratado ni costo por usuario
 > adicional. Los permisos son **sólo por rol** (el usuario hereda los permisos de sus roles; no hay
@@ -1007,18 +1095,20 @@ creadas al convertir una orden sigue derivándose exclusivamente del importe pag
 como en las etapas 2 y 3; esas Ventas tampoco quedan etiquetadas con esta Lista de Precios. Ver §3.2.bis;
 `specs/016-lista-precio-mercadolibre/`.
 
-**Etapa 5 — Vinculación automática por SKU (spec 021, planificada)**: reemplaza el alta manual de la
-vinculación publicación↔producto (§3.2.bis) por un botón que la resuelve sola, comparando el SKU del
-vendedor visto en órdenes ya sincronizadas contra el `id` del producto en el CRM — sin campo nuevo, sin
-migración de esquema. Confirmado en vivo contra la cuenta real: el endpoint de búsqueda por SKU de
-Mercado Libre funciona, pero esta spec no lo necesita (resuelve contra órdenes ya sincronizadas, igual
-que el resto del módulo). Ver §3.2.bis; `specs/021-vinculacion-automatica-sku/`.
+**Etapa 5 — Vinculación automática por SKU (spec 021, implementada; corregida por spec 023)**: reemplaza el
+alta manual de la vinculación publicación↔producto (§3.2.bis) por un botón que la resuelve sola,
+comparando el SKU del vendedor contra el `id` del producto en el CRM — sin campo nuevo, sin migración de
+esquema. El diseño original (spec 021) resolvía el SKU contra órdenes ya sincronizadas; se corrigió (spec
+023) para resolverlo contra el **catálogo en vivo** de Mercado Libre (recorrido completo del vendedor
+conectado vía el modo `scan` del buscador, sin el tope de 1000 resultados del paginado clásico —
+necesario porque el catálogo real del negocio tiene miles de publicaciones, no las decenas asumidas
+originalmente), porque el mecanismo basado en órdenes no podía vincular publicaciones que nunca vendieron
+ni reflejaba un SKU corregido después de la última sincronización. Ver §3.2.bis;
+`specs/021-vinculacion-automatica-sku/`; `specs/023-mercadolibre-catalogo-vivo/`.
 
 **Sigue fuera de alcance** (etapas 2, 3, 4 y 5 combinadas): sincronización de título, descripción,
 imágenes o estado (pausar/activar) de la publicación; comisión de Mercado Libre y costo de envío;
-importación masiva de publicaciones (catálogo); vinculación de publicaciones que nunca vendieron
-(requeriría consultar el catálogo de ML en vivo, fuera de alcance); preguntas, mensajería y webhooks de
-negocio.
+importación masiva de publicaciones (catálogo); preguntas, mensajería y webhooks de negocio.
 
 **Restricciones de infraestructura** (aplican a todo el módulo): requiere que el CRM esté publicado en
 una dirección pública con conexión segura — Mercado Libre no admite direcciones locales ni sin cifrar,
@@ -1112,7 +1202,7 @@ no sólo la variante, para actualizar stock). **Ampliación**: agrega también l
 (`tn_configuracion.lista_precio_id`), mismo patrón que la spec 016 para Mercado Libre — disparo por
 evento, sin cron, botón en Productos. Ver §3.2.quinquies; `specs/018-stock-tiendanube/`.
 
-**Etapa 4 — Importación de vinculaciones desde el export nativo (spec 021, planificada)**: agrega a la
+**Etapa 4 — Importación de vinculaciones desde el export nativo (spec 021, implementada)**: agrega a la
 pantalla de vinculación (§3.2.quater) la posibilidad de subir el archivo de productos que Tiendanube ya
 permite exportar (sin plantilla propia) para crear vinculaciones en lote — el alta manual con selector
 sigue intacta. La integración conectada (MCP oficial) no expone el SKU de ningún producto, así que el
@@ -1131,11 +1221,54 @@ producto haya vendido antes. Ver §3.2.quater; `specs/021-vinculacion-automatica
 > soportado en el esquema de la 017) y extiende `TiendanubeVarianteProducto`/`TiendanubeConfiguracion` sin
 > tocar lo que la 017 ya dejó funcionando.
 
+**Etapa 5 — Conexión vía Application REST del Partner Portal (spec 022, especificada — lista para
+implementar)**: agrega, en un apartado nuevo y aislado dentro de la misma pantalla de configuración de
+Tiendanube, una **segunda conexión OAuth**, esta vez contra una Application clásica registrada en
+`partners.tiendanube.com` (App ID 38015, "pompei") en vez del servidor MCP. Motivación directa: el
+"Hallazgo post-deploy" documentado arriba (29/07/2026) — la conexión MCP no admite reconexión self-service
+por la restricción de `redirect_uri` tipo *loopback*. Registrarse como Partner y crear una Application ahí
+sortea esa restricción (no exige el plan Tiendanube Escala/Evolución que sí bloqueaba el modelo de
+Aplicación personalizada de spec 015).
+
+**Verificado empíricamente (sesión 31/07/2026)**: el token de esta Application **no** es intercambiable con
+el del servidor MCP (401 `invalid_token` al probarlo cruzado) — son sistemas de autenticación separados, con
+audiencias de token distintas. Sí funciona contra la REST API estándar (`api.tiendanube.com`, 200 OK con
+datos reales del catálogo). Por eso spec 022 es deliberadamente chica: **sólo conecta y verifica** (`GET
+/{store_id}/store`), en tablas propias (`tn_conexion_rest`, `tn_rest_operaciones_log`), sin tocar
+`ClienteTiendanube` ni ningún flujo de negocio de las etapas 2-4 (specs 017/018/021), que siguen
+funcionando exactamente igual sobre la conexión MCP. Si esta conexión se valida en producción, una spec
+futura evaluará migrar el resto de la integración (y decidirá ahí si conviene sumar webhooks reales de
+Tiendanube, que la REST API sí soporta a diferencia del MCP). Ver `specs/022-tiendanube-conexion-rest/`.
+
+**Etapa 6 — Migración completa del MCP a la Application REST (spec 024, implementada — Historias 1 y 2;
+Historia 3 pendiente de validación en producción)**: la conexión REST validada en la etapa 5 deja de ser
+"sólo conexión" y pasa a ser el transporte real de negocio. `ClienteTiendanubeRest`
+(generalización de `VerificadorConexionRest`) reemplaza a `ClienteTiendanube` (MCP) como dependencia de
+`SincronizadorOrdenes`, `SincronizadorStock` y `SincronizadorPrecios` — mismo comportamiento observable
+(mismos cortes, mismo cronjob cada minuto, mismo criterio de creación automática de Venta), salvo que
+`SincronizadorStock` deja de lotear (la REST API clásica no tiene equivalente al batch
+`update_stock_and_price` del MCP) y pasa a enviar una `PUT /products/{id}/variants/{id}` por vínculo
+pendiente. La vinculación de productos se reescribe por completo: `VinculadorAutomatico` (mismo patrón que
+Mercado Libre, spec 023) reemplaza tanto al selector manual (fuente: `tn_orden_items`) como a la
+importación por Excel de la etapa 4 (spec 021, retirada) — recorre el catálogo REST en vivo (`GET
+/products`, paginado) y compara `variants[].sku` directo contra `Producto.id`, sin necesitar que la
+variante haya vendido nunca ni depender de ningún archivo exportado a mano. La configuración de negocio
+que vivía mezclada con las credenciales MCP en `tn_configuracion` (depósito, categoría, cuenta, lista de
+precios, vendedor, modo sólo lectura, ventana de sincronización) se migra a `tn_conexion_rest`. **Historia
+3 (retiro completo del MCP: `ClienteTiendanube`, `TiendanubeOAuthController`, tabla `tn_configuracion` y su
+historial, apartado MCP de esta pantalla) queda condicionada a una confirmación manual explícita de que las
+Historias 1 y 2 funcionan correctamente en producción** — no es un paso automático del mismo despliegue.
+Ver `specs/024-tiendanube-migracion-rest/`.
+
 *Fuente(s): `docs/informe_contagram_funciones_avanzadas.md` §3; documentación oficial de Mercado Libre
 Developers; `admin-mcp.tiendanube.com` (observado empíricamente, sin doc pública — ver
-`specs/019-tiendanube-conexion-mcp/research.md`); `specs/011-mercadolibre-conexion-oauth/`,
-`specs/015-tiendanube-conexion/`, `specs/019-tiendanube-conexion-mcp/`, `specs/017-ventas-tiendanube/`,
-`specs/018-stock-tiendanube/`*
+`specs/019-tiendanube-conexion-mcp/research.md`); documentación pública de Tiendanube
+(`tiendanube.github.io/api-documentation`) y verificación empírica propia para la REST API clásica (ver
+`specs/022-tiendanube-conexion-rest/research.md`, `specs/024-tiendanube-migracion-rest/research.md`);
+`specs/011-mercadolibre-conexion-oauth/`, `specs/015-tiendanube-conexion/`,
+`specs/019-tiendanube-conexion-mcp/`, `specs/017-ventas-tiendanube/`, `specs/018-stock-tiendanube/`,
+`specs/021-vinculacion-automatica-sku/`, `specs/022-tiendanube-conexion-rest/`,
+`specs/023-mercadolibre-catalogo-vivo/`, `specs/024-tiendanube-migracion-rest/`*
 
 ---
 
@@ -1163,13 +1296,17 @@ más evidencia antes de tocar código:
    capturas antes de sacarlo.
 2. **Menú de fila de Cliente:** Contagram real tiene Ver / Editar / Eliminar / **Cta Cte** (Eliminar es
    un borrado directo con confirmación simple). Nuestro menú tiene Ver / Editar / **Inactivar-
-   Reactivar** / Eliminar — agregamos un toggle de estado que Contagram no expone en ese menú. Es una
-   regla de negocio razonable (no eliminar clientes con historial) pero diverge de la UX relevada;
-   queda como decisión de producto a confirmar, no como bug.
+   Reactivar** / Eliminar / **Cta Cte** (agregado 01/08/2026, ver nota abajo) — seguimos con el toggle
+   de estado que Contagram no expone en ese menú (regla de negocio razonable, no eliminar clientes con
+   historial) pero diverge de la UX relevada; queda como decisión de producto a confirmar, no como bug.
 
-Brechas ya identificadas y aceptadas como pendientes (no bugs, alcance futuro): "Cta Cte" en el menú
-de fila de Clientes (depende de Ventas/Tesorería, no implementados). La brecha de selección múltiple
-+ "Acciones Masivas" en Productos se cerró en spec 004 (ver §2.2).
+**"Cta Cte" en el menú de fila de Clientes — cerrado 01/08/2026**: dependía de Ventas/Tesorería/
+Cuenta Corriente Clientes, ninguno implementado al momento del relevamiento original. Con spec 029
+(Cuenta Corriente Clientes, §6.4) ya construida, se agregó el ítem: navega a
+`informes/cuenta-corriente?cliente_id=X`, que abre directo en el tab "Movimientos" con el filtro
+Cliente preseleccionado (detalle accionable de ese cliente puntual, no el agregado de Saldos
+Clientes). Gateado por el mismo permiso `informes.ver` que el ítem del sidebar. La brecha de
+selección múltiple + "Acciones Masivas" en Productos se cerró en spec 004 (ver §2.2).
 
 ### 6.2 Informe de Stock (implementado, spec 003)
 
@@ -1220,11 +1357,41 @@ nada por su cuenta.
   rojo) con el monto total pendiente y un desglose por antigüedad de deuda (A Vencer, Vencido, 0-30,
   31-60, 61-90, +90 días). Este es un **cálculo mínimo nuevo** (`App\Services\Tesoreria\CuentaCorriente`,
   método `aging()`), construido sobre `Venta::aCobrar()`/`Compra::aPagar()` ya existentes — **no** son
-  las pantallas completas de Cuenta Corriente por Cliente/Proveedor (esas siguen en §7, pendientes de
-  relevamiento propio; el servicio queda ahí listo para que una futura spec de Informes lo reutilice).
+  las pantallas completas de Cuenta Corriente por Cliente/Proveedor. La de **Clientes ya se implementó**
+  (spec 029, ver §6.4, método `porCliente()` del mismo servicio); **Proveedores sigue en §7, pendiente**.
 - **Donas por categoría** (Ventas/Compras/Gastos) y **Rankings** (Clientes por monto vendido, Productos
   por cantidad vendida) dentro del período filtrado. Categoría inactiva o ausente se agrupa bajo
   "Sin categoría".
+
+---
+
+### 6.4 Módulo Informe de Cuenta Corriente — Clientes (implementado — spec 029)
+
+Pantalla propia de **sólo lectura** `/informes/cuenta-corriente` (entrada "Cuenta Corriente" en el
+submenú Informes del sidebar, junto a "Stock"), con **dos tabs Bootstrap sobre un único shell** (un
+solo link de menú → una sola ruta, ver `no-hash-urls-para-navegacion` en memoria de proyecto):
+
+- **Tab "Saldos Clientes"** (activo por defecto): tabla con aging por cliente — columnas Cliente,
+  A Vencer, 0 y 30, 31 y 60, 61 y 90, >90, Total. Filtro: Cliente (Select2 buscador). Ordenable por
+  Total. Excluye clientes sin saldo pendiente. Es una extensión de
+  `App\Services\Tesoreria\CuentaCorriente` (el mismo servicio del Dashboard, §6.3): el método nuevo
+  `porCliente('cliente')` reutiliza exactamente el bucketing de `aging()` pero acumulando por
+  `cliente_id` en vez de en un único total — por eso el Total General de esta pantalla **coincide
+  exacto** con el bloque "Cuentas a Cobrar" del Dashboard (misma fuente de cálculo). **No** coincide
+  necesariamente con el "Total A Cobrar" de Tesorería (§3.7): ese es un cálculo contable independiente
+  vía `movimientos_tesoreria`/`CuentaTesoreria::saldoA()`, sin invariante de código entre ambos —
+  diferencia es un chequeo informativo, no un bug de esta pantalla.
+- **Tab "Movimientos"**: listado combinado (UNION SQL, servido con `DataTables::of()` server-side) de
+  Ventas + Cobros + Notas de Crédito/Débito de clientes, con columnas Id, Emisión, Cliente, Operación,
+  Categoría, Total Venta, Cobrado, A Cobrar, N° de Comprobante, Medio de Cobro, Descripción — nulas
+  según el tipo de fila (p. ej. una fila de Cobro no tiene Total Venta/Categoría, sólo Medio de Cobro).
+  Filtros: Cliente, Operación (Venta/Cobro/Nota de Crédito/Nota de Débito), rango de fechas de Emisión.
+  La suma de "A Cobrar" de las filas de Venta de un cliente coincide con su "Total" en Saldos Clientes.
+- **Proveedores queda fuera de alcance** de esta spec (no hay pantalla de Cuenta Corriente Proveedores
+  todavía — sigue en §4.3/§7 como brecha pendiente).
+- Sin exportación CSV/PDF en esta iteración (sin evidencia de esa acción en las capturas relevadas).
+  El exportador/tests huérfanos de un intento anterior (`CuentaCorrienteCsvExport`, diseño de "Saldo"
+  plano sin aging) se descartaron por no coincidir con la estructura real (regla de oro).
 
 ---
 
@@ -1250,9 +1417,9 @@ salieron de esta lista:
     cuitonline) que no requiere certificado propio — si se decide ir por ahí, no hace falta esperar a
     este módulo. Ver nota en §2 (ficha de Cliente/Proveedor) y spec 014 (`specs/014-verificacion-documento-fiscal/spec.md`,
     sección Assumptions) para el detalle de la decisión.
-- Informes (Ventas, Compras, Cuenta Corriente, Gastos, Contador, Ranking, Reporte Final) — nota: el
-  aging de Cuenta Corriente ya tiene un cálculo mínimo reutilizable (`CuentaCorriente::aging()`, §6.3);
-  las pantallas completas de Cuenta Corriente por Cliente/Proveedor siguen pendientes acá.
+- Informes (Ventas, Compras, Gastos, Contador, Ranking, Reporte Final) — nota: **Cuenta Corriente
+  Clientes ya se implementó** (spec 029, ver §6.4); **Cuenta Corriente Proveedores sigue pendiente
+  acá** (mismo aging, falta el relevamiento y la pantalla propia por Proveedor).
 - Retenciones (transversal a Cobros/Pagos — ya resuelta a nivel de regla de negocio en Ingresos §3.5 y
   Egresos §4.1 vía el modal "Nueva Retención"; sigue faltando el relevamiento de una pantalla propia de
   administración de retenciones, si existiera)

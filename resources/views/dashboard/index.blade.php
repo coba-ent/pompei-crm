@@ -5,12 +5,11 @@
     <div class="container-fluid">
 
         <div class="row align-items-center mb-3">
-            <div class="col-12">
+            <div class="col-12 d-flex align-items-center justify-content-between flex-wrap gap-2">
                 <h4 class="mb-0 text-primary fw-bold">Inicio</h4>
+                @includeIf('dashboard._periodo')
             </div>
         </div>
-
-        @includeIf('dashboard._periodo')
 
         @includeIf('dashboard._kpis')
 

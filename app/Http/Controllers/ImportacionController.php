@@ -145,7 +145,7 @@ class ImportacionController extends Controller
         }
 
         $rutaCompleta = Storage::disk('local')->path('imports/'.$estado['archivo']);
-        $resultado = $importador->importar($entidad, $rutaCompleta, $mapeo, $personalizados, $request->user());
+        $resultado = $importador->importar($entidad, $rutaCompleta, $mapeo, $personalizados, $request->user(), $estado['columnas']);
 
         Storage::disk('local')->delete('imports/'.$estado['archivo']);
         session()->forget('importacion');
@@ -203,7 +203,9 @@ class ImportacionController extends Controller
 
     /**
      * FR-005: el campo obligatorio de la entidad tiene que estar mapeado, y no
-     * puede haber dos columnas mapeadas al mismo campo destino.
+     * puede haber dos columnas mapeadas al mismo campo destino — excepto "cuit",
+     * que acepta hasta 2 (una columna "DNI" y otra "CUIT" del archivo, resueltas
+     * por fila según cuál tiene valor — ver ImportadorFilas::resolverDocumento()).
      *
      * @param  array<int|string, string>  $mapeo
      * @param  array<string, array{etiqueta: string, obligatorio: bool}>  $definicion
@@ -215,12 +217,14 @@ class ImportacionController extends Controller
             if ($campoDestino === '' || $campoDestino === null || $campoDestino === 'personalizado') {
                 continue;
             }
-            if (isset($vistos[$campoDestino])) {
+            $limite = $campoDestino === 'cuit' ? 2 : 1;
+            $cantidad = ($vistos[$campoDestino] ?? 0) + 1;
+            if ($cantidad > $limite) {
                 $etiqueta = $definicion[$campoDestino]['etiqueta'] ?? $campoDestino;
 
                 return "La columna \"{$etiqueta}\" está mapeada más de una vez.";
             }
-            $vistos[$campoDestino] = true;
+            $vistos[$campoDestino] = $cantidad;
         }
 
         foreach ($definicion as $campo => $def) {

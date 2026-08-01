@@ -79,7 +79,7 @@
             </div>
 
             <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" class="btn btn-primary" id="btn-confirmar-importacion">
                     <i class="fas fa-check me-1"></i> Confirmar importación
                 </button>
             </div>
@@ -87,7 +87,7 @@
 
         <form action="{{ route('importacion.cancelar', $entidad) }}" method="POST" id="form-cancelar" class="d-inline mt-2">
             @csrf
-            <button type="submit" class="btn btn-outline-secondary mt-2">
+            <button type="submit" class="btn btn-outline-secondary mt-2" id="btn-cancelar-importacion">
                 <i class="fas fa-times me-1"></i> Cancelar
             </button>
         </form>
@@ -109,6 +109,13 @@
         };
         select.addEventListener('change', actualizar);
         actualizar();
+    });
+
+    document.getElementById('form-mapeo').addEventListener('submit', function () {
+        window.AppBtn.loading('#btn-confirmar-importacion', true);
+    });
+    document.getElementById('form-cancelar').addEventListener('submit', function () {
+        window.AppBtn.loading('#btn-cancelar-importacion', true);
     });
 </script>
 @endsection

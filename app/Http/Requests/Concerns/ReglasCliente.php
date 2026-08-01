@@ -3,12 +3,16 @@
 namespace App\Http\Requests\Concerns;
 
 use App\Rules\CuitValido;
-use Illuminate\Validation\Rule;
 
 /**
  * Reglas de validación compartidas entre alta y edición de cliente.
  * La validación de CUIT (formato/DV) sólo aplica cuando el tipo de documento
  * es CUIT o CUIL; para DNI/Pasaporte/etc. el número se guarda sin ese chequeo.
+ * El CUIT/DNI NO es único entre clientes (decisión 31/07/2026, corrección
+ * post-migración): nada del sistema matchea clientes por CUIT (Mercado
+ * Libre/Tiendanube lo hacen por `ml_user_id`/apodo; ARCA/CAE todavía no está
+ * implementado), y exigir unicidad bloqueaba migrar datos reales con
+ * duplicados legítimos del sistema anterior.
  */
 trait ReglasCliente
 {
@@ -24,7 +28,6 @@ trait ReglasCliente
         if (in_array($tipoDoc, ['CUIT', 'CUIL'], true)) {
             $reglaDoc[] = new CuitValido;
         }
-        $reglaDoc[] = Rule::unique('clientes', 'cuit')->ignore($clienteId);
 
         return [
             // Datos básicos

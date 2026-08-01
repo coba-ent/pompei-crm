@@ -22,4 +22,20 @@ class ReglasClienteImportacion extends Request
     {
         return $this->reglasCliente();
     }
+
+    /**
+     * Reglas para una fila de actualización (Id mapeado con match): mismo set que el
+     * alta, con `ignore($id)` en la unicidad de CUIT (ya soportado por `reglasCliente`)
+     * y `nombre` relajado a `nullable` porque una actualización parcial no debería
+     * exigir un campo que el cliente ya tiene (research.md §3, FR-006).
+     *
+     * @return array<string, mixed>
+     */
+    public function reglasActualizacion(?int $id = null): array
+    {
+        $reglas = $this->reglasCliente($id);
+        $reglas['nombre'] = ['nullable', 'string', 'max:255'];
+
+        return $reglas;
+    }
 }

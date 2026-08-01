@@ -4,7 +4,7 @@ namespace App\Services\Tiendanube;
 
 use App\Enums\Tiendanube\EstadoConversion;
 use App\Enums\Tiendanube\MotivoRequiereAtencion;
-use App\Models\Integraciones\TiendanubeConfiguracion;
+use App\Models\Integraciones\TiendanubeConexionRest;
 use App\Models\Integraciones\TiendanubeOrden;
 use App\Models\Integraciones\TiendanubeOrdenItem;
 use App\Models\Integraciones\TiendanubeVarianteProducto;
@@ -110,7 +110,7 @@ class EvaluadorConvertibilidad
 
     private function cuentaTesoreriaConfigurada(): bool
     {
-        $cuenta = TiendanubeConfiguracion::actual()->cuentaTesoreria;
+        $cuenta = TiendanubeConexionRest::actual()->cuentaTesoreria;
 
         return (bool) ($cuenta && $cuenta->visible);
     }

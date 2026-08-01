@@ -254,13 +254,15 @@
             const url = id ? rutas.updateBase + '/' + id : rutas.store;
             const method = id ? 'PUT' : 'POST';
 
+            window.AppBtn.loading('#btn-guardar-ingreso', true);
             $.ajax({ url, method, data: payload })
                 .done((resp) => {
                     toast('success', resp.mensaje || 'Ingreso guardado.');
                     bootstrap.Modal.getInstance(document.getElementById('modal-ingreso'))?.hide();
                     tabla.ajax.reload(null, false);
                 })
-                .fail((xhr) => toast('error', xhr.responseJSON?.errors ? Object.values(xhr.responseJSON.errors)[0][0] : 'No se pudo guardar el ingreso.'));
+                .fail((xhr) => toast('error', xhr.responseJSON?.errors ? Object.values(xhr.responseJSON.errors)[0][0] : 'No se pudo guardar el ingreso.'))
+                .always(() => window.AppBtn.loading('#btn-guardar-ingreso', false));
         });
 
         let idAEliminar = null;
@@ -271,13 +273,15 @@
         });
         $('#btn-confirmar-eliminar').on('click', function () {
             if (!idAEliminar) { return; }
+            window.AppBtn.loading('#btn-confirmar-eliminar', true);
             $.ajax({ url: rutas.updateBase + '/' + idAEliminar, method: 'DELETE' })
                 .done(() => {
                     toast('success', 'Ingreso eliminado.');
                     tabla.ajax.reload(null, false);
                     bootstrap.Modal.getInstance(document.getElementById('modal-eliminar-ingreso'))?.hide();
                 })
-                .fail((xhr) => toast('error', xhr.responseJSON?.mensaje || 'No se pudo eliminar.'));
+                .fail((xhr) => toast('error', xhr.responseJSON?.mensaje || 'No se pudo eliminar.'))
+                .always(() => window.AppBtn.loading('#btn-confirmar-eliminar', false));
         });
     });
 })();

@@ -8,7 +8,7 @@ use App\Models\CuentaTesoreria;
 use App\Models\Deposito;
 use App\Models\FuncionAvanzada;
 use App\Models\Integraciones\MercadoLibrePublicacionProducto;
-use App\Models\Integraciones\TiendanubeConfiguracion;
+use App\Models\Integraciones\TiendanubeConexionRest;
 use App\Models\Integraciones\TiendanubeOrden;
 use App\Models\Integraciones\TiendanubeOrdenItem;
 use App\Models\Integraciones\TiendanubeVarianteProducto;
@@ -78,7 +78,7 @@ class TiendanubeMovimientoStockObserverTest extends TestCase
     {
         $depositoDefault = Deposito::create(['nombre' => 'Principal', 'activo' => true]);
         $depositoTn = Deposito::create(['nombre' => 'Depósito TN', 'activo' => true]);
-        TiendanubeConfiguracion::actual()->update(['deposito_id' => $depositoTn->id]);
+        TiendanubeConexionRest::actual()->update(['deposito_id' => $depositoTn->id]);
 
         $producto = Producto::factory()->create(['tipo' => 'producto']);
         $vinculo = TiendanubeVarianteProducto::create(['variant_id' => 1, 'tn_product_id' => '10', 'producto_id' => $producto->id]);
@@ -132,12 +132,12 @@ class TiendanubeMovimientoStockObserverTest extends TestCase
         FuncionAvanzada::where('clave', 'tiendanube')->update(['activa' => true]);
         (new CondicionIvaSeeder())->run();
 
-        TiendanubeConfiguracion::actual()->update([
+        TiendanubeConexionRest::actual()->update([
             'client_id' => 'client-id-de-prueba', 'client_secret' => 'client-secret-de-prueba',
             'access_token' => 'token-vigente-de-prueba', 'estado' => EstadoConexion::Conectada,
         ]);
         $cuenta = CuentaTesoreria::firstOrCreate(['nombre' => 'Tiendanube'], ['tipo' => 'banco', 'visible' => true]);
-        TiendanubeConfiguracion::actual()->update(['cuenta_tesoreria_id' => $cuenta->id]);
+        TiendanubeConexionRest::actual()->update(['cuenta_tesoreria_id' => $cuenta->id]);
 
         TiendanubeVarianteProducto::firstOrCreate(
             ['variant_id' => 1],

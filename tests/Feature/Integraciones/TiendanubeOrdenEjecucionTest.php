@@ -6,7 +6,7 @@ use App\Enums\Tiendanube\EstadoConexion;
 use App\Models\CuentaTesoreria;
 use App\Models\Deposito;
 use App\Models\FuncionAvanzada;
-use App\Models\Integraciones\TiendanubeConfiguracion;
+use App\Models\Integraciones\TiendanubeConexionRest;
 use App\Models\Integraciones\TiendanubeVarianteProducto;
 use App\Models\Producto;
 use App\Models\Rol;
@@ -38,13 +38,12 @@ class TiendanubeOrdenEjecucionTest extends TestCase
         FuncionAvanzada::where('clave', 'tiendanube')->update(['activa' => true]);
         (new CondicionIvaSeeder())->run();
 
-        TiendanubeConfiguracion::actual()->update([
-            'client_id' => 'client-id-de-prueba', 'client_secret' => 'client-secret-de-prueba',
-            'access_token' => 'token-vigente-de-prueba', 'estado' => EstadoConexion::Conectada,
+        TiendanubeConexionRest::actual()->update([
+            'access_token' => 'token-vigente-de-prueba', 'store_id' => '999', 'estado' => EstadoConexion::Conectada,
             'modo_solo_lectura' => false, 'creacion_automatica' => true,
         ]);
         $cuenta = CuentaTesoreria::firstOrCreate(['nombre' => 'Tiendanube'], ['tipo' => 'banco', 'visible' => true]);
-        TiendanubeConfiguracion::actual()->update(['cuenta_tesoreria_id' => $cuenta->id]);
+        TiendanubeConexionRest::actual()->update(['cuenta_tesoreria_id' => $cuenta->id]);
 
         Deposito::create(['nombre' => 'Principal', 'activo' => true]);
     }
@@ -55,19 +54,16 @@ class TiendanubeOrdenEjecucionTest extends TestCase
         TiendanubeVarianteProducto::create(['variant_id' => 1, 'tn_product_id' => '10', 'producto_id' => $producto->id]);
 
         Http::fake([
-            'admin-mcp.tiendanube.com/' => Http::response([
-                'jsonrpc' => '2.0', 'id' => 1,
-                'result' => ['isError' => false, 'structuredContent' => ['orders' => [[
-                    'id' => 1001, 'status' => 'open', 'payment_status' => 'paid', 'fulfillment_status' => 'unpacked',
-                    'completed_at' => now()->toIso8601String(), 'total' => ['amount' => 500.0, 'currency' => 'ARS'],
-                    'storefront' => 'store',
-                    'customer' => ['id' => 900, 'email' => 'comprador@test.com', 'name' => 'Comprador', 'cpf_cnpj' => null],
-                    'items' => [[
-                        'product_id' => 10, 'variant_id' => 1, 'name' => 'Producto',
-                        'variant_values' => [], 'quantity' => 1, 'price' => ['amount' => 500.0, 'currency' => 'ARS'],
-                    ]],
-                ]]]],
-            ], 200),
+            'api.tiendanube.com/v1/*/orders*' => Http::response([[
+                'id' => 1001, 'status' => 'open', 'payment_status' => 'paid', 'shipping_status' => 'unpacked',
+                'completed_at' => now()->toIso8601String(), 'total' => 500.0, 'currency' => 'ARS',
+                'storefront' => 'store',
+                'contact_email' => 'comprador@test.com', 'contact_name' => 'Comprador', 'contact_identification' => '',
+                'products' => [[
+                    'product_id' => 10, 'variant_id' => 1, 'name' => 'Producto',
+                    'variant_values' => [], 'quantity' => 1, 'price' => 500.0,
+                ]],
+            ]], 200),
         ]);
 
         $this->artisan('tiendanube:sincronizar-ordenes --forzar')->assertExitCode(0);
@@ -75,12 +71,7 @@ class TiendanubeOrdenEjecucionTest extends TestCase
         $vinculo = TiendanubeVarianteProducto::where('producto_id', $producto->id)->firstOrFail();
         $this->assertFalse($vinculo->stock_pendiente, 'La conversión automática no debe marcar el vínculo pendiente.');
 
-        Http::fake([
-            'admin-mcp.tiendanube.com/' => Http::response([
-                'jsonrpc' => '2.0', 'id' => 1,
-                'result' => ['isError' => false, 'structuredContent' => []],
-            ], 200),
-        ]);
+        Http::fake(['api.tiendanube.com/v1/*/products/*/variants/*' => Http::response(['id' => 1], 200)]);
 
         $this->artisan('tiendanube:sincronizar-stock --forzar')->assertExitCode(0);
 

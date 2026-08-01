@@ -414,7 +414,7 @@
         $('#btn-guardar-compra').on('click', function () {
             if (enviando || !validar()) { return; }
             enviando = true;
-            $('#btn-guardar-compra').prop('disabled', true);
+            window.AppBtn.loading('#btn-guardar-compra', true);
 
             const url = rutas.update || rutas.store;
             const method = rutas.update ? 'PUT' : 'POST';
@@ -427,7 +427,7 @@
                 .fail((xhr) => {
                     toast('error', xhr.responseJSON?.message || 'No se salvó la Compra, revise el formulario.');
                     enviando = false;
-                    $('#btn-guardar-compra').prop('disabled', false);
+                    window.AppBtn.loading('#btn-guardar-compra', false);
                 });
         });
     }

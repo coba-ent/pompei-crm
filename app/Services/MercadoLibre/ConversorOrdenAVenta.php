@@ -6,6 +6,7 @@ use App\Enums\MercadoLibre\EstadoConversion;
 use App\Enums\MercadoLibre\EstadoOrden;
 use App\Models\Cliente;
 use App\Models\CuentaTesoreria;
+use App\Models\FuncionAvanzada;
 use App\Models\Integraciones\MercadoLibreConfiguracion;
 use App\Models\Integraciones\MercadoLibreOrden;
 use App\Models\Integraciones\MercadoLibreOrdenItem;
@@ -62,6 +63,69 @@ class ConversorOrdenAVenta
         } finally {
             $lock->release();
         }
+    }
+
+    /**
+     * "Transformar todas en Venta" (spec 025, FR-002/FR-005/FR-006): convierte,
+     * de una en una, todas las órdenes en `Lista` de la conexión vigente, reusando
+     * el mismo candado/transacción por orden que `convertir()`. Guardrails
+     * idénticos a `SincronizadorOrdenes::verificarCortes()` (función avanzada +
+     * modo sólo lectura) — si alguno bloquea, no toca ninguna orden.
+     *
+     * @return array{ok: bool, tipo?: string, mensaje: string, total?: int, convertidas?: int, fallidas?: int, detalle_fallidas?: array}
+     */
+    public function convertirTodasLasListas(?int $usuarioId): array
+    {
+        if ($bloqueo = $this->verificarCortesBatch()) {
+            return $bloqueo;
+        }
+
+        $ordenes = MercadoLibreOrden::where('estado_conversion', EstadoConversion::Lista->value)->get();
+
+        $total = $ordenes->count();
+        $convertidas = 0;
+        $detalleFallidas = [];
+
+        foreach ($ordenes as $orden) {
+            $resultado = $this->convertir($orden, $usuarioId, automatica: false);
+
+            if ($resultado['ok']) {
+                $convertidas++;
+
+                continue;
+            }
+
+            $detalleFallidas[] = [
+                'orden' => $orden->ml_order_id,
+                'motivo' => $orden->fresh()->motivo?->etiqueta() ?? $resultado['mensaje'],
+                'motivo_detalle' => $orden->fresh()->motivo_detalle,
+            ];
+        }
+
+        $fallidas = $total - $convertidas;
+
+        return [
+            'ok' => true,
+            'mensaje' => "{$convertidas} de {$total} órdenes convertidas.",
+            'total' => $total,
+            'convertidas' => $convertidas,
+            'fallidas' => $fallidas,
+            'detalle_fallidas' => $detalleFallidas,
+        ];
+    }
+
+    /** Mismos cortes que `SincronizadorOrdenes::verificarCortes()` (función avanzada + modo sólo lectura). */
+    private function verificarCortesBatch(): ?array
+    {
+        if (! (bool) FuncionAvanzada::where('clave', 'mercadolibre')->value('activa')) {
+            return ['ok' => false, 'tipo' => 'bloqueada', 'mensaje' => 'La función "Mercado Libre" está desactivada en Funciones Avanzadas.'];
+        }
+
+        if (MercadoLibreConfiguracion::actual()->modo_solo_lectura) {
+            return ['ok' => false, 'tipo' => 'bloqueada', 'mensaje' => 'Bloqueada por el modo sólo lectura: la conversión está deshabilitada mientras esté activo.'];
+        }
+
+        return null;
     }
 
     /**

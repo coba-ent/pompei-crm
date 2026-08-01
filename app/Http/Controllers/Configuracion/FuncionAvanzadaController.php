@@ -7,7 +7,7 @@ use App\Enums\Tiendanube\EstadoConexion as EstadoConexionTiendanube;
 use App\Http\Controllers\Controller;
 use App\Models\FuncionAvanzada;
 use App\Models\Integraciones\MercadoLibreCuenta;
-use App\Models\Integraciones\TiendanubeConfiguracion;
+use App\Models\Integraciones\TiendanubeConexionRest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -59,7 +59,7 @@ class FuncionAvanzadaController extends Controller
         // desactivar con una conexión activa exige confirmación explícita, y nunca
         // borra las credenciales ni desconecta la tienda.
         if ($funcion->clave === 'tiendanube' && ! $datos['activa'] && $funcion->activa) {
-            $conexionActiva = TiendanubeConfiguracion::actual()->estado === EstadoConexionTiendanube::Conectada;
+            $conexionActiva = TiendanubeConexionRest::actual()->estado === EstadoConexionTiendanube::Conectada;
 
             if ($conexionActiva && ! ($datos['confirmado'] ?? false)) {
                 return response()->json([

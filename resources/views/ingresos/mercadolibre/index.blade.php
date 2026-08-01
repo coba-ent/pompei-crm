@@ -19,8 +19,11 @@
                     <i class="fas fa-boxes-stacked me-1"></i> Sincronizar stock ahora
                 </button>
                 {{-- "Sincronizar precios ahora" vive en Productos (spec 016, corrección de UX): --}}
-                <button type="button" class="btn btn-primary" id="btn-sincronizar-ml">
+                <button type="button" class="btn btn-outline-primary me-1" id="btn-sincronizar-ml">
                     <i class="fas fa-sync-alt me-1"></i> Sincronizar ahora
+                </button>
+                <button type="button" class="btn btn-primary" id="btn-transformar-todas-en-venta-ml">
+                    <i class="fas fa-file-invoice-dollar me-1"></i> Transformar todas en Venta
                 </button>
             </div>
         </div>
@@ -114,6 +117,21 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="modal-resultado-transformar-venta-ml" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Resultado de la transformación en Venta</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body" id="resultado-transformar-venta-ml-body"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('local-js')
@@ -123,6 +141,7 @@
             datatable: @json(route('ingresos.mercadolibre.datatable')),
             sincronizar: @json(route('ingresos.mercadolibre.sincronizar')),
             sincronizarStock: @json(route('ingresos.mercadolibre.sincronizarStock')),
+            transformarTodasEnVenta: @json(route('ingresos.mercadolibre.transformarTodasEnVenta')),
             show: @json(url('ingresos/mercadolibre')),
             ventaShow: @json(url('ventas')),
             vinculaciones: @json(Route::has('ingresos.mercadolibre.vinculaciones.index') ? route('ingresos.mercadolibre.vinculaciones.index') : null),

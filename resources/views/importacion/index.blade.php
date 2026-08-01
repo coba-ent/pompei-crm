@@ -40,12 +40,12 @@
                         <p class="mb-3">Seleccioná un archivo con tus {{ $titulos[$entidad] }} para importar.</p>
                         <p class="text-muted small mb-4">Formatos permitidos: .xls, .xlsx, .csv — tamaño máximo 10MB.</p>
 
-                        <form action="{{ route('importacion.subir', $entidad) }}" method="POST" enctype="multipart/form-data">
+                        <form action="{{ route('importacion.subir', $entidad) }}" method="POST" enctype="multipart/form-data" id="form-importacion-subir">
                             @csrf
                             <div class="mb-3 col-md-8 mx-auto text-start">
                                 <input type="file" name="archivo" class="form-control" accept=".xls,.xlsx,.csv" required>
                             </div>
-                            <button type="submit" class="btn btn-primary">
+                            <button type="submit" class="btn btn-primary" id="btn-importacion-subir">
                                 <i class="fas fa-upload me-1"></i> Seleccionar Archivo
                             </button>
                         </form>
@@ -92,4 +92,12 @@
 
     </div>
 </div>
+@endsection
+
+@section('local-js')
+<script>
+    document.getElementById('form-importacion-subir').addEventListener('submit', function () {
+        window.AppBtn.loading('#btn-importacion-subir', true);
+    });
+</script>
 @endsection

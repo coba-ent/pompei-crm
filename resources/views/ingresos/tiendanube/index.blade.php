@@ -18,8 +18,11 @@
                 <button type="button" class="btn btn-outline-primary me-1" id="btn-sincronizar-stock-tn">
                     <i class="fas fa-boxes-stacked me-1"></i> Sincronizar stock ahora
                 </button>
-                <button type="button" class="btn btn-primary" id="btn-sincronizar-tn">
+                <button type="button" class="btn btn-outline-primary me-1" id="btn-sincronizar-tn">
                     <i class="fas fa-sync-alt me-1"></i> Sincronizar ahora
+                </button>
+                <button type="button" class="btn btn-primary" id="btn-transformar-todas-en-venta-tn">
+                    <i class="fas fa-file-invoice-dollar me-1"></i> Transformar todas en Venta
                 </button>
             </div>
         </div>
@@ -102,6 +105,21 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="modal-resultado-transformar-venta-tn" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Resultado de la transformación en Venta</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body" id="resultado-transformar-venta-tn-body"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('local-js')
@@ -111,6 +129,7 @@
             datatable: @json(route('ingresos.tiendanube.datatable')),
             sincronizar: @json(route('ingresos.tiendanube.sincronizar')),
             sincronizarStock: @json(route('ingresos.tiendanube.sincronizarStock')),
+            transformarTodasEnVenta: @json(route('ingresos.tiendanube.transformarTodasEnVenta')),
             show: @json(url('ingresos/tiendanube')),
             ventaShow: @json(url('ventas')),
             vinculaciones: @json(Route::has('ingresos.tiendanube.vinculaciones.index') ? route('ingresos.tiendanube.vinculaciones.index') : null),

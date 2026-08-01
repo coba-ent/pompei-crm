@@ -33,10 +33,16 @@
 						</a>
 						<ul aria-expanded="false">
 							@can('presupuestos.ver')
-								<li><a href="{{ route('presupuestos.index') }}">Presupuestos</a></li>
+								<li class="d-flex align-items-center">
+										<a href="{{ route('presupuestos.index') }}" class="flex-grow-1">Presupuestos</a>
+										<a href="{{ route('presupuestos.create') }}" class="menu-crear-btn" title="Crear nuevo"><i class="fas fa-plus-circle"></i></a>
+									</li>
 							@endcan
 							@can('ventas.ver')
-								<li><a href="{{ route('ventas.index') }}">Ventas</a></li>
+								<li class="d-flex align-items-center">
+										<a href="{{ route('ventas.index') }}" class="flex-grow-1">Ventas</a>
+										<a href="{{ route('ventas.create') }}" class="menu-crear-btn" title="Crear nuevo"><i class="fas fa-plus-circle"></i></a>
+									</li>
 								@if (\App\Models\FuncionAvanzada::where('clave', 'mercadolibre')->value('activa'))
 									<li><a href="{{ route('ingresos.mercadolibre.index') }}">Mercado Libre</a></li>
 								@endif
@@ -45,7 +51,10 @@
 								@endif
 							@endcan
 							@can('otros-ingresos.ver')
-								<li><a href="{{ route('otros-ingresos.index') }}">Otros Ingresos</a></li>
+								<li class="d-flex align-items-center">
+										<a href="{{ route('otros-ingresos.index') }}" class="flex-grow-1">Otros Ingresos</a>
+										<a href="{{ route('otros-ingresos.index', ['crear' => 1]) }}" class="menu-crear-btn" title="Crear nuevo"><i class="fas fa-plus-circle"></i></a>
+									</li>
 							@endcan
 						</ul>
 					</li>
@@ -65,10 +74,16 @@
 					</a>
 						<ul aria-expanded="false">
 							@can('compras.ver')
-								<li><a href="{{ route('compras.index') }}">Compras</a></li>
+								<li class="d-flex align-items-center">
+										<a href="{{ route('compras.index') }}" class="flex-grow-1">Compras</a>
+										<a href="{{ route('compras.create') }}" class="menu-crear-btn" title="Crear nuevo"><i class="fas fa-plus-circle"></i></a>
+									</li>
 							@endcan
 							@can('gastos.ver')
-								<li><a href="{{ route('gastos.index') }}">Gastos</a></li>
+								<li class="d-flex align-items-center">
+										<a href="{{ route('gastos.index') }}" class="flex-grow-1">Gastos</a>
+										<a href="{{ route('gastos.index', ['crear' => 1]) }}" class="menu-crear-btn" title="Crear nuevo"><i class="fas fa-plus-circle"></i></a>
+									</li>
 							@endcan
 						</ul>
 					</li>
@@ -91,13 +106,22 @@
 						</a>
 						<ul aria-expanded="false">
 							@can('clientes.ver')
-								<li><a href="{{ route('clientes.index') }}">Clientes</a></li>
+								<li class="d-flex align-items-center">
+										<a href="{{ route('clientes.index') }}" class="flex-grow-1">Clientes</a>
+										<a href="{{ route('clientes.index', ['crear' => 1]) }}" class="menu-crear-btn" title="Crear nuevo"><i class="fas fa-plus-circle"></i></a>
+									</li>
 							@endcan
 							@can('proveedores.ver')
-								<li><a href="{{ route('proveedores.index') }}">Proveedores</a></li>
+								<li class="d-flex align-items-center">
+										<a href="{{ route('proveedores.index') }}" class="flex-grow-1">Proveedores</a>
+										<a href="{{ route('proveedores.index', ['crear' => 1]) }}" class="menu-crear-btn" title="Crear nuevo"><i class="fas fa-plus-circle"></i></a>
+									</li>
 							@endcan
 							@can('productos.ver')
-								<li><a href="{{ route('productos.index') }}">Productos &amp; Servicios</a></li>
+								<li class="d-flex align-items-center">
+										<a href="{{ route('productos.index') }}" class="flex-grow-1">Productos &amp; Servicios</a>
+										<a href="{{ route('productos.index', ['crear' => 1]) }}" class="menu-crear-btn" title="Crear nuevo"><i class="fas fa-plus-circle"></i></a>
+									</li>
 							@endcan
 						</ul>
 					</li>
@@ -115,6 +139,7 @@
 						<ul aria-expanded="false">
 							@can('informes.ver')
 								<li><a href="{{ route('informes.stock.index') }}">Stock</a></li>
+								<li><a href="{{ route('informes.cuenta-corriente.index') }}">Cuenta Corriente</a></li>
 							@endcan
 						</ul>
 					</li>
@@ -149,12 +174,19 @@
 						</a>
 						<ul aria-expanded="false">
 							@can('configuracion.usuarios')
-								<li><a href="{{ route('configuracion.usuarios.index') }}">Usuarios y Permisos</a></li>
+								<li class="d-flex align-items-center">
+										<a href="{{ route('configuracion.usuarios.index') }}" class="flex-grow-1">Usuarios y Permisos</a>
+										<a href="{{ route('configuracion.usuarios.index', ['crear' => 1]) }}" class="menu-crear-btn" title="Crear nuevo"><i class="fas fa-plus-circle"></i></a>
+									</li>
 							@endcan
 							@can('configuracion.funciones')
-								<li><a href="{{ route('configuracion.depositos.index') }}">Depósitos</a></li>
+								<li class="d-flex align-items-center">
+										<a href="{{ route('configuracion.depositos.index') }}" class="flex-grow-1">Depósitos</a>
+										<a href="{{ route('configuracion.depositos.index', ['crear' => 1]) }}" class="menu-crear-btn" title="Crear nuevo"><i class="fas fa-plus-circle"></i></a>
+									</li>
 								<li><a href="{{ route('configuracion.funciones.index') }}">Funciones Avanzadas</a></li>
 								<li><a href="{{ route('configuracion.mercadolibre.index') }}">Mercado Libre</a></li>
+								<li><a href="{{ route('configuracion.tiendanube.index') }}">Tiendanube</a></li>
 							@endcan
 						</ul>
 					</li>

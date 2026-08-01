@@ -91,7 +91,7 @@ ARCA/facturación esté fuera de alcance por ahora).
 | descuento_general_pct | decimal, nullable | 0–100 |
 | nota_cliente | text, nullable | "Nota para el Cliente" |
 | saldo_inicial | decimal | default 0 |
-| saldo_inicial_fecha | date, nullable | Fecha de apertura de la cuenta corriente. Sin uso funcional hoy más allá del aging del dashboard (spec 010, ver `App\Services\Tesoreria\CuentaCorriente::aging()`) — las pantallas completas de Cuenta Corriente por Cliente/Proveedor siguen sin implementar; se conserva el dato para cuando se retomen |
+| saldo_inicial_fecha | date, nullable | Fecha de apertura de la cuenta corriente. Sin uso funcional en el aging (spec 010/029, ver `App\Services\Tesoreria\CuentaCorriente::aging()`/`porCliente()`) — la pantalla de Cuenta Corriente Clientes ya está implementada (spec 029), Proveedores sigue pendiente; se conserva el dato para cuando se retome |
 | campos_personalizados | json, nullable | "Agregar Nuevo campo". Campos adicionales **propios de ese cliente** (no hay catálogo global): array de objetos `[{ "nombre", "tipo", "opciones": [...]|null, "valor" }]`. `tipo` = `texto`\|`numerico`\|`fecha`\|`opciones` |
 | activo | boolean | default true (baja lógica) |
 
@@ -223,10 +223,10 @@ en `movimientos_stock`.
 | producto_id | FK → productos | |
 | variante_id | FK → producto_variantes, nullable | si el producto tiene variantes |
 | deposito_id | FK → depositos | |
-| tipo | enum(`entrada`,`salida`,`ajuste`,`transferencia`) | `transferencia` = movimiento entre depósitos (2 filas: salida negativa + entrada positiva). `ajuste`/`transferencia` = ajuste manual. **`salida`/`entrada` = Ventas, desde la spec 012** (`salida` al crear la Venta, `entrada` al eliminarla o reintegrar por edición). **Compras todavía no genera movimientos** |
+| tipo | enum(`entrada`,`salida`,`ajuste`,`transferencia`) | `transferencia` = movimiento entre depósitos (2 filas: salida negativa + entrada positiva). `ajuste` = ajuste manual o NC/ND que afecta stock (spec 008/009). **`salida`/`entrada` = Ventas, desde la spec 012** (`salida` al crear la Venta, `entrada` al eliminarla o reintegrar por edición). **`entrada`/`salida` = Compras, desde la spec 030** (`entrada` al crear la Compra, `salida` al eliminarla o reintegrar por edición — mismo patrón que Ventas mas invertido) |
 | cantidad | decimal | |
-| origen_type / origen_id | polimórfico | **`Venta` desde la spec 012**; `compra_items` sigue reservado. En los ajustes manuales queda nulo |
-| fecha | date | |
+| origen_type / origen_id | polimórfico | **`Venta` desde la spec 012**; **`Compra` desde la spec 030**. En los ajustes manuales y en NC/ND queda nulo |
+| fecha | date | Ventas: fecha del guardado. **Compras (spec 030): `fecha_emision` de la Compra** en el alta/edición (no la fecha de guardado), para que el histórico refleje cuándo entró realmente la mercadería aunque la carga sea retroactiva; el reintegro por eliminación usa la fecha del día en que se elimina. |
 | usuario_id | FK → usuarios, nullable | quién generó el movimiento |
 
 > **"Stock Saldo" del Informe de Stock (spec 003, 24/07/2026):** columna **calculada, no persistida** —
@@ -234,8 +234,8 @@ en `movimientos_stock`.
 > histórico **completo** de `movimientos_stock` (nunca sobre el subconjunto filtrado por pantalla). Se
 > proyecta como columna adicional de `InformeStockController::data()`, análoga a los `addSelect` de
 > subconsulta ya usados en `ProductoController::queryFiltrada()` para las columnas dinámicas de lista de
-> precio. El filtro "Operación" del informe expone `ajuste`/`transferencia` y —**desde la spec 012**—
-> `salida`/`entrada` generados por Ventas. Compras aún no genera movimientos de stock.
+> precio. El filtro "Operación" del informe expone `ajuste`/`transferencia`, **`salida`/`entrada`
+> generados por Ventas (spec 012)** y **`entrada`/`salida` generados por Compras (spec 030)**.
 
 ---
 
@@ -258,7 +258,7 @@ depositos 1───N stocks, movimientos_stock
 ## 4. Notas de implementación para Laravel 12
 
 - Sistema single-tenant: **no** hay Global Scope por empresa ni `empresa_id` en las tablas.
-- Las relaciones polimórficas (`movimientos_stock.origen`) se implementan con `morphTo`/`morphMany` estándar de Eloquent; hoy sólo se usan para ajustes manuales.
+- Las relaciones polimórficas (`movimientos_stock.origen`) se implementan con `morphTo`/`morphMany` estándar de Eloquent; se usan para Ventas (spec 012) y Compras (spec 030), además de los ajustes manuales (sin origen).
 - Un `FormRequest` específico por módulo (`StoreClienteRequest`, `StoreProductoRequest`, etc.) valida antes de tocar la base de datos.
 
 Las migraciones de Laravel correspondientes a este modelo están en `database/migrations/`.
@@ -727,13 +727,17 @@ Vinculación **estrictamente 1:1**, infraestructura compartida con la spec 013. 
 > independiente del default de Tiendanube (sin fallback compartido entre integraciones). Detalle
 > completo en `specs/020-vendedores/data-model.md`.
 
-> **Mecanismo de vinculación (spec 021, planificada) — sin columna nueva**: `ml_item_id`/`producto_id`
-> se siguen creando igual que hoy, pero el `producto_id` deja de elegirse a mano — se resuelve
-> automáticamente comparando `ml_orden_items.sku_vendedor` (más reciente para ese `ml_item_id`) contra
-> el **`id`** (clave primaria) de `productos`, no contra `codigo`. Confirmado que no hace falta ningún
-> campo nuevo: el negocio va a asignar a propósito ese mismo `id` al dar de alta los productos que hoy
-> sólo existen en Mercado Libre. Detalle completo en
-> `specs/021-vinculacion-automatica-sku/data-model.md`.
+> **Mecanismo de vinculación (spec 021, implementada; corregida por spec 023) — sin columna nueva**:
+> `ml_item_id`/`producto_id` se siguen creando igual que hoy, pero el `producto_id` deja de elegirse a
+> mano — se resuelve automáticamente comparando un SKU contra el **`id`** (clave primaria) de `productos`,
+> no contra `codigo`. Confirmado que no hace falta ningún campo nuevo: el negocio asigna a propósito ese
+> mismo `id` al dar de alta los productos que hoy sólo existen en Mercado Libre. El SKU **ya no sale de
+> `ml_orden_items.sku_vendedor`** (diseño original de spec 021, descartado por spec 023): sale de
+> consultar el catálogo en vivo del vendedor conectado (atributo `SELLER_SKU` de cada publicación,
+> recorrido completo vía el modo `scan` del buscador de Mercado Libre — sin el tope de 1000 resultados del
+> paginado clásico, necesario porque el catálogo real tiene miles de publicaciones). `ml_orden_items` sigue
+> existiendo y sincronizándose igual, simplemente ya no se lee para este mecanismo. Detalle completo en
+> `specs/021-vinculacion-automatica-sku/data-model.md` y `specs/023-mercadolibre-catalogo-vivo/data-model.md`.
 
 ### `ventas` (columna nueva)
 `origen` (enum `manual`/`presupuesto`/`mercadolibre`, default `manual`). Explicita el tercer origen;
@@ -795,6 +799,49 @@ Mismo esquema exacto que `ml_operaciones_log` (§8), tabla separada — historia
 
 Retención: 30 días o 5.000 registros, depurada de forma oportunista — mismo criterio y mecanismo que
 `ml_operaciones_log`.
+
+### `tn_conexion_rest` / `tn_rest_operaciones_log` (spec 022 — conexión aislada, no reemplaza lo de arriba)
+
+Dos tablas **nuevas y completamente independientes** de `tn_configuracion`/`tn_operaciones_log` — no las
+modifican ni comparten filas. Guardan la conexión OAuth clásica contra una Application del Partner Portal
+de Tiendanube (`www.tiendanube.com/apps/{app_id}/authorize`, REST API `api.tiendanube.com`), verificada
+empíricamente (31/07/2026) como **no intercambiable** con el token del servidor MCP que usa
+`tn_configuracion` (401 al probar el token de una contra el servidor de la otra). Detalle completo del
+esquema en `specs/022-tiendanube-conexion-rest/data-model.md`.
+
+`tn_conexion_rest` — registro único (single-tenant, mismo patrón que `tn_configuracion`):
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| access_token | text, nullable | **Cifrado** (cast `encrypted`), `$hidden`. Nunca se devuelve a la interfaz |
+| store_id | string(50), nullable | `user_id` devuelto por el canje de código — va en la ruta de cada llamada REST |
+| scopes_otorgados | string(255), nullable | Tal cual los informa Tiendanube en el canje |
+| tienda_nombre | string(255), nullable | De `GET /{store_id}/store` (verificación de conexión) |
+| tienda_dominio | string(255), nullable | `original_domain` de `GET /store` |
+| estado | string(20) | `no_configurada` / `conectada` / `caida` — mismo enum PHP `EstadoConexion` que ya usa `tn_configuracion`, tabla separada |
+| conectada_en | timestamp, nullable | |
+| ultimo_error | text, nullable | |
+| actualizada_por | FK → usuarios, nullable | |
+
+**No guarda `client_id`/`client_secret`**: viven sólo en `.env`/`config('integraciones.tiendanube')` — son
+credenciales de la Application (fijas), no de la conexión con una tienda particular, a diferencia del
+auto-registro dinámico que sí persiste `tn_configuracion.client_id`/`client_secret` para el flujo MCP.
+
+`tn_rest_operaciones_log` — mismo esquema y retención que `tn_operaciones_log` (30 días o 5.000 registros),
+tabla separada para que no haya forma de confundir a qué conexión pertenece cada fila. Desde spec 024
+también registra las operaciones de negocio de `ClienteTiendanubeRest` (`orders`, `products`, `variants`),
+no sólo las de conexión.
+
+> ✅ **Spec 024 (implementada, Historias 1 y 2): `tn_conexion_rest` gana la configuración de negocio.**
+> `modo_solo_lectura` (bool, default false), `creacion_automatica` (bool, default false),
+> `frecuencia_sync_minutos` (unsignedSmallInteger, nullable), `deposito_id`/`categoria_venta_id`/
+> `cuenta_tesoreria_id`/`lista_precio_id`/`vendedor_id` (FK nullable, `nullOnDelete`), `dias_primera_sync`
+> (unsignedSmallInteger, nullable), `ultima_sync_en`/`ultima_sync_resultado`,
+> `stock_ultima_sync_en`/`stock_ultima_sync_resultado` — mismos campos y semántica que las columnas
+> homónimas de `tn_configuracion` (ver §12), migrados acá porque los sincronizadores de negocio pasan a
+> depender exclusivamente de esta conexión. Una migración de datos copió los valores vigentes de
+> `tn_configuracion` a la fila única de `tn_conexion_rest` (idempotente, sobreescritura por `id=1`). Ver
+> §13.
 
 **Continuación (spec 017, implementada)**: tablas de órdenes de Tiendanube, líneas de orden y
 vinculación variante↔producto — ver §12.
@@ -909,13 +956,26 @@ resultado persistir acá.
 automáticamente por sincronización de Tiendanube, independiente del de Mercado Libre. Detalle
 completo en `specs/020-vendedores/data-model.md`.
 
-**Mecanismo de importación masiva (spec 021, planificada) — sin columna nueva**: además del alta
-manual ya existente, `variant_id`/`tn_product_id`/`producto_id` se pueden crear en lote importando el
-archivo de productos que Tiendanube ya exporta. `producto_id` se resuelve por `productos.codigo` (match
-exacto o por el número inicial); `variant_id`/`tn_product_id` se resuelven consultando el catálogo de
-Tiendanube en vivo (tool `list_products` del MCP ya conectado) por el "Identificador de URL" de cada
-fila del archivo — el SKU de Tiendanube nunca viaja por esa integración, sólo por el archivo. Detalle
-completo en `specs/021-vinculacion-automatica-sku/data-model.md`.
+> ⚠️ **Retirado por spec 024 (Historia 1)**: el alta manual con selector (fuente: `tn_orden_items`) y el
+> mecanismo de importación masiva por Excel descrito abajo se **reemplazan por completo** por
+> `VinculadorAutomatico` (catálogo REST en vivo, SKU directo contra `sku` de cada variante — ver §13). Se
+> deja el párrafo original como registro histórico de cómo se resolvía antes.
+>
+> **Mecanismo de importación masiva (spec 021) — sin columna nueva**: además del alta manual ya
+> existente, `variant_id`/`tn_product_id`/`producto_id` se podían crear en lote importando el archivo de
+> productos que Tiendanube exporta. `producto_id` se resolvía por `productos.codigo` (match exacto o por
+> el número inicial); `variant_id`/`tn_product_id` se resolvían consultando el catálogo de Tiendanube en
+> vivo (tool `list_products` del MCP) por el "Identificador de URL" de cada fila del archivo — el SKU de
+> Tiendanube nunca viajaba por esa integración, sólo por el archivo. Detalle histórico en
+> `specs/021-vinculacion-automatica-sku/data-model.md`.
+
+**`tn_configuracion` (columnas de negocio)**: `creacion_automatica`, `frecuencia_sync_minutos`,
+`deposito_id`, `categoria_venta_id`, `cuenta_tesoreria_id`, `dias_primera_sync`, `ultima_sync_en`,
+`ultima_sync_resultado`, `stock_ultima_sync_en`, `stock_ultima_sync_resultado`, `lista_precio_id`,
+`vendedor_id` — descritas abajo como referencia histórica de cuándo se agregó cada una (specs
+017/018/018-ampliación/020). **Desde spec 024 (Historia 1/2) estos mismos campos ya no se leen de acá**:
+se migraron a `tn_conexion_rest` (§11) y `tn_configuracion` queda pendiente de retiro completo (Historia
+3, condicionada a validación manual en producción — ver §13).
 
 ### `clientes` (columna nueva)
 `tn_customer_id` (bigint, nullable) — análogo a `ml_user_id` (§8): emparejamiento estable del comprador,
@@ -934,3 +994,44 @@ persistido la primera vez que un Cliente se empareja por email.
 > longitud del documento (11 dígitos/CUIT → A, cualquier otro valor o ausencia → B) — corregible
 > manualmente después. En la práctica, verificado contra la tienda real, casi ninguna orden trae este
 > dato.
+
+---
+
+## 13. Migración de la integración Tiendanube del MCP a la Application REST (spec 024)
+
+> ✅ **Implementada (Historias 1 y 2). Historia 3 (retiro del MCP) pendiente de confirmación manual en
+> producción.**
+
+Sin entidades nuevas: `tn_ordenes`, `tn_orden_items`, `tn_variante_producto` no cambian de esquema — sólo
+cambia qué cliente HTTP los alimenta y qué proceso decide crear cada vínculo. Detalle completo en
+`specs/024-tiendanube-migracion-rest/data-model.md`.
+
+- **`tn_conexion_rest` (spec 022) se extiende** con la configuración de negocio que antes vivía sólo en
+  `tn_configuracion` — ver §11. `TiendanubeConexionRest` gana los mismos métodos de conveniencia que tenía
+  `TiendanubeConfiguracion` (`deposito()`, `categoriaVenta()`, `cuentaTesoreria()`, `vendedor()`,
+  `listaPrecio()`, `depositoEfectivo()`/`depositoEfectivoONulo()`).
+- **`tn_configuracion` / `tn_operaciones_log` (MCP, spec 019) quedan retiradas al final de la Historia 3**:
+  `Schema::dropIfExists` sobre ambas, tras un backup de base de datos (operación destructiva sin reversión
+  automática). Campos que **no** se migran (específicos del transporte MCP, sin equivalente en REST):
+  `client_id`, `client_secret`, `access_token`, `token_expira_en`, `scopes_otorgados`, `productos_total`,
+  `conectada_en`, `estado`, `ultimo_error` — se pierden junto con la tabla, no son "datos de negocio".
+  `tn_operaciones_log` (historial de operaciones MCP) tampoco se migra: es auditoría de un transporte que
+  deja de existir, no configuración viva.
+- **`tn_rest_operaciones_log` (spec 022) pasa a registrar también operaciones de negocio** (`orders`,
+  `products`, `variants`), no sólo las de conexión — ver §11.
+- **Flujo de resolución de vínculo, reemplazado por completo** (spec 017 US2 + selector manual + spec 021
+  importación por Excel → catálogo REST en vivo):
+
+  ```text
+  GET /products (paginado) → producto (id, status) → variants[] (id, sku)
+    ├─ sku vacío ──────────────────► sin vincular: "sin_sku"
+    ├─ sku no matchea Producto::id ─► sin vincular: "producto_no_encontrado"
+    ├─ variante ya vinculada ───────► excluida antes de procesar (no cuenta)
+    ├─ producto ya vinculado ───────► sin vincular: "ya_vinculado" (detalle: producto)
+    └─ match limpio ────────────────► crea tn_variante_producto (variant_id, tn_product_id, producto_id)
+  ```
+
+**Datos de negocio conservados tras el retiro del MCP (FR-020, cuando corra la Historia 3)**: pedidos
+(`tn_ordenes`/`tn_orden_items`), vínculos (`tn_variante_producto`) y los movimientos/Ventas ya derivados de
+ellos — sólo se elimina la infraestructura de conexión MCP, no el historial de negocio generado mientras
+estuvo activa.

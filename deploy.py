@@ -224,6 +224,20 @@ def archivos_cambiados():
             continue
         if not ruta.startswith(RUTAS_DEPLOYABLES):
             continue
+
+        # Carpetas nuevas no trackeadas: git las devuelve como una sola entrada
+        # "carpeta/" (sin recursar), pero el deploy sube archivos puntuales —
+        # se expande a los archivos reales de adentro en vez de abortar en el
+        # chequeo de os.path.isfile() más abajo.
+        absoluto = os.path.join(RAIZ, ruta.replace("/", os.sep))
+        if ruta.endswith("/") and os.path.isdir(absoluto):
+            for raiz_dir, _, archivos in os.walk(absoluto):
+                for nombre in archivos:
+                    completo = os.path.join(raiz_dir, nombre)
+                    relativo = os.path.relpath(completo, RAIZ).replace("\\", "/")
+                    rutas.append(relativo)
+            continue
+
         rutas.append(ruta)
 
     if borrados:

@@ -64,79 +64,54 @@
         inicializarListado();
         inicializarModalAlta();
         inicializarEliminar();
-        inicializarImportar();
+        inicializarVinculacionAutomatica();
     });
 
     const MOTIVOS_TN = {
+        sin_sku: 'Sin SKU cargado',
         producto_no_encontrado: 'El SKU no corresponde a ningún producto',
-        tiendanube_no_encontrado: 'El "Identificador de URL" no existe en el catálogo en vivo de Tiendanube',
         ya_vinculado: 'Ya está vinculado',
     };
 
-    function inicializarImportar() {
-        const modalEl = document.getElementById('modal-importar-vinculaciones');
-        const $btnAbrir = $('#btn-importar-vinculaciones');
-        if (!modalEl || !$btnAbrir.length) { return; }
-        const modal = new bootstrap.Modal(modalEl);
+    function inicializarVinculacionAutomatica() {
+        const $btn = $('#btn-vincular-automaticamente');
+        if (!$btn.length) { return; }
 
-        $btnAbrir.on('click', () => {
-            $('#form-importar-vinculaciones')[0].reset();
-            $('#importar-archivo').removeClass('is-invalid');
-            $('#error-importar-archivo').text('');
-            $('#resultado-importar-vinculaciones').empty();
-            modal.show();
-        });
+        const modalEl = document.getElementById('modal-resultado-vinculacion-automatica');
+        const modal = modalEl ? new bootstrap.Modal(modalEl) : null;
 
-        $('#form-importar-vinculaciones').on('submit', function (e) {
-            e.preventDefault();
+        $btn.on('click', function () {
+            window.AppBtn.loading($btn, true);
 
-            const archivo = $('#importar-archivo')[0].files[0];
-            $('#importar-archivo').removeClass('is-invalid');
-            $('#error-importar-archivo').text('');
-
-            if (!archivo) {
-                $('#importar-archivo').addClass('is-invalid');
-                $('#error-importar-archivo').text('Elegí un archivo.');
-                return;
-            }
-
-            const formData = new FormData();
-            formData.append('archivo', archivo);
-
-            const $btn = $('#btn-confirmar-importar-vinculaciones');
-            $btn.prop('disabled', true);
-
-            $.ajax({
-                url: rutas.importar, method: 'POST', data: formData,
-                contentType: false, processData: false,
-            })
+            $.ajax({ url: rutas.vincularAutomaticamente, method: 'POST' })
                 .done((resp) => {
-                    toast('success', resp.mensaje || 'Importación ejecutada.');
-                    $('#resultado-importar-vinculaciones').html(renderResultadoImportar(resp));
+                    toast('success', resp.mensaje || 'Vinculación automática ejecutada.');
+
+                    if (resp.fallidas > 0 && modal) {
+                        $('#resultado-vinculacion-automatica-body').html(renderResultadoVinculacionAutomatica(resp));
+                        modal.show();
+                    }
+
                     if (tabla && resp.vinculadas > 0) { tabla.ajax.reload(null, false); }
                 })
                 .fail((xhr) => {
                     const resp = xhr.responseJSON || {};
-                    if (xhr.status === 422 && resp.errors && resp.errors.archivo) {
-                        $('#importar-archivo').addClass('is-invalid');
-                        $('#error-importar-archivo').text(resp.errors.archivo[0]);
-                    }
-                    toast('error', resp.message || resp.mensaje || 'No se pudo importar el archivo.');
+                    toast('error', resp.mensaje || resp.message || 'No se pudo ejecutar la vinculación automática.');
                 })
                 .always(() => {
-                    $btn.prop('disabled', false);
+                    window.AppBtn.loading($btn, false);
                 });
         });
     }
 
-    function renderResultadoImportar(resp) {
+    function renderResultadoVinculacionAutomatica(resp) {
         const filas = (resp.detalle_fallidas || []).map((f) => (
             '<tr><td>' + $('<div>').text(f.referencia).html() + '</td><td>'
             + $('<div>').text(MOTIVOS_TN[f.motivo] || f.motivo).html() + '</td></tr>'
         )).join('');
 
-        return '<hr><p>' + resp.vinculadas + ' vinculada(s), ' + resp.fallidas + ' sin vincular de ' + resp.total + ' filas.</p>'
-            + '<div class="table-responsive"><table class="table table-sm"><thead><tr><th>SKU</th><th>Motivo</th></tr></thead><tbody>'
+        return '<p>' + resp.vinculadas + ' vinculada(s), ' + resp.fallidas + ' sin vincular de ' + resp.total + ' variantes.</p>'
+            + '<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Variante</th><th>Motivo</th></tr></thead><tbody>'
             + filas + '</tbody></table></div>';
     }
 
@@ -178,7 +153,7 @@
         $('#form-vinculacion .invalid-feedback').text('');
     }
 
-    function mostrarSelectVariante(seleccionado, deshabilitado) {
+    function mostrarSelectVariante(seleccionado) {
         const $select = $('#vinculacion-variant-id');
         $select.empty();
 
@@ -187,30 +162,11 @@
             $select.append(opcion);
         }
 
-        $select.prop('disabled', !!deshabilitado);
-
-        initSelect2($select, {
-            dropdownParent: $('#modal-vinculacion'),
-            placeholder: 'Buscar variante…',
-            allowClear: true,
-            ajax: {
-                url: rutas.pendientes,
-                data: (params) => ({ q: params.term }),
-                processResults: (data) => ({
-                    results: data.data.map((v) => ({ id: v.id, text: v.text, tn_product_id: v.tn_product_id, nombre: v.nombre })),
-                }),
-            },
-        });
+        initSelect2($select, { dropdownParent: $('#modal-vinculacion') });
 
         if (seleccionado && seleccionado.id) {
             $select.trigger('change.select2');
         }
-
-        $select.off('select2:select').on('select2:select', function (e) {
-            const data = e.params.data;
-            $('#vinculacion-tn-product-id').val(data.tn_product_id || '');
-            $('#vinculacion-nombre-variante-tn').val(data.nombre || '');
-        });
     }
 
     function mostrarSelectProducto(seleccionado) {
@@ -243,18 +199,6 @@
         if (!modalEl) { return; }
         const modal = new bootstrap.Modal(modalEl);
 
-        $('#btn-nueva-vinculacion').on('click', () => {
-            idEnEdicion = null;
-            limpiarErrores();
-            $('#modal-vinculacion-titulo').text('Nueva vinculación');
-            $('#vinculacion-id').val('');
-            $('#vinculacion-tn-product-id').val('');
-            $('#vinculacion-nombre-variante-tn').val('');
-            mostrarSelectVariante(null, false);
-            mostrarSelectProducto(null);
-            modal.show();
-        });
-
         $(document).on('click', '.js-editar-vinculacion', function (e) {
             e.preventDefault();
             const $btn = $(this);
@@ -265,11 +209,12 @@
             $('#vinculacion-tn-product-id').val($btn.data('tn-product-id'));
             $('#vinculacion-nombre-variante-tn').val($btn.data('nombre-variante'));
             // La variante vinculada no se puede cambiar en una edición — sólo el
-            // producto del CRM y el nombre.
+            // producto del CRM y el nombre. El alta manual se reemplazó por la
+            // vinculación automática (spec 024).
             mostrarSelectVariante({
                 id: $btn.data('variant-id'),
                 text: $btn.data('nombre-variante') || ('Variante ' + $btn.data('variant-id')),
-            }, true);
+            });
             mostrarSelectProducto({ id: $btn.data('producto-id'), nombre: $btn.data('producto-nombre') });
             modal.show();
         });
@@ -285,11 +230,8 @@
                 producto_id: $('#vinculacion-producto-id').val(),
             };
 
-            const esEdicion = !!idEnEdicion;
-            const url = esEdicion ? rutas.base + '/' + idEnEdicion : rutas.store;
-            const metodo = esEdicion ? 'PATCH' : 'POST';
-
-            $.ajax({ url, method: metodo, data: payload })
+            // Sólo edición: el alta manual se reemplazó por la vinculación automática.
+            $.ajax({ url: rutas.base + '/' + idEnEdicion, method: 'PATCH', data: payload })
                 .done((resp) => {
                     toast('success', resp.mensaje || 'Vinculación guardada.');
                     modal.hide();

@@ -4,28 +4,27 @@ namespace App\Services\Tiendanube;
 
 use App\Enums\Tiendanube\EstadoConexion;
 use App\Models\FuncionAvanzada;
-use App\Models\Integraciones\TiendanubeConfiguracion;
-use App\Models\Integraciones\TiendanubeOperacionLog;
+use App\Models\Integraciones\TiendanubeConexionRest;
+use App\Models\Integraciones\TiendanubeRestOperacionLog;
 use App\Models\Integraciones\TiendanubeVarianteProducto;
 use Illuminate\Support\Facades\Cache;
 
 /**
  * Empuja hacia Tiendanube los precios de los vínculos cuyo producto cambió de
  * precio dentro de la Lista de Precios configurada (spec 018 ampliación,
- * plan.md §8). Contraparte de precio de SincronizadorStock: mismos cortes de
- * kill-switch (FR-032/FR-033) y misma continuidad ante el rechazo de un
- * vínculo puntual (FR-031), pero sin corrida programada — el disparo es por
- * evento (PrecioProductoObserver) o manual (ejecutar()/sincronizarListaCompleta()).
- * Reutiliza la misma tool `update_stock_and_price` que el flujo de stock, un
- * ítem por llamada (research.md R9) — no se lotea, los cambios de precio son
- * esporádicos y unitarios por evento.
+ * plan.md §8), vía el cliente REST (spec 024). Contraparte de precio de
+ * SincronizadorStock: mismos cortes de kill-switch (FR-032/FR-033) y misma
+ * continuidad ante el rechazo de un vínculo puntual (FR-031), pero sin
+ * corrida programada — el disparo es por evento (PrecioProductoObserver) o
+ * manual (ejecutar()/sincronizarListaCompleta()). `PUT /products/{id}/variants/{id}`,
+ * un ítem por llamada (ya era así con el MCP, research.md R4 de spec 024).
  */
 class SincronizadorPrecios
 {
     public const LOCK_KEY = 'tn:sincronizar_precios';
 
     public function __construct(
-        private readonly ClienteTiendanube $cliente,
+        private readonly ClienteTiendanubeRest $cliente,
     ) {
     }
 
@@ -59,11 +58,11 @@ class SincronizadorPrecios
             return false;
         }
 
-        $respuesta = $this->cliente->escribir('update_stock_and_price', ['updates' => [[
-            'product_id' => $vinculo->tn_product_id,
-            'variant_id' => $vinculo->variant_id,
-            'price' => $precio,
-        ]]]);
+        $respuesta = $this->cliente->escribir(
+            'PUT',
+            "products/{$vinculo->tn_product_id}/variants/{$vinculo->variant_id}",
+            ['price' => $precio]
+        );
 
         if ($respuesta->fallo()) {
             $vinculo->update([
@@ -94,9 +93,9 @@ class SincronizadorPrecios
      */
     public function ejecutar(): array
     {
-        $configuracion = TiendanubeConfiguracion::actual();
+        $conexion = TiendanubeConexionRest::actual();
 
-        if (! $configuracion->lista_precio_id) {
+        if (! $conexion->lista_precio_id) {
             return ['ok' => false, 'tipo' => 'bloqueada', 'mensaje' => 'No hay ninguna Lista de Precios configurada para Tiendanube.'];
         }
 
@@ -111,7 +110,7 @@ class SincronizadorPrecios
         }
 
         try {
-            return $this->enviarPendientes($configuracion->lista_precio_id);
+            return $this->enviarPendientes($conexion->lista_precio_id);
         } finally {
             $lock->release();
         }
@@ -218,13 +217,13 @@ class SincronizadorPrecios
             return 'La función "Tiendanube" está desactivada en Funciones Avanzadas.';
         }
 
-        $configuracion = TiendanubeConfiguracion::actual();
+        $conexion = TiendanubeConexionRest::actual();
 
-        if ($configuracion->modo_solo_lectura) {
+        if ($conexion->modo_solo_lectura) {
             return 'Bloqueada por el modo sólo lectura: las escrituras hacia Tiendanube están deshabilitadas.';
         }
 
-        if (! $configuracion->estaCompleta() || $configuracion->estado === EstadoConexion::Caida) {
+        if (! $conexion->estaCompleta() || $conexion->estado === EstadoConexion::Caida) {
             return 'No hay una conexión con Tiendanube establecida. Hace falta reconectar Tiendanube (soporte técnico).';
         }
 
@@ -233,7 +232,7 @@ class SincronizadorPrecios
 
     private function bloquear(string $mensaje): array
     {
-        TiendanubeOperacionLog::registrar([
+        TiendanubeRestOperacionLog::registrar([
             'operacion' => 'sincronizar_precio',
             'metodo' => 'POST',
             'endpoint' => '/',

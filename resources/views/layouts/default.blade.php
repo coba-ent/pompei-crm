@@ -74,6 +74,7 @@
 @yield('content')
 
 @include('elements.modal-pdf')
+@include('elements.btn-loading')
 
     <!--**********************************
             Footer start

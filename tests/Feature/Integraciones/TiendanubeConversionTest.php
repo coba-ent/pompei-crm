@@ -7,7 +7,7 @@ use App\Models\Cliente;
 use App\Models\CuentaTesoreria;
 use App\Models\Deposito;
 use App\Models\FuncionAvanzada;
-use App\Models\Integraciones\TiendanubeConfiguracion;
+use App\Models\Integraciones\TiendanubeConexionRest;
 use App\Models\Integraciones\TiendanubeOrden;
 use App\Models\Integraciones\TiendanubeOrdenItem;
 use App\Models\Integraciones\TiendanubeVarianteProducto;
@@ -42,12 +42,12 @@ class TiendanubeConversionTest extends TestCase
         FuncionAvanzada::where('clave', 'tiendanube')->update(['activa' => true]);
         (new CondicionIvaSeeder())->run();
 
-        TiendanubeConfiguracion::actual()->update([
+        TiendanubeConexionRest::actual()->update([
             'access_token' => 'token-vigente', 'estado' => EstadoConexion::Conectada,
         ]);
         Deposito::create(['nombre' => 'Principal', 'activo' => true]);
         $this->cuentaTesoreria = CuentaTesoreria::create(['nombre' => 'Pago Nube', 'tipo' => 'banco', 'visible' => true]);
-        TiendanubeConfiguracion::actual()->update(['cuenta_tesoreria_id' => $this->cuentaTesoreria->id]);
+        TiendanubeConexionRest::actual()->update(['cuenta_tesoreria_id' => $this->cuentaTesoreria->id]);
     }
 
     private function crearOrden(array $overrides = [], array $customerOverrides = []): TiendanubeOrden
@@ -242,7 +242,7 @@ class TiendanubeConversionTest extends TestCase
 
     public function test_sin_cuenta_de_tesoreria_configurada_bloquea_la_conversion(): void
     {
-        TiendanubeConfiguracion::actual()->update(['cuenta_tesoreria_id' => null]);
+        TiendanubeConexionRest::actual()->update(['cuenta_tesoreria_id' => null]);
         $orden = $this->crearOrden();
 
         $resultado = app(ConversorOrdenAVenta::class)->convertir($orden, null, automatica: true);

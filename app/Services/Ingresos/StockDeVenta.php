@@ -4,7 +4,7 @@ namespace App\Services\Ingresos;
 
 use App\Models\Deposito;
 use App\Models\Integraciones\MercadoLibreConfiguracion;
-use App\Models\Integraciones\TiendanubeConfiguracion;
+use App\Models\Integraciones\TiendanubeConexionRest;
 use App\Models\Venta;
 use App\Models\VentaItem;
 use App\Services\Stock\StockService;
@@ -89,7 +89,7 @@ class StockDeVenta
         }
 
         if ($venta->origen === 'tiendanube') {
-            return TiendanubeConfiguracion::actual()->depositoEfectivo();
+            return TiendanubeConexionRest::actual()->depositoEfectivo();
         }
 
         return $this->depositoPorDefecto();

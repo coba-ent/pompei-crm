@@ -12,7 +12,7 @@ use App\Models\Integraciones\MercadoLibreCuenta;
 use App\Models\Integraciones\MercadoLibreOrden;
 use App\Models\Integraciones\MercadoLibreOrdenItem;
 use App\Models\Integraciones\MercadoLibrePublicacionProducto;
-use App\Models\Integraciones\TiendanubeConfiguracion;
+use App\Models\Integraciones\TiendanubeConexionRest;
 use App\Models\Integraciones\TiendanubeOrden;
 use App\Models\Integraciones\TiendanubeOrdenItem;
 use App\Models\Integraciones\TiendanubeVarianteProducto;
@@ -48,7 +48,7 @@ class VendedorPorDefectoTest extends TestCase
 
         Deposito::create(['nombre' => 'Principal', 'activo' => true]);
 
-        TiendanubeConfiguracion::actual()->update([
+        TiendanubeConexionRest::actual()->update([
             'access_token' => 'token-vigente', 'estado' => EstadoConexionTiendanube::Conectada,
             'cuenta_tesoreria_id' => CuentaTesoreria::create(['nombre' => 'Pago Nube', 'tipo' => 'banco', 'visible' => true])->id,
         ]);
@@ -111,7 +111,7 @@ class VendedorPorDefectoTest extends TestCase
     public function test_tiendanube_asigna_el_vendedor_por_defecto_configurado(): void
     {
         $vendedor = Vendedor::create(['nombre' => 'Vendedor Tiendanube']);
-        TiendanubeConfiguracion::actual()->update(['vendedor_id' => $vendedor->id]);
+        TiendanubeConexionRest::actual()->update(['vendedor_id' => $vendedor->id]);
 
         $orden = $this->crearOrdenTiendanube();
         $resultado = app(\App\Services\Tiendanube\ConversorOrdenAVenta::class)->convertir($orden, null, automatica: true);
@@ -144,7 +144,7 @@ class VendedorPorDefectoTest extends TestCase
     public function test_cambiar_el_default_de_una_integracion_no_afecta_a_la_otra(): void
     {
         $vendedorTn = Vendedor::create(['nombre' => 'Sólo Tiendanube']);
-        TiendanubeConfiguracion::actual()->update(['vendedor_id' => $vendedorTn->id]);
+        TiendanubeConexionRest::actual()->update(['vendedor_id' => $vendedorTn->id]);
 
         $ordenMl = $this->crearOrdenMercadoLibre();
         $resultadoMl = app(\App\Services\MercadoLibre\ConversorOrdenAVenta::class)->convertir($ordenMl, null, automatica: true);

@@ -6,7 +6,7 @@ use App\Enums\Tiendanube\EstadoConexion;
 use App\Models\CuentaTesoreria;
 use App\Models\Deposito;
 use App\Models\FuncionAvanzada;
-use App\Models\Integraciones\TiendanubeConfiguracion;
+use App\Models\Integraciones\TiendanubeConexionRest;
 use App\Models\Integraciones\TiendanubeOrden;
 use App\Models\Integraciones\TiendanubeOrdenItem;
 use App\Models\Integraciones\TiendanubeVarianteProducto;
@@ -40,13 +40,13 @@ class TiendanubeVentaPrecioRegresionTest extends TestCase
         (new CondicionIvaSeeder())->run();
 
         $lista = ListaPrecio::create(['nombre' => 'Lista TN', 'activo' => true]);
-        TiendanubeConfiguracion::actual()->update([
+        TiendanubeConexionRest::actual()->update([
             'client_id' => 'client-id-de-prueba', 'client_secret' => 'client-secret-de-prueba',
             'access_token' => 'token-vigente-de-prueba', 'estado' => EstadoConexion::Conectada,
             'lista_precio_id' => $lista->id,
         ]);
         $cuenta = CuentaTesoreria::firstOrCreate(['nombre' => 'Tiendanube'], ['tipo' => 'banco', 'visible' => true]);
-        TiendanubeConfiguracion::actual()->update(['cuenta_tesoreria_id' => $cuenta->id]);
+        TiendanubeConexionRest::actual()->update(['cuenta_tesoreria_id' => $cuenta->id]);
 
         $producto = Producto::factory()->create(['tipo' => 'producto', 'iva_venta_pct' => '21', 'activo' => true]);
         // Precio "de lista" deliberadamente distinto del pagado en la orden.

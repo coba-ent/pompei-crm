@@ -38,24 +38,36 @@ class TraductorOrdenes
             return null;
         }
 
-        $customer = $ordenCruda['customer'] ?? [];
-        $totalNodo = $ordenCruda['total'] ?? [];
+        // Verificado empíricamente contra la cuenta real (spec 024): la REST API
+        // clásica no tiene nada de esto igual que la tool `list_orders` del MCP —
+        // `completed_at` viene como objeto `{"date": "...", "timezone_type": 3,
+        // "timezone": "UTC"}`, no como string ISO; `total`/`currency` son campos
+        // planos en la raíz de la orden, no `total.amount`/`total.currency`; no
+        // existe ningún objeto `customer` (ni `id` estable) — el comprador viene
+        // en campos planos `contact_email`/`contact_name`/`contact_identification`;
+        // y el estado de envío es `shipping_status`, no `fulfillment_status`.
         $completedAt = $ordenCruda['completed_at'] ?? null;
+        if (is_array($completedAt)) {
+            $completedAt = $completedAt['date'] ?? null;
+        }
+        $completedAt = $completedAt ?: ($ordenCruda['created_at'] ?? null);
 
         return [
             'tn_order_id' => (int) $ordenCruda['id'],
             'status' => (string) ($ordenCruda['status'] ?? ''),
             'payment_status' => (string) ($ordenCruda['payment_status'] ?? ''),
-            'fulfillment_status' => $ordenCruda['fulfillment_status'] ?? null,
+            'fulfillment_status' => $ordenCruda['shipping_status'] ?? null,
             'fecha_creada' => $completedAt,
             'fecha_cerrada' => $completedAt,
-            'total' => (float) ($totalNodo['amount'] ?? 0),
-            'moneda' => (string) ($totalNodo['currency'] ?? self::MONEDA_NEGOCIO),
+            'total' => (float) ($ordenCruda['total'] ?? 0),
+            'moneda' => (string) ($ordenCruda['currency'] ?? self::MONEDA_NEGOCIO),
             'storefront' => $storefront,
-            'tn_customer_id' => isset($customer['id']) ? (int) $customer['id'] : null,
-            'comprador_email' => $customer['email'] ?? null,
-            'comprador_nombre' => $customer['name'] ?? null,
-            'billing_document_number' => $customer['cpf_cnpj'] ?? null,
+            // Sin id de cliente estable en la REST API: se resuelve siempre por
+            // email (ResolutorCliente::buscarExistente() ya tolera tn_customer_id null).
+            'tn_customer_id' => null,
+            'comprador_email' => $ordenCruda['contact_email'] ?? null,
+            'comprador_nombre' => $ordenCruda['contact_name'] ?? null,
+            'billing_document_number' => $ordenCruda['contact_identification'] ?: null,
             'payload' => $ordenCruda,
         ];
     }
@@ -68,10 +80,14 @@ class TraductorOrdenes
     {
         $items = [];
 
-        foreach ($ordenCruda['items'] ?? [] as $item) {
+        // `products` es la clave real de la REST API clásica (spec 024,
+        // contracts/api-tiendanube-rest.md §3) — distinta de `items`, que
+        // usaba la tool `list_orders` del MCP retirado.
+        foreach ($ordenCruda['products'] ?? $ordenCruda['items'] ?? [] as $item) {
             $cantidad = (float) ($item['quantity'] ?? 0);
-            $precioNodo = $item['price'] ?? [];
-            $precioUnitario = (float) ($precioNodo['amount'] ?? 0);
+            // `price` es un string plano ("262252.00"), no un objeto {amount, currency}
+            // (verificado empíricamente contra la cuenta real, spec 024).
+            $precioUnitario = (float) ($item['price'] ?? 0);
 
             $items[] = [
                 'tn_product_id' => (int) ($item['product_id'] ?? 0),

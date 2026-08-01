@@ -6,9 +6,9 @@ use App\Enums\Tiendanube\EstadoConexion;
 use App\Enums\Tiendanube\EstadoConversion;
 use App\Enums\Tiendanube\MotivoRequiereAtencion;
 use App\Models\FuncionAvanzada;
-use App\Models\Integraciones\TiendanubeConfiguracion;
-use App\Models\Integraciones\TiendanubeOperacionLog;
+use App\Models\Integraciones\TiendanubeConexionRest;
 use App\Models\Integraciones\TiendanubeOrden;
+use App\Models\Integraciones\TiendanubeRestOperacionLog;
 use App\Models\Integraciones\TiendanubeVarianteProducto;
 use App\Services\Tiendanube\Excepciones\SincronizacionFallidaException;
 use Illuminate\Support\Carbon;
@@ -17,26 +17,21 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Sincroniza las órdenes de venta de Tiendanube hacia `tn_ordenes` (plan.md
- * §2). Candado propio (FR-014), cortes previos a paginar (FR-017/FR-018),
- * ventana móvil re-consultada en cada corrida —no incremental real, corrección
- * post-019 (FR-013/FR-015/FR-016)— y exclusión de `storefront=meli` delegada
- * por completo a `TraductorOrdenes` (FR-012a, research.md R2 corregido).
+ * §2) vía el cliente REST (spec 024, reemplaza al cliente MCP). Candado
+ * propio (FR-014), cortes previos a paginar (FR-017/FR-018), ventana móvil
+ * re-consultada en cada corrida —no incremental real, corrección post-019
+ * (FR-013/FR-015/FR-016)— y exclusión de `storefront=meli` delegada por
+ * completo a `TraductorOrdenes` (FR-012a, research.md R2 corregido).
  */
 class SincronizadorOrdenes
 {
     public const LOCK_KEY = 'tn:sincronizar_ordenes';
 
-    /**
-     * Nombre de parámetro de paginación verificado empíricamente para
-     * `list_products` (`TiendanubeOAuthController::verificarConexion()`,
-     * spec 019): `page_size`, no `limit` como asumía la primera versión de
-     * esta spec (plan.md/contracts) — se sigue el patrón ya confirmado contra
-     * la cuenta real en vez de un nombre nunca verificado para `list_orders`.
-     */
+    /** `page`/`per_page` — nombre confirmado de la REST API clásica (research.md R1/R3 de spec 024). */
     private const PAGE_SIZE = 50;
 
     public function __construct(
-        private readonly ClienteTiendanube $cliente,
+        private readonly ClienteTiendanubeRest $cliente,
         private readonly TraductorOrdenes $traductor,
         private readonly EvaluadorConvertibilidad $evaluador,
         private readonly ConversorOrdenAVenta $conversor,
@@ -79,13 +74,13 @@ class SincronizadorOrdenes
             return $this->bloquear('La función "Tiendanube" está desactivada en Funciones Avanzadas.');
         }
 
-        $configuracion = TiendanubeConfiguracion::actual();
+        $conexion = TiendanubeConexionRest::actual();
 
-        if ($configuracion->modo_solo_lectura) {
+        if ($conexion->modo_solo_lectura) {
             return $this->bloquear('Bloqueada por el modo sólo lectura: la sincronización está deshabilitada mientras esté activo.');
         }
 
-        if (! $configuracion->estaCompleta() || $configuracion->estado === EstadoConexion::Caida) {
+        if (! $conexion->estaCompleta() || $conexion->estado === EstadoConexion::Caida) {
             return $this->bloquear('No hay una conexión con Tiendanube establecida. Hace falta reconectar (soporte técnico).');
         }
 
@@ -94,7 +89,7 @@ class SincronizadorOrdenes
 
     private function bloquear(string $mensaje): array
     {
-        TiendanubeOperacionLog::registrar([
+        TiendanubeRestOperacionLog::registrar([
             'operacion' => 'sincronizar_ordenes',
             'metodo' => 'POST',
             'endpoint' => '/',
@@ -108,18 +103,18 @@ class SincronizadorOrdenes
 
     private function sincronizar(): array
     {
-        $configuracion = TiendanubeConfiguracion::actual();
+        $conexion = TiendanubeConexionRest::actual();
 
         // Corrección post-019 (FR-013/FR-016): sin `updated_at_min`, cada corrida
         // re-consulta la ventana completa de `dias_primera_sync` días, no sólo la
         // primera vez — no hay forma de pedirle a Tiendanube "sólo lo que cambió".
-        $dias = (int) $configuracion->dias_primera_sync;
+        $dias = (int) $conexion->dias_primera_sync;
         $desde = now()->subDays($dias);
         $hasta = now();
 
         [$nuevas, $actualizadas] = $this->paginarYProcesar($desde, $hasta);
 
-        $configuracion->update([
+        $conexion->update([
             'ultima_sync_en' => $hasta,
             'ultima_sync_resultado' => "OK: {$nuevas} nuevas, {$actualizadas} actualizadas (".$hasta->format('d/m/Y H:i').').',
         ]);
@@ -142,24 +137,30 @@ class SincronizadorOrdenes
         $pagina = 1;
 
         do {
-            $respuesta = $this->cliente->leer('list_orders', [
-                'status' => ['open', 'closed', 'cancelled'],
-                'completed_at_from' => $desde->toIso8601String(),
-                'completed_at_to' => $hasta->toIso8601String(),
+            // Sin filtro de `status`: verificado empíricamente contra la cuenta real
+            // (spec 024) que enviarlo como array (`status[]=open&status[]=closed&...`)
+            // devuelve 500 (Internal Server Error) en la REST API clásica de
+            // Tiendanube — a diferencia de la tool `list_orders` del MCP, que sí lo
+            // aceptaba así. Sin el parámetro, la API devuelve órdenes de todos los
+            // estados (incluidas `cancelled`), que es lo que este sincronizador
+            // necesita de todos modos.
+            $respuesta = $this->cliente->leer('orders', [
+                'created_at_min' => $desde->toIso8601String(),
+                'created_at_max' => $hasta->toIso8601String(),
                 'page' => $pagina,
-                'page_size' => self::PAGE_SIZE,
+                'per_page' => self::PAGE_SIZE,
             ]);
 
             if ($respuesta->fallo()) {
                 throw new SincronizacionFallidaException($respuesta->mensajeError ?? 'No se pudo sincronizar con Tiendanube.');
             }
 
-            // Nombre de la clave de resultado ("orders") sin verificar contra la
-            // tool real (sólo se verificó empíricamente `pagination.total_elements`
-            // de `list_products`, spec 019 R4) — a confirmar contra la cuenta real
-            // en el primer "Sincronizar ahora"; retomar sin reprocesar (FR-015) sale
-            // gratis acá porque cada página se persiste antes de pedir la siguiente.
-            $ordenesCrudas = $respuesta->datos['orders'] ?? [];
+            // Verificado empíricamente contra la cuenta real (spec 024): `GET /orders`
+            // devuelve un array JSON plano en la raíz, no `{"orders": [...]}` como
+            // asumía la primera versión del contrato — mismo caso que `GET /products`
+            // (VinculadorAutomatico). Retomar sin reprocesar (FR-015) sale gratis acá
+            // porque cada página se persiste antes de pedir la siguiente.
+            $ordenesCrudas = array_is_list($respuesta->datos) ? $respuesta->datos : ($respuesta->datos['orders'] ?? []);
 
             foreach ($ordenesCrudas as $ordenCruda) {
                 $esNueva = $this->procesarOrden($ordenCruda);
@@ -234,7 +235,7 @@ class SincronizadorOrdenes
 
         // US5 (FR-051): fuera de la transacción de sincronización — ConversorOrdenAVenta
         // maneja su propio candado y su propia transacción atómica (FR-048).
-        if ($estado === EstadoConversion::Lista && TiendanubeConfiguracion::actual()->creacion_automatica) {
+        if ($estado === EstadoConversion::Lista && TiendanubeConexionRest::actual()->creacion_automatica) {
             $this->intentarCreacionAutomatica($orden);
         }
 

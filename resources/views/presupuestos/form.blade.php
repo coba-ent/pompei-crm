@@ -37,11 +37,7 @@
                     </div>
 
                     <div class="col-md-4">
-                        <label class="form-label d-flex align-items-center gap-1">
-                            <span class="flex-grow-1">Categoría</span>
-                            <a href="#" id="btn-renombrar-categoria" class="text-primary d-none" title="Renombrar"><i class="fas fa-pencil-alt"></i></a>
-                            <a href="#" id="btn-eliminar-categoria" class="text-danger d-none" title="Eliminar"><i class="fas fa-trash-alt"></i></a>
-                        </label>
+                        <label class="form-label">Categoría</label>
                         <select id="f-categoria" class="form-select" style="width:100%"></select>
                     </div>
                     <div class="col-md-3">
@@ -58,11 +54,7 @@
                     </div>
 
                     <div class="col-md-4">
-                        <label class="form-label d-flex align-items-center gap-1">
-                            <span class="flex-grow-1">Vendedor</span>
-                            <a href="#" id="btn-renombrar-vendedor" class="text-primary d-none" title="Renombrar"><i class="fas fa-pencil-alt"></i></a>
-                            <a href="#" id="btn-eliminar-vendedor" class="text-danger d-none" title="Eliminar"><i class="fas fa-trash-alt"></i></a>
-                        </label>
+                        <label class="form-label">Vendedor</label>
                         <select id="f-vendedor" class="form-select" style="width:100%"></select>
                     </div>
                     <div class="col-md-6">
@@ -149,6 +141,7 @@
 
 @include('presupuestos._modal_categoria')
 @include('presupuestos._modal_vendedor')
+@include('presupuestos._modal_cliente_rapido')
 @endsection
 
 @php
@@ -178,13 +171,13 @@
             update: {{ $presupuesto ? "'".route('presupuestos.update', $presupuesto)."'" : 'null' }},
             index: "{{ route('presupuestos.index') }}",
             clientesOpciones: "{{ route('clientes.opciones') }}",
+            clientesStore: "{{ route('clientes.store') }}",
+            clientesUpdateBase: "{{ url('clientes') }}",
             productosOpciones: "{{ route('productos.opciones') }}",
             categoriaVentaStore: "{{ route('categorias.venta.store') }}",
             categoriaUpdateBase: "{{ url('categorias') }}",
-            categoriaDestroyBase: "{{ url('categorias') }}",
             vendedorStore: "{{ route('vendedores.store') }}",
             vendedorUpdateBase: "{{ url('vendedores') }}",
-            vendedorDestroyBase: "{{ url('vendedores') }}",
         },
         categorias: @json($categoriasVenta->map(fn ($c) => ['id' => $c->id, 'nombre' => $c->nombre, 'es_sistema' => $c->es_sistema])),
         vendedores: @json($vendedores->map(fn ($v) => ['id' => $v->id, 'nombre' => $v->nombre])),

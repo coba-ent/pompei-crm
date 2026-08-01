@@ -6,7 +6,7 @@ use App\Enums\Tiendanube\EstadoConexion;
 use App\Models\CuentaTesoreria;
 use App\Models\Deposito;
 use App\Models\FuncionAvanzada;
-use App\Models\Integraciones\TiendanubeConfiguracion;
+use App\Models\Integraciones\TiendanubeConexionRest;
 use App\Models\Integraciones\TiendanubeOrden;
 use App\Models\Integraciones\TiendanubeVarianteProducto;
 use App\Models\Producto;
@@ -35,24 +35,24 @@ class TiendanubeCancelacionesTest extends TestCase
         FuncionAvanzada::where('clave', 'tiendanube')->update(['activa' => true]);
         (new CondicionIvaSeeder())->run();
 
-        TiendanubeConfiguracion::actual()->update([
-            'access_token' => 'token-vigente', 'estado' => EstadoConexion::Conectada,
+        TiendanubeConexionRest::actual()->update([
+            'access_token' => 'token-vigente', 'store_id' => '999', 'estado' => EstadoConexion::Conectada,
         ]);
         Deposito::create(['nombre' => 'Principal', 'activo' => true]);
         $cuenta = CuentaTesoreria::create(['nombre' => 'Pago Nube', 'tipo' => 'banco', 'visible' => true]);
-        TiendanubeConfiguracion::actual()->update(['cuenta_tesoreria_id' => $cuenta->id]);
+        TiendanubeConexionRest::actual()->update(['cuenta_tesoreria_id' => $cuenta->id]);
     }
 
     private function ordenCruda(int $id, string $status, string $paymentStatus, int $variantId = 1): array
     {
         return [
-            'id' => $id, 'status' => $status, 'payment_status' => $paymentStatus, 'fulfillment_status' => 'unpacked',
-            'completed_at' => now()->toIso8601String(), 'total' => ['amount' => 1210.0, 'currency' => 'ARS'],
+            'id' => $id, 'status' => $status, 'payment_status' => $paymentStatus, 'shipping_status' => 'unpacked',
+            'completed_at' => now()->toIso8601String(), 'total' => 1210.0, 'currency' => 'ARS',
             'storefront' => 'store',
-            'customer' => ['id' => 900 + $id, 'email' => "comprador{$id}@test.com", 'name' => 'Comprador', 'cpf_cnpj' => null],
-            'items' => [[
+            'contact_email' => "comprador{$id}@test.com", 'contact_name' => 'Comprador', 'contact_identification' => '',
+            'products' => [[
                 'product_id' => 10, 'variant_id' => $variantId, 'name' => 'Producto',
-                'variant_values' => [], 'quantity' => 1, 'price' => ['amount' => 1210.0, 'currency' => 'ARS'],
+                'variant_values' => [], 'quantity' => 1, 'price' => 1210.0,
             ]],
         ];
     }
@@ -60,10 +60,7 @@ class TiendanubeCancelacionesTest extends TestCase
     private function fakearListado(array $ordenes): void
     {
         Http::fake([
-            'admin-mcp.tiendanube.com/' => Http::response([
-                'jsonrpc' => '2.0', 'id' => 1,
-                'result' => ['isError' => false, 'structuredContent' => ['orders' => $ordenes]],
-            ], 200),
+            'api.tiendanube.com/v1/*/orders*' => Http::response($ordenes, 200),
         ]);
     }
 

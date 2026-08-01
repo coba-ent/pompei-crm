@@ -376,7 +376,7 @@
                 datos.push({ name: '_method', value: 'PATCH' });
             }
 
-            $('#btn-guardar-proveedor').prop('disabled', true);
+            window.AppBtn.loading('#btn-guardar-proveedor', true);
 
             $.ajax({
                 url: url,
@@ -400,7 +400,7 @@
                     }
                 })
                 .always(function () {
-                    $('#btn-guardar-proveedor').prop('disabled', false);
+                    window.AppBtn.loading('#btn-guardar-proveedor', false);
                 });
         });
 

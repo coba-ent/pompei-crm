@@ -6,7 +6,7 @@ use App\Enums\MercadoLibre\EstadoConexion;
 use App\Enums\Tiendanube\EstadoConexion as EstadoConexionTiendanube;
 use App\Models\FuncionAvanzada;
 use App\Models\Integraciones\MercadoLibreCuenta;
-use App\Models\Integraciones\TiendanubeConfiguracion;
+use App\Models\Integraciones\TiendanubeConexionRest;
 use App\Models\Rol;
 use Database\Seeders\FuncionAvanzadaSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -150,7 +150,7 @@ class FuncionesAvanzadasTest extends TestCase
         $funcion = FuncionAvanzada::where('clave', 'tiendanube')->firstOrFail();
         $funcion->update(['activa' => true]);
 
-        TiendanubeConfiguracion::actual()->update([
+        TiendanubeConexionRest::actual()->update([
             'client_id' => 'client-id-de-prueba',
             'client_secret' => 'client-secret-de-prueba',
             'access_token' => 'token-vigente',
@@ -161,7 +161,7 @@ class FuncionesAvanzadasTest extends TestCase
         $sinConfirmar->assertStatus(409)->assertJsonPath('ok', false)->assertJsonPath('requiere_confirmacion', true);
 
         $this->assertTrue($funcion->fresh()->activa);
-        $this->assertSame(EstadoConexionTiendanube::Conectada, TiendanubeConfiguracion::actual()->estado);
+        $this->assertSame(EstadoConexionTiendanube::Conectada, TiendanubeConexionRest::actual()->estado);
 
         $confirmado = $this->patchJson(route('configuracion.funciones.estado', $funcion), [
             'activa' => false,
@@ -170,7 +170,7 @@ class FuncionesAvanzadasTest extends TestCase
         $confirmado->assertOk()->assertJsonPath('funcion.activa', false);
 
         $this->assertFalse($funcion->fresh()->activa);
-        $this->assertSame(EstadoConexionTiendanube::Conectada, TiendanubeConfiguracion::actual()->estado);
-        $this->assertNotNull(TiendanubeConfiguracion::actual()->access_token);
+        $this->assertSame(EstadoConexionTiendanube::Conectada, TiendanubeConexionRest::actual()->estado);
+        $this->assertNotNull(TiendanubeConexionRest::actual()->access_token);
     }
 }
