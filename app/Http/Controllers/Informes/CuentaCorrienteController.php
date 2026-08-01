@@ -19,7 +19,7 @@ use Yajra\DataTables\Facades\DataTables;
 class CuentaCorrienteController extends Controller
 {
     /** Operaciones que expone el filtro "Operación" del tab Movimientos. */
-    private const OPERACIONES_DISPONIBLES = ['venta', 'cobro', 'nota_credito', 'nota_debito'];
+    private const OPERACIONES_DISPONIBLES = ['venta', 'cobro', 'nota_credito', 'nota_debito', 'saldo_inicial'];
 
     /**
      * Shell de la pantalla. `?cliente_id=` (deep-link desde "Cta Cte" en el
@@ -107,7 +107,15 @@ class CuentaCorrienteController extends Controller
                 'NULL as medio_cobro, notas_credito_debito.descripcion as descripcion'
             );
 
-        $union = $ventas->unionAll($cobros)->unionAll($notas);
+        $saldosIniciales = DB::table('clientes')
+            ->where('clientes.saldo_inicial', '!=', 0)
+            ->selectRaw(
+                'clientes.id as id, clientes.saldo_inicial_fecha as fecha_emision, clientes.id as cliente_id, '.
+                "'saldo_inicial' as operacion, NULL as categoria, NULL as total_venta, NULL as cobrado, ".
+                'clientes.saldo_inicial as a_cobrar, NULL as nro_comprobante, NULL as medio_cobro, NULL as descripcion'
+            );
+
+        $union = $ventas->unionAll($cobros)->unionAll($notas)->unionAll($saldosIniciales);
 
         return DB::query()->fromSub($union, 'mov');
     }

@@ -1359,6 +1359,10 @@ nada por su cuenta.
   método `aging()`), construido sobre `Venta::aCobrar()`/`Compra::aPagar()` ya existentes — **no** son
   las pantallas completas de Cuenta Corriente por Cliente/Proveedor. La de **Clientes ya se implementó**
   (spec 029, ver §6.4, método `porCliente()` del mismo servicio); **Proveedores sigue en §7, pendiente**.
+  Desde spec 031, ambos métodos (`aging()`/`porCliente()`) incorporan el `saldo_inicial`/
+  `saldo_inicial_fecha` de Cliente/Proveedor al cálculo (sumado al bucket que corresponda según esa
+  fecha; negativo = saldo a favor, resta del total) — antes ese campo se cargaba en la ficha pero no
+  afectaba ningún cálculo de deuda.
 - **Donas por categoría** (Ventas/Compras/Gastos) y **Rankings** (Clientes por monto vendido, Productos
   por cantidad vendida) dentro del período filtrado. Categoría inactiva o ausente se agrupa bajo
   "Sin categoría".
@@ -1377,7 +1381,8 @@ solo link de menú → una sola ruta, ver `no-hash-urls-para-navegacion` en memo
   `App\Services\Tesoreria\CuentaCorriente` (el mismo servicio del Dashboard, §6.3): el método nuevo
   `porCliente('cliente')` reutiliza exactamente el bucketing de `aging()` pero acumulando por
   `cliente_id` en vez de en un único total — por eso el Total General de esta pantalla **coincide
-  exacto** con el bloque "Cuentas a Cobrar" del Dashboard (misma fuente de cálculo). **No** coincide
+  exacto** con el bloque "Cuentas a Cobrar" del Dashboard (misma fuente de cálculo, incluido el saldo
+  inicial desde spec 031). **No** coincide
   necesariamente con el "Total A Cobrar" de Tesorería (§3.7): ese es un cálculo contable independiente
   vía `movimientos_tesoreria`/`CuentaTesoreria::saldoA()`, sin invariante de código entre ambos —
   diferencia es un chequeo informativo, no un bug de esta pantalla.
@@ -1385,8 +1390,10 @@ solo link de menú → una sola ruta, ver `no-hash-urls-para-navegacion` en memo
   Ventas + Cobros + Notas de Crédito/Débito de clientes, con columnas Id, Emisión, Cliente, Operación,
   Categoría, Total Venta, Cobrado, A Cobrar, N° de Comprobante, Medio de Cobro, Descripción — nulas
   según el tipo de fila (p. ej. una fila de Cobro no tiene Total Venta/Categoría, sólo Medio de Cobro).
-  Filtros: Cliente, Operación (Venta/Cobro/Nota de Crédito/Nota de Débito), rango de fechas de Emisión.
-  La suma de "A Cobrar" de las filas de Venta de un cliente coincide con su "Total" en Saldos Clientes.
+  Filtros: Cliente, Operación (Venta/Cobro/Nota de Crédito/Nota de Débito/Saldo Inicial), rango de
+  fechas de Emisión. La suma de "A Cobrar" de las filas de Venta (y, desde spec 031, de la fila
+  sintética "Saldo Inicial", una por cliente con `saldo_inicial ≠ 0`) coincide con el "Total" de ese
+  cliente en Saldos Clientes.
 - **Proveedores queda fuera de alcance** de esta spec (no hay pantalla de Cuenta Corriente Proveedores
   todavía — sigue en §4.3/§7 como brecha pendiente).
 - Sin exportación CSV/PDF en esta iteración (sin evidencia de esa acción en las capturas relevadas).

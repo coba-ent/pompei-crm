@@ -85,6 +85,7 @@
                                     <option value="cobro">Cobro</option>
                                     <option value="nota_credito">Nota de Crédito</option>
                                     <option value="nota_debito">Nota de Débito</option>
+                                    <option value="saldo_inicial">Saldo Inicial</option>
                                 </select>
                             </div>
                             <div class="col-md-4">

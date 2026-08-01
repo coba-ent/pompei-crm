@@ -150,6 +150,7 @@
             cobro: 'Cobro',
             nota_credito: 'Nota de Crédito',
             nota_debito: 'Nota de Débito',
+            saldo_inicial: 'Saldo Inicial',
         };
 
         const tablaMovimientos = $tablaMovimientos.DataTable({

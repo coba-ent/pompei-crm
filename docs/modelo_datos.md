@@ -91,7 +91,7 @@ ARCA/facturación esté fuera de alcance por ahora).
 | descuento_general_pct | decimal, nullable | 0–100 |
 | nota_cliente | text, nullable | "Nota para el Cliente" |
 | saldo_inicial | decimal | default 0 |
-| saldo_inicial_fecha | date, nullable | Fecha de apertura de la cuenta corriente. Sin uso funcional en el aging (spec 010/029, ver `App\Services\Tesoreria\CuentaCorriente::aging()`/`porCliente()`) — la pantalla de Cuenta Corriente Clientes ya está implementada (spec 029), Proveedores sigue pendiente; se conserva el dato para cuando se retome |
+| saldo_inicial_fecha | date, nullable | Fecha de apertura de la cuenta corriente. Se incorpora al aging desde spec 031: `App\Services\Tesoreria\CuentaCorriente::aging()`/`porCliente()` suman `saldo_inicial` al bucket que le corresponda según esta fecha (nula → "A Vencer"), afectando Dashboard (spec 010) y "Saldos Clientes"/"Movimientos" (spec 029) |
 | campos_personalizados | json, nullable | "Agregar Nuevo campo". Campos adicionales **propios de ese cliente** (no hay catálogo global): array de objetos `[{ "nombre", "tipo", "opciones": [...]|null, "valor" }]`. `tipo` = `texto`\|`numerico`\|`fecha`\|`opciones` |
 | activo | boolean | default true (baja lógica) |
 
