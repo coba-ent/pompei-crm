@@ -135,7 +135,7 @@
         submitToken: "{{ $submitToken ?? '' }}",
         rutas: {
             store: "{{ route('compras.store') }}",
-            update: {{ $compra ? "'".route('compras.update', $compra)."'" : 'null' }},
+            update: @json($compra ? route('compras.update', $compra) : null),
             index: "{{ route('compras.index') }}",
             proveedoresOpciones: "{{ route('proveedores.opciones') }}",
             productosOpciones: "{{ route('productos.opciones') }}",

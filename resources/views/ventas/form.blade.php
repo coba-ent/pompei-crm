@@ -191,7 +191,7 @@
         submitToken: "{{ $submitToken ?? '' }}",
         rutas: {
             store: "{{ route('ventas.store') }}",
-            update: {{ $venta ? "'".route('ventas.update', $venta)."'" : 'null' }},
+            update: @json($venta ? route('ventas.update', $venta) : null),
             index: "{{ route('ventas.index') }}",
             clientesOpciones: "{{ route('clientes.opciones') }}",
             productosOpciones: "{{ route('productos.opciones') }}",
