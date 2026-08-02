@@ -3,7 +3,6 @@
 namespace App\Http\Requests\Concerns;
 
 use App\Models\Producto;
-use App\Rules\SkuUnico;
 use Illuminate\Validation\Rule;
 
 /**
@@ -19,7 +18,7 @@ trait ReglasProducto
         return [
             // Datos básicos (US1)
             'nombre' => ['required', 'string', 'max:255'],
-            'codigo' => ['nullable', 'string', 'max:255', new SkuUnico($productoId, $productoId)],
+            'codigo' => ['nullable', 'string', 'max:255'],
             'tipo' => ['required', 'in:producto,servicio'],
             'tipo_producto_id' => ['nullable', 'integer', 'exists:tipos_producto,id'],
             'proveedor_id' => ['nullable', 'integer', 'exists:proveedores,id'],
@@ -43,7 +42,7 @@ trait ReglasProducto
             // Variantes (US4)
             'variantes' => ['nullable', 'array'],
             'variantes.*.id' => ['nullable', 'integer'],
-            'variantes.*.sku' => ['nullable', 'string', 'max:255', new SkuUnico($productoId, $productoId)],
+            'variantes.*.sku' => ['nullable', 'string', 'max:255'],
             'variantes.*.talle' => ['nullable', 'string', 'max:100'],
             'variantes.*.color' => ['nullable', 'string', 'max:100'],
             'variantes.*.nombre' => ['nullable', 'string', 'max:255'],
@@ -57,31 +56,11 @@ trait ReglasProducto
     }
 
     /**
-     * Normaliza el payload y valida unicidad de SKU dentro del propio payload
-     * (variantes y código base entre sí).
+     * Valida unicidad de lista de precio dentro del propio payload de precios
+     * (no puede repetirse la misma lista dos veces en el mismo alta/edición).
      */
-    protected function validarSkuEnPayload(\Illuminate\Contracts\Validation\Validator $validator): void
+    protected function validarListasEnPayload(\Illuminate\Contracts\Validation\Validator $validator): void
     {
-        $vistos = [];
-
-        $registrar = function (?string $sku, string $campo) use (&$vistos, $validator) {
-            $sku = is_string($sku) ? trim($sku) : $sku;
-            if ($sku === null || $sku === '') {
-                return;
-            }
-            if (isset($vistos[$sku])) {
-                $validator->errors()->add($campo, 'El código/SKU "'.$sku.'" está repetido en el formulario.');
-            }
-            $vistos[$sku] = true;
-        };
-
-        $registrar($this->input('codigo'), 'codigo');
-
-        foreach ((array) $this->input('variantes', []) as $i => $variante) {
-            $registrar($variante['sku'] ?? null, "variantes.$i.sku");
-        }
-
-        // Unicidad de lista dentro del payload de precios.
         $listas = [];
         foreach ((array) $this->input('precios', []) as $i => $precio) {
             $listaId = $precio['lista_precio_id'] ?? null;

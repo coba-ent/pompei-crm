@@ -200,10 +200,17 @@ asociadas").
   alerta de stock bajo) antes de poder ofrecerlo como destino de mapeo en el importador.
 - **Variantes** (talle, color): la UI de alta de variantes está **oculta** en el modal — Contagram no
   la expone (su propio tooltip del Nombre sugiere cargar talle/color en el nombre). Se conserva la
-  infraestructura (`producto_variantes`) para cuando se retome la integración con canales externos: el
-  SKU debe ser **único por producto y por variante**, y el stock puede llevarse por variante y
-  depósito. El controller NO borra variantes existentes cuando el payload no las incluye. Para
-  reactivar la UI, quitar el `d-none` de `#seccion-variantes` en `_modal_form.blade.php`.
+  infraestructura (`producto_variantes`) para cuando se retome la integración con canales externos, y
+  el stock puede llevarse por variante y depósito. El controller NO borra variantes existentes cuando
+  el payload no las incluye. Para reactivar la UI, quitar el `d-none` de `#seccion-variantes` en
+  `_modal_form.blade.php`.
+- **Código/SKU no es único** (corrección, 02/08/2026): ni `productos.codigo` ni
+  `producto_variantes.sku` tienen restricción de unicidad — el negocio reutiliza códigos entre
+  productos distintos en su catálogo real, y el importador rechazaba miles de filas legítimas por
+  esto. No hace falta que lo sea: ninguna integración vigente matchea por código/SKU — Mercado Libre
+  (spec 023) y Tiendanube (spec 024) vinculan comparando el SKU del canal contra el **`id`** del
+  producto en el CRM, no contra `codigo`. La regla `SkuUnico` y la constraint `unique` en ambas
+  columnas se retiraron (sin spec, corrección directa por regla de negocio incorrecta).
 
 **Listas de precio**
 
@@ -1398,6 +1405,38 @@ solo link de menú → una sola ruta, ver `no-hash-urls-para-navegacion` en memo
 - Sin exportación CSV/PDF en esta iteración (sin evidencia de esa acción en las capturas relevadas).
   El exportador/tests huérfanos de un intento anterior (`CuentaCorrienteCsvExport`, diseño de "Saldo"
   plano sin aging) se descartaron por no coincidir con la estructura real (regla de oro).
+
+---
+
+### 6.5 Módulo Mensajería (Mercado Libre) — spec 032 — **divergencia deliberada respecto de Contagram**
+
+Este módulo **no existe en Contagram real** — es una funcionalidad nueva del negocio (igual que la
+integración de Mercado Libre en general, §5.2), no una reconstrucción de una pantalla relevada. No
+aplica el principio de fidelidad estructural a Contagram para esta pantalla.
+
+**Alcance de la spec 032 (Fase 0 — sin IA)**: unificar en un solo lugar los mensajes de compradores de
+Mercado Libre — Preguntas pre-venta (públicas, sobre una publicación) y Mensajería post-venta (privada,
+ligada a una orden) — y permitir responderlos **manualmente** desde el CRM, con auditoría de qué se
+envió y quién. **No incluye ningún tipo de generación de IA**: eso se especifica aparte en una spec
+futura (Fase 1, "bot de Mercado Libre"), recién cuando esté migrado el VPS (ver
+`docs/bot_mensajeria_ml/flujo-y-alcance.md`).
+
+- **Ubicación**: desplegable propio **"Mensajería"** en el sidebar (no cuelga de Ingresos ni de
+  Configuración & Ajustes) → `/mensajeria`. Vista tipo bandeja + chat (referencia visual: `chat.blade.php`
+  del template NexaDash), no un listado tabular puro — excepción razonable a la regla de DataTables para
+  el panel de mensajes de una conversación puntual (el listado de conversaciones sí usa DataTables/AJAX).
+- **Recepción**: webhook nuevo `POST /webhooks/mercadolibre` (notificaciones de los topics `questions` y
+  `messages` de Mercado Libre — callback URL ya configurada por el usuario en el DevCenter, 2026-08-02),
+  procesado de forma idempotente (upsert por el ID nativo de ML) para tolerar reintentos de notificación.
+- **Envío de respuesta**: reutiliza `ClienteMercadoLibre` (punto único de salida hacia la API de ML ya
+  usado por el resto de la integración, §5.2) — `POST /answers` para Preguntas, endpoint de mensajería
+  post-venta para post-venta (a confirmar el path exacto contra la documentación vigente de ML, ver
+  `specs/032-bot-mensajeria-mercadolibre/research.md` R2).
+- **Permisos nuevos**: módulo `mensajeria` con acciones `ver` y `responder` (separadas, para poder dar
+  acceso de sólo lectura).
+- **Fase 1 (futura, no construida todavía)**: switch "Bot de Mercado Libre" en Funciones Avanzadas
+  (§5.1), generación asíncrona de sugerencias de respuesta por IA (proveedor a definir tras prueba
+  empírica), pantalla de configuración propia del bot.
 
 ---
 

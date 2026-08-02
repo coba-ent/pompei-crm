@@ -34,6 +34,6 @@ class StoreProductoRequest extends FormRequest
 
     public function withValidator(Validator $validator): void
     {
-        $validator->after(fn ($v) => $this->validarSkuEnPayload($v));
+        $validator->after(fn ($v) => $this->validarListasEnPayload($v));
     }
 }

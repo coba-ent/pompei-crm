@@ -149,7 +149,7 @@ Espejo exacto de `cliente_contactos` — mismos campos (`nombre`, `apellido`, `t
 |---|---|---|
 | id | bigint PK | |
 | nombre | string | |
-| codigo | string, nullable, único | SKU del producto base |
+| codigo | string, nullable | SKU del producto base — **no es único** (corrección 02/08/2026: el negocio reutiliza códigos entre productos distintos; ninguna integración vigente matchea por `codigo`, ML/Tiendanube vinculan por `id`) |
 | tipo | enum(`producto`,`servicio`) | los servicios no controlan stock |
 | descripcion | text, nullable | |
 | imagen | string, nullable | ruta relativa en disk `public` (upload "+ Agregar Imagen"). Accesor `imagen_url` expone la URL pública |
@@ -177,14 +177,14 @@ Espejo exacto de `cliente_contactos` — mismos campos (`nombre`, `apellido`, `t
 
 ### `producto_variantes`
 Variantes de un producto (ej. talle, color) — infraestructura conservada para una futura integración
-con canales externos, que exigiría **SKU único por producto y por variante**. Un producto sin
-variantes no lleva filas acá. La UI de alta está oculta en el modal (ver doc principal §2.2).
+con canales externos. Un producto sin variantes no lleva filas acá. La UI de alta está oculta en el
+modal (ver doc principal §2.2).
 
 | Campo | Tipo | Notas |
 |---|---|---|
 | id | bigint PK | |
 | producto_id | FK → productos | cascade on delete |
-| sku | string, nullable, único | código único de la variante |
+| sku | string, nullable | código de la variante — **no es único** (corrección 02/08/2026, mismo motivo que `productos.codigo` arriba) |
 | talle | string, nullable | |
 | color | string, nullable | |
 | nombre | string, nullable | etiqueta libre si no aplica talle/color |
@@ -1035,3 +1035,37 @@ cambia qué cliente HTTP los alimenta y qué proceso decide crear cada vínculo.
 (`tn_ordenes`/`tn_orden_items`), vínculos (`tn_variante_producto`) y los movimientos/Ventas ya derivados de
 ellos — sólo se elimina la infraestructura de conexión MCP, no el historial de negocio generado mientras
 estuvo activa.
+
+## 14. Mensajería de Mercado Libre (spec 032 — Fase 0, sin IA)
+
+> Alcance: leer Preguntas pre-venta y Mensajería post-venta de Mercado Libre en una bandeja unificada y
+> responderlas manualmente, con auditoría. **Sin generación de IA** — eso se modela en una spec futura
+> (Fase 1, "bot de Mercado Libre"), que sumará una tabla de sugerencias y de configuración del bot sin
+> romper este esquema. Detalle completo en `specs/032-bot-mensajeria-mercadolibre/data-model.md`.
+
+### `ml_conversaciones`
+
+Hilo de intercambio con un comprador. `tipo` (`pregunta` | `post_venta`) determina la clave de
+agrupación: por comprador+publicación para Preguntas (ML no las agrupa nativamente), por
+`ml_orden_id` para post-venta (ML ya agrupa por pack/orden). Columnas: `tipo`, `comprador_ml_id`,
+`comprador_nickname`, `publicacion_id_ml` (nullable), `ml_publicacion_producto_id` (FK nullable →
+`ml_publicacion_producto`), `ml_orden_id` (FK nullable → `ml_ordenes`), `estado`
+(`pendiente`/`respondida`/`cerrada`), `ultimo_mensaje_en`.
+
+### `ml_mensajes`
+
+Cada mensaje individual de una conversación. Columnas: `ml_conversacion_id` (FK), `ml_id` (ID nativo
+de ML — `question_id` o `message_id, clave natural para idempotencia ante reintentos de webhook,
+índice único), `origen` (`comprador`/`negocio`), `texto`, `enviado_en`.
+
+### `ml_respuestas_enviadas`
+
+Auditoría de una respuesta efectivamente enviada al comprador. Columnas: `ml_mensaje_id` (FK),
+`texto_enviado`, `usuario_id` (FK `users`, quién confirmó), `enviado_en`, `resultado`
+(`exito`/`error`), `error_mensaje` (nullable). Índice único `(ml_mensaje_id)` con `resultado=exito`
+para impedir dos respuestas exitosas al mismo mensaje (condición de carrera entre dos usuarios).
+
+### `permisos` (módulo nuevo)
+
+Se agrega el módulo `mensajeria` con acciones `ver` y `responder` (separadas, para poder dar acceso de
+sólo lectura sin permitir enviar respuestas).

@@ -25,7 +25,7 @@ class ProductoVarianteTest extends TestCase
         $this->assertDatabaseCount('producto_variantes', 2);
     }
 
-    public function test_rechaza_sku_de_variante_duplicado_en_payload(): void
+    public function test_permite_sku_de_variante_duplicado_en_payload(): void
     {
         $response = $this->postJson(route('productos.store'), [
             'nombre' => 'Remera',
@@ -36,11 +36,11 @@ class ProductoVarianteTest extends TestCase
             ],
         ]);
 
-        $response->assertStatus(422);
-        $this->assertDatabaseCount('producto_variantes', 0);
+        $response->assertOk();
+        $this->assertDatabaseCount('producto_variantes', 2);
     }
 
-    public function test_rechaza_sku_variante_contra_producto_existente(): void
+    public function test_permite_sku_variante_igual_al_codigo_de_otro_producto(): void
     {
         Producto::create(['nombre' => 'Otro', 'tipo' => 'producto', 'codigo' => 'COD-1']);
 
@@ -52,7 +52,7 @@ class ProductoVarianteTest extends TestCase
             ],
         ]);
 
-        $response->assertStatus(422);
+        $response->assertOk();
     }
 
     public function test_quitar_variante_sin_operaciones_la_elimina(): void
