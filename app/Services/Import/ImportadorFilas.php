@@ -34,9 +34,13 @@ class ImportadorFilas
      * @param  array<int|string, string>  $mapeo  índice de columna => campo destino ('' = no importar, 'personalizado' = campo personalizado)
      * @param  array<int|string, string>  $personalizados  índice de columna => nombre elegido para el campo personalizado
      * @param  array<int, mixed>  $columnasOriginales  índice de columna => encabezado tal cual vino en el archivo (fila 0) — sólo se usa para resolver a qué tipo de documento corresponde cada columna mapeada a "cuit"
-     * @return array{importados: int, fallidos: array<int, array{fila: int, motivo: string}>, advertencias: array<int, array{fila: int, motivo: string}>}
+     * @param  int  $offset  fila de datos (0-based, sin contar encabezado) desde donde arranca esta tanda — permite procesar el archivo en varias
+     *   requests cortas en vez de una sola (el proxy delante de PHP-FPM en el hosting compartido corta la conexión ~60s, muy por debajo de lo que
+     *   tarda un archivo de varios miles de filas procesado entero).
+     * @param  int|null  $limite  cantidad de filas a procesar en esta tanda; null = todas (comportamiento original, usado por tests/CLI)
+     * @return array{importados: int, fallidos: array<int, array{fila: int, motivo: string}>, advertencias: array<int, array{fila: int, motivo: string}>, total: int}
      */
-    public function importar(string $entidad, string $rutaCompleta, array $mapeo, array $personalizados, ?User $usuario = null, array $columnasOriginales = []): array
+    public function importar(string $entidad, string $rutaCompleta, array $mapeo, array $personalizados, ?User $usuario = null, array $columnasOriginales = [], int $offset = 0, ?int $limite = null): array
     {
         // Procesamiento síncrono sin cola (Assumptions del spec): un archivo de varios
         // miles de filas puede superar el límite por defecto de PHP (max_execution_time).
@@ -44,7 +48,9 @@ class ImportadorFilas
 
         $definicion = DefinicionCamposImportables::paraEntidad($entidad);
         $filas = (Excel::toArray(null, $rutaCompleta))[0] ?? [];
-        $filasDatos = array_slice($filas, 1); // fila 0 = encabezados
+        $todasLasFilas = array_slice($filas, 1); // fila 0 = encabezados
+        $total = count($todasLasFilas);
+        $filasDatos = $limite === null ? $todasLasFilas : array_slice($todasLasFilas, $offset, $limite);
 
         $catalogosFk = $this->precargarCatalogosFk($mapeo, $definicion);
         $reglas = $this->construirReglas($entidad, $definicion);
@@ -55,7 +61,7 @@ class ImportadorFilas
         $advertencias = [];
 
         foreach ($filasDatos as $i => $celdas) {
-            $numeroFila = $i + 2; // +1 por el encabezado, +1 por ser 1-based
+            $numeroFila = $offset + $i + 2; // +1 por el encabezado, +1 por ser 1-based
 
             [$datos, $advertenciasFila] = $this->mapearFila($celdas, $mapeo, $personalizados, $definicion, $catalogosFk, $tipoPorIndiceCuit);
 
@@ -124,7 +130,7 @@ class ImportadorFilas
             }
         }
 
-        return ['importados' => $importados, 'fallidos' => $fallidos, 'advertencias' => $advertencias];
+        return ['importados' => $importados, 'fallidos' => $fallidos, 'advertencias' => $advertencias, 'total' => $total];
     }
 
     /**
@@ -555,7 +561,10 @@ class ImportadorFilas
             if (isset($def['fk'])) {
                 unset($reglas[$campo]);
             }
-            $esNumericoDinamico = isset($def['lista_precio_id']) || isset($def['deposito_id']) || ! empty($def['solo_verificacion']);
+            // 'solo_verificacion' (Stock Total) no se valida estricto: no se persiste, sólo se usa
+            // como chequeo cruzado en verificarStockTotal() — un valor sucio (texto, negativo por
+            // redondeo de Excel) no puede tirar abajo la fila entera por un campo que ni se guarda.
+            $esNumericoDinamico = isset($def['lista_precio_id']) || isset($def['deposito_id']);
             if ($esNumericoDinamico && ! isset($reglas[$campo])) {
                 $reglas[$campo] = ['nullable', 'numeric', 'min:0'];
             }
