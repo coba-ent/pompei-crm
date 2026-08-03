@@ -176,6 +176,7 @@
             // Vaciar los selects de localidad (dependen de la provincia).
             $form.find('.js-localidad').html('<option value="">Seleccionar</option>');
             $('#saldo-inicial-wrap').addClass('d-none');
+            resetearTocadoPadron();
         }
 
         // --- Verificación de CUIT/CUIL (US1, spec 014) ---
@@ -238,17 +239,91 @@
 
         $form.on('change', 'select[name="tipo_documento"]', limpiarResultadoVerificacion);
 
-        $form.on('click', '.js-verificar-documento', function () {
-            if (!rutas.verificarDocumento) {
+        // --- Autocompletado desde el padrón de ARCA (research.md R5, spec 037) ---
+        // Campos que el padrón puede completar: sólo se pisan si el usuario no
+        // los tocó manualmente desde la última consulta (se resetea al abrir el
+        // modal / cambiar de cliente, en resetForm()).
+        const CAMPOS_PADRON = ['razon_social', 'domicilio_fiscal', 'localidad_fiscal', 'condicion_iva_id'];
+        let tocadoPadron = {};
+
+        function resetearTocadoPadron() {
+            tocadoPadron = {};
+            CAMPOS_PADRON.forEach(function (campo) {
+                tocadoPadron[campo] = false;
+            });
+        }
+        resetearTocadoPadron();
+
+        CAMPOS_PADRON.forEach(function (campo) {
+            $form.on('input change', '[name="' + campo + '"]', function () {
+                tocadoPadron[campo] = true;
+            });
+        });
+
+        function autocompletarDesdePadron(padron) {
+            if (!padron || !padron.encontrado) {
                 return;
             }
+            if (padron.razon_social && !tocadoPadron.razon_social) {
+                $form.find('input[name="razon_social"]').val(padron.razon_social);
+            }
+            if (padron.domicilio_fiscal && !tocadoPadron.domicilio_fiscal) {
+                $form.find('input[name="domicilio_fiscal"]').val(padron.domicilio_fiscal);
+            }
+            if (padron.localidad_fiscal && !tocadoPadron.localidad_fiscal) {
+                $form.find('select[name="localidad_fiscal"]').val(padron.localidad_fiscal);
+            }
+            if (padron.condicion_iva && !tocadoPadron.condicion_iva_id) {
+                const $select = $form.find('select[name="condicion_iva_id"]');
+                const $opcion = $select.find('option').filter(function () {
+                    return $(this).text().trim() === padron.condicion_iva;
+                });
+                if ($opcion.length) {
+                    $select.val($opcion.val());
+                }
+            }
+        }
+
+        function mostrarMensajePadron(padron) {
+            if (!padron) {
+                return;
+            }
+            if (!padron.consultado) {
+                toast('info', padron.mensaje || 'No se pudo consultar el padrón de ARCA en este momento.');
+            } else if (!padron.encontrado) {
+                toast('info', padron.mensaje || 'No se encontró el CUIT en el padrón de ARCA.');
+            } else {
+                toast('success', 'Datos del padrón de ARCA cargados.');
+            }
+        }
+
+        let verificacionEnCurso = false;
+
+        $form.on('click', '.js-verificar-documento', function () {
+            if (!rutas.verificarDocumento || verificacionEnCurso) {
+                return;
+            }
+            const $boton = $(this);
+            verificacionEnCurso = true;
+            $boton.prop('disabled', true);
+
             $.getJSON(rutas.verificarDocumento, {
                 tipo_documento: $form.find('select[name="tipo_documento"]').val(),
                 numero: $form.find('input[name="cuit"]').val(),
             })
-                .done(pintarResultadoVerificacion)
+                .done(function (resp) {
+                    pintarResultadoVerificacion(resp);
+                    if (resp && resp.padron) {
+                        autocompletarDesdePadron(resp.padron);
+                        mostrarMensajePadron(resp.padron);
+                    }
+                })
                 .fail(function () {
                     toast('error', 'No se pudo verificar el documento.');
+                })
+                .always(function () {
+                    verificacionEnCurso = false;
+                    $boton.prop('disabled', false);
                 });
         });
 

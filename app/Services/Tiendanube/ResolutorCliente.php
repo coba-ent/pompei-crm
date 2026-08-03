@@ -2,9 +2,14 @@
 
 namespace App\Services\Tiendanube;
 
+use App\Models\CertificadoFiscal;
 use App\Models\Cliente;
 use App\Models\CondicionIva;
 use App\Models\Integraciones\TiendanubeOrden;
+use App\Services\Arca\ClientePadron;
+use App\Services\Arca\ClienteWsaa;
+use App\Services\Arca\Excepciones\ArcaNoDisponibleException;
+use App\Services\Arca\ResultadoConsultaPadron;
 
 /**
  * Empareja al comprador de una orden de Tiendanube con un Cliente del CRM
@@ -22,6 +27,9 @@ class ResolutorCliente
     private const CONDICION_IVA_FACTURA_A = 'Responsable Inscripto';
 
     private const CONDICION_IVA_DEFECTO = 'Consumidor Final';
+
+    /** Resultado de la última consulta al padrón hecha por tipoComprobante(), reusado por completarDatosFiscalesSinPisar() (FR-007b). */
+    private ?ResultadoConsultaPadron $ultimaConsultaPadron = null;
 
     /**
      * @return array{cliente: ?Cliente, ambiguo: bool, tipo_comprobante: string, aproximado: bool}
@@ -100,37 +108,85 @@ class ResolutorCliente
      */
     public function tipoComprobante(?Cliente $cliente, TiendanubeOrden $orden): string
     {
+        $this->ultimaConsultaPadron = null;
+
         if ($cliente && $cliente->condicion_iva_id) {
             return $this->tipoComprobantePorCondicionIva($cliente->condicion_iva_id);
+        }
+
+        $resultadoPadron = $this->consultarPadron($orden->billing_document_number);
+
+        if ($resultadoPadron && $resultadoPadron->condicionIvaId) {
+            $this->ultimaConsultaPadron = $resultadoPadron;
+
+            return $this->tipoComprobantePorCondicionIva($resultadoPadron->condicionIvaId);
         }
 
         return $this->tipoComprobantePorDocumento($orden->billing_document_number);
     }
 
+    /**
+     * Consulta ws_sr_padron_a13 cuando el documento de la orden tiene forma de
+     * CUIT (research.md R4). Best effort: cualquier falla degrada a `null` sin
+     * propagar excepción (FR-008/FR-009, Constitución III).
+     */
+    private function consultarPadron(?string $documento): ?ResultadoConsultaPadron
+    {
+        $cuit = $documento ? preg_replace('/\D/', '', $documento) : '';
+
+        if (strlen($cuit) !== 11) {
+            return null;
+        }
+
+        $certificado = CertificadoFiscal::activo();
+
+        if (! $certificado) {
+            return null;
+        }
+
+        try {
+            $ticketAcceso = app()->makeWith(ClienteWsaa::class, ['certificado' => $certificado])->obtenerTicketAcceso('ws_sr_padron_a13');
+            $respuesta = app()->makeWith(ClientePadron::class, ['certificado' => $certificado])->consultarConstancia($ticketAcceso, $cuit);
+
+            return ResultadoConsultaPadron::desdeRespuesta($cuit, $respuesta);
+        } catch (ArcaNoDisponibleException) {
+            return null;
+        }
+    }
+
     /** FR-037/FR-040d: alta automática con condición de IVA y comprobante por defecto siempre cargados. */
     private function crearCliente(TiendanubeOrden $orden): Cliente
     {
-        $tipoComprobante = $this->tipoComprobantePorDocumento($orden->billing_document_number);
+        $tipoComprobante = $this->tipoComprobante(null, $orden);
+        $resultadoPadron = $this->ultimaConsultaPadron;
 
         return Cliente::create([
             'nombre' => $orden->comprador_nombre ?: ('Comprador Tiendanube '.$orden->tn_customer_id),
             'email' => $orden->comprador_email,
             'tn_customer_id' => $orden->tn_customer_id,
-            'condicion_iva_id' => CondicionIva::where('nombre', self::CONDICION_IVA_DEFECTO)->value('id'),
+            'condicion_iva_id' => $resultadoPadron?->condicionIvaId ?: CondicionIva::where('nombre', self::CONDICION_IVA_DEFECTO)->value('id'),
             'tipo_comprobante_defecto' => $tipoComprobante,
+            'razon_social' => $resultadoPadron?->razonSocial,
+            'domicilio_fiscal' => $resultadoPadron?->domicilioFiscal,
+            'localidad_fiscal' => $resultadoPadron?->localidadFiscal,
             'activo' => true,
         ]);
     }
 
-    /** FR-041/FR-041a: completa sólo lo que falta, nunca pisa datos ya cargados a mano. */
+    /** FR-041/FR-041a/FR-007b: completa sólo lo que falta, nunca pisa datos ya cargados a mano. */
     private function completarDatosFiscalesSinPisar(Cliente $cliente, TiendanubeOrden $orden, string $tipoComprobanteYaDerivado): void
     {
         unset($orden);
 
+        $resultadoPadron = $this->ultimaConsultaPadron;
+
         if (empty($cliente->condicion_iva_id)) {
             $cliente->update([
-                'condicion_iva_id' => CondicionIva::where('nombre', self::CONDICION_IVA_DEFECTO)->value('id'),
+                'condicion_iva_id' => $resultadoPadron?->condicionIvaId ?: CondicionIva::where('nombre', self::CONDICION_IVA_DEFECTO)->value('id'),
                 'tipo_comprobante_defecto' => $cliente->tipo_comprobante_defecto ?: $tipoComprobanteYaDerivado,
+                'razon_social' => $cliente->razon_social ?: $resultadoPadron?->razonSocial,
+                'domicilio_fiscal' => $cliente->domicilio_fiscal ?: $resultadoPadron?->domicilioFiscal,
+                'localidad_fiscal' => $cliente->localidad_fiscal ?: $resultadoPadron?->localidadFiscal,
             ]);
         }
     }

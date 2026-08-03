@@ -656,6 +656,13 @@ Resumen de entidades:
 `tipo_comprobante`/`nro_comprobante` existentes quedan como fallback sin validez fiscal (spec 008/030)
 cuando no hay `ComprobanteFiscal` aprobado asociado — no se duplican columnas de CAE ahí.
 
+> **Nota (spec 037, 03/08/2026)**: la consulta al Padrón de ARCA (`ws_sr_padron_a13`) reutiliza el
+> `CertificadoFiscal` activo y `ClienteWsaa` de este bloque para autenticarse (mismo Ticket de
+> Acceso, distinto nombre de servicio). No agrega tablas nuevas: el resultado de cada consulta es
+> transitorio y sólo completa columnas ya existentes de `clientes` (`razon_social`,
+> `domicilio_fiscal`, `localidad_fiscal`, `condicion_iva_id`) cuando no estaban cargadas. Ver
+> `specs/037-padron-arca-cuit/data-model.md`.
+
 ---
 
 ## 9. Tablas descartadas (pendientes de re-relevamiento)

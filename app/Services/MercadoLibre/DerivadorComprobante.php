@@ -2,9 +2,15 @@
 
 namespace App\Services\MercadoLibre;
 
+use App\Models\CertificadoFiscal;
+use App\Models\CondicionIva;
 use App\Models\Integraciones\MercadoLibreConfiguracion;
 use App\Models\Integraciones\MercadoLibreOrden;
 use App\Rules\CuitValido;
+use App\Services\Arca\ClientePadron;
+use App\Services\Arca\ClienteWsaa;
+use App\Services\Arca\Excepciones\ArcaNoDisponibleException;
+use App\Services\Arca\ResultadoConsultaPadron;
 
 /**
  * Deriva el tipo de comprobante (A/B) de la condición frente al IVA del
@@ -29,7 +35,7 @@ class DerivadorComprobante
     }
 
     /**
-     * @return array{tipo_comprobante: string, condicion_iva: string, doc_tipo: ?string, doc_numero: ?string, aproximado: bool}
+     * @return array{tipo_comprobante: string, condicion_iva: string, doc_tipo: ?string, doc_numero: ?string, aproximado: bool, razon_social: ?string, domicilio_fiscal: ?string, localidad_fiscal: ?string}
      */
     public function derivar(MercadoLibreOrden $orden): array
     {
@@ -45,12 +51,33 @@ class DerivadorComprobante
                 'doc_tipo' => $docTipo,
                 'doc_numero' => $docNumero,
                 'aproximado' => false,
+                'razon_social' => null,
+                'domicilio_fiscal' => null,
+                'localidad_fiscal' => null,
             ];
         }
 
-        // FR-040c: sin condición de IVA pero con documento, aproximación por tipo de documento.
+        // FR-040c: sin condición de IVA pero con documento — se consulta el padrón
+        // de ARCA (spec 037) antes de aproximar sólo por tipo de documento.
         if ($orden->comprador_doc_tipo) {
             [$docTipo, $docNumero] = $this->sanearDocumento($orden->comprador_doc_tipo, $orden->comprador_doc_numero);
+
+            $resultadoPadron = $docTipo === 'CUIT' ? $this->consultarPadron($docNumero) : null;
+
+            if ($resultadoPadron && $resultadoPadron->condicionIvaId) {
+                $nombreCondicionIva = CondicionIva::find($resultadoPadron->condicionIvaId)?->nombre ?? 'Consumidor Final';
+
+                return [
+                    'tipo_comprobante' => $nombreCondicionIva === 'Responsable Inscripto' ? 'A' : 'B',
+                    'condicion_iva' => $nombreCondicionIva,
+                    'doc_tipo' => $docTipo,
+                    'doc_numero' => $docNumero,
+                    'aproximado' => false,
+                    'razon_social' => $resultadoPadron->razonSocial,
+                    'domicilio_fiscal' => $resultadoPadron->domicilioFiscal,
+                    'localidad_fiscal' => $resultadoPadron->localidadFiscal,
+                ];
+            }
 
             return [
                 'tipo_comprobante' => $docTipo === 'CUIT' ? 'A' : 'B',
@@ -58,6 +85,9 @@ class DerivadorComprobante
                 'doc_tipo' => $docTipo,
                 'doc_numero' => $docNumero,
                 'aproximado' => true,
+                'razon_social' => null,
+                'domicilio_fiscal' => null,
+                'localidad_fiscal' => null,
             ];
         }
 
@@ -68,7 +98,38 @@ class DerivadorComprobante
             'doc_tipo' => null,
             'doc_numero' => null,
             'aproximado' => false,
+            'razon_social' => null,
+            'domicilio_fiscal' => null,
+            'localidad_fiscal' => null,
         ];
+    }
+
+    /**
+     * Consulta ws_sr_padron_a13 (research.md R4, spec 037). Best effort: cualquier
+     * falla degrada a `null` sin propagar excepción (FR-008/FR-009, Constitución III).
+     */
+    private function consultarPadron(?string $cuit): ?ResultadoConsultaPadron
+    {
+        $cuit = $cuit ? preg_replace('/\D/', '', $cuit) : '';
+
+        if (strlen($cuit) !== 11) {
+            return null;
+        }
+
+        $certificado = CertificadoFiscal::activo();
+
+        if (! $certificado) {
+            return null;
+        }
+
+        try {
+            $ticketAcceso = app()->makeWith(ClienteWsaa::class, ['certificado' => $certificado])->obtenerTicketAcceso('ws_sr_padron_a13');
+            $respuesta = app()->makeWith(ClientePadron::class, ['certificado' => $certificado])->consultarConstancia($ticketAcceso, $cuit);
+
+            return ResultadoConsultaPadron::desdeRespuesta($cuit, $respuesta);
+        } catch (ArcaNoDisponibleException) {
+            return null;
+        }
     }
 
     /**

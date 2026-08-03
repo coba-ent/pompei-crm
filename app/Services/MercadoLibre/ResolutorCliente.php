@@ -77,11 +77,14 @@ class ResolutorCliente
             'tipo_documento' => $datosFiscales['doc_tipo'],
             'condicion_iva_id' => $this->condicionIvaId($datosFiscales['condicion_iva']),
             'tipo_comprobante_defecto' => $datosFiscales['tipo_comprobante'],
+            'razon_social' => $datosFiscales['razon_social'] ?? null,
+            'domicilio_fiscal' => $datosFiscales['domicilio_fiscal'] ?? null,
+            'localidad_fiscal' => $datosFiscales['localidad_fiscal'] ?? null,
             'activo' => true,
         ]);
     }
 
-    /** FR-041/FR-041a: completa sólo lo que falta, nunca pisa datos ya cargados a mano. */
+    /** FR-041/FR-041a/FR-007b: completa sólo lo que falta, nunca pisa datos ya cargados a mano. */
     private function completarDatosFiscalesSinPisar(Cliente $cliente, array $datosFiscales): void
     {
         $cambios = [];
@@ -97,6 +100,15 @@ class ResolutorCliente
         }
         if (empty($cliente->tipo_comprobante_defecto)) {
             $cambios['tipo_comprobante_defecto'] = $datosFiscales['tipo_comprobante'];
+        }
+        if (empty($cliente->razon_social) && ! empty($datosFiscales['razon_social'])) {
+            $cambios['razon_social'] = $datosFiscales['razon_social'];
+        }
+        if (empty($cliente->domicilio_fiscal) && ! empty($datosFiscales['domicilio_fiscal'])) {
+            $cambios['domicilio_fiscal'] = $datosFiscales['domicilio_fiscal'];
+        }
+        if (empty($cliente->localidad_fiscal) && ! empty($datosFiscales['localidad_fiscal'])) {
+            $cambios['localidad_fiscal'] = $datosFiscales['localidad_fiscal'];
         }
 
         if ($cambios) {

@@ -5,11 +5,16 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreClienteRequest;
 use App\Http\Requests\UpdateClienteRequest;
 use App\Models\Categoria;
+use App\Models\CertificadoFiscal;
 use App\Models\Cliente;
 use App\Models\CondicionIva;
 use App\Models\ListaPrecio;
 use App\Models\Provincia;
 use App\Rules\CuitValido;
+use App\Services\Arca\ClientePadron;
+use App\Services\Arca\ClienteWsaa;
+use App\Services\Arca\Excepciones\ArcaNoDisponibleException;
+use App\Services\Arca\ResultadoConsultaPadron;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -59,9 +64,46 @@ class ClienteController extends Controller
 
         $valido = CuitValido::esValido($numero);
 
-        return response()->json($valido
-            ? ['aplica' => true, 'valido' => true]
-            : ['aplica' => true, 'valido' => false, 'mensaje' => 'El CUIT ingresado no es válido.']);
+        if (! $valido) {
+            return response()->json(['aplica' => true, 'valido' => false, 'mensaje' => 'El CUIT ingresado no es válido.']);
+        }
+
+        return response()->json(['aplica' => true, 'valido' => true, 'padron' => $this->consultarPadron($numero)]);
+    }
+
+    /**
+     * Consulta ws_sr_padron_a13 (FR-002/FR-004, spec 037): degrada sin bloquear
+     * si ARCA no está disponible o el certificado fiscal no está configurado.
+     */
+    private function consultarPadron(string $cuit): array
+    {
+        $certificado = CertificadoFiscal::activo();
+
+        if (! $certificado) {
+            return ['consultado' => false, 'mensaje' => 'No se pudo consultar el padrón de ARCA en este momento.'];
+        }
+
+        try {
+            $ticketAcceso = app()->makeWith(ClienteWsaa::class, ['certificado' => $certificado])->obtenerTicketAcceso('ws_sr_padron_a13');
+            $respuesta = app()->makeWith(ClientePadron::class, ['certificado' => $certificado])->consultarConstancia($ticketAcceso, $cuit);
+            $resultado = ResultadoConsultaPadron::desdeRespuesta($cuit, $respuesta);
+        } catch (ArcaNoDisponibleException) {
+            return ['consultado' => false, 'mensaje' => 'No se pudo consultar el padrón de ARCA en este momento.'];
+        }
+
+        if (! $resultado->encontrado) {
+            return ['consultado' => true, 'encontrado' => false, 'mensaje' => 'No se encontró el CUIT en el padrón de ARCA.'];
+        }
+
+        return array_filter([
+            'consultado' => true,
+            'encontrado' => true,
+            'razon_social' => $resultado->razonSocial,
+            'domicilio_fiscal' => $resultado->domicilioFiscal,
+            'localidad_fiscal' => $resultado->localidadFiscal,
+            'condicion_iva' => $resultado->condicionIvaId ? CondicionIva::find($resultado->condicionIvaId)?->nombre : null,
+            'activo' => $resultado->activo,
+        ], fn ($valor) => $valor !== null);
     }
 
     /** Opciones de cliente para Select2 (Presupuestos/Ventas), con categoría/lista/descuento para autocompletar (FR-003). */

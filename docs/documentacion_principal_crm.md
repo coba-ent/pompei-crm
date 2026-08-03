@@ -66,17 +66,18 @@ El modelo de datos completo (entidades, campos y relaciones) está detallado en 
     rojo, incluso si se guarda sin apretar "Verificar" primero (la validación corre igual al guardar).
     Esto **sí está en alcance** y ya está implementado en el backend (`app/Rules/CuitValido.php`,
     usado por `ReglasCliente`/`ReglasProveedor`) — lo que falta es el botón/UI y el auto-formato.
-  - La **verificación/autocompletado contra ARCA/padrón fiscal** (consulta en vivo a un padrón externo
-    para confirmar que el CUIT existe, corroborar su condición de IVA real, y **autocompletar razón
-    social/domicilio** en el modal de Cliente/Proveedor a partir del CUIT tipeado) es una cosa distinta
-    del botón "Verificar" (dígito verificador local) y **sigue fuera de alcance** — decisión reconfirmada
-    el 30/07/2026 al evaluar el pedido puntual de autocompletado. Motivo técnico (no sólo de alcance):
-    el webservice oficial de Padrón de ARCA exige autenticación **WSAA** con certificado propio del
-    negocio — la misma pieza de infraestructura que usaría Facturación Electrónica (WSFEv1) — que este
-    proyecto todavía no construyó (ver §7). La alternativa de un proveedor tercero (API paga tipo Nosis/
-    cuitonline, sin necesidad de certificado propio) quedó identificada pero sin decidir. Se retoma con
-    una spec propia cuando se aborde Facturación Electrónica (o antes, si se decide puntualmente ir por
-    el proveedor tercero) — ver §7.
+  - La **verificación/autocompletado contra ARCA/padrón fiscal** (consulta en vivo al padrón
+    `ws_sr_padron_a13` para confirmar que el CUIT existe, corroborar su condición de IVA real, y
+    **autocompletar razón social/domicilio/condición de IVA** en el modal de Cliente a partir del
+    CUIT tipeado, dejando esos campos editables) **entró en alcance con la spec 037** (ver
+    `specs/037-padron-arca-cuit/`), una vez resuelto el bloqueo técnico: ya se cuenta con
+    autenticación **WSAA** y certificado propio del negocio desde Facturación Electrónica (spec 034,
+    §8.bis). El botón "Verificar" pasa a hacer ambas cosas (dígito verificador local + consulta real
+    al padrón cuando el documento es CUIT/CUIL); si ARCA no está disponible o no encuentra el CUIT,
+    se informa por toast sin bloquear el guardado. La misma consulta al padrón se usa, de forma
+    interna y sin UI de búsqueda, en la conversión de órdenes de Tiendanube/MercadoLibre a venta
+    para determinar el tipo de comprobante (A/B) cuando el cliente es nuevo o no tiene condición de
+    IVA ya cargada — ver §5 (Ingresos > Tiendanube/MercadoLibre).
 - Listado: tabla con columnas Id, Cliente, Nombre, Apellido, Mail, Teléfono, Teléfono Celular,
   Domicilio, Localidad, Provincia, DNI, CUIT, Condición de IVA, Usuario de Mercado Libre, Nota,
   Página Web (DNI y CUIT se muestran en columnas separadas según el tipo de documento). Buscador
@@ -502,9 +503,15 @@ Ver §5.2 para la divergencia deliberada de todo el módulo (aplicación propia 
   sincronización de precio; no existe un fallback "por defecto del CRM" para este campo (a diferencia del
   depósito).
 - **Tipo de comprobante derivado** de la condición fiscal que informa Mercado Libre: Responsable
-  Inscripto → A; Consumidor Final/Monotributo o sin dato → B. **No se consulta ARCA** (no hay
-  integración con el padrón en este CRM); Mercado Libre ya provee el dato. Coherente con el principio
-  III de la constitución, que exige derivar el comprobante de la condición de IVA.
+  Inscripto → A; Consumidor Final/Monotributo o sin dato → B. Coherente con el principio III de la
+  constitución, que exige derivar el comprobante de la condición de IVA. Con **spec 037**
+  (`specs/037-padron-arca-cuit/`), cuando el cliente resuelto de la orden es nuevo o no tiene
+  condición de IVA ya cargada, y la orden trae un CUIT del comprador, esa derivación se confirma
+  además contra el **Padrón de ARCA** (`ws_sr_padron_a13`, misma autenticación WSAA de spec 034) en
+  reemplazo de la aproximación previa basada sólo en el dato que informa Mercado Libre — sin UI de
+  búsqueda, de forma interna, y degradando al comportamiento anterior si el padrón no responde o no
+  encuentra el CUIT. Mismo criterio aplica a la conversión de órdenes de Tiendanube (que ya
+  aproximaba por longitud del documento crudo, no por un dato de condición fiscal propio).
 - **Fuera de alcance**: comisión de Mercado Libre y costo de envío (la Venta se crea por el monto
   bruto, por lo que el saldo de Mercado Pago en el CRM no coincidirá con el real, neto de comisiones).
   Las cancelaciones posteriores se señalan pero **no** modifican la Venta ya creada.
@@ -1545,14 +1552,12 @@ y precios hacia Tiendanube, spec 018 — ya especificada y lista para implementa
 precios), ver §3.2.quinquies) — todos
 salieron de esta lista:
 
-- **Pendiente asociado a Facturación Electrónica (30/07/2026, sigue vigente)**: autocompletado de datos de Cliente/Proveedor
-    (razón social, domicilio, condición de IVA) a partir del CUIT/CUIL, consultando el Padrón de ARCA
-    — capacidad relacionada pero separada de spec 034, no incluida en su alcance. Requiere WSAA
-    (certificado propio del negocio) — misma infraestructura que WSFEv1. Alternativa más rápida
-    evaluada y no descartada: un proveedor tercero (API paga, ej. Nosis/cuitonline) que no requiere
-    certificado propio — si se decide ir por ahí, no hace falta esperar a este módulo. Ver nota en §2
-    (ficha de Cliente/Proveedor) y spec 014 (`specs/014-verificacion-documento-fiscal/spec.md`, sección
-    Assumptions) para el detalle de la decisión.
+- ~~Pendiente asociado a Facturación Electrónica: autocompletado de datos de Cliente a partir del
+    CUIT/CUIL consultando el Padrón de ARCA~~ — **retomado y especificado (03/08/2026) en spec 037**
+    (`specs/037-padron-arca-cuit/`), una vez disponible WSAA/certificado propio (spec 034). Consulta
+    `ws_sr_padron_a13` reutilizando `App\Services\Arca\ClienteWsaa`; ver §2 (ficha de Cliente) y §5
+    (Ingresos > Tiendanube/MercadoLibre) para el detalle funcional. Queda listo para implementar, no
+    aplica más como pendiente de esta lista.
 - Informes (Ventas, Compras, Gastos, Contador, Ranking, Reporte Final) — nota: **Cuenta Corriente
   Clientes ya se implementó** (spec 029, ver §6.4); **Cuenta Corriente Proveedores sigue pendiente
   acá** (mismo aging, falta el relevamiento y la pantalla propia por Proveedor).
