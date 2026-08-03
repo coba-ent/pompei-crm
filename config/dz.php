@@ -2360,6 +2360,16 @@ return [
 				'js/custom.js',
 			],
 		],
+		'configuracion-facturacion-electronica' => [
+			'title' => 'Facturación Electrónica',
+			'css' => [
+				'vendor/toastr/css/toastr.min.css',
+			],
+			'js' => [
+				'vendor/toastr/js/toastr.min.js',
+				'js/custom.js',
+			],
+		],
 		'configuracion-depositos' => [
 			'title' => 'Depósitos',
 			'css' => [
