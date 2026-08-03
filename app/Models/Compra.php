@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Compra extends Model
@@ -66,6 +68,11 @@ class Compra extends Model
     public function remitos(): HasMany
     {
         return $this->hasMany(Remito::class);
+    }
+
+    public function comprobanteFiscal(): MorphOne
+    {
+        return $this->morphOne(ComprobanteFiscal::class, 'comprobantable');
     }
 
     /** Pagado = Σ pagos no anulados (derivado, data-model.md §Cálculos clave). */

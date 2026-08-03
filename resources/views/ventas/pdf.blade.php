@@ -20,10 +20,17 @@
     </style>
 </head>
 <body>
-    <div class="watermark">NO VÁLIDO COMO FACTURA</div>
+    @php $comprobanteFiscal = $venta->comprobanteFiscal; @endphp
+    @unless ($comprobanteFiscal && $comprobanteFiscal->aprobado())
+        <div class="watermark">NO VÁLIDO COMO FACTURA</div>
+    @endunless
 
     <div class="header">
-        <div class="titulo"><h2>Comprobante {{ $venta->tipo_comprobante }} N° {{ $venta->nro_comprobante }}</h2></div>
+        <div class="titulo">
+            <h2>Comprobante {{ $venta->tipo_comprobante }} N°
+                {{ $comprobanteFiscal && $comprobanteFiscal->aprobado() ? $comprobanteFiscal->numero : $venta->nro_comprobante }}
+            </h2>
+        </div>
         <div class="datos">
             <div>Fecha de Emisión: {{ optional($venta->fecha_emision)->format('d/m/Y') }}</div>
             @if ($venta->fecha_vto_cobro)
@@ -31,6 +38,20 @@
             @endif
         </div>
     </div>
+
+    @if ($comprobanteFiscal && $comprobanteFiscal->aprobado())
+        <div class="cliente-box">
+            <div class="col">
+                <div><strong>CAE:</strong> {{ $comprobanteFiscal->cae }}</div>
+                <div><strong>Vencimiento CAE:</strong> {{ optional($comprobanteFiscal->cae_vencimiento)->format('d/m/Y') }}</div>
+            </div>
+            <div class="col">
+                @if (isset($qrDataUri) && $qrDataUri)
+                    <img src="{{ $qrDataUri }}" alt="QR fiscal AFIP" width="80" height="80">
+                @endif
+            </div>
+        </div>
+    @endif
 
     <div class="cliente-box">
         <div class="col">

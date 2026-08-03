@@ -7,6 +7,7 @@ use App\Http\Requests\StorePagoRequest;
 use App\Http\Requests\StoreRetencionRequest;
 use App\Models\Categoria;
 use App\Models\Compra;
+use App\Models\ComprobanteFiscal;
 use App\Models\CuentaTesoreria;
 use App\Models\Pago;
 use App\Models\Remito;
@@ -146,6 +147,8 @@ class CompraController extends Controller
 
             $this->stockDeCompra->aplicarAlta($compra->load('items.producto'));
 
+            $this->registrarComprobanteFiscalProveedor($compra, $datos);
+
             return $compra;
         });
 
@@ -155,6 +158,30 @@ class CompraController extends Controller
             'compra' => $compra,
             'redirect' => route('compras.show', $compra),
         ], 201);
+    }
+
+    /**
+     * FR-015: el CAE de una Compra lo declara el Proveedor en su propio comprobante — este CRM
+     * sólo registra esos datos (sin llamar a EmisorComprobante::emitir()).
+     */
+    private function registrarComprobanteFiscalProveedor(Compra $compra, array $datos): void
+    {
+        if (empty($datos['cae_proveedor'])) {
+            return;
+        }
+
+        $numero = trim(($datos['punto_venta_proveedor'] ?? '').'-'.($datos['numero_comprobante_proveedor'] ?? ''), '-') ?: null;
+
+        ComprobanteFiscal::create([
+            'comprobantable_type' => Compra::class,
+            'comprobantable_id' => $compra->id,
+            'punto_venta_id' => null,
+            'tipo_comprobante' => $datos['tipo_comprobante'] ?? 'A',
+            'numero' => $numero,
+            'cae' => $datos['cae_proveedor'],
+            'cae_vencimiento' => $datos['cae_vencimiento_proveedor'] ?? null,
+            'estado' => 'aprobado',
+        ]);
     }
 
     public function edit(Compra $compra)
@@ -224,7 +251,7 @@ class CompraController extends Controller
 
     public function pdf(Compra $compra)
     {
-        $compra->load(['items', 'conceptos', 'proveedor.condicionIva', 'categoria']);
+        $compra->load(['items', 'conceptos', 'proveedor.condicionIva', 'categoria', 'comprobanteFiscal']);
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('compras.pdf', compact('compra'));
 

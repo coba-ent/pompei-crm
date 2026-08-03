@@ -7,6 +7,10 @@ use App\Models\Compra;
 use App\Models\Deposito;
 use App\Models\Producto;
 use App\Models\Venta;
+use App\Services\Arca\EmisorComprobante;
+use App\Services\Arca\Excepciones\ArcaNoDisponibleException;
+use App\Services\Arca\Excepciones\ArcaRechazoException;
+use App\Services\Arca\Excepciones\CertificadoNoConfiguradoException;
 use App\Services\Stock\StockService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -14,8 +18,10 @@ use Illuminate\Support\Facades\DB;
 /** NC/ND (US4): wizard de 2 pasos sobre una venta, opcionalmente afecta stock. */
 class NotaCreditoDebitoController extends Controller
 {
-    public function __construct(private readonly StockService $stockService)
-    {
+    public function __construct(
+        private readonly StockService $stockService,
+        private readonly EmisorComprobante $emisorComprobante,
+    ) {
     }
 
     public function store(StoreNotaCreditoDebitoRequest $request, Venta $venta): JsonResponse
@@ -62,12 +68,55 @@ class NotaCreditoDebitoController extends Controller
             return $nota;
         });
 
+        $arcaError = null;
+        $comprobanteVenta = $venta->comprobanteFiscal;
+        if ($comprobanteVenta && $comprobanteVenta->aprobado()) {
+            $arcaError = $this->emitirComprobanteFiscalNota($nota, $venta, $comprobanteVenta);
+        }
+
         return response()->json([
             'ok' => true,
             'mensaje' => 'Nota de '.($datos['tipo'] === 'credito' ? 'Crédito' : 'Débito').' creada correctamente.',
             'nota' => $nota,
             'a_cobrar' => $venta->aCobrar(),
+            'comprobante_fiscal' => $nota->comprobanteFiscal()->first(),
+            'arca_error' => $arcaError,
         ], 201);
+    }
+
+    /** US3: la NC/ND obtiene su propio CAE referenciando el comprobante original de la Venta. */
+    private function emitirComprobanteFiscalNota($nota, Venta $venta, $comprobanteVenta): ?string
+    {
+        $venta->load('cliente');
+
+        $datos = [
+            'tipo_comprobante' => $nota->tipo_comprobante,
+            'tipo_nota' => $nota->tipo,
+            'fecha' => $nota->fecha_emision,
+            'cliente' => [
+                'cuit' => $venta->cliente?->cuit,
+                'dni' => $venta->cliente?->tipo_documento === 'DNI' ? $venta->cliente?->cuit : null,
+            ],
+            'neto' => round((float) $nota->monto / 1.21, 2),
+            'iva' => round((float) $nota->monto - round((float) $nota->monto / 1.21, 2), 2),
+            'total' => (float) $nota->monto,
+            'comprobante_ajustado_id' => $comprobanteVenta->id,
+            'comprobante_ajustado' => [
+                'tipo' => (new \App\Services\Arca\MapeadorComprobante())->cbteTipo($comprobanteVenta->tipo_comprobante),
+                'punto_venta' => $comprobanteVenta->puntoVenta?->numero ?? 0,
+                'numero' => (int) last(explode('-', $comprobanteVenta->numero ?? '0-0')),
+            ],
+        ];
+
+        try {
+            $this->emisorComprobante->emitir($nota, $datos);
+
+            return null;
+        } catch (CertificadoNoConfiguradoException) {
+            return null;
+        } catch (ArcaRechazoException|ArcaNoDisponibleException $e) {
+            return $e->getMessage();
+        }
     }
 
     /** NC/ND sobre una Compra (US4, spec 009): recomputa la compra en vez de la venta. */

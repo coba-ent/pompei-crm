@@ -202,6 +202,7 @@
 								<li><a href="{{ route('configuracion.funciones.index') }}">Funciones Avanzadas</a></li>
 								<li><a href="{{ route('configuracion.mercadolibre.index') }}">Mercado Libre</a></li>
 								<li><a href="{{ route('configuracion.tiendanube.index') }}">Tiendanube</a></li>
+								<li><a href="{{ route('configuracion.arca.index') }}">Facturación Electrónica</a></li>
 							@endcan
 						</ul>
 					</li>

@@ -51,6 +51,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('tiendanube:sincronizar-stock')
             ->everyMinute()
             ->withoutOverlapping();
+
+        // spec 034 (FR-016): revisión diaria del certificado fiscal ARCA.
+        $schedule->command('arca:avisar-vencimiento-certificado')
+            ->daily();
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

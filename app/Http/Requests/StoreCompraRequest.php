@@ -37,6 +37,12 @@ class StoreCompraRequest extends FormRequest
             'servicio_hasta' => 'nullable|date',
             'mes_imputacion_iva' => 'nullable|date',
             'tipo_comprobante' => 'nullable|string|max:10',
+            // Datos fiscales declarados por el Proveedor en su propio comprobante (FR-015): el CAE
+            // lo emite el Proveedor, este CRM no solicita uno propio para Compras.
+            'punto_venta_proveedor' => 'nullable|string|max:10',
+            'numero_comprobante_proveedor' => 'nullable|string|max:20',
+            'cae_proveedor' => 'nullable|string|max:20',
+            'cae_vencimiento_proveedor' => 'nullable|date',
             'nota_interna' => 'nullable|string',
             'descuento_general_pct' => 'nullable|numeric|between:0,100',
             'items' => 'required|array|min:1',

@@ -778,10 +778,23 @@ Facturación Electrónica, Remitos, Recibos, WhatsApp) siguen pendientes.
 "NO VÁLIDO COMO FACTURA", Cobranza contra cuentas de Tesorería reales vía `Cobranzas::registrarCobro()`,
 NC/ND con impacto en stock, Remitos encabezado) y Otros Ingresos ya están implementados. Siguen
 pendientes, ahora ya sin bloquear ningún módulo construido: Cuenta Corriente ("Cta Cte" queda
-deshabilitado en el menú de fila de Ventas), Facturación Electrónica real (CAE — el tipo/N° de
-comprobante quedan listos para conectarlo), Remitos con detalle de ítems, Recibos, integración WhatsApp
+deshabilitado en el menú de fila de Ventas), Remitos con detalle de ítems, Recibos, integración WhatsApp
 ("Enviar Whatsapp" deshabilitado) y Abonos (no construido en esta spec; su link en el sidebar no existe
 todavía).
+
+**Actualización (spec 034, Facturación Electrónica ARCA/AFIP):** implementada. Al confirmar el primer
+cobro de una Venta, el CRM solicita CAE real vía WSAA (autenticación con certificado propio del negocio)
++ WSFEv1 (`app/Services/Arca/`), reemplazando el watermark "NO VÁLIDO COMO FACTURA" del PDF por el CAE,
+vencimiento del CAE y QR fiscal AFIP cuando la emisión es exitosa. Sin certificado/Punto de Venta
+configurado, o ante rechazo/caída de ARCA, la Venta se guarda igual y usa el fallback local sin validez
+fiscal (numeración `tipo_comprobante`/`nro_comprobante` existente, sin bloquear el cobro) — el motivo se
+informa por toast. Las Notas de Crédito/Débito de Ventas con CAE obtienen su propio CAE referenciando el
+comprobante original. Reintentos son siempre manuales; antes de reintentar se reconcilia automáticamente
+contra `FECompConsultar` para no duplicar comprobantes ante un timeout previo. Un comprobante con CAE
+aprobado es inmutable (Tipo de Comprobante/cliente/ítems bloqueados en edición). Pantalla nueva
+"Configuración & Ajustes → Facturación Electrónica" para cargar el certificado (`.crt`/`.key`, cifrado en
+disco) y administrar Puntos de Venta. Sigue documentada como brecha (§7) la ausencia de un informe con
+capturas reales de Contagram para esa pantalla de configuración.
 
 ### 3.6 Corroboración contra documentación oficial (`help.contagram.com`, 24/07/2026)
 
@@ -962,8 +975,6 @@ registrarMovimiento()`) usados por Pagos y Gastos — no quedó pendiente al cie
 
 - **Cuenta Corriente**: "Cta Cte" en el menú de fila de Compras (proveedor) — mismo gap que Clientes/
   Ventas. Deshabilitado en la UI (`disabled`, "Próximamente"), no oculto ni simulado.
-- **Facturación Electrónica**: Tipo de Comprobante + numeración de Compras sin validez fiscal real
-  hasta ese módulo (documento con watermark "NO VÁLIDO COMO FACTURA").
 - **Remitos**: "Crear Remito" en Compras crea sólo el encabezado (fecha + número); detalle de ítems
   pendiente de relevamiento propio — apunta al mismo hueco de estructura de pantalla que en Ventas.
 - **Recibos de Pagos**: análogo a Recibos de Cobros (§3.5), sin relevamiento propio con capturas.
@@ -971,6 +982,13 @@ registrarMovimiento()`) usados por Pagos y Gastos — no quedó pendiente al cie
   necesitaría para productos con variantes); el movimiento de stock que suma una Compra (spec 030) se
   aplica siempre a la variante `null`. Si el negocio compra productos con variantes por Compra, falta
   relevamiento propio para agregar el selector de variante a la grilla de ítems.
+
+**Actualización (spec 034, Facturación Electrónica ARCA/AFIP):** implementada. Compras no solicita CAE
+propio — lo emite el Proveedor (FR-015). Al guardar la Compra, si se declaran los datos fiscales del
+comprobante recibido (Punto de Venta, Número, CAE, vencimiento del CAE), el CRM registra un
+`ComprobanteFiscal` asociado sin llamar a WSFEv1; el documento imprimible deja de mostrar el watermark
+"NO VÁLIDO COMO FACTURA" cuando esos datos están completos. Sin esos datos, la Compra sigue usando la
+numeración local (`tipo_comprobante`/`nro_comprobante`) sin validez fiscal, igual que antes.
 
 *Fuente(s): `docs/informe_contagram_egresos.md`*
 
@@ -1481,14 +1499,14 @@ y precios hacia Tiendanube, spec 018 — ya especificada y lista para implementa
 precios), ver §3.2.quinquies) — todos
 salieron de esta lista:
 
-- Facturación Electrónica (ARCA/AFIP — WSAA + WSFEv1)
-  - **Pendiente asociado (30/07/2026)**: autocompletado de datos de Cliente/Proveedor (razón social,
-    domicilio, condición de IVA) a partir del CUIT/CUIL, consultando el Padrón de ARCA. Requiere WSAA
-    (certificado propio del negocio) — misma infraestructura que WSFEv1, se especifica junto con este
-    módulo. Alternativa más rápida evaluada y no descartada: un proveedor tercero (API paga, ej. Nosis/
-    cuitonline) que no requiere certificado propio — si se decide ir por ahí, no hace falta esperar a
-    este módulo. Ver nota en §2 (ficha de Cliente/Proveedor) y spec 014 (`specs/014-verificacion-documento-fiscal/spec.md`,
-    sección Assumptions) para el detalle de la decisión.
+- **Pendiente asociado a Facturación Electrónica (30/07/2026, sigue vigente)**: autocompletado de datos de Cliente/Proveedor
+    (razón social, domicilio, condición de IVA) a partir del CUIT/CUIL, consultando el Padrón de ARCA
+    — capacidad relacionada pero separada de spec 034, no incluida en su alcance. Requiere WSAA
+    (certificado propio del negocio) — misma infraestructura que WSFEv1. Alternativa más rápida
+    evaluada y no descartada: un proveedor tercero (API paga, ej. Nosis/cuitonline) que no requiere
+    certificado propio — si se decide ir por ahí, no hace falta esperar a este módulo. Ver nota en §2
+    (ficha de Cliente/Proveedor) y spec 014 (`specs/014-verificacion-documento-fiscal/spec.md`, sección
+    Assumptions) para el detalle de la decisión.
 - Informes (Ventas, Compras, Gastos, Contador, Ranking, Reporte Final) — nota: **Cuenta Corriente
   Clientes ya se implementó** (spec 029, ver §6.4); **Cuenta Corriente Proveedores sigue pendiente
   acá** (mismo aging, falta el relevamiento y la pantalla propia por Proveedor).

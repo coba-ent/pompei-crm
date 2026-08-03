@@ -20,7 +20,10 @@
     </style>
 </head>
 <body>
-    <div class="watermark">NO VÁLIDO COMO FACTURA</div>
+    @php $comprobanteFiscal = $compra->comprobanteFiscal; @endphp
+    @unless ($comprobanteFiscal && $comprobanteFiscal->aprobado())
+        <div class="watermark">NO VÁLIDO COMO FACTURA</div>
+    @endunless
 
     <div class="header">
         <div class="titulo"><h2>Comprobante {{ $compra->tipo_comprobante }} N° {{ $compra->nro_comprobante }}</h2></div>
@@ -31,6 +34,13 @@
             @endif
         </div>
     </div>
+
+    @if ($comprobanteFiscal && $comprobanteFiscal->aprobado())
+        <div class="proveedor-box">
+            <div class="col"><strong>CAE (Proveedor):</strong> {{ $comprobanteFiscal->cae }}</div>
+            <div class="col"><strong>Vencimiento CAE:</strong> {{ optional($comprobanteFiscal->cae_vencimiento)->format('d/m/Y') }}</div>
+        </div>
+    @endif
 
     <div class="proveedor-box">
         <div class="col">

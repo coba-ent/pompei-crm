@@ -28,6 +28,7 @@ use App\Http\Controllers\ImportacionController;
 use App\Http\Controllers\Informes\CuentaCorrienteController;
 use App\Http\Controllers\Informes\InformeStockController;
 use App\Http\Controllers\ListaPrecioController;
+use App\Http\Controllers\FacturacionElectronicaController;
 use App\Http\Controllers\NotaCreditoDebitoController;
 use App\Http\Controllers\OtroIngresoController;
 use App\Http\Controllers\PresupuestoController;
@@ -376,6 +377,14 @@ Route::prefix('configuracion')->name('configuracion.')->group(function () {
         Route::get('callback-rest', [TiendanubeConexionRestController::class, 'callbackRest'])->name('callbackRest');
         Route::get('estado-rest', [TiendanubeConexionRestController::class, 'estadoRest'])->name('estadoRest');
         Route::post('desconectar-rest', [TiendanubeConexionRestController::class, 'desconectarRest'])->name('desconectarRest');
+    });
+
+    // Configuración & Ajustes → Facturación Electrónica (spec 034: ARCA/AFIP)
+    Route::middleware('permiso:configuracion.funciones')->prefix('arca')->name('arca.')->group(function () {
+        Route::get('/', [FacturacionElectronicaController::class, 'index'])->name('index');
+        Route::post('certificado', [FacturacionElectronicaController::class, 'guardarCertificado'])->name('certificado.guardar');
+        Route::post('puntos-venta', [FacturacionElectronicaController::class, 'guardarPuntoVenta'])->name('puntos-venta.guardar');
+        Route::patch('puntos-venta/{puntoVenta}/estado', [FacturacionElectronicaController::class, 'puntoVentaEstado'])->name('puntos-venta.estado');
     });
 });
 

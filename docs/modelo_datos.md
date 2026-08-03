@@ -632,6 +632,32 @@ por la restricción de portabilidad a hosting compartido).
 
 ---
 
+## 8.bis Facturación Electrónica (ARCA/AFIP) — spec 034, implementada
+
+Ver `specs/034-facturacion-electronica-arca/data-model.md` para el detalle completo de campos.
+Resumen de entidades:
+
+- **`puntos_venta`**: número asignado por ARCA, tipo de Web Service, flag `por_defecto` (exactamente
+  uno activo), activo/inactivo.
+- **`certificados_fiscales`**: CUIT del negocio, ambiente (`homologacion`/`produccion`), rutas al
+  `.crt`/`.key` cifrados en disco (`storage/app/arca/`, fuera del webroot y de la DB), fechas de
+  emisión/vencimiento, `SoftDeletes`.
+- **`comprobantes_fiscales`**: relación polimórfica (`comprobantable_type`/`id`) hacia `ventas`,
+  `compras` o `notas_credito_debito`; tipo de comprobante, número real asignado por ARCA, CAE,
+  vencimiento de CAE, estado (`pendiente`/`aprobado`/`rechazado` — nunca `aprobado` sin CAE),
+  `comprobante_ajustado_id` (auto-referencia para NC/ND), respuesta cruda de ARCA, `SoftDeletes`
+  (nunca se borra físicamente un comprobante fiscal). `punto_venta_id` es **nullable**: en Compras el
+  comprobante lo emite el Proveedor con su propio Punto de Venta, ajeno a la tabla `puntos_venta` (que
+  sólo modela los WS propios del negocio) — sólo Ventas/NC-ND de Ventas lo completan.
+- **`arca_logs_auditoria`**: log append-only (sólo `created_at`) de cada llamada a WSAA/WSFEv1
+  (usuario, comprobante relacionado, operación, resultado, payloads).
+
+`ventas` y `compras` ganan una relación `morphOne` hacia `comprobantes_fiscales`; sus columnas
+`tipo_comprobante`/`nro_comprobante` existentes quedan como fallback sin validez fiscal (spec 008/030)
+cuando no hay `ComprobanteFiscal` aprobado asociado — no se duplican columnas de CAE ahí.
+
+---
+
 ## 9. Tablas descartadas (pendientes de re-relevamiento)
 
 Las siguientes tablas existieron en una versión anterior del modelo (spec 003 a 015) y fueron
@@ -639,10 +665,13 @@ eliminadas junto con su código porque el relevamiento funcional que las origin�
 precisión el negocio real. Se documentarán de nuevo cuando se retome cada módulo:
 
 `empresa`,
-`puntos_venta`, `certificados_fiscales`, `comprobantes_fiscales`,
 `reportes_email_config`, `importaciones` (la de Contagram, no la
 implementada en spec 006), `integraciones`, `integracion_eventos`, `producto_canal`, `ml_ordenes`.
 
+> **Nota (spec 034, 02/08/2026)**: `puntos_venta`, `certificados_fiscales` y `comprobantes_fiscales`
+> de aquel modelo descartado **no** se retoman tal cual — se rediseñaron desde cero con el esquema de
+> §8.bis, específico para el flujo real WSAA/WSFEv1, y salen de esta lista.
+>
 > **Nota (spec 011)**: las tablas `integraciones`, `integracion_eventos` y `ml_ordenes` de aquel
 > modelo descartado **no** se retoman. La integración con Mercado Libre se rehizo desde cero con el
 > esquema de §8, que es más específico y refleja el flujo OAuth real. `producto_canal` y `ml_ordenes`

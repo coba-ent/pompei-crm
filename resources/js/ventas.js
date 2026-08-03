@@ -637,6 +637,9 @@
             })
                 .done((resp) => {
                     toast('success', resp.mensaje || 'Venta actualizada con éxito.');
+                    if (resp.arca_error) {
+                        toast('warning', 'ARCA: ' + resp.arca_error);
+                    }
                     bootstrap.Modal.getInstance(document.getElementById('modal-cobranza'))?.hide();
                     window.location.reload();
                 })

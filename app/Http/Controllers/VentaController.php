@@ -15,6 +15,10 @@ use App\Models\Presupuesto;
 use App\Models\Remito;
 use App\Models\Vendedor;
 use App\Models\Venta;
+use App\Services\Arca\EmisorComprobante;
+use App\Services\Arca\Excepciones\ArcaNoDisponibleException;
+use App\Services\Arca\Excepciones\ArcaRechazoException;
+use App\Services\Arca\Excepciones\CertificadoNoConfiguradoException;
 use App\Services\Ingresos\CalculoComprobante;
 use App\Services\Ingresos\Cobranzas;
 use App\Services\Ingresos\StockDeVenta;
@@ -32,6 +36,7 @@ class VentaController extends Controller
         private readonly CalculoComprobante $calculo,
         private readonly Cobranzas $cobranzas,
         private readonly StockDeVenta $stockDeVenta,
+        private readonly EmisorComprobante $emisorComprobante,
     ) {
     }
 
@@ -268,9 +273,18 @@ class VentaController extends Controller
 
     public function pdf(Venta $venta)
     {
-        $venta->load(['items', 'conceptos', 'cliente.condicionIva', 'categoria', 'listaPrecio', 'vendedor']);
+        $venta->load(['items', 'conceptos', 'cliente.condicionIva', 'categoria', 'listaPrecio', 'vendedor', 'comprobanteFiscal.puntoVenta']);
 
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('ventas.pdf', compact('venta'));
+        $qrDataUri = null;
+        if ($url = $venta->comprobanteFiscal?->urlQrAfip()) {
+            $qrDataUri = (new \Endroid\QrCode\Builder\Builder())
+                ->data($url)
+                ->size(150)
+                ->build()
+                ->getDataUri();
+        }
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('ventas.pdf', compact('venta', 'qrDataUri'));
 
         return $pdf->stream('venta-'.$venta->nro_comprobante.'.pdf', ['Content-Disposition' => 'inline']);
     }
@@ -284,13 +298,18 @@ class VentaController extends Controller
         return $pdf->stream('ticket-'.$venta->nro_comprobante.'.pdf', ['Content-Disposition' => 'inline']);
     }
 
-    /** "Cobrar" / "Agregar Cobranza" (informe §3.2). */
+    /** "Cobrar" / "Agregar Cobranza" (informe §3.2). Dispara la emisión con CAE en el primer cobro (US1). */
     public function cobranzaStore(StoreCobroRequest $request, Venta $venta): JsonResponse
     {
         $datos = $request->validated();
         $cuenta = CuentaTesoreria::findOrFail($datos['cuenta_tesoreria_id']);
 
         $cobro = $this->cobranzas->registrarCobro($venta, (float) $datos['monto'], $cuenta, Carbon::parse($datos['fecha']), $datos['nota'] ?? null);
+
+        $arcaError = null;
+        if (! $venta->comprobanteFiscal()->exists()) {
+            $arcaError = $this->emitirComprobanteFiscal($venta);
+        }
 
         return response()->json([
             'ok' => true,
@@ -299,7 +318,42 @@ class VentaController extends Controller
             'cobrado' => $venta->cobrado(),
             'a_cobrar' => $venta->aCobrar(),
             'estado_cobro' => $venta->estadoCobro(),
+            'comprobante_fiscal' => $venta->comprobanteFiscal()->first(),
+            'arca_error' => $arcaError,
         ], 201);
+    }
+
+    /**
+     * Solicita el CAE a ARCA para la Venta (FR-001 a FR-014). Ante falta de configuración usa el
+     * fallback local sin validez fiscal (FR-014); ante rechazo/caída de ARCA no revierte el cobro
+     * ya registrado, sólo informa el motivo para mostrarlo por toast (FR-010).
+     */
+    private function emitirComprobanteFiscal(Venta $venta): ?string
+    {
+        $venta->load('cliente');
+
+        $datos = [
+            'tipo_comprobante' => $venta->tipo_comprobante,
+            'fecha' => $venta->fecha_emision,
+            'cliente' => [
+                'cuit' => $venta->cliente?->cuit,
+                'dni' => $venta->cliente?->tipo_documento === 'DNI' ? $venta->cliente?->cuit : null,
+            ],
+            'neto' => (float) $venta->subtotal_con_descuento,
+            'iva' => round((float) $venta->total - (float) $venta->subtotal_con_descuento, 2),
+            'total' => (float) $venta->total,
+        ];
+
+        try {
+            $this->emisorComprobante->emitir($venta, $datos);
+
+            return null;
+        } catch (CertificadoNoConfiguradoException) {
+            // Fallback FR-014: la Venta queda con su numeración local sin validez fiscal.
+            return null;
+        } catch (ArcaRechazoException|ArcaNoDisponibleException $e) {
+            return $e->getMessage();
+        }
     }
 
     public function cobranzaDestroy(Venta $venta, Cobro $cobro): JsonResponse

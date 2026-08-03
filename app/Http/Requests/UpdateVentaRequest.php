@@ -58,4 +58,29 @@ class UpdateVentaRequest extends FormRequest
             'conceptos.*.monto' => 'required_with:conceptos|numeric',
         ];
     }
+
+    /** FR-012: un comprobante con CAE aprobado es inmutable en Tipo de Comprobante, cliente e ítems. */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator) {
+            $venta = $this->route('venta');
+            $comprobante = $venta?->comprobanteFiscal;
+
+            if (! $comprobante || ! $comprobante->aprobado()) {
+                return;
+            }
+
+            if ((string) $this->input('tipo_comprobante') !== (string) $venta->tipo_comprobante) {
+                $validator->errors()->add('tipo_comprobante', 'No se puede modificar el Tipo de Comprobante: ya tiene CAE aprobado.');
+            }
+
+            if ((int) $this->input('cliente_id') !== (int) $venta->cliente_id) {
+                $validator->errors()->add('cliente_id', 'No se puede modificar el cliente: la Venta ya tiene CAE aprobado.');
+            }
+
+            if (count($this->input('items', [])) !== $venta->items()->count()) {
+                $validator->errors()->add('items', 'No se pueden modificar los ítems: la Venta ya tiene CAE aprobado.');
+            }
+        });
+    }
 }

@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -104,6 +105,11 @@ class Venta extends Model
     public function etiquetas(): MorphToMany
     {
         return $this->morphToMany(Etiqueta::class, 'etiquetable');
+    }
+
+    public function comprobanteFiscal(): MorphOne
+    {
+        return $this->morphOne(ComprobanteFiscal::class, 'comprobantable');
     }
 
     /** Cobrado = Σ cobros no anulados (derivado, data-model.md §Cálculos clave). */

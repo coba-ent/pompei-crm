@@ -51,4 +51,29 @@ class UpdateCompraRequest extends FormRequest
             'conceptos.*.monto' => 'required_with:conceptos|numeric',
         ];
     }
+
+    /** FR-012: un comprobante fiscal aprobado (CAE del Proveedor) es inmutable en Tipo/proveedor/ítems. */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator) {
+            $compra = $this->route('compra');
+            $comprobante = $compra?->comprobanteFiscal;
+
+            if (! $comprobante || ! $comprobante->aprobado()) {
+                return;
+            }
+
+            if ((string) $this->input('tipo_comprobante') !== (string) $compra->tipo_comprobante) {
+                $validator->errors()->add('tipo_comprobante', 'No se puede modificar el Tipo de Comprobante: ya tiene datos fiscales aprobados.');
+            }
+
+            if ((int) $this->input('proveedor_id') !== (int) $compra->proveedor_id) {
+                $validator->errors()->add('proveedor_id', 'No se puede modificar el proveedor: la Compra ya tiene datos fiscales aprobados.');
+            }
+
+            if (count($this->input('items', [])) !== $compra->items()->count()) {
+                $validator->errors()->add('items', 'No se pueden modificar los ítems: la Compra ya tiene datos fiscales aprobados.');
+            }
+        });
+    }
 }
