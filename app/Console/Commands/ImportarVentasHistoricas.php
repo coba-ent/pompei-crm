@@ -166,6 +166,25 @@ class ImportarVentasHistoricas extends Command
         }
     }
 
+    /**
+     * Excel::toArray() sin formateo devuelve las celdas de fecha como el serial
+     * numérico de Excel (ej. 44365.0 = 2021-06-18), no como string/Carbon. Sin esta
+     * conversión, Eloquent intenta parsear el float como fecha y arma cualquier cosa
+     * (se vio "1970-01-01 12:19:29" al probar en el VPS: interpretó el serial como
+     * segundos desde epoch).
+     */
+    private function fechaExcel($valor): ?string
+    {
+        if ($valor === null || $valor === '') {
+            return null;
+        }
+        if (is_numeric($valor)) {
+            return \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject((float) $valor)->format('Y-m-d');
+        }
+
+        return (string) $valor;
+    }
+
     private function normalizarEspacios(?string $s): string
     {
         return trim(preg_replace('/\s+/', ' ', (string) $s));
@@ -209,21 +228,20 @@ class ImportarVentasHistoricas extends Command
             $listaPrecioId = $this->resolverListaPrecio($primera['Lista de Precios'] ?? null);
             $vendedorId = $this->resolverVendedor($primera['Vendedor'] ?? null, $dryRun);
 
-            $puntoVenta = str_pad((string) ($primera['Punto de Venta'] ?? '1'), 4, '0', STR_PAD_LEFT);
-            $nroFactura = trim((string) ($primera['N° Factura'] ?? $primera['N� Factura'] ?? ''));
-            $nroComprobante = $nroFactura !== '' && $nroFactura !== '-'
-                ? $puntoVenta.'-'.str_pad($nroFactura, 8, '0', STR_PAD_LEFT)
-                : null;
-
+            // nro_comprobante queda null en el historial: el "Punto de Venta-N° Factura"
+            // del Excel no es único entre años (ventas.tipo_comprobante+nro_comprobante
+            // sí lo es en el esquema) y el propio modelo documenta este campo como "dato
+            // sin emisión fiscal" — el legacy_id ya permite rastrear el comprobante
+            // original si hace falta.
             $venta = new Venta([
                 'origen' => 'manual',
                 'cliente_id' => $clienteId,
                 'categoria_id' => $categoriaId,
                 'lista_precio_id' => $listaPrecioId,
-                'fecha_emision' => $primera['Emisión'] ?? $primera['Emisi�n'],
-                'fecha_vto_cobro' => $primera['Vencimiento'] ?? null,
+                'fecha_emision' => $this->fechaExcel($primera['Emisión'] ?? $primera['Emisi�n'] ?? null),
+                'fecha_vto_cobro' => $this->fechaExcel($primera['Vencimiento'] ?? null),
                 'tipo_comprobante' => $tipoAB,
-                'nro_comprobante' => $nroComprobante,
+                'nro_comprobante' => null,
                 'subtotal_sin_descuento' => (float) ($primera['Subtotal sin Descuento'] ?? 0),
                 'descuento' => (float) ($primera['Descuento en $'] ?? 0),
                 'subtotal_con_descuento' => (float) ($primera['Subtotal con Descuento'] ?? 0),
