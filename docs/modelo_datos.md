@@ -787,6 +787,15 @@ publicaciones vinculadas, no sólo hacia una — ver `specs/036-vinculacion-mult
 > Exento/No Gravado). La diferencia por redondeo se absorbe en la última línea, para que el total de la
 > Venta coincida **exactamente** con el monto de la orden.
 
+> **Columnas nuevas (spec 038, implementada)**: `ml_order_id` y `tn_order_id` (string, nullable,
+> **único cada una**, sin excluir Ventas soft-deleted del índice). Guardan el identificador estable del
+> pedido de origen en Mercado Libre/Tiendanube respectivamente — no la PK local de `ml_ordenes`/
+> `tn_ordenes`, que es la fila que se borra y regenera al resincronizar. Se completan al convertir
+> (`ConversorOrdenAVenta::convertirBajoCandado()`), que además rechaza la conversión si ya existe una
+> Venta (incluida una soft-deleted) con ese `ml_order_id`/`tn_order_id` — la red de seguridad que
+> sobrevive al borrado+resincronización de la orden. Backfill de un solo uso para Ventas históricas:
+> `php artisan ventas:backfill-referencia-pedido`. Ver `specs/038-evitar-ventas-duplicadas/data-model.md`.
+
 ---
 
 ## 11. Configuración & Ajustes: integración Tiendanube (spec 019 corrige a spec 015 — conexión)

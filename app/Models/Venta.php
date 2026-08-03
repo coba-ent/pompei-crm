@@ -26,6 +26,7 @@ class Venta extends Model
         'descuento_general_pct', 'subtotal_sin_descuento', 'descuento',
         'subtotal_con_descuento', 'total', 'nota_cliente', 'nota_interna',
         'formas_pago', 'metodos_envio', 'vendedor_id', 'submit_token', 'legacy_id',
+        'ml_order_id', 'tn_order_id',
     ];
 
     protected $casts = [

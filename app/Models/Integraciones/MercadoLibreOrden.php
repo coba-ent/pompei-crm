@@ -75,4 +75,26 @@ class MercadoLibreOrden extends Model
     {
         return $this->estado_conversion === EstadoConversion::Convertida;
     }
+
+    /** ¿Tiene una Venta asociada? Bloquea la eliminación física (spec 038). */
+    public function tieneVentaAsociada(): bool
+    {
+        return ! is_null($this->venta_id);
+    }
+
+    /**
+     * Elimina la fila sólo si no tiene Venta asociada (spec 038, R2): mismo
+     * patrón que `CuentaTesoreria::tieneOperaciones()`, para que valga tanto
+     * en el borrado manual actual como en un futuro endpoint/UI que lo reutilice.
+     *
+     * @throws \RuntimeException
+     */
+    public function eliminarSiSinVenta(): bool
+    {
+        if ($this->tieneVentaAsociada()) {
+            throw new \RuntimeException('La orden tiene una Venta asociada; desvinculá o eliminá la Venta antes de borrarla.');
+        }
+
+        return (bool) $this->delete();
+    }
 }

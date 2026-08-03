@@ -491,6 +491,14 @@ Ver §5.2 para la divergencia deliberada de todo el módulo (aplicación propia 
   **depósito configurado**. Cliente emparejado por **Apodo ML** (§2.1) o creado automáticamente.
   Queda asignada además al **Vendedor por defecto** configurado (opcional, spec 020 —
   mismo mecanismo que el Depósito/Categoría de Venta por defecto).
+  > 🔒 **Protección anti-duplicados (spec 038, implementada)**: la Venta guarda el identificador del
+  > pedido de origen (`ml_order_id`/`tn_order_id` en Mercado Libre/Tiendanube respectivamente), único
+  > por canal e incluyendo Ventas eliminadas lógicamente. Esto evita que, si la orden sincronizada se
+  > borra y el pedido vuelve a sincronizarse (recreándose como orden "nueva"), se genere una segunda
+  > Venta duplicada (doble cobro, doble descuento de stock) para el mismo pedido real. Como
+  > complemento, una orden de Mercado Libre o Tiendanube con Venta asociada **no puede eliminarse**
+  > (hay que desvincular/eliminar la Venta primero) — mismo patrón de bloqueo que ya usan Cuentas de
+  > Tesorería/Clientes/Productos con operaciones asociadas. Ver `specs/038-evitar-ventas-duplicadas/`.
 - **Lista de Precios de gestión de precios de Mercado Libre** (spec 016 — implementada):
   la configuración de Mercado Libre permite elegir opcionalmente una Lista de Precios
   (`ml_configuracion.lista_precio_id`) que **gestiona los precios de las publicaciones vinculadas**: al

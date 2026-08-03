@@ -163,6 +163,12 @@ class ConversorOrdenAVenta
             return $this->rechazo('Esta orden ya tiene una Venta asociada.', $orden->venta_id);
         }
 
+        // Red de seguridad anti-duplicados (spec 038): sobrevive al borrado+resincronización
+        // de la orden, porque busca por el identificador estable del pedido, no por la fila.
+        if (Venta::withTrashed()->where('tn_order_id', $orden->tn_order_id)->exists()) {
+            return $this->rechazo('Esta orden ya tiene una Venta asociada.');
+        }
+
         $orden->load('items.producto');
 
         $resolucionCliente = $this->resolutorCliente->resolver($orden);
@@ -204,6 +210,7 @@ class ConversorOrdenAVenta
 
                 $venta = Venta::create([
                     'origen' => 'tiendanube',
+                    'tn_order_id' => $orden->tn_order_id,
                     'cliente_id' => $clienteFinal->id,
                     'categoria_id' => TiendanubeConexionRest::actual()->categoria_venta_id,
                     'vendedor_id' => TiendanubeConexionRest::actual()->vendedor_id,

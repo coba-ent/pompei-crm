@@ -166,6 +166,12 @@ class ConversorOrdenAVenta
             return $this->rechazo('Esta orden ya tiene una Venta asociada.', $orden->venta_id);
         }
 
+        // Red de seguridad anti-duplicados (spec 038): sobrevive al borrado+resincronización
+        // de la orden, porque busca por el identificador estable del pedido, no por la fila.
+        if (Venta::withTrashed()->where('ml_order_id', $orden->ml_order_id)->exists()) {
+            return $this->rechazo('Esta orden ya tiene una Venta asociada.');
+        }
+
         if ($orden->estado_orden === EstadoOrden::Cancelada) {
             return $this->rechazo('La orden está cancelada en Mercado Libre y no puede convertirse.');
         }
@@ -212,6 +218,7 @@ class ConversorOrdenAVenta
 
                 $venta = Venta::create([
                     'origen' => 'mercadolibre',
+                    'ml_order_id' => $orden->ml_order_id,
                     'cliente_id' => $clienteFinal->id,
                     'categoria_id' => MercadoLibreConfiguracion::actual()->categoria_venta_id,
                     'vendedor_id' => MercadoLibreConfiguracion::actual()->vendedor_id,
