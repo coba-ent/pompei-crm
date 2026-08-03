@@ -67,7 +67,16 @@ class ClienteWsfev1
         try {
             $cliente = $this->cliente ??= new SoapClient(
                 config('arca.wsdl.wsfev1.'.$this->certificado->ambiente),
-                ['soap_version' => SOAP_1_2, 'connection_timeout' => 15, 'exceptions' => true]
+                [
+                    'soap_version' => SOAP_1_2,
+                    'connection_timeout' => 15,
+                    'exceptions' => true,
+                    // Los servidores de AFIP/WSFEv1 negocian DH con una clave débil que OpenSSL 3
+                    // rechaza por defecto (SECLEVEL 2); se baja a SECLEVEL 1 sólo para esta conexión.
+                    'stream_context' => stream_context_create([
+                        'ssl' => ['ciphers' => 'DEFAULT@SECLEVEL=1'],
+                    ]),
+                ]
             );
 
             return $cliente->{$metodo}($parametros);
