@@ -87,6 +87,10 @@ class NotaCreditoDebitoController extends Controller
     /** US3: la NC/ND obtiene su propio CAE referenciando el comprobante original de la Venta. */
     private function emitirComprobanteFiscalNota($nota, Venta $venta, $comprobanteVenta): ?string
     {
+        if (! \App\Models\FuncionAvanzada::activa('facturacion_electronica')) {
+            return null;
+        }
+
         $venta->load('cliente');
 
         $datos = [

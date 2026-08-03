@@ -30,4 +30,9 @@ class FuncionAvanzada extends Model
     {
         return $query->orderBy('orden');
     }
+
+    public static function activa(string $clave): bool
+    {
+        return (bool) static::where('clave', $clave)->value('activa');
+    }
 }

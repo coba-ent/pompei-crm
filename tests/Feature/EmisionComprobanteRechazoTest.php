@@ -6,6 +6,7 @@ use App\Models\Cliente;
 use App\Models\CondicionIva;
 use App\Models\CertificadoFiscal;
 use App\Models\CuentaTesoreria;
+use App\Models\FuncionAvanzada;
 use App\Models\PuntoVenta;
 use App\Models\Rol;
 use App\Models\Venta;
@@ -28,6 +29,7 @@ class EmisionComprobanteRechazoTest extends TestCase
         $admin = Rol::firstOrCreate(['nombre' => 'Admin'], ['es_sistema' => true]);
         auth()->user()->roles()->attach($admin->id);
 
+        FuncionAvanzada::create(['clave' => 'facturacion_electronica', 'nombre' => 'Facturacion electronica', 'descripcion' => 'Emitir CAE.', 'orden' => 1, 'disponible' => true, 'activa' => true]);
         PuntoVenta::create(['numero' => 1, 'descripcion' => 'Casa Central', 'por_defecto' => true, 'activo' => true]);
         CertificadoFiscal::create([
             'cuit' => '20111111112',

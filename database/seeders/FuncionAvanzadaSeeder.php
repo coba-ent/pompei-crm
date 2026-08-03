@@ -21,9 +21,9 @@ class FuncionAvanzadaSeeder extends Seeder
                 'nombre' => 'Facturación electrónica',
                 'descripcion' => 'Emitir comprobantes electrónicos válidos ante ARCA directamente desde tus ventas.',
                 'icono' => 'fas fa-file-invoice-dollar',
-                'disponible' => false,
+                'disponible' => true,
                 'activa' => false,
-                'ruta_configuracion' => null,
+                'ruta_configuracion' => 'configuracion.arca.index',
             ],
             [
                 'clave' => 'mercadolibre',

@@ -330,6 +330,10 @@ class VentaController extends Controller
      */
     private function emitirComprobanteFiscal(Venta $venta): ?string
     {
+        if (! \App\Models\FuncionAvanzada::activa('facturacion_electronica')) {
+            return null;
+        }
+
         $venta->load('cliente');
 
         $datos = [

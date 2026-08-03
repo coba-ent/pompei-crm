@@ -166,7 +166,7 @@ class CompraController extends Controller
      */
     private function registrarComprobanteFiscalProveedor(Compra $compra, array $datos): void
     {
-        if (empty($datos['cae_proveedor'])) {
+        if (empty($datos['cae_proveedor']) || ! \App\Models\FuncionAvanzada::activa('facturacion_electronica')) {
             return;
         }
 

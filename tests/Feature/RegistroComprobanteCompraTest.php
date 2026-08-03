@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Proveedor;
+use App\Models\FuncionAvanzada;
 use App\Models\Rol;
 use App\Models\Compra;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -19,6 +20,8 @@ class RegistroComprobanteCompraTest extends TestCase
 
         $admin = Rol::firstOrCreate(['nombre' => 'Admin'], ['es_sistema' => true]);
         auth()->user()->roles()->attach($admin->id);
+
+        FuncionAvanzada::create(['clave' => 'facturacion_electronica', 'nombre' => 'Facturacion electronica', 'descripcion' => 'Emitir CAE.', 'orden' => 1, 'disponible' => true, 'activa' => true]);
     }
 
     public function test_guardar_compra_con_datos_fiscales_completos_crea_comprobante_fiscal(): void
