@@ -203,7 +203,6 @@
 								<li><a href="{{ route('configuracion.mercadolibre.index') }}">Mercado Libre</a></li>
 								<li><a href="{{ route('configuracion.tiendanube.index') }}">Tiendanube</a></li>
 								<li><a href="{{ route('configuracion.arca.index') }}">Facturación Electrónica</a></li>
-								<li><a href="{{ route('configuracion.mi-perfil.index') }}">Mi Perfil</a></li>
 							@endcan
 						</ul>
 					</li>
