@@ -1415,6 +1415,17 @@ solo link de menú → una sola ruta, ver `no-hash-urls-para-navegacion` en memo
   necesariamente con el "Total A Cobrar" de Tesorería (§3.7): ese es un cálculo contable independiente
   vía `movimientos_tesoreria`/`CuentaTesoreria::saldoA()`, sin invariante de código entre ambos —
   diferencia es un chequeo informativo, no un bug de esta pantalla.
+- **Brecha pendiente — paginación no es real en DB** (detectada 03/08/2026, tras un 500 en producción
+  por `memory_limit` agotado): `porCliente()` trae todos los documentos (Venta+notas+cobros) del
+  cliente/proveedor, agrega por entidad y arma la Collection completa en PHP; recién ahí
+  `DataTables::collection()` corta a la página pedida — no hay `LIMIT`/`OFFSET` en SQL como si tiene el
+  tab Movimientos (`DataTables::of()` sobre Query Builder). Se optimizó el 03/08/2026 para que el saldo
+  por documento se calcule con SQL agregado (sin hidratar Eloquent con sus relaciones, que era lo que
+  agotaba la memoria de PHP-FPM), pero la agregación por cliente y el filtro de antigüedad (buckets
+  30/60/90) siguen en PHP. Llevarlo a `GROUP BY`/`CASE`/`DATEDIFF` en SQL con paginación real queda
+  pendiente de un spec propio — la lógica tiene una asimetría no trivial (documentos con saldo ≤
+  tolerancia se descartan, pero saldo inicial negativo se conserva) cubierta por
+  `CuentaCorrientePorClienteTest`/`CuentaCorrienteSaldoInicialTest` que hay que preservar.
 - **Tab "Movimientos"**: listado combinado (UNION SQL, servido con `DataTables::of()` server-side) de
   Ventas + Cobros + Notas de Crédito/Débito de clientes, con columnas Id, Emisión, Cliente, Operación,
   Categoría, Total Venta, Cobrado, A Cobrar, N° de Comprobante, Medio de Cobro, Descripción — nulas
