@@ -86,16 +86,6 @@ class FuncionAvanzadaSeeder extends Seeder
                 'ruta_configuracion' => null,
             ],
             [
-                'clave' => 'ventas_sin_stock',
-                'orden' => 8,
-                'nombre' => 'Ventas sin stock',
-                'descripcion' => 'Permitir vender productos aunque no tengan stock disponible.',
-                'icono' => 'fas fa-box-open',
-                'disponible' => false,
-                'activa' => false,
-                'ruta_configuracion' => null,
-            ],
-            [
                 'clave' => 'depositos',
                 'orden' => 9,
                 'nombre' => 'Depósitos',
@@ -114,6 +104,16 @@ class FuncionAvanzadaSeeder extends Seeder
                 'disponible' => false,
                 'activa' => false,
                 'ruta_configuracion' => null,
+            ],
+            [
+                'clave' => 'mercadolibre_bot',
+                'orden' => 11,
+                'nombre' => 'Bot de Mercado Libre',
+                'descripcion' => 'Generar sugerencias de respuesta con IA para los mensajes de Mercado Libre.',
+                'icono' => 'fas fa-robot',
+                'disponible' => true,
+                'activa' => false,
+                'ruta_configuracion' => 'configuracion.mercadolibre.bot',
             ],
         ];
 

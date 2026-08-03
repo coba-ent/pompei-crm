@@ -118,6 +118,7 @@
             cuentasOpciones: @json(route('tesoreria.cuentas.opciones')),
             cuentasStore: @json(route('tesoreria.cuentas.store')),
             cuentasBase: @json(url('tesoreria/cuentas')),
+            cuentaCorrienteClientes: @json(route('informes.cuenta-corriente.index')),
             transferenciasStore: @json(route('tesoreria.transferencias.store')),
         },
         saldosIniciales: @json($saldos),

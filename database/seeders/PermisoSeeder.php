@@ -78,6 +78,10 @@ class PermisoSeeder extends Seeder
             'informes' => [
                 'ver' => 'Ver Informes',
             ],
+            'mensajeria' => [
+                'ver' => 'Ver la bandeja de Mensajería de Mercado Libre',
+                'responder' => 'Responder mensajes de Mercado Libre',
+            ],
             'integraciones' => [
                 'ver' => 'Ver Integraciones (MercadoLibre, TiendaNube)',
                 'gestionar' => 'Conectar/desconectar canales y disparar sincronizaciones',

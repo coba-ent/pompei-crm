@@ -153,6 +153,53 @@ class ImportacionDatosTest extends TestCase
         $resumen->assertSee('CUIT');
     }
 
+    public function test_confirmar_lote_procesa_el_archivo_en_varias_tandas_hasta_terminar(): void
+    {
+        Storage::fake('local');
+
+        $filas = [['Nombre']];
+        for ($i = 1; $i <= 3; $i++) {
+            $filas[] = ["Cliente {$i}"];
+        }
+        $archivo = $this->archivoXlsx($filas);
+
+        $this->post(route('importacion.subir', 'clientes'), ['archivo' => $archivo]);
+
+        // offset=0, límite fijo del controlador (200) alcanza para procesar las 3 filas en una sola tanda.
+        $respuesta = $this->post(route('importacion.confirmar-lote', 'clientes'), [
+            'mapeo' => ['0' => 'nombre'],
+            'offset' => 0,
+        ]);
+
+        $respuesta->assertOk();
+        $respuesta->assertJson(['total' => 3, 'procesadas' => 3, 'terminado' => true]);
+        $respuesta->assertJsonStructure(['resumen_url']);
+        $this->assertDatabaseCount('clientes', 3);
+
+        $resumen = $this->get(route('importacion.resumen', 'clientes'));
+        $resumen->assertOk();
+    }
+
+    public function test_confirmar_lote_rechaza_mapeo_invalido_sin_tocar_la_base(): void
+    {
+        Storage::fake('local');
+
+        $archivo = $this->archivoXlsx([
+            ['Email'],
+            ['uno@test.com'],
+        ]);
+        $this->post(route('importacion.subir', 'clientes'), ['archivo' => $archivo]);
+
+        $respuesta = $this->post(route('importacion.confirmar-lote', 'clientes'), [
+            'mapeo' => ['0' => 'email'],
+            'offset' => 0,
+        ]);
+
+        $respuesta->assertStatus(422);
+        $respuesta->assertJsonStructure(['error']);
+        $this->assertDatabaseCount('clientes', 0);
+    }
+
     public function test_confirmar_rechaza_mapeo_sin_campo_obligatorio_o_con_duplicado(): void
     {
         Storage::fake('local');

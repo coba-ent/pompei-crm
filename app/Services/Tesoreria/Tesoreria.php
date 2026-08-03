@@ -18,6 +18,10 @@ use Illuminate\Support\Str;
  */
 class Tesoreria
 {
+    public function __construct(private readonly CuentaCorriente $cuentaCorriente = new CuentaCorriente())
+    {
+    }
+
     /** Alta de cuenta con saldo inicial ≠ 0 (FR-002): primer asiento de su ledger. */
     public function registrarSaldoInicial(CuentaTesoreria $cuenta, float $monto, Carbon $fecha): MovimientoTesoreria
     {
@@ -112,9 +116,20 @@ class Tesoreria
         $cajas = $bloque('efectivo');
         $bancos = $bloque('banco');
 
+        $aCobrar = $bloque('a_cobrar');
+        $aPagar = $bloque('a_pagar');
+
+        $saldoCtaCteClientes = $this->cuentaCorriente->aging('cliente', $fecha)['total'];
+        $aCobrar['cuentas']->prepend(['id' => null, 'nombre' => 'Saldo Cta Cte Clientes', 'saldo' => $saldoCtaCteClientes]);
+        $aCobrar['total'] += $saldoCtaCteClientes;
+
+        $saldoCtaCteProveedores = $this->cuentaCorriente->aging('proveedor', $fecha)['total'];
+        $aPagar['cuentas']->prepend(['id' => null, 'nombre' => 'Saldo Cta Cte Proveedores', 'saldo' => $saldoCtaCteProveedores]);
+        $aPagar['total'] += $saldoCtaCteProveedores;
+
         return [
-            'a_cobrar' => $bloque('a_cobrar'),
-            'a_pagar' => $bloque('a_pagar'),
+            'a_cobrar' => $aCobrar,
+            'a_pagar' => $aPagar,
             'disponible' => [
                 'cajas' => $cajas,
                 'bancos' => $bancos,

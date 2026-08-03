@@ -1039,18 +1039,32 @@ estuvo activa.
 ## 14. Mensajería de Mercado Libre (spec 032 — Fase 0, sin IA)
 
 > Alcance: leer Preguntas pre-venta y Mensajería post-venta de Mercado Libre en una bandeja unificada y
-> responderlas manualmente, con auditoría. **Sin generación de IA** — eso se modela en una spec futura
-> (Fase 1, "bot de Mercado Libre"), que sumará una tabla de sugerencias y de configuración del bot sin
-> romper este esquema. Detalle completo en `specs/032-bot-mensajeria-mercadolibre/data-model.md`.
+> responderlas manualmente, con auditoría. **Sin generación de IA** en esta fase — el bot con
+> sugerencias es la Fase 1 (spec 033, especificada, ver más abajo). Detalle completo en
+> `specs/032-bot-mensajeria-mercadolibre/data-model.md`.
 
 ### `ml_conversaciones`
 
 Hilo de intercambio con un comprador. `tipo` (`pregunta` | `post_venta`) determina la clave de
 agrupación: por comprador+publicación para Preguntas (ML no las agrupa nativamente), por
-`ml_orden_id` para post-venta (ML ya agrupa por pack/orden). Columnas: `tipo`, `comprador_ml_id`,
+`pack_id_ml` para post-venta (ML ya agrupa por pack/orden). Columnas: `tipo`, `comprador_ml_id`,
 `comprador_nickname`, `publicacion_id_ml` (nullable), `ml_publicacion_producto_id` (FK nullable →
-`ml_publicacion_producto`), `ml_orden_id` (FK nullable → `ml_ordenes`), `estado`
-(`pendiente`/`respondida`/`cerrada`), `ultimo_mensaje_en`.
+`ml_publicacion_producto`), `pack_id_ml` (nullable — pack/order id crudo de ML, sólo `tipo=post_venta`),
+`ml_orden_id` (FK nullable → `ml_ordenes`), `estado` (`pendiente`/`respondida`/`cerrada`),
+`ultimo_mensaje_en`.
+
+**Corrección post-implementación (02/08/2026, primer mensaje real en producción)**: la clave de
+deduplicación de post-venta originalmente era `(tipo, ml_orden_id)`, pero esa FK sólo se completa si
+la orden ya fue sincronizada al CRM (`ml_ordenes`) — el webhook de mensaje puede llegar antes que el
+cron de sincronización de órdenes, o la orden nunca sincronizarse. Con `ml_orden_id` NULL, dos packs
+distintos sin sincronizar pisaban la misma conversación. Se agregó `pack_id_ml` (dato crudo,
+siempre presente — mismo patrón que `publicacion_id_ml` para Preguntas) y la clave única pasó a ser
+`(tipo, pack_id_ml)`. `ml_orden_id` se completa cuando existe el vínculo, pero ya no es la clave de
+deduplicación. También se corrigió el endpoint de envío (`EnvioRespuestaMercadoLibre`, que armaba
+`from`/`to` invertidos y una URL con `pack_id` vacío cuando faltaba la orden) y se confirmó contra la
+documentación oficial de ML (vía MCP) que `resource` de `topic=messages` es el `message_id` directo
+(`GET /messages/{message_id}?tag=post_sale`), no un path como asumía la primera implementación — ver
+`specs/032-bot-mensajeria-mercadolibre/contracts/webhook-mercadolibre.md` para el detalle completo.
 
 ### `ml_mensajes`
 
@@ -1063,9 +1077,43 @@ de ML — `question_id` o `message_id, clave natural para idempotencia ante rein
 Auditoría de una respuesta efectivamente enviada al comprador. Columnas: `ml_mensaje_id` (FK),
 `texto_enviado`, `usuario_id` (FK `users`, quién confirmó), `enviado_en`, `resultado`
 (`exito`/`error`), `error_mensaje` (nullable). Índice único `(ml_mensaje_id)` con `resultado=exito`
-para impedir dos respuestas exitosas al mismo mensaje (condición de carrera entre dos usuarios).
+para impedir dos respuestas exitosas al mismo mensaje (condición de carrera entre dos usuarios) —
+**implementado** vía una columna generada `ml_mensaje_id_si_exito` (`STORED AS CASE WHEN resultado =
+'exito' THEN ml_mensaje_id ELSE NULL END`) con índice único sobre ella, porque MySQL no soporta índices
+únicos parciales nativos.
 
 ### `permisos` (módulo nuevo)
 
 Se agrega el módulo `mensajeria` con acciones `ver` y `responder` (separadas, para poder dar acceso de
 sólo lectura sin permitir enviar respuestas).
+
+## 15. Bot de Mercado Libre con sugerencias de IA (spec 033 — Fase 1, ✅ implementada)
+
+> Se apoya en el modelo de §14 (spec 032) sin romperlo. Detalle completo en
+> `specs/033-bot-mercadolibre-ia/data-model.md`. Pendiente el gate operativo del VPS con colas reales
+> antes de activar el switch en producción (`docs/bot_mensajeria_ml/infraestructura.md`).
+
+### `ml_sugerencias`
+
+Borrador generado por IA para un mensaje entrante. Columnas: `ml_mensaje_id` (FK → `ml_mensajes`),
+`texto_sugerido` (nullable), `estado` (`generando`/`lista`/`error`), `error_mensaje` (nullable),
+`generada_en` (nullable). El Job (`GenerarSugerenciaMercadoLibre`) marca `estado=error` si la respuesta
+del proveedor viene vacía o supera los 350 caracteres (`seller_max_message_length` real de Mercado
+Libre, confirmado contra su documentación oficial) — nunca se guarda un `texto_sugerido` fuera de ese
+límite como `lista`.
+
+### `ml_bot_configuracion`
+
+Fila única (mismo patrón que `ml_configuracion`, §8). Columna: `instrucciones_tono` (nullable, system
+prompt editable). El flag de activo/inactivo **no** vive acá — vive en `funciones_avanzadas.activa`
+para la fila `clave='mercadolibre_bot'` (mismo mecanismo que `mercadolibre`/`tiendanube`, §8), para no
+duplicar fuente de verdad.
+
+### `ml_respuestas_enviadas` (columnas nuevas)
+
+Se agregan `ml_sugerencia_id` (FK nullable → `ml_sugerencias`) y `sugerencia_editada` (boolean,
+nullable) — sin tocar el índice único `(ml_mensaje_id)` con `resultado=exito` de §14.
+
+### `funciones_avanzadas` (fila nueva)
+
+`clave='mercadolibre_bot'`, con `ruta_configuracion` apuntando a la pantalla de configuración del bot.

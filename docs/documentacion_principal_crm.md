@@ -1004,7 +1004,7 @@ registrarMovimiento()`) usados por Pagos y Gastos — no quedó pendiente al cie
 ### 5.1 Funciones Avanzadas (spec 011)
 
 Pantalla que calca la de Contagram (`docs/informe_contagram_funciones_avanzadas.md` §1, captura
-`[103]`): lista vertical de **10 tarjetas**, cada una con ícono, nombre, descripción de una línea y
+`[103]`): lista vertical de tarjetas, cada una con ícono, nombre, descripción de una línea y
 toggle Sí/No. Orden relevado (se respeta):
 
 | # | Función | ¿Construida en este CRM? | Configuración propia |
@@ -1016,9 +1016,14 @@ toggle Sí/No. Orden relevado (se respeta):
 | 5 | Abonos | Sí (spec 008) | — |
 | 6 | IA | No (fuera de alcance) | — |
 | 7 | Retenciones | Sí (spec 009) | — |
-| 8 | Ventas sin stock | No | — |
 | 9 | Depósitos | Sí (spec 005) | ABM de Depósitos |
 | 10 | Lector de código de barras | No | — |
+
+> **Excepción al principio rector**: la función #8 "Ventas sin stock" relevada en Contagram real se
+> quitó del seeder/pantalla en este CRM (2026-08-02) porque el toggle no estaba linkeado a ninguna
+> lógica de negocio (no bloqueaba ni permitía nada) — un switch decorativo genera falsa expectativa
+> de control. La venta/compra sin stock en este CRM se resuelve directamente en los módulos de
+> Ventas/Compras, sin gate de Funciones Avanzadas.
 
 Las funciones aún no construidas **se listan igual**, deshabilitadas e identificadas como no
 disponibles, para preservar la estructura de la pantalla original (principio rector de fidelidad
@@ -1408,7 +1413,7 @@ solo link de menú → una sola ruta, ver `no-hash-urls-para-navegacion` en memo
 
 ---
 
-### 6.5 Módulo Mensajería (Mercado Libre) — spec 032 — **divergencia deliberada respecto de Contagram**
+### 6.5 Módulo Mensajería (Mercado Libre) — spec 032 (✅ implementada) — **divergencia deliberada respecto de Contagram**
 
 Este módulo **no existe en Contagram real** — es una funcionalidad nueva del negocio (igual que la
 integración de Mercado Libre en general, §5.2), no una reconstrucción de una pantalla relevada. No
@@ -1429,14 +1434,36 @@ futura (Fase 1, "bot de Mercado Libre"), recién cuando esté migrado el VPS (ve
   `messages` de Mercado Libre — callback URL ya configurada por el usuario en el DevCenter, 2026-08-02),
   procesado de forma idempotente (upsert por el ID nativo de ML) para tolerar reintentos de notificación.
 - **Envío de respuesta**: reutiliza `ClienteMercadoLibre` (punto único de salida hacia la API de ML ya
-  usado por el resto de la integración, §5.2) — `POST /answers` para Preguntas, endpoint de mensajería
-  post-venta para post-venta (a confirmar el path exacto contra la documentación vigente de ML, ver
-  `specs/032-bot-mensajeria-mercadolibre/research.md` R2).
+  usado por el resto de la integración, §5.2) — `POST /answers` para Preguntas; para post-venta,
+  `POST /messages/packs/{pack_id}/sellers/{seller_id}?tag=post_sale` con `from`=vendedor/`to`=comprador
+  (confirmado contra la documentación de ML durante la implementación — `pack_id` puede ser el
+  `order_id` si no hay pack real). Lectura del detalle de un mensaje post-venta:
+  `GET /messages/{message_id}?tag=post_sale` (a diferencia de Preguntas, acá `resource` del webhook es
+  directamente el `message_id`, no un path — ver `specs/032-bot-mensajeria-mercadolibre/research.md` R2
+  y `contracts/webhook-mercadolibre.md`).
 - **Permisos nuevos**: módulo `mensajeria` con acciones `ver` y `responder` (separadas, para poder dar
   acceso de sólo lectura).
-- **Fase 1 (futura, no construida todavía)**: switch "Bot de Mercado Libre" en Funciones Avanzadas
-  (§5.1), generación asíncrona de sugerencias de respuesta por IA (proveedor a definir tras prueba
-  empírica), pantalla de configuración propia del bot.
+- **Fase 1 (spec 033, ✅ implementada — pendiente el gate operativo del VPS antes de activar en
+  producción)**: switch "Bot de Mercado Libre" en Funciones Avanzadas (§5.1, fila `mercadolibre_bot`,
+  `configuracion.mercadolibre.bot`), generación asíncrona de sugerencias de respuesta por IA
+  (`App\Jobs\GenerarSugerenciaMercadoLibre`, proveedor default OpenAI GPT-4o-mini vía
+  `openai-php/client`, detrás de la interfaz `App\Services\MercadoLibre\Bot\GeneradorDeSugerencias`),
+  pantalla de configuración propia del bot (tono/instrucciones, `ml_bot_configuracion`). El límite de
+  **350 caracteres** por sugerencia (`seller_max_message_length` real de ML, confirmado contra la
+  documentación oficial) se instruye en el prompt y se valida en el Job antes de marcar `estado=lista`.
+  La sugerencia se integra al envío ya existente (`EnvioRespuestaMercadoLibre::enviar()`, parámetro
+  opcional `$sugerenciaId`) auditando en `ml_respuestas_enviadas.ml_sugerencia_id`/`sugerencia_editada`
+  sin tocar el guard de doble respuesta. Depende de que el VPS con colas reales esté migrado antes de
+  activar el switch en producción (en local corre con `QUEUE_CONNECTION=sync`) — ver
+  `specs/033-bot-mercadolibre-ia/` y `docs/bot_mensajeria_ml/infraestructura.md`.
+- **Fase 2 (reconsiderada, no implementada — cambio de rumbo 2026-08-02)**: el plan pasó de "sugerencia
+  + aprobación humana obligatoria" a que el bot **conteste solo, sin aprobación humana por mensaje**,
+  corriendo 24/7 en el VPS con el contexto de la empresa — decisión del usuario tras ver el bot
+  funcionando en el demo. El comportamiento **real y desplegado hoy sigue siendo con aprobación
+  humana** (FR-009/SC-003 de la spec 033 siguen describiendo el código en producción tal cual está); el
+  envío autónomo es una fase nueva, todavía sin especificar formalmente. Detalle completo de la
+  reconsideración en `docs/bot_mensajeria_ml/decisiones-pendientes.md` §"Aprobación humana obligatoria
+  — REABIERTA" y `docs/bot_mensajeria_ml/flujo-y-alcance.md` §"Fases de alcance".
 
 ---
 
@@ -1470,6 +1497,15 @@ salieron de esta lista:
   administración de retenciones, si existiera)
 - Configuración & Ajustes → Mi Perfil, Ajustes de formularios (**Funciones Avanzadas** ya está
   implementada, spec 011 — §5.1)
+- **Notificaciones (módulo nuevo, todavía sin spec)** — no existe en Contagram real, sería una
+  funcionalidad propia del negocio. Necesidad detectada el 02/08/2026: la cuenta de Mercado Libre quedó
+  `desconectada` el 31/07 a las 22:30 (falló el cron `mercadolibre:sincronizar-stock` en ese momento) y
+  nadie se enteró hasta que se detectó manualmente varios días después revisando `ml_operaciones_log` a
+  raíz de un error reportado en la bandeja de Mensajería (spec 032). Alcance mínimo a especificar más
+  adelante: avisar (email / notificación en el CRM) cuando un comando programado (`withSchedule()` en
+  `bootstrap/app.php` — sincronización de órdenes/stock/precios de Mercado Libre y Tiendanube) falla o
+  cuando una cuenta de integración pasa a `caida`/`desconectada`, en vez de que ese estado sólo quede
+  registrado en un log que nadie mira proactivamente.
 
 ---
 

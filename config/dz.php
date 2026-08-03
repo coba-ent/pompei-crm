@@ -182,6 +182,20 @@ return [
 				'js/custom.js',
 			],
 		],
+		'mensajeria' => [
+			'title' => 'Mensajería',
+			'css' => [
+				'vendor/datatables/css/jquery.dataTables.min.css',
+				'vendor/datatables/responsive/responsive.css',
+				'vendor/toastr/css/toastr.min.css',
+			],
+			'js' => [
+				'vendor/datatables/js/jquery.dataTables.min.js',
+				'vendor/datatables/responsive/responsive.js',
+				'vendor/toastr/js/toastr.min.js',
+				'js/custom.js',
+			],
+		],
 		'ingresos-mercadolibre' => [
 			'title' => 'Mercado Libre',
 			'css' => [
@@ -2379,6 +2393,16 @@ return [
 				'vendor/datatables/responsive/responsive.js',
 				'vendor/toastr/js/toastr.min.js',
 				'vendor/select2/js/select2.full.min.js',
+				'js/custom.js',
+			],
+		],
+		'configuracion-mercadolibre-bot' => [
+			'title' => 'Bot de Mercado Libre',
+			'css' => [
+				'vendor/toastr/css/toastr.min.css',
+			],
+			'js' => [
+				'vendor/toastr/js/toastr.min.js',
 				'js/custom.js',
 			],
 		],

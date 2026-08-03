@@ -26,7 +26,7 @@
             </div>
         @endif
 
-        <form action="{{ route('importacion.confirmar', $entidad) }}" method="POST" id="form-mapeo">
+        <form action="{{ route('importacion.confirmar-lote', $entidad) }}" method="POST" id="form-mapeo">
             @csrf
 
             <div class="card mb-3">
@@ -94,6 +94,22 @@
 
     </div>
 </div>
+
+<div class="modal fade" id="modal-importando" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-5">
+                <div class="spinner-border text-primary mb-3" role="status" style="width:3rem;height:3rem;"></div>
+                <h6 class="fw-bold mb-1">Importando datos…</h6>
+                <p class="text-muted small mb-3" id="modal-importando-detalle">Preparando la importación…</p>
+                <div class="progress" style="height:8px;">
+                    <div class="progress-bar" id="modal-importando-barra" role="progressbar" style="width:0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+                <p class="text-muted small mt-2 mb-0">No cierres ni recargues esta ventana.</p>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('local-js')
@@ -111,11 +127,65 @@
         actualizar();
     });
 
-    document.getElementById('form-mapeo').addEventListener('submit', function () {
-        window.AppBtn.loading('#btn-confirmar-importacion', true);
-    });
     document.getElementById('form-cancelar').addEventListener('submit', function () {
         window.AppBtn.loading('#btn-cancelar-importacion', true);
+    });
+
+    document.getElementById('form-mapeo').addEventListener('submit', function (evento) {
+        evento.preventDefault();
+
+        var form = evento.target;
+        document.getElementById('btn-confirmar-importacion').disabled = true;
+        var url = form.action;
+        var token = form.querySelector('input[name="_token"]').value;
+        var mapeoFijo = new FormData(form); // mapeo[]/personalizados[] no cambian entre tandas
+
+        var modalEl = document.getElementById('modal-importando');
+        var modal = new bootstrap.Modal(modalEl);
+        var barra = document.getElementById('modal-importando-barra');
+        var detalle = document.getElementById('modal-importando-detalle');
+        modal.show();
+
+        function procesarTanda(offset) {
+            var datos = new FormData();
+            mapeoFijo.forEach(function (valor, clave) { datos.append(clave, valor); });
+            datos.set('_token', token);
+            datos.set('offset', offset);
+
+            fetch(url, {
+                method: 'POST',
+                body: datos,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            })
+                .then(function (respuesta) {
+                    if (! respuesta.ok) {
+                        return respuesta.json().then(function (cuerpo) {
+                            throw new Error(cuerpo.error || 'Error al importar.');
+                        });
+                    }
+                    return respuesta.json();
+                })
+                .then(function (resultado) {
+                    var porcentaje = resultado.total > 0 ? Math.round((resultado.procesadas / resultado.total) * 100) : 100;
+                    barra.style.width = porcentaje + '%';
+                    barra.setAttribute('aria-valuenow', porcentaje);
+                    detalle.textContent = 'Procesadas ' + resultado.procesadas + ' de ' + resultado.total + ' filas…';
+
+                    if (resultado.terminado) {
+                        window.location.href = resultado.resumen_url;
+                        return;
+                    }
+
+                    procesarTanda(resultado.procesadas);
+                })
+                .catch(function (error) {
+                    modal.hide();
+                    document.getElementById('btn-confirmar-importacion').disabled = false;
+                    window.toastr && window.toastr.error ? window.toastr.error(error.message) : alert(error.message);
+                });
+        }
+
+        procesarTanda(0);
     });
 </script>
 @endsection

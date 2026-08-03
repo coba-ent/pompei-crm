@@ -13,8 +13,12 @@ use App\Http\Controllers\Configuracion\UsuarioController;
 use App\Http\Controllers\DepositoController;
 use App\Http\Controllers\Ingresos\MercadoLibreVentaController;
 use App\Http\Controllers\Ingresos\MercadoLibreVinculacionController;
+use App\Http\Controllers\Integraciones\MercadoLibreBotConfiguracionController;
 use App\Http\Controllers\Integraciones\MercadoLibreConfiguracionController;
+use App\Http\Controllers\Integraciones\MercadoLibreMensajeriaWebhookController;
 use App\Http\Controllers\Integraciones\MercadoLibreOAuthController;
+use App\Http\Controllers\Mensajeria\ConversacionController;
+use App\Http\Controllers\Mensajeria\SugerenciaController;
 use App\Http\Controllers\Ingresos\TiendanubeVentaController;
 use App\Http\Controllers\Ingresos\TiendanubeVinculacionController;
 use App\Http\Controllers\Integraciones\TiendanubeConexionRestController;
@@ -47,6 +51,10 @@ Route::prefix('webhooks/tiendanube')->name('webhooks.tiendanube.')->group(functi
     Route::post('customers-data-request', [TiendanubeWebhookController::class, 'customersDataRequest'])->name('customersDataRequest');
 });
 
+// Webhook de notificaciones de Mercado Libre (spec 032) — Preguntas y Mensajería
+// post-venta, mismo patrón que webhooks/tiendanube/* (sin sesión ni CSRF).
+Route::post('webhooks/mercadolibre', [MercadoLibreMensajeriaWebhookController::class, 'recibir'])->name('webhooks.mercadolibre');
+
 // Toda la app requiere sesión iniciada (spec 013 — controla el acceso al sistema completo).
 Route::middleware('auth')->group(function () {
 
@@ -61,6 +69,21 @@ Route::prefix('dashboard')->name('dashboard.')->group(function () {
     Route::get('grafico-mensual', [DashboardController::class, 'graficoMensual'])->name('grafico-mensual');
     Route::get('donas', [DashboardController::class, 'donas'])->name('donas');
     Route::get('rankings', [DashboardController::class, 'rankings'])->name('rankings');
+});
+
+// Mensajería de Mercado Libre (spec 032) — bandeja unificada de Preguntas y
+// Mensajería post-venta, respuesta manual con auditoría.
+Route::prefix('mensajeria')->name('mensajeria.')->group(function () {
+    Route::middleware('permiso:mensajeria.ver')->group(function () {
+        Route::get('/', [ConversacionController::class, 'index'])->name('index');
+        Route::get('datatable', [ConversacionController::class, 'datatable'])->name('datatable');
+        Route::get('actualizaciones', [ConversacionController::class, 'actualizaciones'])->name('actualizaciones');
+        Route::get('{conversacion}', [ConversacionController::class, 'show'])->name('show');
+        Route::post('{conversacion}/sugerencia', [SugerenciaController::class, 'store'])->name('sugerencia');
+    });
+    Route::middleware('permiso:mensajeria.responder')->group(function () {
+        Route::post('{conversacion}/responder', [ConversacionController::class, 'responder'])->name('responder');
+    });
 });
 
 // Base de Datos → Clientes
@@ -109,6 +132,7 @@ Route::get('importar-datos/{entidad}', [ImportacionController::class, 'index'])-
 Route::post('importar-datos/{entidad}/subir', [ImportacionController::class, 'subir'])->name('importacion.subir');
 Route::get('importar-datos/{entidad}/mapear', [ImportacionController::class, 'mapear'])->name('importacion.mapear');
 Route::post('importar-datos/{entidad}/confirmar', [ImportacionController::class, 'confirmar'])->name('importacion.confirmar');
+Route::post('importar-datos/{entidad}/confirmar-lote', [ImportacionController::class, 'confirmarLote'])->name('importacion.confirmar-lote');
 Route::post('importar-datos/{entidad}/cancelar', [ImportacionController::class, 'cancelar'])->name('importacion.cancelar');
 Route::get('importar-datos/{entidad}/resumen', [ImportacionController::class, 'resumen'])->name('importacion.resumen');
 
@@ -332,6 +356,13 @@ Route::prefix('configuracion')->name('configuracion.')->group(function () {
         Route::get('operaciones', [MercadoLibreConfiguracionController::class, 'operaciones'])->name('operaciones');
         Route::get('conectar', [MercadoLibreOAuthController::class, 'conectar'])->name('conectar');
         Route::get('callback', [MercadoLibreOAuthController::class, 'callback'])->name('callback');
+
+        // Configuración del bot de sugerencias de IA (spec 033, US1) — nombre de
+        // ruta 'bot' (no 'bot.index') porque `funciones_avanzadas.ruta_configuracion`
+        // guarda 'configuracion.mercadolibre.bot' tal cual (mismo patrón que
+        // 'configuracion.mercadolibre.index' para el resto de la integración).
+        Route::get('bot', [MercadoLibreBotConfiguracionController::class, 'index'])->name('bot');
+        Route::put('bot', [MercadoLibreBotConfiguracionController::class, 'guardar'])->name('bot.guardar');
     });
 
     // Configuración & Ajustes → Tiendanube (spec 022/024: conexión Application REST clásica)

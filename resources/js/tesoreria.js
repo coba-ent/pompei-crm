@@ -62,9 +62,17 @@
             function renderBloque($tbody, cuentas) {
                 $tbody.empty();
                 (cuentas || []).forEach(function (c) {
+                    let $nombre;
+                    if (c.id) {
+                        $nombre = $('<a>').attr('href', rutas.cuentasBase + '/' + c.id).text(c.nombre);
+                    } else if (c.nombre === 'Saldo Cta Cte Clientes') {
+                        $nombre = $('<a>').attr('href', rutas.cuentaCorrienteClientes).text(c.nombre);
+                    } else {
+                        $nombre = $('<span>').text(c.nombre);
+                    }
                     $tbody.append(
                         $('<tr>').append(
-                            $('<td>').append($('<a>').attr('href', rutas.cuentasBase + '/' + c.id).text(c.nombre)),
+                            $('<td>').append($nombre),
                             $('<td>').addClass('text-end').text(fmtMoney(c.saldo))
                         )
                     );

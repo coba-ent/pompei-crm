@@ -18,9 +18,10 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->appendToGroup('web', \App\Http\Middleware\AplicarDuracionSesion::class);
 
-        // Tiendanube llama estos webhooks sin cookie de sesión ni token CSRF.
+        // Tiendanube y Mercado Libre llaman estos webhooks sin cookie de sesión ni token CSRF.
         $middleware->validateCsrfTokens(except: [
             'webhooks/tiendanube/*',
+            'webhooks/mercadolibre',
         ]);
     })
     ->withSchedule(function (Schedule $schedule) {

@@ -59,3 +59,19 @@ migrarlo — se diseña directamente asumiendo:
 
 Ver [decisiones-pendientes.md](decisiones-pendientes.md) para las preguntas que sí necesitan al
 usuario, no sólo al VPS.
+
+## Gate operativo antes de activar el switch en producción (spec 033, T029)
+
+El código de la spec 033 (`App\Jobs\GenerarSugerenciaMercadoLibre`) ya está implementado y corre igual
+en local con `QUEUE_CONNECTION=sync` (sin cambios de código) — ver
+`specs/033-bot-mercadolibre-ia/research.md` R7. **Antes de activar el switch "Bot de Mercado Libre" en
+producción** hace falta confirmar puntualmente:
+
+- [ ] El VPS con `QUEUE_CONNECTION=database` (o `redis`) + `php artisan queue:work` bajo `supervisor`
+      ya está migrado y corriendo (no el hosting compartido descripto arriba).
+- [ ] `OPENAI_API_KEY` está cargada en el `.env` de producción.
+
+Si el switch se activa sin esto, las sugerencias quedan encoladas sin generarse (no se pierden, no
+fallan ruidosamente) hasta que el worker esté activo — comportamiento aceptado explícitamente como
+Assumption de `specs/033-bot-mercadolibre-ia/spec.md`; el resto del sistema (bandeja, respuesta manual)
+sigue funcionando igual mientras tanto.

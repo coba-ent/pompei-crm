@@ -125,7 +125,7 @@ class ImportacionController extends Controller
         return $sugerencias;
     }
 
-    /** Aplica el mapeo, crea las filas válidas, guarda el resultado en sesión. */
+    /** Aplica el mapeo, crea las filas válidas, guarda el resultado en sesión (usado por tests/llamadas directas; el flujo del navegador usa `confirmarLote()`, ver abajo). */
     public function confirmar(Request $request, string $entidad, ImportadorFilas $importador)
     {
         $this->validarEntidad($entidad);
@@ -152,6 +152,65 @@ class ImportacionController extends Controller
         session(['importacion_resultado' => ['entidad' => $entidad] + $resultado]);
 
         return redirect()->route('importacion.resumen', $entidad);
+    }
+
+    /**
+     * Cantidad de filas que procesa cada tanda de `confirmarLote()`. El proxy delante de
+     * PHP-FPM en el hosting compartido corta la conexión ~60s (ver 504 con archivos grandes
+     * antes de este cambio) — 1000 filas por request deja margen de sobra sin importar cuán
+     * grande sea el archivo total, porque el archivo se procesa en varias requests cortas
+     * en vez de una sola.
+     */
+    private const FILAS_POR_LOTE = 1000;
+
+    /**
+     * Procesa una tanda de filas (AJAX, llamado en loop desde `mapear.blade.php`) y acumula
+     * el resultado en sesión. Cuando la tanda llega al final del archivo, cierra la
+     * importación (borra el temporal, arma `importacion_resultado` para el paso de resumen).
+     */
+    public function confirmarLote(Request $request, string $entidad, ImportadorFilas $importador)
+    {
+        $this->validarEntidad($entidad);
+
+        $estado = $this->estadoVigente($entidad);
+        if (! $estado) {
+            return response()->json(['error' => 'No hay ningún archivo subido. Volvé a seleccionar uno.'], 422);
+        }
+
+        $mapeo = $request->input('mapeo', []);
+        $personalizados = $request->input('personalizados', []);
+        $offset = max((int) $request->input('offset', 0), 0);
+        $definicion = DefinicionCamposImportables::paraEntidad($entidad);
+
+        $error = $this->validarMapeo($mapeo, $definicion);
+        if ($error) {
+            return response()->json(['error' => $error], 422);
+        }
+
+        $rutaCompleta = Storage::disk('local')->path('imports/'.$estado['archivo']);
+        $lote = $importador->importar($entidad, $rutaCompleta, $mapeo, $personalizados, $request->user(), $estado['columnas'], $offset, self::FILAS_POR_LOTE);
+
+        $acumulado = session('importacion_resultado_parcial', ['importados' => 0, 'fallidos' => [], 'advertencias' => []]);
+        $acumulado['importados'] += $lote['importados'];
+        $acumulado['fallidos'] = array_merge($acumulado['fallidos'], $lote['fallidos']);
+        $acumulado['advertencias'] = array_merge($acumulado['advertencias'], $lote['advertencias']);
+        session(['importacion_resultado_parcial' => $acumulado]);
+
+        $procesadas = $offset + self::FILAS_POR_LOTE;
+        $terminado = $procesadas >= $lote['total'];
+
+        if ($terminado) {
+            Storage::disk('local')->delete('imports/'.$estado['archivo']);
+            session()->forget(['importacion', 'importacion_resultado_parcial']);
+            session(['importacion_resultado' => ['entidad' => $entidad] + $acumulado]);
+        }
+
+        return response()->json([
+            'total' => $lote['total'],
+            'procesadas' => min($procesadas, $lote['total']),
+            'terminado' => $terminado,
+            'resumen_url' => $terminado ? route('importacion.resumen', $entidad) : null,
+        ]);
     }
 
     /** Descarta el archivo temporal sin crear ningún registro (FR-007). */

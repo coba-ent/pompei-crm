@@ -11,8 +11,12 @@ use App\Observers\CompraObserver;
 use App\Observers\MovimientoStockObserver;
 use App\Observers\PrecioProductoObserver;
 use App\Observers\VentaObserver;
+use App\Services\MercadoLibre\Bot\GeneradorDeSugerencias;
+use App\Services\MercadoLibre\Bot\GeneradorDeSugerenciasOpenAI;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use OpenAI;
+use OpenAI\Contracts\ClientContract;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -21,7 +25,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(ClientContract::class, fn () => OpenAI::client((string) config('services.openai.api_key')));
+        $this->app->bind(GeneradorDeSugerencias::class, GeneradorDeSugerenciasOpenAI::class);
     }
 
     /**

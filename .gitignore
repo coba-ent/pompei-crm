@@ -51,3 +51,15 @@ CREDENCIALES_ACCESO.txt
 
 # Bytecode de Python (deploy.py)
 __pycache__/
+
+# Dumps de base de datos con datos reales (migración VPS 02-03/08/2026)
+/*.sql
+
+# PDFs con datos fiscales reales
+/public/arca/*.pdf
+
+# Log de dev server de Vite
+/vite-dev.log
+
+# Scratch de trabajo (mapeo de SKUs), no código
+/skus.txt

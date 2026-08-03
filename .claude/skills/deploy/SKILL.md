@@ -10,9 +10,22 @@ disable-model-invocation: false
 
 ## Qué es esto
 
-Runbook para subir cambios locales al demo productivo del CRM en Hostinger, sin tener que
-re-explorar el servidor desde cero cada vez. Leé este archivo entero antes de tocar nada — evita
-repetir errores ya pisados en el primer deploy.
+Runbook para subir cambios locales a los ambientes productivos del CRM, sin tener que re-explorar
+el servidor desde cero cada vez. Leé este archivo entero antes de tocar nada — evita repetir errores
+ya pisados en deploys anteriores.
+
+**Hay DOS destinos, no confundirlos:**
+
+1. **Demo en hosting compartido** (`contagramdemo.devstudioweb.com`) — el resto de este documento.
+   Sin git, sin node, sin systemd; se sube archivo por archivo por SFTP con `deploy.py`. **Desde
+   02/08/2026 el cron de este ambiente está pausado a propósito** (se migró a un VPS en paralelo,
+   ver punto 2 — evita duplicar sincronizaciones de Mercado Libre/Tiendanube contra las cuentas
+   reales). Sigue sirviendo la app si se accede directo, pero no corre el scheduler.
+2. **VPS de producción** (`pompeisanitarioscontable.cloud`, IP `46.202.146.102`) — armado
+   02-03/08/2026, con datos reales importados del demo. Tiene git, composer, node, systemd (cron +
+   queue worker). Deploy con `bash deploy_vps.sh` (no `deploy.py` — son mecanismos distintos, ver
+   sección propia más abajo). Detalle completo de cómo quedó armado en
+   `CREDENCIALES_ACCESO.txt` (sección "VPS - MIGRACION").
 
 ## Usar `deploy.py`, no escribir un script nuevo cada vez
 
@@ -277,3 +290,48 @@ curl -s -b cookies.txt https://contagramdemo.devstudioweb.com/<pantalla-afectada
 ```
 
 No hace falta un browser real para verificar esto — curl alcanza para confirmar que no hay 404/500.
+
+## Deploy al VPS (pompeisanitarioscontable.cloud)
+
+Mecanismo totalmente distinto al de arriba — no reusar `deploy.py` para esto. El VPS clona el repo
+por git (deploy key propia en GitHub, sólo lectura, ver `CREDENCIALES_ACCESO.txt`) y tiene el stack
+completo (composer, node, systemd), así que el deploy es `git pull` + reinstalar sólo lo que cambió,
+no subir archivo por archivo.
+
+```bash
+./deploy_vps.sh              # deploy completo: git pull + deps condicionales + migrate + cache + restart queue
+./deploy_vps.sh --check      # smoke test: HTTP de la home
+./deploy_vps.sh --logs       # tail de storage/logs/laravel.log
+```
+
+Requiere que el commit a deployar ya esté **pusheado a `origin/main`** — el VPS no recibe archivos
+sueltos de la máquina local, sólo lo que hay en GitHub. Si hay cambios locales sin commitear/pushear,
+avisar antes de correr el script (va a deployar lo último en `origin/main`, no el working tree local).
+
+El script detecta solo qué reinstalar según los archivos que cambiaron entre el commit viejo y el
+nuevo (`git diff --name-only`): `composer.json`/`composer.lock` → `composer install`; JS/CSS/
+`package.json`/`vite.config.js` → `npm install && npm run build`; migraciones nuevas → `migrate
+--force`. Siempre corre cache (`config`/`route`/`view`) y reinicia el queue worker
+(`systemctl restart contagram-queue`) porque el worker mantiene el código viejo cargado en memoria
+hasta que se reinicia.
+
+**No corre seeders automáticamente** (mismo motivo que en el demo: un seeder nuevo agregado a
+`DatabaseSeeder.php` podría resetear datos reales si se corriera `db:seed` a secas). Si hay un
+seeder nuevo, correrlo a mano y puntual:
+
+```bash
+ssh -i ~/.ssh/contagram_vps root@46.202.146.102 "cd /var/www/contagram && php artisan db:seed --class=NombreDelSeederNuevo --force"
+```
+
+**Acceso SSH**: clave dedicada en `~/.ssh/contagram_vps` (sin password, ya autorizada en el VPS).
+No requiere leer ninguna credencial de `CREDENCIALES_ACCESO.txt` en runtime — a diferencia de
+`deploy.py`, la clave privada vive directo en el filesystem local.
+
+**Cron y queue worker** ya están configurados en el VPS (crontab de root con `schedule:run` cada
+minuto + servicio systemd `contagram-queue` con `Restart=always`) — no hace falta tocarlos en cada
+deploy, `deploy_vps.sh` sólo reinicia el queue worker para que tome el código nuevo.
+
+**Variables nuevas en `.env`**: igual que en el demo, si una feature agrega una clave nueva a
+`.env.example`, hay que agregarla a mano al `.env` real del VPS (`/var/www/contagram/.env`) con su
+valor de producción — el script no sincroniza `.env`, es intencional (no versionado, no se pisa
+solo).

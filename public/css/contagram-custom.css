@@ -196,19 +196,40 @@
 .dataTables_wrapper .dataTables_paginate {
     white-space: nowrap;
     overflow: visible;
+    /* El template (style.css) pone display:flex + flex-wrap:wrap acá. En
+     * contenedores angostos (ej. bandeja de Mensajería) eso hace que
+     * "Anterior/1/Siguiente" se apilen verticalmente en vez de quedar en una
+     * sola fila. Forzamos flex en fila sin wrap. */
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center;
+    max-width: 100%;
+    overflow-x: auto;
 }
 
 .dataTables_wrapper .dataTables_paginate .paginate_button {
     display: inline-block !important;
     white-space: nowrap !important;
     width: auto !important;
+    height: auto !important;
     min-width: 2.25rem;
     padding: 0.35rem 0.85rem !important;
     margin: 0 2px;
     box-sizing: border-box;
     text-align: center;
+    line-height: 1.4 !important;
     word-break: keep-all;
     overflow: visible;
+}
+
+/* El número de página activo (".current") viene envuelto en un <span> y el
+ * template le fija height/width:24px + line-height:25px — con nuestro padding
+ * de arriba eso hacía que el fondo redondeado quedara recortado arriba/abajo
+ * en vez de contener el número completo. */
+.dataTables_wrapper .dataTables_paginate span .paginate_button {
+    height: auto !important;
+    width: auto !important;
+    line-height: 1.4 !important;
 }
 
 /* Los enlaces "Anterior" / "Siguiente" necesitan más ancho que los números */

@@ -16,6 +16,21 @@
 						</div>
 						<span class="nav-text">Inicio</span>
 					</a></li>
+						@can('mensajeria.ver')
+							<li><a class="has-arrow " href="javascript:void(0);" aria-expanded="false">
+								<div class="menu-icon">
+									<svg width="24" height="24" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+										<path d="M14 1a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H4.414A2 2 0 0 0 3 12.586l-2 2V3a2 2 0 0 1 2-2h11z" fill="#6F767E" />
+									</svg>
+								</div>
+								<span class="nav-text">Mensajería</span>
+							</a>
+								<ul aria-expanded="false">
+									<li><a href="{{ route('mensajeria.index') }}">Bandeja</a></li>
+								</ul>
+							</li>
+						@endcan
+
 					
 					<li><a class="has-arrow " href="javascript:void(0);" aria-expanded="false">
 							<div class="menu-icon">
