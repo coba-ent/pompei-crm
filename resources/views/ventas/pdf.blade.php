@@ -20,6 +20,8 @@
     </style>
 </head>
 <body>
+    @include('pdf.partials.encabezado-emisor')
+
     @php $comprobanteFiscal = $venta->comprobanteFiscal; @endphp
     @unless ($comprobanteFiscal && $comprobanteFiscal->aprobado())
         <div class="watermark">NO VÁLIDO COMO FACTURA</div>

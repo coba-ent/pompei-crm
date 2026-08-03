@@ -84,6 +84,7 @@
                                     <td>{{ $cobro->nota }}</td>
                                     <td>$ {{ number_format((float) $cobro->monto, 2, ',', '.') }}</td>
                                     <td>{{ $venta->nro_comprobante }}
+                                        <a href="#" class="js-ver-recibo-cobranza ms-2" data-url="{{ route('ventas.cobranzas.recibo', [$venta, $cobro]) }}">Ver Recibo</a>
                                         <a href="#" class="js-eliminar-cobro text-danger ms-2" data-id="{{ $cobro->id }}"><i class="fas fa-trash"></i></a>
                                     </td>
                                 </tr>
@@ -187,7 +188,7 @@
                 </div>
                 <div class="table-responsive">
                     <table class="table table-sm">
-                        <thead><tr><th>Id</th><th>Tipo</th><th>Fecha</th><th>Afecta Stock</th><th>Monto</th></tr></thead>
+                        <thead><tr><th>Id</th><th>Tipo</th><th>Fecha</th><th>Afecta Stock</th><th>Monto</th><th></th></tr></thead>
                         <tbody>
                             @forelse ($venta->notasCreditoDebito as $nota)
                                 <tr>
@@ -196,9 +197,12 @@
                                     <td>{{ $nota->fecha_emision->format('d/m/Y') }}</td>
                                     <td>{{ $nota->afecta_stock ? 'Sí' : 'No' }}</td>
                                     <td>$ {{ number_format((float) $nota->monto, 2, ',', '.') }}</td>
+                                    <td>
+                                        <a href="#" class="js-ver-detalle-nota" data-url="{{ route('ventas.notas.pdf', $nota) }}">Ver Detalle</a>
+                                    </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="5" class="text-center text-muted">Sin notas</td></tr>
+                                <tr><td colspan="6" class="text-center text-muted">Sin notas</td></tr>
                             @endforelse
                         </tbody>
                     </table>

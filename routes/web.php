@@ -29,6 +29,7 @@ use App\Http\Controllers\Informes\CuentaCorrienteController;
 use App\Http\Controllers\Informes\InformeStockController;
 use App\Http\Controllers\ListaPrecioController;
 use App\Http\Controllers\FacturacionElectronicaController;
+use App\Http\Controllers\MiPerfilController;
 use App\Http\Controllers\NotaCreditoDebitoController;
 use App\Http\Controllers\OtroIngresoController;
 use App\Http\Controllers\PresupuestoController;
@@ -197,7 +198,9 @@ Route::middleware('permiso:ventas.ver')->prefix('ventas')->name('ventas.')->grou
     Route::get('{venta}/ticket', [VentaController::class, 'ticket'])->name('ticket');
     Route::post('{venta}/cobranzas', [VentaController::class, 'cobranzaStore'])->name('cobranzas.store');
     Route::delete('{venta}/cobranzas/{cobro}', [VentaController::class, 'cobranzaDestroy'])->name('cobranzas.destroy');
+    Route::get('{venta}/cobranzas/{cobro}/recibo', [VentaController::class, 'reciboCobranza'])->name('cobranzas.recibo');
     Route::post('{venta}/notas', [NotaCreditoDebitoController::class, 'store'])->name('notas.store');
+    Route::get('notas/{notaCreditoDebito}/pdf', [NotaCreditoDebitoController::class, 'pdf'])->name('notas.pdf');
     Route::post('{venta}/remitos', [VentaController::class, 'remitoStore'])->name('remitos.store');
     Route::get('{venta}', [VentaController::class, 'show'])->name('show');
 });
@@ -280,6 +283,7 @@ Route::middleware('permiso:compras.ver')->prefix('compras')->name('compras.')->g
     Route::get('{compra}/pdf', [CompraController::class, 'pdf'])->name('pdf');
     Route::post('{compra}/pagos', [CompraController::class, 'pagoStore'])->name('pagos.store');
     Route::delete('{compra}/pagos/{pago}', [CompraController::class, 'pagoDestroy'])->name('pagos.destroy');
+    Route::get('{compra}/pagos/{pago}/recibo', [CompraController::class, 'reciboPago'])->name('pagos.recibo');
     Route::post('{compra}/retenciones', [CompraController::class, 'retencionStore'])->name('retenciones.store');
     Route::post('{compra}/notas', [NotaCreditoDebitoController::class, 'storeCompra'])->name('notas.store');
     Route::post('{compra}/remitos', [CompraController::class, 'remitoStore'])->name('remitos.store');
@@ -381,6 +385,12 @@ Route::prefix('configuracion')->name('configuracion.')->group(function () {
         Route::get('callback-rest', [TiendanubeConexionRestController::class, 'callbackRest'])->name('callbackRest');
         Route::get('estado-rest', [TiendanubeConexionRestController::class, 'estadoRest'])->name('estadoRest');
         Route::post('desconectar-rest', [TiendanubeConexionRestController::class, 'desconectarRest'])->name('desconectarRest');
+    });
+
+    // Configuración & Ajustes → Mi Perfil (spec 039): datos fiscales del negocio emisor
+    Route::middleware('permiso:configuracion.funciones')->prefix('mi-perfil')->name('mi-perfil.')->group(function () {
+        Route::get('/', [MiPerfilController::class, 'index'])->name('index');
+        Route::post('/', [MiPerfilController::class, 'guardar'])->name('guardar');
     });
 
     // Configuración & Ajustes → Facturación Electrónica (spec 034: ARCA/AFIP)

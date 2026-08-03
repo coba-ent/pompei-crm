@@ -846,6 +846,20 @@ aprobado es inmutable (Tipo de Comprobante/cliente/ítems bloqueados en edición
 disco) y administrar Puntos de Venta. Sigue documentada como brecha (§7) la ausencia de un informe con
 capturas reales de Contagram para esa pantalla de configuración.
 
+**Actualización (spec 039, 03/08/2026):** las Notas de Crédito/Débito con CAE ya tienen su propio
+documento imprimible ("Ver Detalle" en la sección de NC/ND del Detalle de Venta), mostrando su CAE,
+vencimiento de CAE, QR fiscal y una referencia visible al comprobante de Venta que ajustan (tipo,
+número y fecha) — cierra el pendiente que había quedado abierto en spec 034 (T027). Ese PDF y el de
+Venta muestran además el encabezado del emisor con los datos de "Mi Perfil" (ver §5) cuando están
+cargados; si no lo están, el encabezado se omite sin bloquear la generación del comprobante.
+También se agregó "Ver Recibo" en la tabla de Cobranzas del Detalle de Venta y en la tabla de
+Pagos del Detalle de Compra: un documento imprimible **no fiscal** (no pasa por WSFEv1/ARCA) con
+los datos del emisor, la contraparte (Cliente/Proveedor), medio, monto, fecha y un número interno
+`REC-{id}`. **Brecha de relevamiento**: no existe informe con capturas reales de Contagram para
+Recibos (a diferencia de otros módulos) — la estructura se construyó como mejor esfuerzo siguiendo
+el patrón ya usado en "Ver Detalle" de Venta/Compra, pendiente de contrastar contra capturas reales
+si se relevan más adelante.
+
 ### 3.6 Corroboración contra documentación oficial (`help.contagram.com`, 24/07/2026)
 
 Búsqueda y lectura de artículos oficiales para contrastar contra el relevamiento por capturas (§3.1 a
@@ -1061,9 +1075,16 @@ numeración local (`tipo_comprobante`/`nro_comprobante`) sin validez fiscal, igu
 > fijo. El rol Admin pasa cualquier permiso (`Gate::before`). Ver `docs/modelo_datos.md §1` para el
 > modelo de `roles`/`permisos`/pivots.
 >
-> Las secciones de Contagram "Mi Perfil" (datos fiscales/logo de la empresa) y "Mi Plan" no están
-> implementadas por ahora — dependían de módulos descartados (Facturación Electrónica) y se retoman
-> junto con ellos. "Funciones Avanzadas" **sí** está implementada (spec 011, ver §5.1). "Importar
+> **Actualización (spec 039, 03/08/2026):** "Mi Perfil" ya está implementada — pantalla en
+> Configuración & Ajustes para cargar los datos fiscales del propio negocio (Razón Social, CUIT,
+> Domicilio Fiscal, Condición de IVA, Ingresos Brutos opcional) y su logo, modal Bootstrap + AJAX
+> (`app/Http/Controllers/MiPerfilController.php`, tabla `datos_empresa` de fila única). Estos datos
+> se muestran como encabezado emisor en los PDFs de Venta (spec 034) y de Notas de Crédito/Débito
+> (spec 039, ver más abajo). **Brecha de relevamiento**: no existe informe con capturas reales de
+> Contagram para esta pantalla — se construyó siguiendo el patrón visual ya usado en el resto de
+> Configuración & Ajustes, pendiente de contrastar contra capturas reales si se relevan más
+> adelante. "Mi Plan" sigue sin implementar (no aplica a este CRM single-tenant, sin costo por
+> plan). "Funciones Avanzadas" **sí** está implementada (spec 011, ver §5.1). "Importar
 > Datos" ya está implementado, pero como pantalla propia de Base de Datos (§2.4, spec 006) —
 > Contagram real la expone también desde Configuración & Ajustes, alcance no replicado en este CRM.
 
@@ -1572,8 +1593,11 @@ salieron de esta lista:
 - Retenciones (transversal a Cobros/Pagos — ya resuelta a nivel de regla de negocio en Ingresos §3.5 y
   Egresos §4.1 vía el modal "Nueva Retención"; sigue faltando el relevamiento de una pantalla propia de
   administración de retenciones, si existiera)
-- Configuración & Ajustes → Mi Perfil, Ajustes de formularios (**Funciones Avanzadas** ya está
-  implementada, spec 011 — §5.1)
+- Configuración & Ajustes → Ajustes de formularios (**Funciones Avanzadas** ya está implementada,
+  spec 011 — §5.1; **Mi Perfil ya está implementada, spec 039** — ver §5)
+- **Remitos con detalle de ítems** y **Recibos con capturas reales**: el documento imprimible de
+  Recibos ya se implementó como mejor esfuerzo (spec 039, ver §3.5) por no existir informe con
+  capturas; sigue pendiente contrastarlo contra la estructura real de Contagram si se releva.
 - **Notificaciones (módulo nuevo, todavía sin spec)** — no existe en Contagram real, sería una
   funcionalidad propia del negocio. Necesidad detectada el 02/08/2026: la cuenta de Mercado Libre quedó
   `desconectada` el 31/07 a las 22:30 (falló el cron `mercadolibre:sincronizar-stock` en ese momento) y

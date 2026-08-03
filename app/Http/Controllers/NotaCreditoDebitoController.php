@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreNotaCreditoDebitoRequest;
 use App\Models\Compra;
+use App\Models\DatosEmpresa;
 use App\Models\Deposito;
+use App\Models\NotaCreditoDebito;
 use App\Models\Producto;
 use App\Models\Venta;
 use App\Services\Arca\EmisorComprobante;
@@ -82,6 +84,24 @@ class NotaCreditoDebitoController extends Controller
             'comprobante_fiscal' => $nota->comprobanteFiscal()->first(),
             'arca_error' => $arcaError,
         ], 201);
+    }
+
+    /** US1 (spec 039): documento imprimible con CAE propio y referencia al comprobante ajustado. */
+    public function pdf(NotaCreditoDebito $notaCreditoDebito)
+    {
+        $notaCreditoDebito->load(['comprobanteFiscal.puntoVenta', 'venta.cliente', 'venta.comprobanteFiscal']);
+        $datosEmpresa = DatosEmpresa::instancia();
+
+        $qrDataUri = null;
+        if ($url = $notaCreditoDebito->comprobanteFiscal?->urlQrAfip()) {
+            $qrDataUri = (new \Endroid\QrCode\Builder\Builder())
+                ->build(data: $url, size: 150)
+                ->getDataUri();
+        }
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('notas-credito-debito.pdf', compact('notaCreditoDebito', 'qrDataUri', 'datosEmpresa'));
+
+        return $pdf->stream('nota-'.$notaCreditoDebito->id.'.pdf', ['Content-Disposition' => 'inline']);
     }
 
     /** US3: la NC/ND obtiene su propio CAE referenciando el comprobante original de la Venta. */

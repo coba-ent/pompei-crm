@@ -486,6 +486,17 @@
                 .fail((xhr) => toast('error', xhr.responseJSON?.mensaje || 'No se pudo anular.'));
         });
 
+        $(document).on('click', '.js-ver-recibo-pago', function (e) {
+            e.preventDefault();
+            const url = $(this).data('url');
+            fetch(url, { method: 'HEAD' })
+                .then((r) => {
+                    if (!r.ok) { throw new Error(); }
+                    if (window.AppPdf) { window.AppPdf.abrir(url, 'Recibo'); } else { window.open(url, '_blank'); }
+                })
+                .catch(() => toast('error', 'No se pudo abrir el Recibo — el pago pudo haber sido eliminado.'));
+        });
+
         $('#btn-agregar-retencion').on('click', function () {
             $('#retencion-fecha').val(new Date().toISOString().slice(0, 10));
             $('#retencion-monto').val('');

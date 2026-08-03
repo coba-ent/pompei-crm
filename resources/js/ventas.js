@@ -675,6 +675,23 @@
             if (window.AppPdf) { window.AppPdf.abrir(rutas.ticket, 'Ticket'); } else { window.open(rutas.ticket, '_blank'); }
         });
 
+        $(document).on('click', '.js-ver-detalle-nota', function (e) {
+            e.preventDefault();
+            const url = $(this).data('url');
+            if (window.AppPdf) { window.AppPdf.abrir(url, 'Nota de Crédito/Débito'); } else { window.open(url, '_blank'); }
+        });
+
+        $(document).on('click', '.js-ver-recibo-cobranza', function (e) {
+            e.preventDefault();
+            const url = $(this).data('url');
+            fetch(url, { method: 'HEAD' })
+                .then((r) => {
+                    if (!r.ok) { throw new Error(); }
+                    if (window.AppPdf) { window.AppPdf.abrir(url, 'Recibo'); } else { window.open(url, '_blank'); }
+                })
+                .catch(() => toast('error', 'No se pudo abrir el Recibo — la cobranza pudo haber sido eliminada.'));
+        });
+
         if (data.autoAbrirCobranza) {
             abrirCobranza();
         }

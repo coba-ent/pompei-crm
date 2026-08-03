@@ -663,6 +663,12 @@ cuando no hay `ComprobanteFiscal` aprobado asociado — no se duplican columnas 
 > `domicilio_fiscal`, `localidad_fiscal`, `condicion_iva_id`) cuando no estaban cargadas. Ver
 > `specs/037-padron-arca-cuit/data-model.md`.
 
+> **Nota (spec 039, 03/08/2026)**: se agrega `datos_empresa` (fila única, single-tenant) con los
+> datos fiscales del propio negocio (`razon_social`, `cuit`, `domicilio_fiscal`, `condicion_iva`,
+> `ingresos_brutos` opcional, `ruta_logo`), consumida como encabezado emisor por los PDFs de Venta y
+> de NC/ND. Sin relación con `comprobantes_fiscales` — es metadata de presentación, no participa del
+> circuito de emisión de CAE. Ver `specs/039-cierre-facturacion-electronica/data-model.md`.
+
 ---
 
 ## 9. Tablas descartadas (pendientes de re-relevamiento)
@@ -1168,3 +1174,24 @@ nullable) — sin tocar el índice único `(ml_mensaje_id)` con `resultado=exito
 ### `funciones_avanzadas` (fila nueva)
 
 `clave='mercadolibre_bot'`, con `ruta_configuracion` apuntando a la pantalla de configuración del bot.
+
+## 16. Mi Perfil: datos fiscales del negocio emisor (spec 039, implementada)
+
+### `datos_empresa`
+
+Fila única (mismo patrón single-row que `ml_configuracion` §8 y `ml_bot_configuracion` §15), sin
+`SoftDeletes` — es configuración, no un registro de negocio con historial fiscal. Acceso vía
+`DatosEmpresa::instancia(): ?self`.
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| `razon_social` | string, nullable | — |
+| `cuit` | string(11), nullable | sin guiones, mismo formato que `certificados_fiscales.cuit` (§8.bis) |
+| `domicilio_fiscal` | string, nullable | — |
+| `condicion_iva` | string, nullable | texto libre poblado desde el mismo catálogo `condiciones_iva` (§2) que usan Cliente/Proveedor, sin FK — Mi Perfil no es un Cliente/Proveedor |
+| `ingresos_brutos` | string, nullable | opcional |
+| `ruta_logo` | string, nullable | ruta relativa en disco `public` (`storage/app/public/empresa/`), validada como imagen (jpg/png/webp, máx. 2MB) antes de persistir |
+
+Consumida por el partial `resources/views/pdf/partials/encabezado-emisor.blade.php`, incluido en los
+PDFs de Venta (§5) y de Notas de Crédito/Débito (§5) — se omite sin bloquear la generación del PDF si
+`DatosEmpresa::instancia()` devuelve `null`.

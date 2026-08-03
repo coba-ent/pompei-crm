@@ -78,6 +78,7 @@
                                     <td>{{ $pago->nota }}</td>
                                     <td>$ {{ number_format((float) $pago->monto, 2, ',', '.') }}</td>
                                     <td>{{ $compra->nro_comprobante }}
+                                        <a href="#" class="js-ver-recibo-pago ms-2" data-url="{{ route('compras.pagos.recibo', [$compra, $pago]) }}">Ver Recibo</a>
                                         <a href="#" class="js-eliminar-pago text-danger ms-2" data-id="{{ $pago->id }}"><i class="fas fa-trash"></i></a>
                                     </td>
                                 </tr>

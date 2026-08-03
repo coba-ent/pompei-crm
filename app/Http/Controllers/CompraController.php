@@ -276,6 +276,31 @@ class CompraController extends Controller
         ], 201);
     }
 
+    /** US3 (spec 039): Recibo de Pago — documento no fiscal, mejor esfuerzo (sin capturas de Contagram). */
+    public function reciboPago(Compra $compra, Pago $pago)
+    {
+        if ($pago->compra_id !== $compra->id) {
+            abort(404, 'El pago no pertenece a esta Compra.');
+        }
+
+        $pago->load('cuentaTesoreria');
+        $compra->load('proveedor');
+        $datosEmpresa = \App\Models\DatosEmpresa::instancia();
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('recibos.pdf', [
+            'numero' => $pago->id,
+            'fecha' => $pago->fecha,
+            'tipoContraparte' => 'Proveedor',
+            'nombreContraparte' => optional($compra->proveedor)->nombre,
+            'medio' => optional($pago->cuentaTesoreria)->nombre,
+            'nota' => $pago->nota,
+            'monto' => $pago->monto,
+            'datosEmpresa' => $datosEmpresa,
+        ]);
+
+        return $pdf->stream('recibo-REC-'.$pago->id.'.pdf', ['Content-Disposition' => 'inline']);
+    }
+
     public function pagoDestroy(Compra $compra, Pago $pago): JsonResponse
     {
         if ($pago->compra_id !== $compra->id) {

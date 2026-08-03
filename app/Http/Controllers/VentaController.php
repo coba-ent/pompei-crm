@@ -274,17 +274,16 @@ class VentaController extends Controller
     public function pdf(Venta $venta)
     {
         $venta->load(['items', 'conceptos', 'cliente.condicionIva', 'categoria', 'listaPrecio', 'vendedor', 'comprobanteFiscal.puntoVenta']);
+        $datosEmpresa = \App\Models\DatosEmpresa::instancia();
 
         $qrDataUri = null;
         if ($url = $venta->comprobanteFiscal?->urlQrAfip()) {
             $qrDataUri = (new \Endroid\QrCode\Builder\Builder())
-                ->data($url)
-                ->size(150)
-                ->build()
+                ->build(data: $url, size: 150)
                 ->getDataUri();
         }
 
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('ventas.pdf', compact('venta', 'qrDataUri'));
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('ventas.pdf', compact('venta', 'qrDataUri', 'datosEmpresa'));
 
         return $pdf->stream('venta-'.$venta->nro_comprobante.'.pdf', ['Content-Disposition' => 'inline']);
     }
@@ -358,6 +357,31 @@ class VentaController extends Controller
         } catch (ArcaRechazoException|ArcaNoDisponibleException $e) {
             return $e->getMessage();
         }
+    }
+
+    /** US3 (spec 039): Recibo de Cobranza — documento no fiscal, mejor esfuerzo (sin capturas de Contagram). */
+    public function reciboCobranza(Venta $venta, Cobro $cobro)
+    {
+        if ($cobro->venta_id !== $venta->id) {
+            abort(404, 'La cobranza no pertenece a esta Venta.');
+        }
+
+        $cobro->load('cuentaTesoreria');
+        $venta->load('cliente');
+        $datosEmpresa = \App\Models\DatosEmpresa::instancia();
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('recibos.pdf', [
+            'numero' => $cobro->id,
+            'fecha' => $cobro->fecha,
+            'tipoContraparte' => 'Cliente',
+            'nombreContraparte' => optional($venta->cliente)->nombre,
+            'medio' => optional($cobro->cuentaTesoreria)->nombre,
+            'nota' => $cobro->nota,
+            'monto' => $cobro->monto,
+            'datosEmpresa' => $datosEmpresa,
+        ]);
+
+        return $pdf->stream('recibo-REC-'.$cobro->id.'.pdf', ['Content-Disposition' => 'inline']);
     }
 
     public function cobranzaDestroy(Venta $venta, Cobro $cobro): JsonResponse
