@@ -222,6 +222,8 @@ Route::middleware('permiso:ventas.ver')->prefix('ingresos/mercadolibre')->name('
         Route::get('datatable', [MercadoLibreVinculacionController::class, 'datatable'])->name('datatable');
         Route::get('pendientes', [MercadoLibreVinculacionController::class, 'publicacionesPendientes'])->name('pendientes');
         Route::post('vincular-automaticamente', [MercadoLibreVinculacionController::class, 'vincularAutomaticamente'])->name('vincularAutomaticamente');
+        Route::post('sincronizacion-forzada', [MercadoLibreVinculacionController::class, 'sincronizacionForzada'])->name('sincronizacionForzada');
+        Route::delete('/', [MercadoLibreVinculacionController::class, 'eliminarTodas'])->name('eliminarTodas');
         Route::patch('{vinculacion}', [MercadoLibreVinculacionController::class, 'update'])->name('update');
         Route::delete('{vinculacion}', [MercadoLibreVinculacionController::class, 'destroy'])->name('destroy');
     });
@@ -245,6 +247,8 @@ Route::middleware('permiso:ventas.ver')->prefix('ingresos/tiendanube')->name('in
         Route::get('/', [TiendanubeVinculacionController::class, 'index'])->name('index');
         Route::get('datatable', [TiendanubeVinculacionController::class, 'datatable'])->name('datatable');
         Route::post('vincular-automaticamente', [TiendanubeVinculacionController::class, 'vincularAutomaticamente'])->name('vincularAutomaticamente');
+        Route::post('sincronizacion-forzada', [TiendanubeVinculacionController::class, 'sincronizacionForzada'])->name('sincronizacionForzada');
+        Route::delete('/', [TiendanubeVinculacionController::class, 'eliminarTodas'])->name('eliminarTodas');
         Route::patch('{vinculacion}', [TiendanubeVinculacionController::class, 'update'])->name('update');
         Route::delete('{vinculacion}', [TiendanubeVinculacionController::class, 'destroy'])->name('destroy');
     });

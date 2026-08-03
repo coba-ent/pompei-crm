@@ -4,14 +4,21 @@ namespace App\Http\Controllers\Ingresos;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Integraciones\VincularPublicacionRequest;
+use App\Models\FuncionAvanzada;
 use App\Models\Integraciones\MercadoLibreConfiguracion;
+use App\Models\Integraciones\MercadoLibreCuenta;
+use App\Models\Integraciones\MercadoLibreOperacionLog;
 use App\Models\Integraciones\MercadoLibreOrdenItem;
 use App\Models\Integraciones\MercadoLibrePublicacionProducto;
 use App\Services\MercadoLibre\Excepciones\VinculacionAutomaticaFallidaException;
+use App\Services\MercadoLibre\SincronizadorPrecios;
+use App\Services\MercadoLibre\SincronizadorStock;
 use App\Services\MercadoLibre\VinculadorAutomatico;
 use App\Services\Stock\StockService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Yajra\DataTables\Facades\DataTables;
 
 /**
@@ -21,6 +28,12 @@ use Yajra\DataTables\Facades\DataTables;
  */
 class MercadoLibreVinculacionController extends Controller
 {
+    public function __construct(
+        private readonly SincronizadorStock $sincronizadorStock,
+        private readonly SincronizadorPrecios $sincronizadorPrecios,
+    ) {
+    }
+
     public function index()
     {
         $CurrentPage = 'ingresos-mercadolibre-vinculaciones';
@@ -123,6 +136,93 @@ class MercadoLibreVinculacionController extends Controller
             'mensaje' => "{$resumen['vinculadas']} de {$resumen['total']} publicaciones vinculadas.",
             ...$resumen,
         ]);
+    }
+
+    /**
+     * "Sincronización forzada" (spec 035, FR-001..FR-014): recorre TODOS los
+     * vínculos (no sólo pendientes) y reenvía stock y precio reales. Reusa
+     * los mismos cortes y candados de `SincronizadorStock`/`SincronizadorPrecios`
+     * — si el stock queda bloqueado, no se intenta precio.
+     */
+    public function sincronizacionForzada(): JsonResponse
+    {
+        $resultadoStock = $this->sincronizadorStock->sincronizarTodos();
+
+        if (! $resultadoStock['ok']) {
+            return response()->json($resultadoStock, 409);
+        }
+
+        $configuracion = MercadoLibreConfiguracion::actual();
+        $resultadoPrecio = null;
+
+        if ($configuracion->lista_precio_id) {
+            $resultadoPrecio = $this->sincronizadorPrecios->sincronizarListaCompleta($configuracion->lista_precio_id);
+        }
+
+        // Un rechazo de credencial durante la fase de stock puede bloquear la
+        // cuenta a mitad de la corrida y frenar la fase de precio que corre
+        // después — ese resultado no trae 'actualizados'/'con_error', se
+        // informa como precio no intentado (mismo criterio que Tiendanube).
+        $precioBloqueado = $resultadoPrecio && ! ($resultadoPrecio['ok'] ?? false);
+
+        $mensaje = match (true) {
+            $precioBloqueado => "{$resultadoStock['mensaje']} (stock) — precio no sincronizado: {$resultadoPrecio['mensaje']}",
+            (bool) $resultadoPrecio => "{$resultadoStock['mensaje']} (stock) — {$resultadoPrecio['mensaje']} (precio)",
+            default => "{$resultadoStock['mensaje']} (stock) — sin lista de precios configurada, precio no sincronizado.",
+        };
+
+        return response()->json([
+            'ok' => true,
+            'mensaje' => $mensaje,
+            'stock' => ['actualizados' => $resultadoStock['actualizados'], 'con_error' => $resultadoStock['con_error']],
+            'precio' => ($resultadoPrecio && ! $precioBloqueado)
+                ? ['actualizados' => $resultadoPrecio['actualizados'], 'con_error' => $resultadoPrecio['con_error']]
+                : null,
+        ]);
+    }
+
+    /**
+     * "Eliminar todas las vinculaciones" (spec 035, FR-015..FR-022): borrado
+     * atómico del lado CRM únicamente, sin request hacia Mercado Libre (FR-017).
+     * No aplica los cortes de función desactivada/modo sólo lectura (FR-020,
+     * no hay escritura externa), sólo el de conexión y el candado compartido
+     * con las sincronizaciones (mismo `LOCK_KEY` de stock, para no borrar
+     * vínculos que un sincronizador concurrente está leyendo/actualizando).
+     */
+    public function eliminarTodas(): JsonResponse
+    {
+        if (! MercadoLibreCuenta::conectada()->exists()) {
+            return response()->json(['ok' => false, 'tipo' => 'bloqueada', 'mensaje' => 'No hay ninguna cuenta de Mercado Libre conectada. Volvé a conectar la cuenta.'], 409);
+        }
+
+        $lock = Cache::lock(SincronizadorStock::LOCK_KEY, 300);
+
+        if (! $lock->get()) {
+            return response()->json(['ok' => false, 'tipo' => 'salteada', 'mensaje' => 'Ya hay una sincronización en curso.'], 409);
+        }
+
+        try {
+            $eliminados = DB::transaction(function () {
+                $total = MercadoLibrePublicacionProducto::count();
+                MercadoLibrePublicacionProducto::query()->delete();
+
+                return $total;
+            });
+
+            MercadoLibreOperacionLog::registrar([
+                'operacion' => 'eliminar_todas_vinculaciones',
+                'metodo' => 'DELETE',
+                'endpoint' => '-',
+                'sentido' => 'interno',
+                'resultado' => 'ok',
+                'usuario_id' => auth()->id(),
+                'payload_bloqueado' => "{$eliminados} vinculaciones eliminadas.",
+            ]);
+
+            return response()->json(['ok' => true, 'mensaje' => "{$eliminados} vinculaciones eliminadas.", 'eliminados' => $eliminados]);
+        } finally {
+            $lock->release();
+        }
     }
 
     public function update(VincularPublicacionRequest $request, MercadoLibrePublicacionProducto $vinculacion): JsonResponse

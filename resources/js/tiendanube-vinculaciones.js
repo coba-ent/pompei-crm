@@ -65,7 +65,62 @@
         inicializarModalAlta();
         inicializarEliminar();
         inicializarVinculacionAutomatica();
+        inicializarSincronizacionForzada();
+        inicializarEliminarTodas();
     });
+
+    /** "Sincronización forzada" (spec 035): recorre TODOS los vínculos, no sólo pendientes. */
+    function inicializarSincronizacionForzada() {
+        const $btn = $('#btn-sincronizacion-forzada');
+        if (!$btn.length) { return; }
+
+        $btn.on('click', function () {
+            window.AppBtn.loading($btn, true);
+
+            $.ajax({ url: rutas.sincronizacionForzada, method: 'POST' })
+                .done((resp) => {
+                    toast('success', resp.mensaje || 'Sincronización forzada ejecutada.');
+                    if (tabla) { tabla.ajax.reload(null, false); }
+                })
+                .fail((xhr) => {
+                    const resp = xhr.responseJSON || {};
+                    toast('error', resp.mensaje || resp.message || 'No se pudo ejecutar la sincronización forzada.');
+                })
+                .always(() => {
+                    window.AppBtn.loading($btn, false);
+                });
+        });
+    }
+
+    /** "Eliminar todas las vinculaciones" (spec 035): borrado masivo, sólo lado CRM. */
+    function inicializarEliminarTodas() {
+        const $btn = $('#btn-eliminar-todas-vinculaciones');
+        const modalEl = document.getElementById('modal-eliminar-todas-vinculaciones');
+        if (!$btn.length || !modalEl) { return; }
+
+        const modal = new bootstrap.Modal(modalEl);
+
+        $btn.on('click', () => modal.show());
+
+        $('#btn-confirmar-eliminar-todas-vinculaciones').on('click', function () {
+            const $confirmar = $(this);
+            window.AppBtn.loading($confirmar, true);
+
+            $.ajax({ url: rutas.eliminarTodas, method: 'DELETE' })
+                .done((resp) => {
+                    toast('success', resp.mensaje || 'Vinculaciones eliminadas.');
+                    modal.hide();
+                    if (tabla) { tabla.ajax.reload(null, false); }
+                })
+                .fail((xhr) => {
+                    const resp = xhr.responseJSON || {};
+                    toast('error', resp.mensaje || resp.message || 'No se pudieron eliminar las vinculaciones.');
+                })
+                .always(() => {
+                    window.AppBtn.loading($confirmar, false);
+                });
+        });
+    }
 
     const MOTIVOS_TN = {
         sin_sku: 'Sin SKU cargado',

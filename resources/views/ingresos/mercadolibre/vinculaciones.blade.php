@@ -16,6 +16,12 @@
                 <button type="button" class="btn btn-primary" id="btn-vincular-automaticamente">
                     <i class="fas fa-bolt me-1"></i> Vincular automáticamente
                 </button>
+                <button type="button" class="btn btn-outline-primary" id="btn-sincronizacion-forzada">
+                    <i class="fas fa-rotate me-1"></i> Sincronización forzada
+                </button>
+                <button type="button" class="btn btn-outline-danger" id="btn-eliminar-todas-vinculaciones">
+                    <i class="fas fa-trash me-1"></i> Eliminar todas las vinculaciones
+                </button>
             </div>
         </div>
 
@@ -100,6 +106,28 @@
     </div>
 </div>
 
+<div class="modal fade" id="modal-eliminar-todas-vinculaciones" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Eliminar todas las vinculaciones</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0">
+                    Esta acción borra <strong>todas</strong> las vinculaciones con Mercado Libre del lado del CRM —
+                    no despublica ni modifica nada en Mercado Libre. Es <strong>irreversible</strong>: vas a tener
+                    que volver a vincular los productos (por ejemplo con "Vincular automáticamente").
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="btn-confirmar-eliminar-todas-vinculaciones">Eliminar todas</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="modal-resultado-vinculacion-automatica" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
@@ -123,6 +151,8 @@
             datatable: @json(route('ingresos.mercadolibre.vinculaciones.datatable')),
             pendientes: @json(route('ingresos.mercadolibre.vinculaciones.pendientes')),
             vincularAutomaticamente: @json(route('ingresos.mercadolibre.vinculaciones.vincularAutomaticamente')),
+            sincronizacionForzada: @json(route('ingresos.mercadolibre.vinculaciones.sincronizacionForzada')),
+            eliminarTodas: @json(route('ingresos.mercadolibre.vinculaciones.eliminarTodas')),
             base: @json(url('ingresos/mercadolibre/vinculaciones')),
             productosOpciones: @json(route('productos.opciones')),
         },

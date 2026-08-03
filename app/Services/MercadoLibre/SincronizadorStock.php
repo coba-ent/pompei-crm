@@ -7,6 +7,7 @@ use App\Models\Integraciones\MercadoLibreConfiguracion;
 use App\Models\Integraciones\MercadoLibreCuenta;
 use App\Models\Integraciones\MercadoLibreOperacionLog;
 use App\Models\Integraciones\MercadoLibrePublicacionProducto;
+use App\Models\Deposito;
 use App\Services\Stock\StockService;
 use Illuminate\Support\Facades\Cache;
 
@@ -16,6 +17,10 @@ use Illuminate\Support\Facades\Cache;
  * Candado propio (FR-008), cortes previos al bucle (FR-009/FR-010,
  * research.md R7) y continuidad ante el rechazo de un vínculo puntual
  * (FR-014/FR-015) — no se corta el resto de la corrida por un vínculo.
+ *
+ * `sincronizarTodos()` (spec 035) reutiliza el mismo loop de `sincronizar()`
+ * vía `procesarVinculos()`, pero recorriendo TODOS los vínculos en vez de
+ * sólo los pendientes — sostén de la "Sincronización forzada".
  */
 class SincronizadorStock
 {
@@ -44,6 +49,52 @@ class SincronizadorStock
 
         try {
             return $this->sincronizar();
+        } finally {
+            $lock->release();
+        }
+    }
+
+    /**
+     * "Sincronización forzada" (spec 035, FR-002/FR-003): recorre TODOS los
+     * vínculos de la integración, no sólo los pendientes. Mismos cortes y
+     * candado que `ejecutar()` — comparten `verificarCortes()` y
+     * `self::LOCK_KEY`, así que no pueden correr en paralelo entre sí ni con
+     * el cron/"Sincronizar ahora".
+     *
+     * @return array{ok: bool, tipo?: string, mensaje: string, actualizados?: int, con_error?: int}
+     */
+    public function sincronizarTodos(): array
+    {
+        if ($bloqueo = $this->verificarCortes()) {
+            return $bloqueo;
+        }
+
+        $lock = Cache::lock(self::LOCK_KEY, 300);
+
+        if (! $lock->get()) {
+            return ['ok' => false, 'tipo' => 'salteada', 'mensaje' => 'Ya hay una sincronización de stock en curso.'];
+        }
+
+        try {
+            $configuracion = MercadoLibreConfiguracion::actual();
+            $depositoMl = $configuracion->depositoEfectivo();
+
+            $resultado = $this->procesarVinculos(
+                MercadoLibrePublicacionProducto::with('producto')->get(),
+                $depositoMl
+            );
+
+            $configuracion->update([
+                'stock_ultima_sync_en' => now(),
+                'stock_ultima_sync_resultado' => "OK: {$resultado['actualizados']} productos actualizados, {$resultado['con_error']} con error.",
+            ]);
+
+            return [
+                'ok' => true,
+                'mensaje' => "{$resultado['actualizados']} productos actualizados en Mercado Libre.",
+                'actualizados' => $resultado['actualizados'],
+                'con_error' => $resultado['con_error'],
+            ];
         } finally {
             $lock->release();
         }
@@ -91,10 +142,39 @@ class SincronizadorStock
         $configuracion = MercadoLibreConfiguracion::actual();
         $depositoMl = $configuracion->depositoEfectivo();
 
+        $resultado = $this->procesarVinculos(
+            MercadoLibrePublicacionProducto::pendientes()->with('producto')->get(),
+            $depositoMl
+        );
+
+        $configuracion->update([
+            'stock_ultima_sync_en' => now(),
+            'stock_ultima_sync_resultado' => "OK: {$resultado['actualizados']} productos actualizados, {$resultado['con_error']} con error.",
+        ]);
+
+        return [
+            'ok' => true,
+            'mensaje' => "{$resultado['actualizados']} productos actualizados en Mercado Libre.",
+            'actualizados' => $resultado['actualizados'],
+            'con_error' => $resultado['con_error'],
+        ];
+    }
+
+    /**
+     * Loop compartido entre `sincronizar()` (pendientes) y `sincronizarTodos()`
+     * (spec 035): recibe la colección de vínculos ya cargados con `producto` y
+     * calcula/envía el stock de cada uno, sin cortar el resto ante un error
+     * puntual (FR-014/FR-015).
+     *
+     * @param  iterable<MercadoLibrePublicacionProducto>  $vinculos
+     * @return array{actualizados: int, con_error: int}
+     */
+    private function procesarVinculos(iterable $vinculos, Deposito $depositoMl): array
+    {
         $actualizados = 0;
         $conError = 0;
 
-        foreach (MercadoLibrePublicacionProducto::pendientes()->with('producto')->get() as $vinculo) {
+        foreach ($vinculos as $vinculo) {
             if (! $vinculo->producto) {
                 // Producto eliminado: nada que calcular, se limpia el pendiente para no reintentar en vano.
                 $vinculo->update(['stock_pendiente' => false]);
@@ -130,16 +210,6 @@ class SincronizadorStock
             ]);
         }
 
-        $configuracion->update([
-            'stock_ultima_sync_en' => now(),
-            'stock_ultima_sync_resultado' => "OK: {$actualizados} productos actualizados, {$conError} con error.",
-        ]);
-
-        return [
-            'ok' => true,
-            'mensaje' => "{$actualizados} productos actualizados en Mercado Libre.",
-            'actualizados' => $actualizados,
-            'con_error' => $conError,
-        ];
+        return ['actualizados' => $actualizados, 'con_error' => $conError];
     }
 }

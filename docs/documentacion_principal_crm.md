@@ -552,6 +552,24 @@ nuevas** — extiende las ya construidas por la spec 012.
   vínculo queda señalado con el **motivo concreto y la fecha**, el resto de los vínculos de esa corrida
   se sincroniza con normalidad, y el pendiente se conserva para reintentarlo. Un error no excluye al
   vínculo de futuras corridas.
+- > 📋 **Sincronización forzada y eliminación masiva (spec 035)**: en la pantalla de Vinculación de
+  > publicaciones hay dos acciones adicionales a "Sincronizar ahora"/"Sincronizar stock ahora"/
+  > "Sincronizar precios ahora":
+  >   - **"Sincronización forzada"**: recorre **TODOS** los vínculos de la integración (no sólo los
+  >     marcados pendientes) y reenvía stock y precio reales a Mercado Libre. Existe porque la
+  >     sincronización normal sólo se dispara por movimientos de stock (`MovimientoStockObserver`); si
+  >     el stock/precio de un producto se cargó por una vía que no pasa por un movimiento (ej.
+  >     importación masiva del catálogo real), el vínculo nunca queda marcado como pendiente y ni el
+  >     cron ni "Sincronizar ahora" lo tocan. Es el mecanismo para la sincronización inicial completa al
+  >     cargar el catálogo real, y para resincronizar todo puntualmente ante sospecha de desvío. Respeta
+  >     los mismos cortes (modo sólo lectura, función desactivada, sin conexión) y el mismo candado que
+  >     las sincronizaciones normales.
+  >   - **"Eliminar todas las vinculaciones"**: borra, con confirmación previa, **todos** los vínculos de
+  >     esa integración del lado del CRM únicamente — no despublica ni modifica nada en Mercado Libre.
+  >     No depende del modo sólo lectura ni de la función avanzada (no hay escritura externa), sólo
+  >     requiere conexión establecida y respeta el mismo candado de concurrencia (para no borrar
+  >     vínculos que una sincronización esté leyendo/actualizando en simultáneo). Es irreversible; el
+  >     vínculo se reconstruye con "Vincular automáticamente".
 - **Visibilidad**: la pantalla de **Vinculación de publicaciones** muestra por cada vínculo su estado
   (sincronizado / pendiente / con error), la fecha del último envío exitoso y el motivo del último
   rechazo. La pantalla de **configuración de Mercado Libre** muestra fecha y resultado de la última
@@ -565,7 +583,7 @@ nuevas** — extiende las ya construidas por la spec 012.
 > de stock, y desde spec 030 las Compras generan los suyos igual que Ventas y ajustes — quedan cubiertas
 > por este mecanismo sin cambios adicionales.
 
-*Fuente(s): `specs/013-stock-mercadolibre/`*
+*Fuente(s): `specs/013-stock-mercadolibre/`, `specs/035-sincronizacion-forzada-vinculaciones/`*
 
 ### 3.2.quater Tiendanube (`/ingresos/tiendanube`) — spec 017
 
@@ -708,7 +726,19 @@ las **variantes vinculadas** — mismo rol que `ml_configuracion.lista_precio_id
 - **Visibilidad**: mismo criterio que stock — la pantalla de Vinculación de variantes muestra el estado
   de sincronización de precio (sincronizado/pendiente/error) en una columna separada de la de stock.
 
-*Fuente(s): `specs/018-stock-tiendanube/`*
+> 📋 **Sincronización forzada y eliminación masiva (spec 035)**: mismas dos acciones adicionales que en
+> Mercado Libre (§3.2.ter), en la pantalla de Vinculación de variantes:
+>   - **"Sincronización forzada"**: recorre TODOS los vínculos (no sólo pendientes) y reenvía stock y
+>     precio reales a Tiendanube. Mismo caso de uso: cubrir productos cuyo stock/precio se cargó sin
+>     pasar por un movimiento de stock (import masivo del catálogo real), y permitir resincronizar todo
+>     puntualmente. Respeta los mismos cortes (modo sólo lectura, función desactivada, sin conexión) y
+>     el mismo candado que las sincronizaciones normales.
+>   - **"Eliminar todas las vinculaciones"**: borra, con confirmación previa, todos los vínculos de
+>     Tiendanube del lado del CRM únicamente — no despublica ni modifica nada en Tiendanube. No depende
+>     del modo sólo lectura ni de la función avanzada, sólo de que haya conexión establecida, y respeta
+>     el mismo candado de concurrencia. Irreversible; se reconstruye con "Vincular automáticamente".
+
+*Fuente(s): `specs/018-stock-tiendanube/`, `specs/035-sincronizacion-forzada-vinculaciones/`*
 
 ### 3.3 Otros Ingresos (`/incomes`)
 
