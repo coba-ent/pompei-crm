@@ -161,11 +161,12 @@ class MercadoLibreVinculacionAutomaticaTest extends TestCase
         $this->assertSame('sin_sku', $resumen['detalle_fallidas'][0]['motivo']);
     }
 
-    public function test_dos_publicaciones_con_el_mismo_sku_solo_la_primera_se_vincula(): void
+    /** Spec 036 US1 (FR-001/FR-003): dos publicaciones con el mismo SKU quedan AMBAS vinculadas al mismo Producto. */
+    public function test_dos_publicaciones_con_el_mismo_sku_quedan_ambas_vinculadas(): void
     {
         // Caso real confirmado en research.md R3 (dos publicaciones compartiendo el SKU "KO-23423"): acá
         // se usa un SKU numérico equivalente porque el matching resuelve contra `producto.id` (int).
-        Producto::factory()->create(['id' => 9010]);
+        $producto = Producto::factory()->create(['id' => 9010]);
         $this->fakeCatalogo(['MLA-A', 'MLA-B'], [
             'MLA-A' => ['sku' => '9010'],
             'MLA-B' => ['sku' => '9010'],
@@ -173,11 +174,44 @@ class MercadoLibreVinculacionAutomaticaTest extends TestCase
 
         $resumen = app(VinculadorAutomatico::class)->ejecutar(auth()->user());
 
+        $this->assertSame(2, $resumen['vinculadas']);
+        $this->assertSame(0, $resumen['fallidas']);
+        $this->assertDatabaseCount('ml_publicacion_producto', 2);
+        $this->assertDatabaseHas('ml_publicacion_producto', ['ml_item_id' => 'MLA-A', 'producto_id' => $producto->id]);
+        $this->assertDatabaseHas('ml_publicacion_producto', ['ml_item_id' => 'MLA-B', 'producto_id' => $producto->id]);
+    }
+
+    /** Spec 036 US1 (FR-003): una publicación nueva con el mismo SKU de un producto ya vinculado se agrega sin afectar el vínculo existente. */
+    public function test_publicacion_nueva_con_sku_de_producto_ya_vinculado_agrega_segundo_vinculo(): void
+    {
+        $producto = Producto::factory()->create(['id' => 9010]);
+        $vinculoExistente = MercadoLibrePublicacionProducto::create([
+            'ml_item_id' => 'MLA-A', 'producto_id' => $producto->id, 'titulo_ml' => 'Existente',
+        ]);
+
+        $this->fakeCatalogo(['MLA-B'], ['MLA-B' => ['sku' => '9010']]);
+
+        $resumen = app(VinculadorAutomatico::class)->ejecutar(auth()->user());
+
         $this->assertSame(1, $resumen['vinculadas']);
-        $this->assertSame(1, $resumen['fallidas']);
-        $this->assertDatabaseCount('ml_publicacion_producto', 1);
-        $this->assertSame('ya_vinculado', $resumen['detalle_fallidas'][0]['motivo']);
-        $this->assertSame('producto', $resumen['detalle_fallidas'][0]['detalle']);
+        $this->assertSame(0, $resumen['fallidas']);
+        $this->assertDatabaseCount('ml_publicacion_producto', 2);
+        $this->assertDatabaseHas('ml_publicacion_producto', [
+            'id' => $vinculoExistente->id, 'ml_item_id' => 'MLA-A', 'producto_id' => $producto->id,
+        ]);
+        $this->assertDatabaseHas('ml_publicacion_producto', ['ml_item_id' => 'MLA-B', 'producto_id' => $producto->id]);
+    }
+
+    /** Spec 036 CHK009/T009b: la unicidad por ml_item_id se mantiene a nivel de base de datos. */
+    public function test_no_se_puede_insertar_dos_vinculos_con_el_mismo_ml_item_id(): void
+    {
+        $producto = Producto::factory()->create(['id' => 9010]);
+        MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA-DUP', 'producto_id' => $producto->id]);
+
+        $this->expectException(\Illuminate\Database\QueryException::class);
+
+        $otroProducto = Producto::factory()->create(['id' => 9011]);
+        MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA-DUP', 'producto_id' => $otroProducto->id]);
     }
 
     public function test_publicacion_con_variantes_queda_excluida(): void

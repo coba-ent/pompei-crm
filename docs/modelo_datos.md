@@ -711,9 +711,12 @@ valor, la orden se marca como no soportada**), `titulo`, `sku_vendedor`, `cantid
 congela al convertir).
 
 ### `ml_publicacion_producto`
-Vinculación **estrictamente 1:1**, infraestructura compartida con la spec 013. `ml_item_id` (string,
-**unique**), `producto_id` (FK → productos, **unique**), `titulo_ml`, `vinculada_por`. Los dos índices
-únicos son los que garantizan la cardinalidad a nivel de datos, no sólo en la UI.
+Vinculación **1:N** (un Producto puede tener varias publicaciones de ML vinculadas; spec 036,
+03/08/2026 — hasta esa spec fue estrictamente 1:1), infraestructura compartida con la spec 013.
+`ml_item_id` (string, **unique** — una publicación pertenece a un único producto), `producto_id` (FK →
+productos, **sin índice único** desde spec 036 — un producto puede tener N publicaciones vinculadas),
+`titulo_ml`, `vinculada_por`. El stock y el precio de un Producto se sincronizan hacia TODAS sus
+publicaciones vinculadas, no sólo hacia una — ver `specs/036-vinculacion-multiple-ml/`.
 
 > **Columnas nuevas (spec 013, implementada)** — estado de sincronización de stock CRM → Mercado Libre
 > de este vínculo: `stock_pendiente` (bool, default false — con cambios de stock sin empujar todavía),
@@ -931,10 +934,13 @@ concatenando `variant_values`, no viene como campo suelto), `sku` (agregado post
 `producto_id` (FK → productos, nullable — se congela al convertir).
 
 ### `tn_variante_producto`
-Vinculación **estrictamente 1:1** entre una variante de Tiendanube y un producto del CRM — equivalente a
-`ml_publicacion_producto` (§10), pero por **variante**, no por publicación, porque la API de Tiendanube
-siempre expone `variant_id` por línea. `variant_id` (**unique**), `producto_id` (FK → productos,
-**unique**), `nombre_variante_tn`, `vinculada_por`. Los dos índices únicos garantizan la cardinalidad.
+Vinculación **1:N** entre variantes de Tiendanube y un producto del CRM (spec 036, 03/08/2026 — hasta
+esa spec fue estrictamente 1:1) — equivalente a `ml_publicacion_producto` (§10), pero por **variante**,
+no por publicación, porque la API de Tiendanube siempre expone `variant_id` por línea. `variant_id`
+(**unique** — una variante pertenece a un único producto), `producto_id` (FK → productos, **sin índice
+único** desde spec 036 — un producto puede tener N variantes vinculadas), `nombre_variante_tn`,
+`vinculada_por`. El stock y el precio de un Producto se sincronizan hacia TODAS sus variantes
+vinculadas — ver `specs/036-vinculacion-multiple-ml/`.
 
 **Columnas nuevas (spec 018 — sincronización de stock hacia Tiendanube)**:
 

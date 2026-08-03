@@ -33,11 +33,6 @@ class VinculadorAutomatico
             true
         );
 
-        $productosVinculados = array_fill_keys(
-            TiendanubeVarianteProducto::pluck('producto_id')->all(),
-            true
-        );
-
         $total = 0;
         $vinculadas = 0;
         $detalleFallidas = [];
@@ -55,7 +50,7 @@ class VinculadorAutomatico
                 }
 
                 $total++;
-                $resultado = $this->procesar($producto, $variante, $productosVinculados, $usuario);
+                $resultado = $this->procesar($producto, $variante, $usuario);
 
                 if ($resultado === null) {
                     $vinculadas++;
@@ -111,10 +106,9 @@ class VinculadorAutomatico
     }
 
     /**
-     * @param  array<int, bool>  $productosVinculados  índice de producto_id => true, mutado in-place a medida que se crean vínculos en esta misma corrida.
      * @return array{referencia: string, motivo: string, detalle?: string}|null null = vinculado con éxito.
      */
-    private function procesar(array $producto, array $variante, array &$productosVinculados, ?User $usuario): ?array
+    private function procesar(array $producto, array $variante, ?User $usuario): ?array
     {
         $variantId = (string) $variante['id'];
         $sku = trim((string) ($variante['sku'] ?? ''));
@@ -137,18 +131,14 @@ class VinculadorAutomatico
             return ['referencia' => $variantId, 'motivo' => 'producto_no_encontrado'];
         }
 
-        if (isset($productosVinculados[$productoCrm->id])) {
-            return ['referencia' => $variantId, 'motivo' => 'ya_vinculado', 'detalle' => 'producto'];
-        }
-
+        // FR-011/FR-013: un producto puede tener varias variantes vinculadas
+        // simultáneamente, no se rechaza por "ya_vinculado".
         TiendanubeVarianteProducto::create([
             'variant_id' => $variante['id'],
             'tn_product_id' => $producto['id'],
             'producto_id' => $productoCrm->id,
             'vinculada_por' => $usuario?->id,
         ]);
-
-        $productosVinculados[$productoCrm->id] = true;
 
         return null;
     }

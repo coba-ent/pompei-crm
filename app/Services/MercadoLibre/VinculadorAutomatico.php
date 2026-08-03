@@ -37,11 +37,6 @@ class VinculadorAutomatico
             fn (string $id) => ! isset($publicacionesVinculadas[$id])
         ));
 
-        $productosVinculados = array_fill_keys(
-            MercadoLibrePublicacionProducto::pluck('producto_id')->all(),
-            true
-        );
-
         $total = 0;
         $vinculadas = 0;
         $detalleFallidas = [];
@@ -53,7 +48,7 @@ class VinculadorAutomatico
                 }
 
                 $total++;
-                $resultado = $this->procesar($detalle, $productosVinculados, $usuario);
+                $resultado = $this->procesar($detalle, $usuario);
 
                 if ($resultado === null) {
                     $vinculadas++;
@@ -151,10 +146,9 @@ class VinculadorAutomatico
 
     /**
      * @param  array{ml_item_id: string, sku: ?string, titulo: ?string}  $detalle
-     * @param  array<int, bool>  $productosVinculados  índice de producto_id => true, mutado in-place a medida que se crean vínculos en esta misma corrida.
      * @return array{referencia: string, motivo: string, detalle?: string}|null null = vinculado con éxito.
      */
-    private function procesar(array $detalle, array &$productosVinculados, ?User $usuario): ?array
+    private function procesar(array $detalle, ?User $usuario): ?array
     {
         $sku = trim((string) $detalle['sku']);
 
@@ -171,18 +165,14 @@ class VinculadorAutomatico
             return ['referencia' => $detalle['ml_item_id'], 'motivo' => 'producto_no_encontrado'];
         }
 
-        if (isset($productosVinculados[$producto->id])) {
-            return ['referencia' => $detalle['ml_item_id'], 'motivo' => 'ya_vinculado', 'detalle' => 'producto'];
-        }
-
+        // FR-001/FR-003: un producto puede tener varias publicaciones vinculadas
+        // simultáneamente, no se rechaza por "ya_vinculado".
         MercadoLibrePublicacionProducto::create([
             'ml_item_id' => $detalle['ml_item_id'],
             'producto_id' => $producto->id,
             'titulo_ml' => $detalle['titulo'],
             'vinculada_por' => $usuario?->id,
         ]);
-
-        $productosVinculados[$producto->id] = true;
 
         return null;
     }

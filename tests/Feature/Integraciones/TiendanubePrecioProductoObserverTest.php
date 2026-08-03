@@ -59,6 +59,24 @@ class TiendanubePrecioProductoObserverTest extends TestCase
         $this->assertFalse($vinculo->fresh()->precio_pendiente);
     }
 
+    /** Spec 036 US3 (FR-016/FR-018): un producto con 2 variantes vinculadas dispara el envío del mismo precio a ambas. */
+    public function test_producto_con_dos_variantes_vinculadas_dispara_el_envio_a_ambas(): void
+    {
+        $lista = ListaPrecio::create(['nombre' => 'Lista TN', 'activo' => true]);
+        TiendanubeConexionRest::actual()->update(['lista_precio_id' => $lista->id]);
+
+        $producto = Producto::factory()->create();
+        $vinculo1 = TiendanubeVarianteProducto::create(['variant_id' => 1, 'tn_product_id' => '10', 'producto_id' => $producto->id]);
+        $vinculo2 = TiendanubeVarianteProducto::create(['variant_id' => 2, 'tn_product_id' => '10', 'producto_id' => $producto->id]);
+
+        $producto->precios()->updateOrCreate(['lista_precio_id' => $lista->id], ['precio' => 555.75]);
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'variants/1') && ($request['price'] ?? null) === 555.75);
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'variants/2') && ($request['price'] ?? null) === 555.75);
+        $this->assertFalse($vinculo1->fresh()->precio_pendiente);
+        $this->assertFalse($vinculo2->fresh()->precio_pendiente);
+    }
+
     public function test_cambio_de_precio_de_producto_sin_vinculo_no_dispara_nada(): void
     {
         $lista = ListaPrecio::create(['nombre' => 'Lista TN', 'activo' => true]);

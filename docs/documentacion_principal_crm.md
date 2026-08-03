@@ -467,9 +467,11 @@ Ver §5.2 para la divergencia deliberada de todo el módulo (aplicación propia 
   atención (con motivo) · Convertida (con acceso a la Venta) · Cancelada. Sólo "Lista para convertir"
   habilita la creación de la Venta.
 - **Vinculación publicación ↔ producto**: pantalla propia + carga inline desde la conversión. Relación
-  **estrictamente 1:1**, garantizada por índices únicos. Es infraestructura compartida con la spec 013.
-  Las publicaciones **con variantes no están soportadas** (el negocio no las usa) y se rechazan en vez
-  de vincularse de forma ambigua.
+  **1:N** (un Producto puede tener varias publicaciones de ML vinculadas simultáneamente; spec 036,
+  03/08/2026 — hasta esa spec fue estrictamente 1:1). La unicidad por publicación (`ml_item_id`) se
+  mantiene garantizada por índice único — una publicación sigue perteneciendo a un único Producto. Es
+  infraestructura compartida con la spec 013. Las publicaciones **con variantes no están soportadas**
+  (el negocio no las usa) y se rechazan en vez de vincularse de forma ambigua.
   > 📋 **Vinculación automática por SKU (spec 021, implementada; corregida por spec 023)**: el SKU del
   > vendedor corresponde al `id` (clave primaria) del producto en el CRM — el negocio crea cada producto
   > nuevo asignándole a propósito ese mismo identificador, sin necesidad de ningún campo adicional. La
@@ -619,8 +621,11 @@ Mercado Libre en vez de calcar una pantalla real.
   (§5.2), que las ingresa por su propia vía.
 - **Vinculación variante ↔ producto**: a diferencia de Mercado Libre (que vincula por publicación),
   Tiendanube siempre expone un identificador de **variante** por línea de pedido —incluso los productos
-  sin variantes reales tienen una "variante virtual" única—, así que el vínculo persistente 1:1 es
-  variante↔producto del CRM. Pantalla propia de administración, igual patrón que Mercado Libre.
+  sin variantes reales tienen una "variante virtual" única—, así que el vínculo persistente es
+  variante↔producto del CRM. Relación **1:N** (un Producto puede tener varias variantes vinculadas
+  simultáneamente; spec 036, 03/08/2026 — hasta esa spec fue estrictamente 1:1); la unicidad por
+  variante (`variant_id`) se mantiene garantizada por índice único. Pantalla propia de administración,
+  igual patrón que Mercado Libre.
   > 📋 **Vinculación automática por catálogo REST en vivo (spec 024, reemplaza a specs 017/021)**: un
   > único botón "Vincular automáticamente" recorre el catálogo REST en vivo del vendedor conectado (`GET
   > /products`, paginado) y compara el `sku` de cada variante —expuesto directo en esa misma respuesta,

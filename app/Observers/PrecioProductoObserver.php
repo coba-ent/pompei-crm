@@ -36,15 +36,13 @@ class PrecioProductoObserver
             return;
         }
 
-        $vinculo = MercadoLibrePublicacionProducto::where('producto_id', $precio->producto_id)->first();
+        $vinculos = MercadoLibrePublicacionProducto::where('producto_id', $precio->producto_id)->get();
 
-        if (! $vinculo) {
-            return;
+        foreach ($vinculos as $vinculo) {
+            DB::afterCommit(function () use ($vinculo, $precio) {
+                app(SincronizadorPreciosMercadoLibre::class)->enviarUno($vinculo, (float) $precio->precio);
+            });
         }
-
-        DB::afterCommit(function () use ($vinculo, $precio) {
-            app(SincronizadorPreciosMercadoLibre::class)->enviarUno($vinculo, (float) $precio->precio);
-        });
     }
 
     /** Rama Tiendanube (spec 018 ampliación, FR-024/FR-026/FR-027). */
@@ -56,14 +54,12 @@ class PrecioProductoObserver
             return;
         }
 
-        $vinculo = TiendanubeVarianteProducto::where('producto_id', $precio->producto_id)->first();
+        $vinculos = TiendanubeVarianteProducto::where('producto_id', $precio->producto_id)->get();
 
-        if (! $vinculo) {
-            return;
+        foreach ($vinculos as $vinculo) {
+            DB::afterCommit(function () use ($vinculo, $precio) {
+                app(SincronizadorPreciosTiendanube::class)->enviarUno($vinculo, (float) $precio->precio);
+            });
         }
-
-        DB::afterCommit(function () use ($vinculo, $precio) {
-            app(SincronizadorPreciosTiendanube::class)->enviarUno($vinculo, (float) $precio->precio);
-        });
     }
 }

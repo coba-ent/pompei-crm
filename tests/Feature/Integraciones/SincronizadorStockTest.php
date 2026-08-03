@@ -156,6 +156,30 @@ class SincronizadorStockTest extends TestCase
         $this->assertNotNull($vinculoPausado->stock_error_en);
     }
 
+    /** Spec 036 US2 (FR-007, SC-003): un producto con 2 publicaciones vinculadas envía la misma cantidad a ambas, de forma independiente. */
+    public function test_producto_con_dos_publicaciones_vinculadas_envia_la_misma_cantidad_a_ambas(): void
+    {
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+        $vinculo1 = MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA1', 'producto_id' => $producto->id]);
+        $vinculo2 = MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA2', 'producto_id' => $producto->id]);
+
+        app(StockService::class)->ajustar($producto, null, $this->deposito, 7, 'carga inicial');
+        $vinculo1->update(['stock_pendiente' => true]);
+        $vinculo2->update(['stock_pendiente' => true]);
+
+        Http::fake(['api.mercadolibre.com/*' => Http::response(['id' => 'ok'], 200)]);
+
+        $resultado = app(SincronizadorStock::class)->ejecutar();
+
+        $this->assertSame(2, $resultado['actualizados']);
+        Http::assertSentCount(2);
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'MLA1') && $request->data()['available_quantity'] === 7);
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'MLA2') && $request->data()['available_quantity'] === 7);
+
+        $this->assertFalse($vinculo1->fresh()->stock_pendiente);
+        $this->assertFalse($vinculo2->fresh()->stock_pendiente);
+    }
+
     /** T029 (FR-013): el reintento ante 429/5xx lo cubre ClienteMercadoLibre, sin código propio. */
     public function test_reintenta_ante_429_y_termina_sincronizado(): void
     {

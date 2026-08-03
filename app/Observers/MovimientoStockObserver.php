@@ -38,13 +38,11 @@ class MovimientoStockObserver
             return;
         }
 
-        $vinculo = MercadoLibrePublicacionProducto::where('producto_id', $movimiento->producto_id)->first();
+        $vinculos = MercadoLibrePublicacionProducto::where('producto_id', $movimiento->producto_id)->get();
 
-        if (! $vinculo) {
-            return;
+        foreach ($vinculos as $vinculo) {
+            $vinculo->update(['stock_pendiente' => true]);
         }
-
-        $vinculo->update(['stock_pendiente' => true]);
     }
 
     /** Rama Tiendanube (spec 018, FR-001/FR-002/FR-005): mismo esqueleto que la de Mercado Libre. */
@@ -60,13 +58,11 @@ class MovimientoStockObserver
             return;
         }
 
-        $vinculo = TiendanubeVarianteProducto::where('producto_id', $movimiento->producto_id)->first();
+        $vinculos = TiendanubeVarianteProducto::where('producto_id', $movimiento->producto_id)->get();
 
-        if (! $vinculo) {
-            return;
+        foreach ($vinculos as $vinculo) {
+            $vinculo->update(['stock_pendiente' => true]);
         }
-
-        $vinculo->update(['stock_pendiente' => true]);
     }
 
     /**

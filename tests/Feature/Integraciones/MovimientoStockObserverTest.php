@@ -111,6 +111,35 @@ class MovimientoStockObserverTest extends TestCase
         $this->assertTrue($vinculo->fresh()->stock_pendiente);
     }
 
+    /** Spec 036 US2 (FR-005): un producto con 2 publicaciones vinculadas marca AMBAS pendientes. */
+    public function test_producto_con_dos_publicaciones_vinculadas_marca_ambas_pendientes(): void
+    {
+        Deposito::create(['nombre' => 'Principal', 'activo' => true]);
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+        $vinculo1 = MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA1', 'producto_id' => $producto->id]);
+        $vinculo2 = MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA2', 'producto_id' => $producto->id]);
+
+        $this->crearVentaConProducto($producto, 3);
+
+        $this->assertTrue($vinculo1->fresh()->stock_pendiente);
+        $this->assertTrue($vinculo2->fresh()->stock_pendiente);
+    }
+
+    /** Spec 036 US2 (FR-009): desvincular una publicación no afecta a las demás vinculadas al mismo producto. */
+    public function test_desvincular_una_publicacion_no_afecta_a_las_demas(): void
+    {
+        Deposito::create(['nombre' => 'Principal', 'activo' => true]);
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+        $vinculo1 = MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA1', 'producto_id' => $producto->id]);
+        $vinculo2 = MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA2', 'producto_id' => $producto->id]);
+        $vinculo1->delete();
+
+        $this->crearVentaConProducto($producto, 3);
+
+        $this->assertTrue($vinculo2->fresh()->stock_pendiente);
+        $this->assertDatabaseMissing('ml_publicacion_producto', ['id' => $vinculo1->id]);
+    }
+
     /** ---- US2: exclusión de bucle (FR-002) ---- */
 
     private function convertirOrdenMercadoLibre(Producto $producto, float $cantidad = 1): Venta

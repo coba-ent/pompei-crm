@@ -143,6 +143,30 @@ class TiendanubeSincronizacionStockRestTest extends TestCase
         Http::assertSentCount(5);
     }
 
+    /** Spec 036 US2 (FR-017, SC-003): un producto con 2 variantes vinculadas envía la misma cantidad a ambas, de forma independiente. */
+    public function test_producto_con_dos_variantes_vinculadas_envia_la_misma_cantidad_a_ambas(): void
+    {
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+        $vinculo1 = TiendanubeVarianteProducto::create(['variant_id' => 101, 'tn_product_id' => '10', 'producto_id' => $producto->id]);
+        $vinculo2 = TiendanubeVarianteProducto::create(['variant_id' => 102, 'tn_product_id' => '10', 'producto_id' => $producto->id]);
+
+        app(StockService::class)->ajustar($producto, null, Deposito::first(), 9, 'carga inicial');
+        $vinculo1->update(['stock_pendiente' => true]);
+        $vinculo2->update(['stock_pendiente' => true]);
+
+        $this->fakearOk();
+
+        $resultado = app(SincronizadorStock::class)->ejecutar();
+
+        $this->assertSame(2, $resultado['actualizados']);
+        Http::assertSentCount(2);
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'variants/101') && $request['stock'] === 9);
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'variants/102') && $request['stock'] === 9);
+
+        $this->assertFalse($vinculo1->fresh()->stock_pendiente);
+        $this->assertFalse($vinculo2->fresh()->stock_pendiente);
+    }
+
     public function test_rechazo_de_un_vinculo_puntual_no_afecta_a_los_demas(): void
     {
         $vinculoOk = $this->crearVinculoPendiente(3);

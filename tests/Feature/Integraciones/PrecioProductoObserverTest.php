@@ -61,6 +61,24 @@ class PrecioProductoObserverTest extends TestCase
         $this->assertFalse($vinculo->fresh()->precio_pendiente);
     }
 
+    /** Spec 036 US3 (FR-006/FR-008): un producto con 2 publicaciones vinculadas dispara el envío del mismo precio a ambas. */
+    public function test_producto_con_dos_publicaciones_vinculadas_dispara_el_envio_a_ambas(): void
+    {
+        $lista = ListaPrecio::create(['nombre' => 'Lista ML', 'activo' => true]);
+        MercadoLibreConfiguracion::actual()->update(['lista_precio_id' => $lista->id]);
+
+        $producto = Producto::factory()->create();
+        $vinculo1 = MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA1', 'producto_id' => $producto->id]);
+        $vinculo2 = MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA2', 'producto_id' => $producto->id]);
+
+        $producto->precios()->updateOrCreate(['lista_precio_id' => $lista->id], ['precio' => 777.25]);
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/items/MLA1') && $request['price'] === 777.25);
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/items/MLA2') && $request['price'] === 777.25);
+        $this->assertFalse($vinculo1->fresh()->precio_pendiente);
+        $this->assertFalse($vinculo2->fresh()->precio_pendiente);
+    }
+
     public function test_cambio_de_precio_de_producto_sin_vinculo_no_dispara_nada(): void
     {
         $lista = ListaPrecio::create(['nombre' => 'Lista ML', 'activo' => true]);

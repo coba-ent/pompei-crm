@@ -111,6 +111,35 @@ class TiendanubeMovimientoStockObserverTest extends TestCase
         $this->assertTrue($vinculo->fresh()->stock_pendiente);
     }
 
+    /** Spec 036 US2 (FR-015): un producto con 2 variantes vinculadas marca AMBAS pendientes. */
+    public function test_producto_con_dos_variantes_vinculadas_marca_ambas_pendientes(): void
+    {
+        Deposito::create(['nombre' => 'Principal', 'activo' => true]);
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+        $vinculo1 = TiendanubeVarianteProducto::create(['variant_id' => 1, 'tn_product_id' => '10', 'producto_id' => $producto->id]);
+        $vinculo2 = TiendanubeVarianteProducto::create(['variant_id' => 2, 'tn_product_id' => '10', 'producto_id' => $producto->id]);
+
+        $this->crearVentaConProducto($producto, 3);
+
+        $this->assertTrue($vinculo1->fresh()->stock_pendiente);
+        $this->assertTrue($vinculo2->fresh()->stock_pendiente);
+    }
+
+    /** Spec 036 US2 (FR-009), hallazgo T016b: desvincular una variante no afecta a las demás vinculadas al mismo producto. */
+    public function test_desvincular_una_variante_no_afecta_a_las_demas(): void
+    {
+        Deposito::create(['nombre' => 'Principal', 'activo' => true]);
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+        $vinculo1 = TiendanubeVarianteProducto::create(['variant_id' => 1, 'tn_product_id' => '10', 'producto_id' => $producto->id]);
+        $vinculo2 = TiendanubeVarianteProducto::create(['variant_id' => 2, 'tn_product_id' => '10', 'producto_id' => $producto->id]);
+        $vinculo1->delete();
+
+        $this->crearVentaConProducto($producto, 3);
+
+        $this->assertTrue($vinculo2->fresh()->stock_pendiente);
+        $this->assertDatabaseMissing('tn_variante_producto', ['id' => $vinculo1->id]);
+    }
+
     public function test_marcar_pendiente_de_tiendanube_no_interfiere_con_el_vinculo_de_mercadolibre(): void
     {
         Deposito::create(['nombre' => 'Principal', 'activo' => true]);

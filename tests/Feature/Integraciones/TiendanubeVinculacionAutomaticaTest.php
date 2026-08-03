@@ -121,9 +121,10 @@ class TiendanubeVinculacionAutomaticaTest extends TestCase
         $this->assertSame('sin_sku', $resumen['detalle_fallidas'][0]['motivo']);
     }
 
-    public function test_dos_variantes_con_el_mismo_sku_solo_la_primera_se_vincula(): void
+    /** Spec 036 US1 (FR-011/FR-013): dos variantes con el mismo SKU quedan AMBAS vinculadas al mismo Producto. */
+    public function test_dos_variantes_con_el_mismo_sku_quedan_ambas_vinculadas(): void
     {
-        Producto::factory()->create(['id' => 9010]);
+        $producto = Producto::factory()->create(['id' => 9010]);
         $this->fakeCatalogo([
             ['id' => 111, 'status' => 'published', 'variants' => [
                 ['id' => 555, 'sku' => '9010'],
@@ -133,11 +134,44 @@ class TiendanubeVinculacionAutomaticaTest extends TestCase
 
         $resumen = app(VinculadorAutomatico::class)->ejecutar(auth()->user());
 
+        $this->assertSame(2, $resumen['vinculadas']);
+        $this->assertSame(0, $resumen['fallidas']);
+        $this->assertDatabaseCount('tn_variante_producto', 2);
+        $this->assertDatabaseHas('tn_variante_producto', ['variant_id' => 555, 'producto_id' => $producto->id]);
+        $this->assertDatabaseHas('tn_variante_producto', ['variant_id' => 556, 'producto_id' => $producto->id]);
+    }
+
+    /** Spec 036 US1 (FR-013): una variante nueva con el mismo SKU de un producto ya vinculado se agrega sin afectar el vínculo existente. */
+    public function test_variante_nueva_con_sku_de_producto_ya_vinculado_agrega_segundo_vinculo(): void
+    {
+        $producto = Producto::factory()->create(['id' => 9010]);
+        $vinculoExistente = TiendanubeVarianteProducto::create([
+            'variant_id' => 555, 'tn_product_id' => 111, 'producto_id' => $producto->id,
+        ]);
+
+        $this->fakeCatalogo([
+            ['id' => 111, 'status' => 'published', 'variants' => [['id' => 556, 'sku' => '9010']]],
+        ]);
+
+        $resumen = app(VinculadorAutomatico::class)->ejecutar(auth()->user());
+
         $this->assertSame(1, $resumen['vinculadas']);
-        $this->assertSame(1, $resumen['fallidas']);
-        $this->assertDatabaseCount('tn_variante_producto', 1);
-        $this->assertSame('ya_vinculado', $resumen['detalle_fallidas'][0]['motivo']);
-        $this->assertSame('producto', $resumen['detalle_fallidas'][0]['detalle']);
+        $this->assertSame(0, $resumen['fallidas']);
+        $this->assertDatabaseCount('tn_variante_producto', 2);
+        $this->assertDatabaseHas('tn_variante_producto', ['id' => $vinculoExistente->id, 'variant_id' => 555, 'producto_id' => $producto->id]);
+        $this->assertDatabaseHas('tn_variante_producto', ['variant_id' => 556, 'producto_id' => $producto->id]);
+    }
+
+    /** Spec 036 CHK009/T009b: la unicidad por variant_id se mantiene a nivel de base de datos. */
+    public function test_no_se_puede_insertar_dos_vinculos_con_el_mismo_variant_id(): void
+    {
+        $producto = Producto::factory()->create(['id' => 9010]);
+        TiendanubeVarianteProducto::create(['variant_id' => 555, 'tn_product_id' => 111, 'producto_id' => $producto->id]);
+
+        $this->expectException(\Illuminate\Database\QueryException::class);
+
+        $otroProducto = Producto::factory()->create(['id' => 9011]);
+        TiendanubeVarianteProducto::create(['variant_id' => 555, 'tn_product_id' => 111, 'producto_id' => $otroProducto->id]);
     }
 
     public function test_producto_con_multiples_variantes_evalua_cada_una_por_separado(): void
