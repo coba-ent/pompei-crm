@@ -154,7 +154,7 @@
                         <div class="col-md-6">
                             <label class="form-label">Lista de Precios</label>
                             <select class="form-select" name="lista_precio_id">
-                                <option value="">Seleccionar</option>
+                                <option value="">Principal</option>
                                 @foreach ($listasPrecio as $lista)
                                     <option value="{{ $lista->id }}">{{ $lista->nombre }}</option>
                                 @endforeach
