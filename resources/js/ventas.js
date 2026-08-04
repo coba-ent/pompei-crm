@@ -120,7 +120,7 @@
         if (!$tabla.length) { return; }
 
         initSelect2($('#filtro-cliente'), {
-            placeholder: 'Todos', allowClear: true,
+            placeholder: 'Todos', allowClear: true, multiple: true,
             ajax: {
                 url: rutas.clientesOpciones,
                 data: (params) => ({ q: params.term }),

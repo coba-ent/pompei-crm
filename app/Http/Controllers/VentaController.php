@@ -55,7 +55,7 @@ class VentaController extends Controller
         $query = Venta::query()->with(['cliente:id,nombre', 'categoria:id,nombre', 'presupuesto:id', 'listaPrecio:id,nombre', 'vendedor:id,nombre', 'etiquetas:id,nombre', 'cobros.cuentaTesoreria:id,nombre', 'comprobanteFiscal:id,comprobantable_type,comprobantable_id,estado']);
 
         if ($request->filled('cliente_id')) {
-            $query->where('cliente_id', $request->input('cliente_id'));
+            $query->whereIn('cliente_id', (array) $request->input('cliente_id'));
         }
         if ($request->filled('buscar')) {
             $kw = $request->input('buscar');

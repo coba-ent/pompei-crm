@@ -32,7 +32,7 @@
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label">Cliente</label>
-                                <select id="filtro-cliente" class="form-select"><option value="">Todos</option></select>
+                                <select id="filtro-cliente" class="form-select" multiple></select>
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label">Creada Desde</label>
