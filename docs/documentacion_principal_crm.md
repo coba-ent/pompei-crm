@@ -1072,16 +1072,33 @@ numeración local (`tipo_comprobante`/`nro_comprobante`) sin validez fiscal, igu
 
 ---
 
-## 5. Módulo Configuración & Ajustes (alcance actual: Usuarios y Permisos, Depósitos, Funciones Avanzadas)
+## 5. Módulo Configuración & Ajustes (alcance actual: Empresa, Depósitos, Funciones Avanzadas, Ventas)
+
+> **Actualización (spec 043, 04/08/2026):** reorganización de acceso y navegación de este módulo.
+> "Mi Perfil" se renombra a **"Empresa"** y absorbe la gestión de usuarios que antes vivía en la
+> pantalla separada "Usuarios y Permisos" (tabla de usuarios, alta, "Roles y Permisos" como link desde
+> ahí). Esa pantalla separada se elimina. El acceso a "Empresa" y a **toda** la sección Configuración
+> & Ajustes pasa a depender exclusivamente del rol `Admin` (ya existente, `User::esAdmin()` /
+> `Gate::before`) en vez de los permisos granulares `configuracion.usuarios`/`configuracion.funciones`/
+> `configuracion.roles`. El bloque de sidebar se retira; el acceso vive en el dropdown de usuario de la
+> topbar como dos ítems: "Empresa" y un único link "Configuración & Ajustes" que abre una pantalla con
+> **tabs** (Funciones Avanzadas —tab por defecto—, Depósitos, Mercado Libre, Tiendanube, Facturación
+> Electrónica, Ventas). Los tabs de Depósitos/Mercado Libre/Tiendanube/Facturación Electrónica sólo
+> están disponibles si su función avanzada correspondiente está activa (mismo campo `activa` ya
+> existente en `funciones_avanzadas`). Se agrega el tab **Ventas**: configuración global (fila única,
+> tabla `configuracion_ventas`) de Categoría/Vendedor/Lista de Precios/Tipo de Comprobante por defecto y
+> días por defecto de "Vto. del Cobro", que precargan el alta de "Crear Venta" (no afecta ediciones ni
+> conversiones desde Presupuesto). Ver `specs/043-configuracion-empresa-ventas/`.
 
 | Sección | Contenido |
 |---|---|
-| Usuarios y Permisos | Alta de usuarios, asignación de roles, activar/desactivar usuarios |
+| Empresa | Datos fiscales del negocio emisor + gestión de usuarios (alta, roles, activar/desactivar) + link a Roles y Permisos (spec 043, ex "Mi Perfil" + "Usuarios y Permisos") |
 | Roles | CRUD completo de roles (crear/renombrar/borrar) y asignación de permisos por rol |
 | Depósitos | ABM de depósitos/almacenes (spec 005) |
-| Funciones Avanzadas | Lista de las 10 funciones activables, con toggle Sí/No (spec 011) — ver §5.1 |
+| Funciones Avanzadas | Lista de las 10 funciones activables, con toggle Sí/No (spec 011) — ver §5.1. Tab por defecto de la pantalla Configuración & Ajustes (spec 043) |
 | Mercado Libre | Configuración de la integración y vinculación de cuenta (spec 011) — ver §5.2 |
 | Tiendanube | Configuración de la integración (OAuth 2.1 vía admin-mcp.tiendanube.com, spec 019, corrige a spec 015) + apartado aislado de conexión vía Application REST del Partner Portal (spec 022) — ver §5.3 |
+| Ventas | Valores globales por defecto para "Crear Venta": Categoría, Vendedor, Lista de Precios, Tipo de Comprobante, días de Vto. de Cobro (spec 043) |
 
 > **Adaptación single-tenant:** este CRM es single-tenant, sin plan contratado ni costo por usuario
 > adicional. Los permisos son **sólo por rol** (el usuario hereda los permisos de sus roles; no hay

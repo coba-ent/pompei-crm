@@ -1195,3 +1195,30 @@ Fila única (mismo patrón single-row que `ml_configuracion` §8 y `ml_bot_confi
 Consumida por el partial `resources/views/pdf/partials/encabezado-emisor.blade.php`, incluido en los
 PDFs de Venta (§5) y de Notas de Crédito/Débito (§5) — se omite sin bloquear la generación del PDF si
 `DatosEmpresa::instancia()` devuelve `null`.
+
+> **Actualización (spec 043, 04/08/2026)**: la pantalla "Mi Perfil" se renombra a "Empresa" y pasa a
+> incluir también la tabla de usuarios (antes en la pantalla separada "Usuarios y Permisos", eliminada).
+> Sin cambios de esquema en `datos_empresa` ni en `usuarios`/`roles`/`rol_usuario` — sólo cambia qué
+> vista consume esos datos. El acceso a "Empresa" y a todo Configuración & Ajustes pasa a depender del
+> rol `Admin` (`usuarios.roles` con `nombre='Admin'`, ya existente), no de permisos granulares.
+
+## 17. Configuración & Ajustes → Ventas: valores por defecto de "Crear Venta" (spec 043)
+
+### `configuracion_ventas`
+
+Fila única (mismo patrón single-row que `datos_empresa` §16), sin `SoftDeletes` — es configuración
+global del negocio, no un registro con historial fiscal.
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| `categoria_id` | bigint, nullable, FK → `categorias.id` `nullOnDelete` | Categoría de venta preseleccionada por defecto en "Crear Venta" |
+| `vendedor_id` | bigint, nullable, FK → `vendedores.id` `nullOnDelete` | Vendedor preseleccionado por defecto |
+| `lista_precio_id` | bigint, nullable, FK → `listas_precio.id` `nullOnDelete` | Lista de Precios por defecto (si `null`, sigue el fallback actual "Principal") |
+| `tipo_comprobante` | enum(`A`,`B`,`C`,`E`), nullable | Tipo de Comprobante por defecto (si `null`, sigue el fallback actual "B") |
+| `dias_vto_cobro` | unsigned smallint, nullable | Días a sumar a la fecha de Emisión para precalcular "Vto. del Cobro" en altas nuevas (si `null`, el campo se deja vacío) |
+
+Consumida por `VentaController@create` sólo para altas nuevas (no edición, no conversión desde
+Presupuesto): si el registro referenciado por una FK ya no existe en su catálogo, ese campo no se
+precarga (no rompe el formulario). El default de Tipo de Comprobante es sólo una preselección inicial:
+sigue pisado por `cliente.tipo_comprobante_defecto` cuando el usuario elige un Cliente (prioridad ya
+existente, sin cambios), y no altera la derivación fiscal por condición de IVA ya vigente.
