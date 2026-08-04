@@ -4,13 +4,13 @@
 <div class="content-body">
     <div class="container-fluid">
 
-        <div class="row align-items-center mb-4">
-            <div class="col-sm-6 mb-2">
+        <div class="mb-4">
+            <div class="mb-2">
                 <h4 class="mb-0 text-primary fw-bold">Vinculación de variantes</h4>
                 <p class="text-muted mb-0">Relación 1 a 1 entre variantes de Tiendanube y productos del CRM.</p>
             </div>
-            <div class="col-sm-6 mb-2 text-sm-end">
-                <a href="{{ route('ingresos.tiendanube.index') }}" class="btn btn-outline-secondary me-1">
+            <div class="d-flex flex-wrap gap-2">
+                <a href="{{ route('ingresos.tiendanube.index') }}" class="btn btn-outline-secondary">
                     <i class="fas fa-arrow-left me-1"></i> Volver a Tiendanube
                 </a>
                 <button type="button" class="btn btn-primary" id="btn-vincular-automaticamente">

@@ -157,6 +157,7 @@
 
 @include('presupuestos._modal_categoria')
 @include('presupuestos._modal_vendedor')
+@include('presupuestos._modal_cliente_rapido')
 @endsection
 
 @php
@@ -194,6 +195,8 @@
             update: @json($venta ? route('ventas.update', $venta) : null),
             index: "{{ route('ventas.index') }}",
             clientesOpciones: "{{ route('clientes.opciones') }}",
+            clientesStore: "{{ route('clientes.store') }}",
+            clientesUpdateBase: "{{ url('clientes') }}",
             productosOpciones: "{{ route('productos.opciones') }}",
             categoriaVentaStore: "{{ route('categorias.venta.store') }}",
             categoriaUpdateBase: "{{ url('categorias') }}",

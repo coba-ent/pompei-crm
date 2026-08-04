@@ -45,6 +45,67 @@
         return '$ ' + (Number(v) || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
+    // Select2 "catálogo editable": opción fija "Crear X" (ícono +) siempre primera
+    // en el dropdown, y un ícono de lápiz por fila que abre la edición de ESE ítem
+    // sin seleccionarlo (mismo patrón de presupuestos.js, spec 028).
+    const ID_CREAR = '__crear__';
+
+    function templateResultCatalogo($el, opts) {
+        return function (data) {
+            if (!data.id || data.loading) { return data.text; }
+            if (data.id === ID_CREAR) {
+                const $fila = $('<span class="d-flex align-items-center justify-content-between w-100 text-primary fw-semibold select2-resultado-crear"></span>');
+                $fila.append($('<span></span>').text(data.text));
+                $fila.append('<i class="fas fa-plus-circle ms-2"></i>');
+                return $fila;
+            }
+            const $fila = $('<span class="d-flex align-items-center justify-content-between w-100"></span>');
+            $fila.append($('<span></span>').text(data.text));
+            if (typeof opts.onEditar === 'function') {
+                const $lapiz = $('<a href="#" class="js-editar-item text-muted ms-2" title="Editar"><i class="fas fa-pencil-alt"></i></a>');
+                $lapiz.on('mousedown mouseup', function (e) { e.stopPropagation(); });
+                $lapiz.on('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    $el.select2('close');
+                    opts.onEditar(data.id, data);
+                });
+                $fila.append($lapiz);
+            }
+            return $fila;
+        };
+    }
+
+    function iniciarSelect2Catalogo($el, opciones) {
+        if (!hasSelect2 || !$el || !$el.length) { return; }
+        const opts = opciones || {};
+        const select2Opts = Object.assign({}, opts.select2 || {});
+        let ultimoTermino = '';
+
+        const ajaxOrig = select2Opts.ajax;
+        const processResultsOrig = ajaxOrig.processResults;
+        select2Opts.ajax = Object.assign({}, ajaxOrig, {
+            processResults: function (resp, params) {
+                ultimoTermino = (params && params.term) || '';
+                const out = processResultsOrig ? processResultsOrig(resp, params) : { results: resp };
+                if (!params.page) {
+                    out.results = [{ id: ID_CREAR, text: opts.textoCrear || 'Crear' }].concat(out.results || []);
+                }
+                return out;
+            },
+        });
+
+        select2Opts.templateResult = templateResultCatalogo($el, opts);
+        initSelect2($el, select2Opts);
+
+        $el.on('select2:selecting', function (e) {
+            if (e.params.args.data.id === ID_CREAR) {
+                e.preventDefault();
+                if (typeof opts.onCrear === 'function') { opts.onCrear(ultimoTermino); }
+            }
+        });
+    }
+
     $(function () {
         inicializarListado();
         inicializarFormulario();
@@ -278,12 +339,21 @@
         initSelect2($('#f-lista-precio'), { placeholder: 'Seleccioná una Lista de Precios', allowClear: true });
         initSelect2($('#f-etiquetas'), { tags: true, tokenSeparators: [','], placeholder: 'Buscar o crear etiqueta...' });
 
-        initSelect2($('#f-cliente'), {
-            placeholder: 'Seleccionar Cliente',
-            ajax: {
-                url: rutas.clientesOpciones,
-                data: (params) => ({ q: params.term }),
-                processResults: (resp) => ({ results: resp.data.map((c) => ({ id: c.id, text: c.nombre, cliente: c })) }),
+        // ---- Cliente (catálogo editable inline: "Crear Cliente" + lápiz por fila) ----
+        iniciarSelect2Catalogo($('#f-cliente'), {
+            select2: {
+                placeholder: 'Seleccionar Cliente',
+                ajax: {
+                    url: rutas.clientesOpciones,
+                    data: (params) => ({ q: params.term }),
+                    processResults: (resp) => ({ results: resp.data.map((c) => ({ id: c.id, text: c.nombre, cliente: c })) }),
+                },
+            },
+            textoCrear: 'Crear Cliente',
+            onCrear: (termino) => abrirModalClienteRapido('crear', '', termino || ''),
+            onEditar: (id, itemData) => {
+                const nombreActual = (itemData && itemData.cliente && itemData.cliente.nombre) || (itemData && itemData.text) || '';
+                abrirModalClienteRapido('renombrar', id, nombreActual);
             },
         });
 
@@ -567,6 +637,56 @@
                     const msg = xhr.responseJSON?.mensaje || xhr.responseJSON?.errors?.nombre?.[0] || 'No se pudo guardar el vendedor.';
                     $('#nuevo-vendedor-nombre').addClass('is-invalid');
                     $('#nuevo-vendedor-error').text(msg);
+                });
+        });
+
+        // Modal crear/renombrar Cliente (alta rápida — sólo Nombre, mismo patrón de presupuestos.js).
+        let modoClienteRapido = 'crear';
+        let idClienteEditar = null;
+
+        function abrirModalClienteRapido(modo, id, nombreActual) {
+            modoClienteRapido = modo;
+            idClienteEditar = id || null;
+            $('#cliente-rapido-nombre').val(nombreActual || '').removeClass('is-invalid');
+            $('#cliente-rapido-error').text('');
+            $('#modal-cliente-rapido-titulo').text(modo === 'renombrar' ? 'Renombrar Cliente' : 'Crear Cliente');
+            $('#btn-crear-cliente-rapido').text(modo === 'renombrar' ? 'Guardar' : 'Crear');
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-cliente-rapido')).show();
+            setTimeout(() => $('#cliente-rapido-nombre').trigger('focus'), 300);
+        }
+
+        $('#btn-crear-cliente-rapido').on('click', function () {
+            const nombre = $('#cliente-rapido-nombre').val().trim();
+            $('#cliente-rapido-nombre').removeClass('is-invalid');
+            $('#cliente-rapido-error').text('');
+            if (!nombre) {
+                $('#cliente-rapido-nombre').addClass('is-invalid');
+                $('#cliente-rapido-error').text('Ingresá un nombre.');
+                return;
+            }
+
+            const esRenombrar = modoClienteRapido === 'renombrar';
+            const url = esRenombrar ? rutas.clientesUpdateBase + '/' + idClienteEditar : rutas.clientesStore;
+            const datos = esRenombrar ? { _method: 'PATCH', nombre } : { nombre };
+
+            $.post(url, datos)
+                .done((resp) => {
+                    const $clienteSel = $('#f-cliente');
+                    if (esRenombrar) {
+                        const seleccionado = String($clienteSel.val()) === String(idClienteEditar);
+                        $clienteSel.find('option[value="' + idClienteEditar + '"]').remove();
+                        $clienteSel.append(new Option(resp.cliente.nombre, resp.cliente.id, seleccionado, seleccionado));
+                    } else {
+                        $clienteSel.append(new Option(resp.cliente.nombre, resp.cliente.id, true, true));
+                    }
+                    refreshSelect2($clienteSel);
+                    bootstrap.Modal.getInstance(document.getElementById('modal-cliente-rapido'))?.hide();
+                    toast('success', resp.mensaje || 'Cliente guardado.');
+                })
+                .fail((xhr) => {
+                    const msg = xhr.responseJSON?.mensaje || xhr.responseJSON?.errors?.nombre?.[0] || 'No se pudo guardar el cliente.';
+                    $('#cliente-rapido-nombre').addClass('is-invalid');
+                    $('#cliente-rapido-error').text(msg);
                 });
         });
 
