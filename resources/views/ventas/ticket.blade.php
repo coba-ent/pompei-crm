@@ -13,7 +13,6 @@
 <body>
     <div class="center">
         <strong>{{ $venta->tipo_comprobante }} N° {{ $venta->nro_comprobante }}</strong><br>
-        NO VÁLIDO COMO FACTURA<br>
         {{ optional($venta->fecha_emision)->format('d/m/Y') }}
     </div>
     <hr>

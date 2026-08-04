@@ -58,7 +58,7 @@
         }
 
         const tabla = $tabla.DataTable({
-            processing: true, serverSide: true, responsive: true,
+            processing: true, serverSide: true,
             language: {
                 search: 'Buscar:', lengthMenu: 'Mostrar _MENU_ registros',
                 info: 'Mostrando _START_ a _END_ de _TOTAL_ órdenes', infoEmpty: 'Sin órdenes',
@@ -66,9 +66,10 @@
                 paginate: { first: 'Primero', last: 'Último', next: 'Siguiente', previous: 'Anterior' },
                 processing: 'Cargando...',
             },
-            order: [[2, 'desc']],
+            order: [[3, 'desc']],
             ajax: { url: rutas.datatable, data: (d) => $.extend(d, filtrosActuales()) },
             columns: [
+                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
                 { data: 'ml_order_id', name: 'ml_order_id' },
                 {
                     data: null, name: 'etiquetas', orderable: false, searchable: false,
@@ -99,7 +100,6 @@
                     render: (data, type, row) => data && rutas.ventaShow
                         ? '<a href="' + rutas.ventaShow + '/' + row.venta_id + '">' + data + '</a>' : (data || '—'),
                 },
-                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
             ],
         });
 

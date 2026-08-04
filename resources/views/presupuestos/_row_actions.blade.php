@@ -1,7 +1,21 @@
+@php
+    $badge = match ($presupuesto->estado_visual) {
+        'aceptado' => 'success',
+        'rechazado' => 'danger',
+        'vencido' => 'dark',
+        default => 'warning',
+    };
+    $label = match ($presupuesto->estado_visual) {
+        'aceptado' => 'Aceptado',
+        'rechazado' => 'Rechazado',
+        'vencido' => 'Vencido',
+        default => 'Pendiente',
+    };
+@endphp
 <div class="dropdown">
-    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+    <button class="btn btn-sm btn-outline-{{ $badge }} dropdown-toggle js-fila-estado" type="button"
             data-bs-toggle="dropdown" data-id="{{ $presupuesto->id }}">
-        Acciones
+        {{ $label }}
     </button>
     <ul class="dropdown-menu dropdown-menu-end">
         <li><a class="dropdown-item" href="{{ route('presupuestos.show', $presupuesto) }}">Ver</a></li>

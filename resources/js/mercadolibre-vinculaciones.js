@@ -162,7 +162,7 @@
         if (!$tabla.length) { return; }
 
         tabla = $tabla.DataTable({
-            processing: true, serverSide: true, responsive: true,
+            processing: true, serverSide: true,
             language: {
                 search: 'Buscar:', lengthMenu: 'Mostrar _MENU_ registros',
                 info: 'Mostrando _START_ a _END_ de _TOTAL_ vinculaciones', infoEmpty: 'Sin vinculaciones',
@@ -172,6 +172,7 @@
             },
             ajax: { url: rutas.datatable },
             columns: [
+                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
                 { data: 'ml_item_id', name: 'ml_item_id' },
                 { data: 'titulo_ml', name: 'titulo_ml' },
                 { data: 'producto_nombre', name: 'producto.nombre' },
@@ -192,7 +193,6 @@
                     data: 'precio_estado', name: 'precio_estado', orderable: false, searchable: false,
                     render: (data, type, row) => renderEstadoPrecio(data, row),
                 },
-                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
             ],
         });
     }

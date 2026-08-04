@@ -159,7 +159,7 @@
         }
 
         const tabla = $tabla.DataTable({
-            processing: true, serverSide: true, responsive: true,
+            processing: true, serverSide: true,
             language: {
                 search: 'Buscar:', lengthMenu: 'Mostrar _MENU_ registros',
                 info: 'Mostrando _START_ a _END_ de _TOTAL_ presupuestos', infoEmpty: 'Sin presupuestos',
@@ -168,8 +168,9 @@
                 processing: 'Cargando...',
             },
             ajax: { url: rutas.data, data: (d) => $.extend(d, filtrosActuales()) },
+            order: [[2, 'desc']],
             columns: [
-                { data: 'estado_badge', name: 'estado_badge', orderable: false, searchable: false },
+                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
                 { data: 'id', name: 'id' },
                 { data: 'fecha_emision', name: 'fecha_emision' },
                 { data: 'fecha_validez', name: 'fecha_validez' },
@@ -182,7 +183,6 @@
                 { data: 'total', name: 'total', render: money },
                 { data: 'nota_cliente', name: 'nota_cliente' },
                 { data: 'nota_interna', name: 'nota_interna' },
-                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
             ],
         });
 

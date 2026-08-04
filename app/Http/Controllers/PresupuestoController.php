@@ -58,7 +58,6 @@ class PresupuestoController extends Controller
         $query = $this->queryFiltrada($request);
 
         return DataTables::eloquent($query)
-            ->addColumn('estado_badge', fn (Presupuesto $p) => view('presupuestos._estado_badge', ['presupuesto' => $p])->render())
             ->addColumn('acciones', fn (Presupuesto $p) => view('presupuestos._row_actions', ['presupuesto' => $p])->render())
             ->addColumn('estado_visual', fn (Presupuesto $p) => $p->estado_visual)
             ->addColumn('cliente', fn (Presupuesto $p) => optional($p->cliente)->nombre)
@@ -69,7 +68,7 @@ class PresupuestoController extends Controller
             ->editColumn('descuento', fn (Presupuesto $p) => (float) $p->descuento)
             ->editColumn('subtotal_con_descuento', fn (Presupuesto $p) => (float) $p->subtotal_con_descuento)
             ->editColumn('total', fn (Presupuesto $p) => (float) $p->total)
-            ->rawColumns(['estado_badge', 'acciones'])
+            ->rawColumns(['acciones'])
             ->toJson();
     }
 
@@ -251,8 +250,9 @@ class PresupuestoController extends Controller
     public function pdf(Presupuesto $presupuesto)
     {
         $presupuesto->load(['items', 'conceptos', 'cliente.condicionIva', 'categoria', 'listaPrecio', 'vendedor']);
+        $datosEmpresa = \App\Models\DatosEmpresa::instancia();
 
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('presupuestos.pdf', compact('presupuesto'));
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('presupuestos.pdf', compact('presupuesto', 'datosEmpresa'));
 
         return $pdf->stream('presupuesto-'.$presupuesto->nro_presupuesto.'.pdf', ['Content-Disposition' => 'inline']);
     }

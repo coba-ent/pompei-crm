@@ -66,7 +66,7 @@
                     <table class="table table-sm align-middle" id="tabla-items">
                         <thead>
                             <tr>
-                                <th>Producto</th><th>Cant.</th><th>Precio</th><th>Desc. %</th>
+                                <th>Producto</th><th>Cant.</th><th>Costo</th><th>Desc. %</th>
                                 <th>Subtotal</th><th>IVA</th><th>Total</th><th></th>
                             </tr>
                         </thead>

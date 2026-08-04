@@ -181,7 +181,7 @@
         if (!$tabla.length) { return; }
 
         tabla = $tabla.DataTable({
-            processing: true, serverSide: true, responsive: true,
+            processing: true, serverSide: true,
             language: {
                 search: 'Buscar:', lengthMenu: 'Mostrar _MENU_ registros',
                 info: 'Mostrando _START_ a _END_ de _TOTAL_ vinculaciones', infoEmpty: 'Sin vinculaciones',
@@ -191,6 +191,7 @@
             },
             ajax: { url: rutas.datatable },
             columns: [
+                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
                 { data: 'tn_product_id', name: 'tn_product_id' },
                 { data: 'variant_id', name: 'variant_id' },
                 { data: 'nombre_variante_tn', name: 'nombre_variante_tn' },
@@ -204,7 +205,6 @@
                     data: 'precio_estado', name: 'precio_pendiente', orderable: false,
                     render: (data, type, row) => renderEstadoSync(data, row, 'precio_sincronizado_en', 'precio_error'),
                 },
-                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
             ],
         });
     }

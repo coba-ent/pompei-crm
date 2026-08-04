@@ -1,6 +1,18 @@
+@php
+    $badge = match ($venta->estadoCobro()) {
+        'cobrada' => 'success',
+        'parcial' => 'warning',
+        default => 'danger',
+    };
+    $label = match ($venta->estadoCobro()) {
+        'cobrada' => 'Cobrada',
+        'parcial' => 'Parcial',
+        default => 'Sin Cobrar',
+    };
+@endphp
 <div class="dropdown">
-    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-        Acciones
+    <button class="btn btn-sm btn-outline-{{ $badge }} dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        {{ $label }}
     </button>
     <ul class="dropdown-menu dropdown-menu-end">
         <li><a class="dropdown-item" href="{{ route('ventas.show', $venta) }}">Ver</a></li>

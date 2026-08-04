@@ -33,7 +33,6 @@ class GastoController extends Controller
         $query = Gasto::query()->with(['categoria:id,nombre,categoria_padre_id', 'categoria.padre:id,nombre', 'cuentaTesoreria:id,nombre']);
 
         return DataTables::eloquent($query)
-            ->addColumn('estado_badge', fn (Gasto $g) => view('gastos._estado_badge', ['gasto' => $g])->render())
             ->addColumn('acciones', fn (Gasto $g) => view('gastos._row_actions', ['gasto' => $g])->render())
             ->addColumn('estado', fn (Gasto $g) => $g->estado())
             ->addColumn('categoria', fn (Gasto $g) => optional($g->categoria)->padre
@@ -43,7 +42,7 @@ class GastoController extends Controller
             ->addColumn('fecha_raw', fn (Gasto $g) => optional($g->fecha)->format('Y-m-d'))
             ->editColumn('fecha', fn (Gasto $g) => optional($g->fecha)->format('d/m/Y'))
             ->editColumn('monto', fn (Gasto $g) => (float) $g->monto)
-            ->rawColumns(['estado_badge', 'acciones'])
+            ->rawColumns(['acciones'])
             ->toJson();
     }
 

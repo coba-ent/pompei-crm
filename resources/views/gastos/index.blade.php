@@ -49,7 +49,7 @@
                 </div>
 
                 <div class="table-responsive">
-                    <table id="tabla-gastos" class="table table-hover display responsive nowrap" style="width:100%">
+                    <table id="tabla-gastos" class="table table-hover display nowrap" style="width:100%">
                         <thead>
                             <tr>
                                 <th>Estado</th>
@@ -59,7 +59,6 @@
                                 <th>Descripción</th>
                                 <th>Medio de Pago</th>
                                 <th>Monto</th>
-                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody></tbody>

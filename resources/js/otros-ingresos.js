@@ -98,7 +98,7 @@
         }
 
         const tabla = $tabla.DataTable({
-            processing: true, serverSide: true, responsive: true,
+            processing: true, serverSide: true,
             language: {
                 search: 'Buscar:', lengthMenu: 'Mostrar _MENU_ registros',
                 info: 'Mostrando _START_ a _END_ de _TOTAL_ ingresos', infoEmpty: 'Sin ingresos',
@@ -108,14 +108,13 @@
             },
             ajax: { url: rutas.data, data: (d) => $.extend(d, filtrosActuales()) },
             columns: [
-                { data: 'estado_badge', name: 'estado_badge', orderable: false, searchable: false },
+                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
                 { data: 'id', name: 'id' },
                 { data: 'fecha', name: 'fecha' },
                 { data: 'categoria', name: 'categoria.nombre' },
                 { data: 'descripcion', name: 'descripcion' },
                 { data: 'medio_de_cobro', name: 'medio_de_cobro' },
                 { data: 'monto', name: 'monto', render: money },
-                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
             ],
         });
 

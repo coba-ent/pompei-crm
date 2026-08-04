@@ -98,7 +98,7 @@
                 </div>
 
                 <div class="table-responsive">
-                    <table id="tabla-presupuestos" class="table table-hover display responsive nowrap" style="width:100%">
+                    <table id="tabla-presupuestos" class="table table-hover display nowrap" style="width:100%">
                         <thead>
                             <tr>
                                 <th>Estado</th>
@@ -114,7 +114,6 @@
                                 <th>Total</th>
                                 <th>Nota Cliente</th>
                                 <th>Nota Interna</th>
-                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody></tbody>

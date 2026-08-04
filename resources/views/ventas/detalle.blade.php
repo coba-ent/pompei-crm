@@ -98,12 +98,8 @@
         </div>
 
         {{-- Documento imprimible con watermark --}}
-        <div class="card mb-3 position-relative overflow-hidden">
-            <div class="position-absolute top-50 start-50 translate-middle text-danger opacity-25 fw-bold"
-                 style="font-size:3rem; transform: translate(-50%, -50%) rotate(-20deg); pointer-events:none; z-index:1;">
-                NO VÁLIDO COMO FACTURA
-            </div>
-            <div class="card-body" style="position:relative; z-index:2;">
+        <div class="card mb-3">
+            <div class="card-body">
                 <div class="d-flex justify-content-between mb-3">
                     <h5 class="mb-0">Comprobante {{ $venta->tipo_comprobante }} N° {{ $venta->nro_comprobante }}</h5>
                     <div class="text-end">

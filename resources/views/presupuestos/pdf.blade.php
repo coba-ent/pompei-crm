@@ -18,8 +18,9 @@
     </style>
 </head>
 <body>
+    @include('pdf.partials.encabezado-emisor')
+
     <div class="header">
-        <div class="logo">Agregar Mi Logo</div>
         <div class="datos">
             <h2>PRESUPUESTO {{ $presupuesto->nro_presupuesto }}</h2>
             <div>Fecha de Emisión: {{ optional($presupuesto->fecha_emision)->format('d/m/Y') }}</div>

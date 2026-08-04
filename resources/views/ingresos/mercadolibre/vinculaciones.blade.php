@@ -28,9 +28,10 @@
         <div class="card">
             <div class="card-body">
                 <div class="table-responsive">
-                    <table id="tabla-ml-vinculaciones" class="table table-hover display responsive nowrap" style="width:100%">
+                    <table id="tabla-ml-vinculaciones" class="table table-hover display nowrap" style="width:100%">
                         <thead>
                             <tr>
+                                <th>Acciones</th>
                                 <th>Publicación (ID)</th>
                                 <th>Título</th>
                                 <th>Producto</th>
@@ -40,7 +41,6 @@
                                 </th>
                                 <th>Sincronización</th>
                                 <th>Precio</th>
-                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody></tbody>

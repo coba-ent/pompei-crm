@@ -68,9 +68,10 @@
                 </div>
 
                 <div class="table-responsive">
-                    <table id="tabla-tn-ordenes" class="table table-hover display responsive nowrap" style="width:100%">
+                    <table id="tabla-tn-ordenes" class="table table-hover display nowrap" style="width:100%">
                         <thead>
                             <tr>
+                                <th>Acciones</th>
                                 <th>Orden</th>
                                 <th>Fecha</th>
                                 <th>Comprador</th>
@@ -80,7 +81,6 @@
                                 <th>Estado de conversión</th>
                                 <th>Motivo</th>
                                 <th>Venta</th>
-                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody></tbody>

@@ -157,7 +157,7 @@
                     <table class="table table-bordered">
                         <thead>
                             <tr>
-                                <th>Código</th><th>Descripción</th><th>Cant.</th><th>Precio Unitario</th>
+                                <th>Código</th><th>Descripción</th><th>Cant.</th><th>Costo Unitario</th>
                                 <th>Bonif.</th><th>Subtotal</th><th>Alícuota IVA</th><th>Subtotal c/IVA</th>
                             </tr>
                         </thead>
