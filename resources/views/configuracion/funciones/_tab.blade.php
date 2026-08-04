@@ -32,11 +32,6 @@
                             Ver mis Órdenes
                         </a>
                     @endif
-                    @if ($funcion->disponible && $funcion->ruta_configuracion && Route::has($funcion->ruta_configuracion))
-                        <a href="{{ route($funcion->ruta_configuracion) }}" class="btn btn-sm btn-outline-primary">
-                            Configurar
-                        </a>
-                    @endif
                     <div class="form-check form-switch mb-0">
                         <input
                             class="form-check-input js-funcion-toggle"
