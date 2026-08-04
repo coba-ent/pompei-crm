@@ -155,9 +155,21 @@ comprobante.
 - **FR-003**: El sistema DEBE autenticarse contra WSAA obteniendo un Ticket de Acceso (token +
   signature), reutilizándolo mientras esté vigente y renovándolo automáticamente al vencer, sin
   intervención manual del usuario en cada emisión.
-- **FR-004**: El sistema DEBE, al confirmar el cobro de una Venta con Tipo de Comprobante A/B/C, solicitar
-  CAE vía WSFEv1 (`FECAESolicitar` o equivalente) para el punto de venta y tipo de comprobante
-  correspondientes, usando los datos fiscales del cliente y el detalle de ítems/IVA de la Venta.
+- **FR-004** (⚠️ **corregido por spec 040, 04/08/2026** — ver nota debajo): El sistema DEBE permitir
+  solicitar CAE vía WSFEv1 (`FECAESolicitar` o equivalente) para una Venta con Tipo de Comprobante
+  A/B/C, para el punto de venta y tipo de comprobante correspondientes, usando los datos fiscales del
+  cliente y el detalle de ítems/IVA de la Venta. La solicitud **DEBE** dispararse únicamente por una
+  acción manual y explícita del usuario ("Enviar a ARCA" en el listado de Ventas) — **NUNCA**
+  automáticamente al confirmar el cobro.
+  > **Nota de corrección (spec 040, 04/08/2026)**: la redacción original de este requisito ("al
+  > confirmar el cobro... solicitar CAE... automáticamente") se especificó sin respaldo de un
+  > relevamiento con capturas reales de Contagram — la cuenta de prueba usada para los informes nunca
+  > tuvo la facturación electrónica real habilitada. Ese defecto causó un incidente real el
+  > 04/08/2026: una Venta de prueba en el VPS de producción disparó automáticamente una solicitud de
+  > CAE contra ARCA **producción** sin que ningún usuario ejecutara una acción explícita. El
+  > comportamiento real de Contagram, confirmado por el dueño del negocio, es manual (botón "Enviar a
+  > ARCA" por fila en el listado de Ventas). Ver `specs/040-envio-manual-arca/spec.md` para el detalle
+  > completo de la corrección.
 - **FR-005**: El sistema DEBE guardar en el comprobante emitido: CAE, fecha de vencimiento de CAE,
   número de comprobante real asignado por ARCA (punto de venta + número correlativo) y el resultado
   crudo de la respuesta del webservice (para auditoría/soporte).

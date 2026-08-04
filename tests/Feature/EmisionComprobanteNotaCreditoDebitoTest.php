@@ -118,6 +118,9 @@ class EmisionComprobanteNotaCreditoDebitoTest extends TestCase
             'fecha' => now()->toDateString(),
         ])->assertCreated();
 
+        // Spec 040: cobrar ya no dispara la emisión — se envía manualmente antes de crear la NC/ND.
+        $this->postJson(route('ventas.enviarArca', $venta))->assertOk()->assertJsonPath('ok', true);
+
         $venta->refresh();
         $comprobanteVenta = $venta->comprobanteFiscal;
         $this->assertNotNull($comprobanteVenta);

@@ -832,19 +832,33 @@ deshabilitado en el menú de fila de Ventas), Remitos con detalle de ítems, Rec
 ("Enviar Whatsapp" deshabilitado) y Abonos (no construido en esta spec; su link en el sidebar no existe
 todavía).
 
-**Actualización (spec 034, Facturación Electrónica ARCA/AFIP):** implementada. Al confirmar el primer
-cobro de una Venta, el CRM solicita CAE real vía WSAA (autenticación con certificado propio del negocio)
-+ WSFEv1 (`app/Services/Arca/`), reemplazando el watermark "NO VÁLIDO COMO FACTURA" del PDF por el CAE,
-vencimiento del CAE y QR fiscal AFIP cuando la emisión es exitosa. Sin certificado/Punto de Venta
-configurado, o ante rechazo/caída de ARCA, la Venta se guarda igual y usa el fallback local sin validez
-fiscal (numeración `tipo_comprobante`/`nro_comprobante` existente, sin bloquear el cobro) — el motivo se
-informa por toast. Las Notas de Crédito/Débito de Ventas con CAE obtienen su propio CAE referenciando el
-comprobante original. Reintentos son siempre manuales; antes de reintentar se reconcilia automáticamente
-contra `FECompConsultar` para no duplicar comprobantes ante un timeout previo. Un comprobante con CAE
-aprobado es inmutable (Tipo de Comprobante/cliente/ítems bloqueados en edición). Pantalla nueva
-"Configuración & Ajustes → Facturación Electrónica" para cargar el certificado (`.crt`/`.key`, cifrado en
-disco) y administrar Puntos de Venta. Sigue documentada como brecha (§7) la ausencia de un informe con
-capturas reales de Contagram para esa pantalla de configuración.
+**Actualización (spec 034, Facturación Electrónica ARCA/AFIP):** implementada. El CRM solicita CAE real
+vía WSAA (autenticación con certificado propio del negocio) + WSFEv1 (`app/Services/Arca/`), reemplazando
+el watermark "NO VÁLIDO COMO FACTURA" del PDF por el CAE, vencimiento del CAE y QR fiscal AFIP cuando la
+emisión es exitosa. Sin certificado/Punto de Venta configurado, o ante rechazo/caída de ARCA, la Venta
+queda igual con el fallback local sin validez fiscal (numeración `tipo_comprobante`/`nro_comprobante`
+existente, sin bloquear el cobro) — el motivo se informa por toast o modal según el caso (ver
+Actualización spec 040 abajo). Las Notas de Crédito/Débito de Ventas con CAE obtienen su propio CAE
+referenciando el comprobante original. Reintentos son siempre manuales; antes de reintentar se reconcilia
+automáticamente contra `FECompConsultar` para no duplicar comprobantes ante un timeout previo. Un
+comprobante con CAE aprobado es inmutable (Tipo de Comprobante/cliente/ítems bloqueados en edición).
+Pantalla nueva "Configuración & Ajustes → Facturación Electrónica" para cargar el certificado (`.crt`/
+`.key`, cifrado en disco) y administrar Puntos de Venta. Sigue documentada como brecha (§7) la ausencia
+de un informe con capturas reales de Contagram para esa pantalla de configuración.
+
+**Actualización (spec 040, 04/08/2026 — corrige un defecto de spec 034):** la solicitud de CAE **ya NO
+se dispara automáticamente al confirmar el cobro**. Ese comportamiento (documentado antes en este mismo
+párrafo) se había especificado sin respaldo de captura real, y causó un incidente real el 04/08/2026:
+una Venta de prueba en el VPS de producción envió automáticamente una solicitud de CAE contra ARCA
+**producción**, rechazada por un error de cálculo de IVA, sin que ningún usuario ejecutara una acción
+explícita. El comportamiento correcto (confirmado por el dueño del negocio contra Contagram real) es un
+botón **"Enviar a ARCA"** por fila en el listado de Ventas (menú de acciones, `resources/views/ventas/_row_actions.blade.php`),
+disponible sólo para Ventas A/B/C sin `ComprobanteFiscal` aprobado, con o sin cobros registrados, y
+protegido por el mismo permiso `ventas.ver` que el resto del listado. El resultado real de un intento
+contra ARCA (aprobado con CAE, o rechazado) se muestra en un **modal** persistente
+(`#modal-resultado-arca`) — un rechazo de precondición (Venta no elegible, función desactivada, sin
+certificado configurado) se informa por **toast**, porque ahí ni siquiera se llegó a contactar a ARCA.
+Detalle completo en `specs/040-envio-manual-arca/`.
 
 **Actualización (spec 039, 03/08/2026):** las Notas de Crédito/Débito con CAE ya tienen su propio
 documento imprimible ("Ver Detalle" en la sección de NC/ND del Detalle de Venta), mostrando su CAE,

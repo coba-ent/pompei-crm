@@ -23,6 +23,9 @@
         <li><a class="dropdown-item" href="{{ route('ventas.show', $venta) }}#notas">Crear NC/ND</a></li>
         <li><a class="dropdown-item" href="{{ route('ventas.show', $venta) }}#remitos">Crear Remito</a></li>
         <li><a class="dropdown-item disabled" href="#" title="Próximamente">Cta Cte</a></li>
+        @if ($venta->puedeEnviarseAArca())
+            <li><a class="dropdown-item js-enviar-arca" href="#" data-id="{{ $venta->id }}" data-url="{{ route('ventas.enviarArca', $venta) }}">Enviar a ARCA</a></li>
+        @endif
         <li><hr class="dropdown-divider"></li>
         <li><a class="dropdown-item js-imprimir" href="#" data-id="{{ $venta->id }}">Ver Detalle</a></li>
         <li><a class="dropdown-item js-imprimir" href="#" data-id="{{ $venta->id }}">Imprimir Detalle</a></li>

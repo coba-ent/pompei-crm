@@ -16,7 +16,7 @@ use App\Services\Arca\EmisorComprobante;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-/** US1 — cobro de Venta obtiene CAE real y persiste ComprobanteFiscal aprobado. */
+/** Spec 040 — envío manual a ARCA (ex US1 de spec 034, ahora disparado por acción explícita, no por el cobro). */
 class EmisionComprobanteVentaTest extends TestCase
 {
     use RefreshDatabase;
@@ -99,20 +99,24 @@ class EmisionComprobanteVentaTest extends TestCase
         return Venta::firstOrFail();
     }
 
-    public function test_cobro_de_venta_obtiene_cae_y_persiste_comprobante_fiscal_aprobado(): void
+    public function test_enviar_a_arca_manualmente_obtiene_cae_y_persiste_comprobante_fiscal_aprobado(): void
     {
         $consumidorFinal = CondicionIva::create(['nombre' => 'Consumidor Final', 'codigo_afip' => '5', 'requiere_cuit' => false]);
         $cliente = Cliente::factory()->create(['condicion_iva_id' => $consumidorFinal->id]);
         $cuenta = CuentaTesoreria::factory()->tipo('efectivo')->create();
         $venta = $this->crearVenta($cliente);
 
-        $response = $this->postJson(route('ventas.cobranzas.store', $venta), [
+        // Cobrar ya NO dispara la emisión (spec 040) — se verifica explícitamente.
+        $this->postJson(route('ventas.cobranzas.store', $venta), [
             'cuenta_tesoreria_id' => $cuenta->id,
             'monto' => 1210,
             'fecha' => now()->toDateString(),
-        ]);
+        ])->assertCreated();
+        $this->assertNull($venta->fresh()->comprobanteFiscal);
 
-        $response->assertCreated()->assertJsonPath('ok', true);
+        $response = $this->postJson(route('ventas.enviarArca', $venta));
+
+        $response->assertOk()->assertJsonPath('ok', true);
 
         $comprobante = $venta->fresh()->comprobanteFiscal;
         $this->assertNotNull($comprobante);

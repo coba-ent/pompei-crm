@@ -49,7 +49,7 @@ class VentaController extends Controller
 
     private function queryFiltrada(Request $request): Builder
     {
-        $query = Venta::query()->with(['cliente:id,nombre', 'categoria:id,nombre', 'presupuesto:id', 'listaPrecio:id,nombre', 'vendedor:id,nombre', 'etiquetas:id,nombre', 'cobros.cuentaTesoreria:id,nombre']);
+        $query = Venta::query()->with(['cliente:id,nombre', 'categoria:id,nombre', 'presupuesto:id', 'listaPrecio:id,nombre', 'vendedor:id,nombre', 'etiquetas:id,nombre', 'cobros.cuentaTesoreria:id,nombre', 'comprobanteFiscal:id,comprobantable_type,comprobantable_id,estado']);
 
         if ($request->filled('cliente_id')) {
             $query->where('cliente_id', $request->input('cliente_id'));
@@ -297,18 +297,17 @@ class VentaController extends Controller
         return $pdf->stream('ticket-'.$venta->nro_comprobante.'.pdf', ['Content-Disposition' => 'inline']);
     }
 
-    /** "Cobrar" / "Agregar Cobranza" (informe §3.2). Dispara la emisión con CAE en el primer cobro (US1). */
+    /**
+     * "Cobrar" / "Agregar Cobranza" (informe §3.2). Spec 040: ya NO dispara la emisión de CAE — el
+     * envío a ARCA es una acción manual explícita del usuario (ver enviarArca()), a raíz del
+     * incidente del 04/08/2026 (envío real no deseado a ARCA producción por un trigger automático).
+     */
     public function cobranzaStore(StoreCobroRequest $request, Venta $venta): JsonResponse
     {
         $datos = $request->validated();
         $cuenta = CuentaTesoreria::findOrFail($datos['cuenta_tesoreria_id']);
 
         $cobro = $this->cobranzas->registrarCobro($venta, (float) $datos['monto'], $cuenta, Carbon::parse($datos['fecha']), $datos['nota'] ?? null);
-
-        $arcaError = null;
-        if (! $venta->comprobanteFiscal()->exists()) {
-            $arcaError = $this->emitirComprobanteFiscal($venta);
-        }
 
         return response()->json([
             'ok' => true,
@@ -317,20 +316,30 @@ class VentaController extends Controller
             'cobrado' => $venta->cobrado(),
             'a_cobrar' => $venta->aCobrar(),
             'estado_cobro' => $venta->estadoCobro(),
-            'comprobante_fiscal' => $venta->comprobanteFiscal()->first(),
-            'arca_error' => $arcaError,
         ], 201);
     }
 
     /**
-     * Solicita el CAE a ARCA para la Venta (FR-001 a FR-014). Ante falta de configuración usa el
-     * fallback local sin validez fiscal (FR-014); ante rechazo/caída de ARCA no revierte el cobro
-     * ya registrado, sólo informa el motivo para mostrarlo por toast (FR-010).
+     * Spec 040: envío manual a ARCA desde el listado de Ventas (reemplaza el trigger automático
+     * eliminado de cobranzaStore()). Precondiciones explícitas (FR-003/FR-008/FR-012) antes de
+     * intentar el envío real — a diferencia del fallback silencioso que tenía sentido para el
+     * trigger automático, acá el usuario decidió a propósito enviar esta Venta y necesita una
+     * respuesta visible en cualquier caso (contracts/enviar-arca.md).
      */
-    private function emitirComprobanteFiscal(Venta $venta): ?string
+    public function enviarArca(Venta $venta): JsonResponse
     {
-        if (! \App\Models\FuncionAvanzada::activa('facturacion_electronica')) {
-            return null;
+        if (! $venta->puedeEnviarseAArca()) {
+            return response()->json([
+                'ok' => false,
+                'mensaje' => 'Esta Venta no puede enviarse a ARCA (tipo de comprobante no fiscal, ya tiene CAE aprobado, o la Facturación Electrónica está desactivada).',
+            ], 422);
+        }
+
+        if (! \App\Models\CertificadoFiscal::activo()) {
+            return response()->json([
+                'ok' => false,
+                'mensaje' => 'No hay un certificado fiscal configurado — cargalo en Configuración & Ajustes → Facturación Electrónica antes de enviar.',
+            ], 422);
         }
 
         $venta->load('cliente');
@@ -350,12 +359,25 @@ class VentaController extends Controller
         try {
             $this->emisorComprobante->emitir($venta, $datos);
 
-            return null;
+            $comprobante = $venta->comprobanteFiscal()->first();
+
+            return response()->json([
+                'ok' => true,
+                'mensaje' => 'CAE obtenido correctamente.',
+                'comprobante_fiscal' => $comprobante,
+                'puede_enviarse_arca' => $venta->refresh()->puedeEnviarseAArca(),
+            ]);
         } catch (CertificadoNoConfiguradoException) {
-            // Fallback FR-014: la Venta queda con su numeración local sin validez fiscal.
-            return null;
+            return response()->json([
+                'ok' => false,
+                'mensaje' => 'No hay un certificado fiscal configurado — cargalo en Configuración & Ajustes → Facturación Electrónica antes de enviar.',
+            ], 422);
         } catch (ArcaRechazoException|ArcaNoDisponibleException $e) {
-            return $e->getMessage();
+            return response()->json([
+                'ok' => false,
+                'mensaje' => $e->getMessage(),
+                'puede_enviarse_arca' => true,
+            ]);
         }
     }
 

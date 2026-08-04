@@ -64,14 +64,16 @@ class EmisionComprobanteRechazoTest extends TestCase
         $cuenta = CuentaTesoreria::factory()->tipo('efectivo')->create();
         $venta = $this->crearVenta($cliente, 'A');
 
-        $response = $this->postJson(route('ventas.cobranzas.store', $venta), [
+        $this->postJson(route('ventas.cobranzas.store', $venta), [
             'cuenta_tesoreria_id' => $cuenta->id,
             'monto' => 1210,
             'fecha' => now()->toDateString(),
-        ]);
+        ])->assertCreated();
 
-        $response->assertCreated()->assertJsonPath('ok', true);
-        $this->assertNotNull($response->json('arca_error'));
+        $response = $this->postJson(route('ventas.enviarArca', $venta));
+
+        $response->assertOk()->assertJsonPath('ok', false);
+        $this->assertNotNull($response->json('mensaje'));
 
         $venta->refresh();
         $this->assertNull($venta->comprobanteFiscal);
@@ -126,13 +128,15 @@ class EmisionComprobanteRechazoTest extends TestCase
             );
         });
 
-        $response = $this->postJson(route('ventas.cobranzas.store', $venta), [
+        $this->postJson(route('ventas.cobranzas.store', $venta), [
             'cuenta_tesoreria_id' => $cuenta->id,
             'monto' => 1210,
             'fecha' => now()->toDateString(),
-        ]);
+        ])->assertCreated();
 
-        $response->assertCreated();
+        $response = $this->postJson(route('ventas.enviarArca', $venta));
+
+        $response->assertOk();
 
         $venta->refresh();
         $this->assertNotNull($venta->comprobanteFiscal);

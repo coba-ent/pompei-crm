@@ -196,6 +196,7 @@ Route::middleware('permiso:ventas.ver')->prefix('ventas')->name('ventas.')->grou
     Route::delete('{venta}', [VentaController::class, 'destroy'])->name('destroy');
     Route::get('{venta}/pdf', [VentaController::class, 'pdf'])->name('pdf');
     Route::get('{venta}/ticket', [VentaController::class, 'ticket'])->name('ticket');
+    Route::post('{venta}/enviar-arca', [VentaController::class, 'enviarArca'])->name('enviarArca');
     Route::post('{venta}/cobranzas', [VentaController::class, 'cobranzaStore'])->name('cobranzas.store');
     Route::delete('{venta}/cobranzas/{cobro}', [VentaController::class, 'cobranzaDestroy'])->name('cobranzas.destroy');
     Route::get('{venta}/cobranzas/{cobro}/recibo', [VentaController::class, 'reciboCobranza'])->name('cobranzas.recibo');

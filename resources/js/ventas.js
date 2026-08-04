@@ -143,6 +143,51 @@
                 })
                 .fail((xhr) => toast('error', xhr.responseJSON?.mensaje || 'No se pudo eliminar.'));
         });
+
+        // Envío manual a ARCA (spec 040) — reemplaza el trigger automático que causó el incidente
+        // del 04/08/2026. El resultado real de ARCA (aprobado o rechazado) va en un modal
+        // persistente (FR-007); un rechazo de precondición (422, ni siquiera llegó a ARCA) va en
+        // toast (FR-007a).
+        $(document).on('click', '.js-enviar-arca', function (e) {
+            e.preventDefault();
+            const $btn = $(this);
+            if ($btn.hasClass('disabled')) { return; }
+            if (!confirm('¿Enviar esta Venta a ARCA para solicitar el CAE? Es una acción real ante un ente fiscal.')) { return; }
+
+            $btn.addClass('disabled');
+            $.ajax({ url: $btn.data('url'), method: 'POST' })
+                .done((resp) => {
+                    mostrarResultadoArca(resp);
+                    tabla.ajax.reload(null, false);
+                })
+                .fail((xhr) => {
+                    if (xhr.status === 422) {
+                        toast('error', xhr.responseJSON?.mensaje || 'No se pudo enviar a ARCA.');
+                    } else {
+                        mostrarResultadoArca(xhr.responseJSON || { ok: false, mensaje: 'No se pudo enviar a ARCA.' });
+                    }
+                })
+                .always(() => $btn.removeClass('disabled'));
+        });
+
+        function mostrarResultadoArca(resp) {
+            const $body = $('#modal-resultado-arca-body');
+            if (resp.ok) {
+                const cf = resp.comprobante_fiscal || {};
+                $body.html(
+                    '<p class="text-success fw-bold mb-2"><i class="fas fa-check-circle me-1"></i> CAE obtenido correctamente.</p>' +
+                    '<div><strong>CAE:</strong> ' + (cf.cae || '-') + '</div>' +
+                    '<div><strong>Vencimiento:</strong> ' + (cf.cae_vencimiento || '-') + '</div>' +
+                    '<div><strong>Número:</strong> ' + (cf.numero || '-') + '</div>'
+                );
+            } else {
+                $body.html(
+                    '<p class="text-danger fw-bold mb-2"><i class="fas fa-times-circle me-1"></i> ARCA rechazó el envío.</p>' +
+                    '<div>' + (resp.mensaje || 'Motivo no informado.') + '</div>'
+                );
+            }
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-resultado-arca')).show();
+        }
     }
 
     // ---------------------------------------------------------------------
@@ -637,9 +682,6 @@
             })
                 .done((resp) => {
                     toast('success', resp.mensaje || 'Venta actualizada con éxito.');
-                    if (resp.arca_error) {
-                        toast('warning', 'ARCA: ' + resp.arca_error);
-                    }
                     bootstrap.Modal.getInstance(document.getElementById('modal-cobranza'))?.hide();
                     window.location.reload();
                 })

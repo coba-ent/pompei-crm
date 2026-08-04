@@ -147,6 +147,25 @@ class Venta extends Model
         return $this->aCobrar() > 0.005 ? 'parcial' : 'cobrada';
     }
 
+    /**
+     * Habilita la acción manual "Enviar a ARCA" (spec 040): tipo A/B/C, todavía sin CAE aprobado, y
+     * con la Función Avanzada de Facturación Electrónica activa.
+     */
+    public function puedeEnviarseAArca(): bool
+    {
+        if (! in_array($this->tipo_comprobante, ['A', 'B', 'C'], true)) {
+            return false;
+        }
+
+        if (! FuncionAvanzada::activa('facturacion_electronica')) {
+            return false;
+        }
+
+        $comprobante = $this->relationLoaded('comprobanteFiscal') ? $this->comprobanteFiscal : $this->comprobanteFiscal()->first();
+
+        return ! ($comprobante && $comprobante->estado === 'aprobado');
+    }
+
     /** N° de comprobante correlativo simple por tipo (dato sin emisión fiscal — research.md §5). */
     public static function siguienteNroComprobante(string $tipoComprobante): string
     {
