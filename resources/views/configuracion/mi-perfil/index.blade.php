@@ -6,7 +6,7 @@
 
         <div class="row align-items-center mb-4">
             <div class="col-12">
-                <h4 class="mb-0 text-primary fw-bold">Mi Perfil</h4>
+                <h4 class="mb-0 text-primary fw-bold">Empresa</h4>
                 <p class="text-muted mb-0">
                     Datos fiscales del negocio emisor, usados como encabezado en los comprobantes imprimibles del CRM.
                 </p>
@@ -41,13 +41,45 @@
                         </div>
                     </div>
                 @else
-                    <p class="text-muted mb-0">Todavía no se cargaron los datos de Mi Perfil — los PDFs de comprobantes se generan sin encabezado del emisor.</p>
+                    <p class="text-muted mb-0">Todavía no se cargaron los datos de Empresa — los PDFs de comprobantes se generan sin encabezado del emisor.</p>
                 @endif
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold">Usuarios</h6>
+                <div>
+                    <a href="{{ route('configuracion.roles.index') }}" class="btn btn-outline-secondary me-1">
+                        <i class="fas fa-user-shield me-1"></i> Roles y Permisos
+                    </a>
+                    <button type="button" class="btn btn-primary" id="btn-nuevo-usuario">
+                        <i class="fas fa-plus me-1"></i> Nuevo Usuario
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table id="tabla-usuarios" class="table table-hover display responsive nowrap" style="width:100%">
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Email</th>
+                                <th>Roles</th>
+                                <th>Estado</th>
+                                <th class="text-end">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
     </div>
 </div>
+
+@include('configuracion.usuarios._modal_form')
 
 {{-- Modal: Mi Perfil --}}
 <div class="modal fade" id="modal-mi-perfil" tabindex="-1" aria-hidden="true">
@@ -56,7 +88,7 @@
             <form id="form-mi-perfil" enctype="multipart/form-data">
                 @csrf
                 <div class="modal-header">
-                    <h5 class="modal-title">Editar Mi Perfil</h5>
+                    <h5 class="modal-title">Editar Empresa</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
@@ -107,7 +139,31 @@
     window.MiPerfilConfig = {
         rutas: { guardar: @json(route('configuracion.mi-perfil.guardar')) },
     };
+    window.UsuariosConfig = {
+        rutas: {
+            data: @json(route('configuracion.usuarios.data')),
+            store: @json(route('configuracion.usuarios.store')),
+            show: @json(url('configuracion/usuarios')),
+        },
+        roles: @json($roles->map(fn ($r) => ['id' => $r->id, 'nombre' => $r->nombre])),
+    };
 </script>
-@vite(['resources/js/mi-perfil.js'])
+@vite(['resources/js/mi-perfil.js', 'resources/js/configuracion-usuarios.js'])
+@if (request()->boolean('crear'))
+<script>
+    (function () {
+        var intentos = 0;
+        var intervalo = setInterval(function () {
+            intentos++;
+            var btn = document.getElementById('btn-nuevo-usuario');
+            var eventos = (window.jQuery && jQuery._data && btn) ? jQuery._data(btn, 'events') : null;
+            if ((eventos && eventos.click) || intentos >= 100) {
+                clearInterval(intervalo);
+                if (btn) { btn.click(); }
+            }
+        }, 100);
+    })();
+</script>
+@endif
 @endsection
 @endsection

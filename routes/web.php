@@ -7,6 +7,8 @@ use App\Http\Controllers\CuentaTesoreriaController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GastoController;
 use App\Http\Controllers\GeoController;
+use App\Http\Controllers\Configuracion\ConfiguracionController;
+use App\Http\Controllers\Configuracion\ConfiguracionVentasController;
 use App\Http\Controllers\Configuracion\FuncionAvanzadaController;
 use App\Http\Controllers\Configuracion\RolController;
 use App\Http\Controllers\Configuracion\UsuarioController;
@@ -317,17 +319,21 @@ Route::post('tipos-producto', [TipoProductoController::class, 'store'])->name('t
 Route::patch('tipos-producto/{tipo}', [TipoProductoController::class, 'update'])->name('tipos-producto.update');
 Route::delete('tipos-producto/{tipo}', [TipoProductoController::class, 'destroy'])->name('tipos-producto.destroy');
 
-// Configuración & Ajustes (spec 013) — Usuarios y Roles
+// Configuración & Ajustes (spec 043: pantalla única con tabs, gate único rol Admin)
 Route::prefix('configuracion')->name('configuracion.')->group(function () {
-    Route::middleware('permiso:configuracion.usuarios')->prefix('usuarios')->name('usuarios.')->group(function () {
-        Route::get('/', [UsuarioController::class, 'index'])->name('index');
+    Route::middleware('admin')->group(function () {
+        Route::get('/', [ConfiguracionController::class, 'index'])->name('index');
+        Route::put('ventas', [ConfiguracionVentasController::class, 'guardar'])->name('ventas.guardar');
+    });
+
+    Route::middleware('admin')->prefix('usuarios')->name('usuarios.')->group(function () {
         Route::get('data', [UsuarioController::class, 'data'])->name('data');
         Route::post('/', [UsuarioController::class, 'store'])->name('store');
         Route::get('{usuario}', [UsuarioController::class, 'show'])->name('show');
         Route::put('{usuario}', [UsuarioController::class, 'update'])->name('update');
         Route::patch('{usuario}/estado', [UsuarioController::class, 'estado'])->name('estado');
     });
-    Route::middleware('permiso:configuracion.roles')->prefix('roles')->name('roles.')->group(function () {
+    Route::middleware('admin')->prefix('roles')->name('roles.')->group(function () {
         Route::get('/', [RolController::class, 'index'])->name('index');
         Route::get('data', [RolController::class, 'data'])->name('data');
         Route::get('catalogo-permisos', [RolController::class, 'permisos'])->name('permisos');
@@ -336,7 +342,7 @@ Route::prefix('configuracion')->name('configuracion.')->group(function () {
         Route::put('{rol}', [RolController::class, 'update'])->name('update');
         Route::delete('{rol}', [RolController::class, 'destroy'])->name('destroy');
     });
-    Route::middleware('permiso:configuracion.funciones')->prefix('depositos')->name('depositos.')->group(function () {
+    Route::middleware('admin')->prefix('depositos')->name('depositos.')->group(function () {
         Route::get('/', [DepositoController::class, 'index'])->name('index');
         Route::get('data', [DepositoController::class, 'data'])->name('data');
         Route::post('/', [DepositoController::class, 'store'])->name('store');
@@ -346,13 +352,13 @@ Route::prefix('configuracion')->name('configuracion.')->group(function () {
     });
 
     // Configuración & Ajustes → Funciones Avanzadas (spec 011)
-    Route::middleware('permiso:configuracion.funciones')->prefix('funciones')->name('funciones.')->group(function () {
+    Route::middleware('admin')->prefix('funciones')->name('funciones.')->group(function () {
         Route::get('/', [FuncionAvanzadaController::class, 'index'])->name('index');
         Route::patch('{funcion}/estado', [FuncionAvanzadaController::class, 'estado'])->name('estado');
     });
 
     // Configuración & Ajustes → Mercado Libre (spec 011)
-    Route::middleware('permiso:configuracion.funciones')->prefix('mercadolibre')->name('mercadolibre.')->group(function () {
+    Route::middleware('admin')->prefix('mercadolibre')->name('mercadolibre.')->group(function () {
         Route::get('/', [MercadoLibreConfiguracionController::class, 'index'])->name('index');
         Route::get('estado', [MercadoLibreConfiguracionController::class, 'estado'])->name('estado');
         Route::get('pendiente', [MercadoLibreConfiguracionController::class, 'pendiente'])->name('pendiente');
@@ -376,7 +382,7 @@ Route::prefix('configuracion')->name('configuracion.')->group(function () {
     });
 
     // Configuración & Ajustes → Tiendanube (spec 022/024: conexión Application REST clásica)
-    Route::middleware('permiso:configuracion.funciones')->prefix('tiendanube')->name('tiendanube.')->group(function () {
+    Route::middleware('admin')->prefix('tiendanube')->name('tiendanube.')->group(function () {
         Route::get('/', [TiendanubeConfiguracionController::class, 'index'])->name('index');
         Route::patch('modo-solo-lectura', [TiendanubeConfiguracionController::class, 'modoSoloLectura'])->name('modoSoloLectura');
         Route::patch('ventas', [TiendanubeConfiguracionController::class, 'guardarVentas'])->name('ventas.configurar');
@@ -389,13 +395,13 @@ Route::prefix('configuracion')->name('configuracion.')->group(function () {
     });
 
     // Configuración & Ajustes → Mi Perfil (spec 039): datos fiscales del negocio emisor
-    Route::middleware('permiso:configuracion.funciones')->prefix('mi-perfil')->name('mi-perfil.')->group(function () {
+    Route::middleware('admin')->prefix('mi-perfil')->name('mi-perfil.')->group(function () {
         Route::get('/', [MiPerfilController::class, 'index'])->name('index');
         Route::post('/', [MiPerfilController::class, 'guardar'])->name('guardar');
     });
 
     // Configuración & Ajustes → Facturación Electrónica (spec 034: ARCA/AFIP)
-    Route::middleware('permiso:configuracion.funciones')->prefix('arca')->name('arca.')->group(function () {
+    Route::middleware('admin')->prefix('arca')->name('arca.')->group(function () {
         Route::get('/', [FacturacionElectronicaController::class, 'index'])->name('index');
         Route::post('certificado', [FacturacionElectronicaController::class, 'guardarCertificado'])->name('certificado.guardar');
         Route::post('puntos-venta', [FacturacionElectronicaController::class, 'guardarPuntoVenta'])->name('puntos-venta.guardar');

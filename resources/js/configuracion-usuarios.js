@@ -84,7 +84,8 @@
 
         const tabla = $tabla.DataTable({
             processing: true,
-            serverSide: true,
+            serverSide: false,
+            paging: false,
             responsive: true,
             language: {
                 search: 'Buscar:',

@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateVentaRequest;
 use App\Models\Categoria;
 use App\Models\Cobro;
 use App\Models\CondicionIva;
+use App\Models\ConfiguracionVentas;
 use App\Models\CuentaTesoreria;
 use App\Models\Deposito;
 use App\Models\Etiqueta;
@@ -79,7 +80,6 @@ class VentaController extends Controller
         $query = $this->queryFiltrada($request);
 
         return DataTables::eloquent($query)
-            ->addColumn('estado_badge', fn (Venta $v) => view('ventas._estado_badge', ['venta' => $v])->render())
             ->addColumn('acciones', fn (Venta $v) => view('ventas._row_actions', ['venta' => $v])->render())
             ->addColumn('estado_cobro', fn (Venta $v) => $v->estadoCobro())
             ->addColumn('creada_desde', fn (Venta $v) => match (true) {
@@ -102,7 +102,7 @@ class VentaController extends Controller
             ->editColumn('descuento', fn (Venta $v) => (float) $v->descuento)
             ->editColumn('subtotal_con_descuento', fn (Venta $v) => (float) $v->subtotal_con_descuento)
             ->editColumn('total', fn (Venta $v) => (float) $v->total)
-            ->rawColumns(['estado_badge', 'acciones'])
+            ->rawColumns(['acciones'])
             ->toJson();
     }
 
@@ -119,11 +119,41 @@ class VentaController extends Controller
             }
         }
 
+        // Defaults de Configuración & Ajustes → Ventas (spec 043, FR-010/FR-012/FR-013): sólo
+        // aplican en alta nueva (no edición, no conversión desde Presupuesto), y sólo si el
+        // registro referenciado sigue existiendo y activo en su catálogo.
+        $defaults = null;
+        if (! $presupuesto) {
+            $configuracionVentas = ConfiguracionVentas::first();
+            if ($configuracionVentas) {
+                $categoriaDefault = $configuracionVentas->categoria_id
+                    ? Categoria::venta()->activas()->find($configuracionVentas->categoria_id)
+                    : null;
+                $vendedorDefault = $configuracionVentas->vendedor_id
+                    ? Vendedor::find($configuracionVentas->vendedor_id)
+                    : null;
+                $listaPrecioDefault = $configuracionVentas->lista_precio_id
+                    ? ListaPrecio::where('activo', true)->find($configuracionVentas->lista_precio_id)
+                    : null;
+
+                $defaults = [
+                    'categoriaId' => $categoriaDefault?->id,
+                    'vendedorId' => $vendedorDefault?->id,
+                    'listaPrecioId' => $listaPrecioDefault?->id,
+                    'tipoComprobante' => $configuracionVentas->tipo_comprobante,
+                    'fechaVtoCobro' => $configuracionVentas->dias_vto_cobro !== null
+                        ? now()->addDays($configuracionVentas->dias_vto_cobro)->format('Y-m-d')
+                        : null,
+                ];
+            }
+        }
+
         return view('ventas.form', [
             'CurrentPage' => $CurrentPage,
             'venta' => null,
             'presupuestoOrigen' => $presupuesto,
             'submitToken' => $submitToken,
+            'defaults' => $defaults,
             'categoriasVenta' => Categoria::venta()->activas()->orderBy('nombre')->get(),
             'listasPrecio' => ListaPrecio::where('activo', true)->orderBy('nombre')->get(),
             'vendedores' => Vendedor::orderBy('nombre')->get(),

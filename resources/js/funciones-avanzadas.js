@@ -76,6 +76,7 @@
             }).done(function (resp) {
                 actualizarLabel($checkbox, resp.funcion.activa);
                 toast('success', resp.mensaje);
+                $(document).trigger('configuracion:funcion-actualizada', [resp.funcion]);
             }).fail(function (xhr) {
                 const resp = xhr.responseJSON || {};
 

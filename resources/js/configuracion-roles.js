@@ -31,7 +31,7 @@
         'informes': 'Informes (Cta. Cte., Stock, etc.)',
         'mensajeria': 'Mensajería → Bandeja de Mercado Libre',
         'integraciones': 'Ingresos → Mercado Libre / Tiendanube (vinculaciones y sincronización)',
-        'configuracion': 'Configuración & Ajustes (Mi Perfil, Usuarios, Roles, Funciones Avanzadas, Importación, Ajustes)',
+        'configuracion': 'Configuración & Ajustes (Empresa, Usuarios, Roles, Funciones Avanzadas, Importación, Ajustes)',
     };
 
     if (window.toastr) {

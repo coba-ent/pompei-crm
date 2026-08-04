@@ -137,7 +137,7 @@
         }
 
         const tabla = $tabla.DataTable({
-            processing: true, serverSide: true, responsive: true,
+            processing: true, serverSide: true,
             language: {
                 search: 'Buscar:', lengthMenu: 'Mostrar _MENU_ registros',
                 info: 'Mostrando _START_ a _END_ de _TOTAL_ ventas', infoEmpty: 'Sin ventas',
@@ -147,7 +147,7 @@
             },
             ajax: { url: rutas.data, data: (d) => $.extend(d, filtrosActuales()) },
             columns: [
-                { data: 'estado_badge', name: 'estado_badge', orderable: false, searchable: false },
+                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
                 { data: 'id', name: 'id' },
                 { data: 'creada_desde', name: 'creada_desde' },
                 { data: 'fecha_emision', name: 'fecha_emision' },
@@ -166,8 +166,8 @@
                 { data: 'nota_interna', name: 'nota_interna' },
                 { data: 'lista_precio', name: 'lista_precio' },
                 { data: 'vendedor', name: 'vendedor' },
-                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
             ],
+            order: [[3, 'desc']],
         });
 
         $('#btn-aplicar-filtros').on('click', () => tabla.ajax.reload());
@@ -323,7 +323,7 @@
         }
 
         initSelect2($vendedorSel, { placeholder: 'Seleccioná un Vendedor', allowClear: true });
-        renderVendedores(data.vendedorId || '');
+        renderVendedores(data.vendedorId || (data.defaults && data.defaults.vendedorId) || '');
 
         $vendedorSel.on('change', function () {
             const val = $(this).val();
@@ -385,12 +385,20 @@
             $('#f-cliente').append(new Option(data.cliente.nombre, data.cliente.id, true, true));
             refreshSelect2($('#f-cliente'));
         }
-        if (data.categoriaId) { renderCategorias(data.categoriaId); }
-        if (data.listaPrecioId) { $('#f-lista-precio').val(data.listaPrecioId); }
+        // Defaults de Configuración & Ajustes → Ventas (spec 043): sólo vienen presentes cuando
+        // es alta nueva (ni edición ni conversión desde Presupuesto, ver VentaController@create).
+        const defaults = data.defaults || {};
+        if (data.categoriaId) { renderCategorias(data.categoriaId); } else if (defaults.categoriaId) { renderCategorias(defaults.categoriaId); }
+        if (data.listaPrecioId) { $('#f-lista-precio').val(data.listaPrecioId); } else if (defaults.listaPrecioId) { $('#f-lista-precio').val(defaults.listaPrecioId); }
         if (data.servicioDesde) { $('#f-servicio-desde').val(data.servicioDesde); }
         if (data.servicioHasta) { $('#f-servicio-hasta').val(data.servicioHasta); }
         refreshSelect2($('#f-lista-precio'));
-        if (data.venta && data.venta.tipo_comprobante) { $('#f-tipo-comprobante').val(data.venta.tipo_comprobante); }
+        if (data.venta && data.venta.tipo_comprobante) {
+            $('#f-tipo-comprobante').val(data.venta.tipo_comprobante);
+        } else if (defaults.tipoComprobante) {
+            $('#f-tipo-comprobante').val(defaults.tipoComprobante);
+        }
+        if (defaults.fechaVtoCobro) { $('#f-fecha-vto-cobro').val(defaults.fechaVtoCobro); }
         if (data.descuentoGeneralPct !== undefined && data.descuentoGeneralPct !== null) { $('#f-descuento-general').val(data.descuentoGeneralPct); }
         if (data.notaCliente) { $('#f-nota-cliente').val(data.notaCliente); }
         if (data.notaInterna) { $('#f-nota-interna').val(data.notaInterna); }

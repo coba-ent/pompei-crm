@@ -4,11 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\CondicionIva;
 use App\Models\DatosEmpresa;
+use App\Models\Rol;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
-/** Configuración & Ajustes → Mi Perfil (spec 039): datos fiscales del negocio emisor. */
+/** Configuración & Ajustes → Empresa (spec 043, ex "Mi Perfil"): datos fiscales del negocio emisor + gestión de usuarios. */
 class MiPerfilController extends Controller
 {
     public function index()
@@ -16,8 +17,9 @@ class MiPerfilController extends Controller
         $CurrentPage = 'configuracion-mi-perfil';
         $datosEmpresa = DatosEmpresa::instancia();
         $condicionesIva = CondicionIva::orderBy('nombre')->get();
+        $roles = Rol::orderBy('nombre')->get();
 
-        return view('configuracion.mi-perfil.index', compact('CurrentPage', 'datosEmpresa', 'condicionesIva'));
+        return view('configuracion.mi-perfil.index', compact('CurrentPage', 'datosEmpresa', 'condicionesIva', 'roles'));
     }
 
     public function guardar(Request $request): JsonResponse

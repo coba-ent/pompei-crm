@@ -187,6 +187,7 @@
         notaInterna: @json($venta?->nota_interna ?? $presupuestoOrigen?->nota_interna),
         formasPago: @json($venta?->formas_pago ?? $presupuestoOrigen?->formas_pago),
         metodosEnvio: @json($venta?->metodos_envio ?? $presupuestoOrigen?->metodos_envio),
+        defaults: @json($defaults ?? null),
     };
     window.VentasConfig = {
         submitToken: "{{ $submitToken ?? '' }}",

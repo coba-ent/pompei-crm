@@ -8,6 +8,15 @@
 
 **Input**: User description: "Reorganizar Configuración & Ajustes: (1) Renombrar 'Mi Perfil' a 'Empresa': mantiene los datos fiscales del emisor y además absorbe la gestión completa de usuarios que hoy vive en 'Usuarios y Permisos' (tabla de usuarios, botón 'Nuevo Usuario', y el acceso a 'Roles y Permisos'). Se elimina la pantalla/ruta/link separado de 'Usuarios y Permisos' del dropdown del sidebar. (2) Acceso exclusivo: tanto 'Empresa' como toda la sección 'Configuración & Ajustes' (Depósitos, Funciones Avanzadas, Mercado Libre, Tiendanube, Facturación Electrónica) quedan restringidos al rol 'Admin' del sistema de roles y permisos existente (Spatie), reemplazando el permiso granular actual (configuracion.usuarios, configuracion.funciones) por ese único gate de rol. (3) El acceso a 'Configuración & Ajustes' se saca del sidebar (deja de ser una sección del menú lateral) y se agrega como ítem en el dropdown de usuario de la topbar (junto con 'Empresa'), visible solo para el rol Admin. (4) Nuevo ítem 'Ventas' dentro de Configuración & Ajustes: pantalla para configurar valores por defecto que se autocompletan al abrir 'Crear Venta': Categoría por defecto, Vendedor por defecto, Lista de Precios por defecto (hoy hardcodeado a 'Principal'), Tipo de Comprobante por defecto (hoy hardcodeado a 'B'), y cantidad de días por defecto para calcular 'Vto. del Cobro' a partir de la fecha de Emisión. Estos valores son configuración global de un solo negocio (single-tenant), no por usuario."
 
+## Clarifications
+
+### Session 2026-08-04
+
+- Q: CHK003 - la tabla de usuarios se muda a "Empresa". ¿Cómo debe comportarse con muchos usuarios (paginación/orden)? → A: Sin paginación — se listan todos los usuarios sin paginar.
+- Q: CHK017 - días de Vto. de Cobro por defecto — ¿hay un tope máximo permitido? → A: Sin tope — sólo se valida entero ≥ 0.
+- Q: CHK018 - si el default de Categoría/Vendedor apunta a un registro inactivo (desactivado, no eliminado), ¿qué debe pasar al abrir Crear Venta? → A: Igual que si no existiera — se omite la preselección para ese campo, mismo criterio que FR-013 para eliminados.
+- Q: CHK007 - rótulo "Empresa" en el dropdown de topbar vs. título de la pantalla — ¿deben coincidir textualmente? → A: Sí, coinciden textualmente.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Gestión de usuarios centralizada en "Empresa" (Priority: P1)
@@ -39,7 +48,7 @@ Como negocio single-tenant, quiero que sólo el usuario con rol Admin pueda ver 
 1. **Given** un usuario autenticado sin rol Admin, **When** abre el sidebar, **Then** no ve ninguna sección "Configuración & Ajustes".
 2. **Given** un usuario autenticado sin rol Admin, **When** abre el dropdown de usuario de la topbar, **Then** no ve accesos a "Empresa" ni a "Configuración & Ajustes".
 3. **Given** un usuario autenticado con rol Admin, **When** abre el dropdown de usuario de la topbar, **Then** ve un ítem "Empresa" y un único ítem "Configuración & Ajustes" (no un submenú desplegable) que navega a una pantalla propia con las distintas configuraciones organizadas en tabs, cada tab con su ícono.
-4. **Given** la pantalla "Configuración & Ajustes" abierta, **When** el Admin hace clic en un tab (por ejemplo "Ventas"), **Then** el contenido de ese tab se muestra sin recargar la página completa (navegación por tabs dentro de la misma vista).
+4. **Given** la pantalla "Configuración & Ajustes" abierta, **When** el Admin hace clic en un tab (por ejemplo "Ventas"), **Then** el contenido de ese tab se muestra sin disparar una nueva petición HTTP de documento (sin recarga de página): el cambio de tab es una operación puramente client-side (mostrar/ocultar el panel `nav-tabs` correspondiente), permitiéndose sí una petición AJAX puntual para traer los datos propios de ese tab si aún no fueron cargados.
 5. **Given** la pantalla "Configuración & Ajustes" recién abierta, **When** carga por primera vez, **Then** el tab activo por defecto es "Funciones Avanzadas".
 6. **Given** el tab "Funciones Avanzadas" abierto, **When** el Admin activa (Sí) o desactiva (No) una función que tiene pantalla propia dentro de Configuración & Ajustes (Depósitos, Mercado Libre, Tiendanube, Facturación Electrónica), **Then** el tab correspondiente a esa función pasa a estar disponible o dejar de estarlo en la misma pantalla, acorde a ese estado (igual criterio de activación que ya usa "Funciones Avanzadas" hoy).
 5. **Given** un usuario autenticado con rol Admin, **When** intenta acceder por URL directa a la pantalla "Configuración & Ajustes", **Then** el acceso es permitido y la pantalla carga en su primer tab por defecto (sin depender de un fragmento `#` en la URL).
@@ -67,14 +76,16 @@ Como usuario con rol Admin, quiero definir en Configuración & Ajustes > Ventas 
 
 - Si el rol "Admin" no existe todavía en el sistema o el usuario actual no tiene ningún rol asignado, no debe quedar nadie con acceso a "Empresa" ni a "Configuración & Ajustes" hasta que se le asigne explícitamente ese rol a al menos un usuario.
 - Si se intenta eliminar o desactivar al único usuario con rol Admin, el sistema debe evitarlo (debe existir siempre al menos un Admin), igual que ya aplica hoy la regla de no poder desactivarse/eliminarse a uno mismo si es el único usuario activo.
-- Los días configurados para "Vto. del Cobro" deben ser un entero no negativo; 0 significa que Vto. del Cobro por defecto es la misma fecha que Emisión.
+- Los días configurados para "Vto. del Cobro" deben ser un entero no negativo, sin un valor máximo definido; 0 significa que Vto. del Cobro por defecto es la misma fecha que Emisión.
+- Si un valor configurado como default (Categoría, Vendedor o Lista de Precios) existe pero está inactivo/desactivado (no eliminado) en su catálogo, "Crear Venta" lo trata igual que si no existiera: omite la preselección para ese campo (mismo criterio que si el registro hubiera sido eliminado).
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: La pantalla hoy llamada "Mi Perfil" se renombra a "Empresa" en todos los lugares donde aparece en la interfaz (título de pantalla, link del dropdown de la topbar). Se conserva el mismo nombre de ruta interno (`configuracion.mi-perfil.index`) para no romper accesos ya guardados; sólo cambia el rótulo visible.
+- **FR-001**: La pantalla hoy llamada "Mi Perfil" se renombra a "Empresa" en todos los lugares donde aparece en la interfaz (título de pantalla, link del dropdown de la topbar), usando el mismo rótulo textual "Empresa" en ambos lugares sin variantes. Se conserva el mismo nombre de ruta interno (`configuracion.mi-perfil.index`) para no romper accesos ya guardados; sólo cambia el rótulo visible.
 - **FR-002**: La pantalla "Empresa" debe incluir, además de la tarjeta de datos fiscales ya existente, la tabla de usuarios con sus columnas y acciones actuales (Nombre, Email, Roles, Estado, Acciones) y el botón "Nuevo Usuario", igual funcionalidad que la pantalla "Usuarios y Permisos" tenía. El link "Roles y Permisos" se mueve junto con esa tabla (a la cabecera de la sección de usuarios dentro de "Empresa") pero sigue apuntando a su pantalla propia ya existente — "Roles y Permisos" **no** se fusiona su contenido dentro de "Empresa", sólo se reubica el acceso a ella.
+- **FR-002a**: La tabla de usuarios dentro de "Empresa" se lista completa, sin paginación (se asume un volumen bajo de usuarios propio de un negocio single-tenant). Sigue siendo un DataTable (búsqueda/orden client-side), pero cargado en una sola petición AJAX (`serverSide: false`, `paging: false`) en vez del modo `serverSide: true` que usaba "Usuarios y Permisos" — cumple igual con la regla de tablas vía DataTables + AJAX (CLAUDE.md).
 - **FR-003**: La pantalla y ruta propias de listado de "Usuarios y Permisos" (`configuracion.usuarios.index`) se eliminan; el link correspondiente se retira del sidebar. Acceder a esa URL eliminada devuelve un 404 estándar (no se mantiene un redirect). Las rutas AJAX de usuarios (alta, edición, datos de tabla) se conservan sin cambios, consumidas ahora desde "Empresa".
 - **FR-004**: El acceso a la pantalla "Empresa" y a toda la sección "Configuración & Ajustes" (Depósitos, Funciones Avanzadas, Mercado Libre, Tiendanube, Facturación Electrónica, Ventas) se restringe a los usuarios que tengan asignado el rol "Admin" del sistema de roles y permisos existente.
 - **FR-005**: Los permisos granulares usados hoy para gatear estas pantallas (`configuracion.usuarios`, `configuracion.funciones`, y cualquier otro permiso específico de esta sección) se reemplazan por una única verificación de rol "Admin". Los usuarios sin ese rol no pueden ver ni acceder (incluso por URL directa) a ninguna pantalla de "Empresa" ni de "Configuración & Ajustes".
@@ -87,7 +98,7 @@ Como usuario con rol Admin, quiero definir en Configuración & Ajustes > Ventas 
 - **FR-010**: Al abrir "Crear Venta" para una venta nueva (no edición, no conversión desde Presupuesto), el formulario debe precargar Categoría, Vendedor, Lista de Precios y Tipo de Comprobante con los valores configurados por defecto (cuando existan), y calcular "Vto. del Cobro" como fecha de Emisión (hoy) + días configurados (cuando exista ese default).
 - **FR-011**: Si no hay ningún valor por defecto configurado para un campo dado, "Crear Venta" debe comportarse igual que hoy para ese campo (Lista de Precios "Principal", Tipo de Comprobante "B", Categoría y Vendedor sin preselección, Vto. del Cobro vacío). El default global de Tipo de Comprobante es sólo una preselección inicial: no reemplaza ni valida contra la derivación fiscal existente por condición de IVA (Principio III de la constitución) — esa regla de negocio ya existente sigue aplicando igual que hoy sobre el valor que quede seleccionado al momento de guardar la Venta.
 - **FR-012**: Editar una Venta existente o convertir un Presupuesto en Venta no debe verse afectado por estos valores por defecto: se siguen usando los valores ya existentes de esa venta o presupuesto de origen.
-- **FR-013**: Si un valor configurado como default (Categoría, Vendedor o Lista de Precios) deja de existir en su catálogo (fue eliminado), "Crear Venta" debe cargar sin ese default en vez de fallar.
+- **FR-013**: Si un valor configurado como default (Categoría, Vendedor o Lista de Precios) deja de existir en su catálogo (fue eliminado) o existe pero está inactivo/desactivado, "Crear Venta" debe cargar sin ese default en vez de fallar o de preseleccionar un valor inactivo.
 - **FR-014**: Cambiar los valores por defecto de Ventas no debe alterar ventas ya creadas anteriormente.
 
 ### Key Entities
@@ -100,8 +111,8 @@ Como usuario con rol Admin, quiero definir en Configuración & Ajustes > Ventas 
 ### Measurable Outcomes
 
 - **SC-001**: Un usuario con rol Admin puede dar de alta un usuario nuevo y asignarle un rol sin salir de la pantalla "Empresa" (sin navegar a ninguna otra pantalla), en menos de 1 minuto.
-- **SC-002**: El 100% de los usuarios sin rol Admin no encuentran ningún acceso visible (sidebar ni topbar) ni pueden entrar por URL directa a "Empresa" ni a ninguna pantalla de "Configuración & Ajustes".
-- **SC-003**: Configurando los 5 valores por defecto de Ventas una sola vez, el usuario que crea ventas deja de tener que completar manualmente esos campos en el 100% de las ventas nuevas subsiguientes (salvo que quiera cambiarlos puntualmente).
+- **SC-002**: Verificado con un usuario de prueba sin rol Admin: (a) el sidebar no muestra la sección "Configuración & Ajustes", (b) el dropdown de la topbar no muestra los ítems "Empresa" ni "Configuración & Ajustes", y (c) navegar directamente a la URL de "Empresa" o de cualquier tab de "Configuración & Ajustes" devuelve un rechazo de acceso (no la pantalla). Los tres puntos deben cumplirse para considerar la SC lograda.
+- **SC-003**: Configurando los 5 valores por defecto de Ventas una sola vez, el formulario de "Crear Venta" carga esos campos ya preseleccionados/precalculados (no vacíos) en el 100% de las aperturas subsiguientes de ventas nuevas, sin que el usuario tenga que tocarlos — sin perjuicio de que el usuario pueda igualmente modificarlos a mano en un caso puntual antes de guardar.
 - **SC-004**: Ninguna venta o presupuesto ya existente cambia sus datos como consecuencia de configurar o modificar los valores por defecto de Ventas.
 
 ## Assumptions

@@ -12,18 +12,10 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
 use Yajra\DataTables\Facades\DataTables;
 
-/** ABM de usuarios internos (US2, spec 013): baja lógica, asignación de roles, guardia de administrador. */
+/** ABM de usuarios internos (US2 spec 013, spec 043 US1): baja lógica, asignación de roles, guardia de administrador. La pantalla propia se retiró — se consume desde "Empresa" (MiPerfilController). */
 class UsuarioController extends Controller
 {
     public function __construct(private GuardiaAdministrador $guardiaAdministrador) {}
-
-    public function index()
-    {
-        $CurrentPage = 'configuracion-usuarios';
-        $roles = Rol::orderBy('nombre')->get();
-
-        return view('configuracion.usuarios.index', compact('CurrentPage', 'roles'));
-    }
 
     public function data(): JsonResponse
     {

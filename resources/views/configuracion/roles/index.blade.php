@@ -9,7 +9,7 @@
                 <h4 class="mb-0 text-primary fw-bold">Roles y Permisos</h4>
             </div>
             <div class="col-sm-6 mb-2 text-sm-end">
-                <a href="{{ route('configuracion.usuarios.index') }}" class="btn btn-outline-secondary me-1">
+                <a href="{{ route('configuracion.mi-perfil.index') }}" class="btn btn-outline-secondary me-1">
                     <i class="fas fa-users me-1"></i> Usuarios
                 </a>
                 <button type="button" class="btn btn-primary" id="btn-nuevo-rol">

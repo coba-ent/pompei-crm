@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
             'permiso' => \App\Http\Middleware\VerificarPermiso::class,
+            'admin' => \App\Http\Middleware\SoloAdmin::class,
         ]);
 
         $middleware->appendToGroup('web', \App\Http\Middleware\AplicarDuracionSesion::class);
