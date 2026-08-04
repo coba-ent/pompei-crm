@@ -182,7 +182,7 @@
 						</ul>
 					</li>
 				</ul>
-				<div class="mode-btn d-flex align-items-center justify-content-between">
+				<div class="mode-btn d-none align-items-center justify-content-between">
 					<div class="d-mode">
 						<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 							<g clip-path="url(#clip0_4_82)">

@@ -558,3 +558,14 @@ table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control:before {
 .select2-results__option--highlighted .select2-resultado-crear {
     color: #fff !important;
 }
+
+/* ---------------------------------------------------------------------------
+ * Fondos planos pedidos por el cliente: contenido principal más claro que el
+ * sidebar, para diferenciar visualmente ambas zonas.
+ * ------------------------------------------------------------------------ */
+.content-body {
+    background-color: #edeef0;
+}
+.deznav {
+    background-color: #f3f5f8;
+}
