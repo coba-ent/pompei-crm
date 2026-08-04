@@ -163,6 +163,7 @@
         cliente: @json($datosCliente),
         categoria: @json($datosCategoria),
         listaPrecio: @json($datosListaPrecio),
+        defaults: @json($defaults ?? null),
     };
     window.PresupuestosConfig = {
         submitToken: "{{ $submitToken ?? '' }}",

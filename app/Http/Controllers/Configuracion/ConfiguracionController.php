@@ -42,14 +42,16 @@ class ConfiguracionController extends Controller
         $certificado = CertificadoFiscal::activo();
         $puntosVenta = PuntoVenta::orderBy('numero')->get();
 
-        // Tab Ventas
+        // Tab Ventas (incluye defaults de Presupuesto y Compra)
         $configuracionVentas = ConfiguracionVentas::first();
+        $categoriasCompra = Categoria::compra()->activas()->orderBy('nombre')->get();
 
         return view('configuracion.index', compact(
             'CurrentPage',
             'funciones',
             'depositos',
             'categoriasVenta',
+            'categoriasCompra',
             'listasPrecio',
             'vendedores',
             'depositoPorDefecto',

@@ -206,7 +206,11 @@
             refreshSelect2($('#f-proveedor'));
         }
         if (data.categoriaId) { renderCategorias(data.categoriaId); }
-        if (data.compra && data.compra.tipo_comprobante) { $('#f-tipo-comprobante').val(data.compra.tipo_comprobante); }
+        if (data.compra && data.compra.tipo_comprobante) {
+            $('#f-tipo-comprobante').val(data.compra.tipo_comprobante);
+        } else if (data.tipoComprobanteDefault) {
+            $('#f-tipo-comprobante').val(data.tipoComprobanteDefault);
+        }
         if (data.notaInterna) { $('#f-nota-interna').val(data.notaInterna); }
         if (data.fechaVtoPago) { $('#f-fecha-vto-pago').val(data.fechaVtoPago); }
         if (data.mesImputacionIva) { $('#f-mes-imputacion-iva').val(data.mesImputacionIva); }
@@ -542,6 +546,9 @@
         const $modal = $('#modal-ncnd');
         if (!$modal.length) { return; }
 
+        let mesImputacionTocado = false;
+        let itemsDisponibles = [];
+
         function irAPaso(n) {
             $('#ncnd-paso-1').toggleClass('d-none', n !== 1);
             $('#ncnd-paso-2').toggleClass('d-none', n !== 2);
@@ -549,26 +556,102 @@
             $('#btn-ncnd-volver, #btn-ncnd-guardar').toggleClass('d-none', n !== 2);
         }
 
+        function renderItemsStock() {
+            const $box = $('#ncnd-items').empty();
+            itemsDisponibles.forEach((item) => {
+                const id = 'ncnd-item-' + item.producto_id;
+                const $row = $('<div class="row g-2 align-items-center mb-1">');
+                $row.append($('<div class="col-6">').append(
+                    $('<div class="form-check">').append(
+                        $('<input type="checkbox" class="form-check-input ncnd-item-chk">').attr('id', id).data('producto', item.producto_id),
+                        $('<label class="form-check-label">').attr('for', id).text(item.descripcion + ' (máx. ' + item.pendiente + ')')
+                    )
+                ));
+                $row.append($('<div class="col-6">').append(
+                    $('<input type="number" step="0.001" class="form-control form-control-sm" placeholder="Cantidad">')
+                        .addClass('ncnd-item-cant')
+                        .attr('max', item.pendiente)
+                        .data('producto', item.producto_id)
+                        .data('max', item.pendiente)
+                ));
+                $box.append($row);
+            });
+        }
+
+        function toggleStockBloque() {
+            const afecta = $('input[name="ncnd-afecta-stock"]:checked').val() === '1';
+            $('#ncnd-stock-bloque').toggleClass('d-none', !afecta);
+            $('#ncnd-descripcion-wrapper').toggleClass('d-none', afecta);
+            if (!afecta) {
+                $('.ncnd-item-chk').prop('checked', false);
+                $('.ncnd-item-cant').val('');
+                $('#ncnd-deposito').val(null);
+            }
+        }
+        $('input[name="ncnd-afecta-stock"]').on('change', toggleStockBloque);
+
+        $(document).on('input', '.ncnd-item-cant', function () {
+            const max = parseFloat($(this).data('max'));
+            if (max && parseFloat($(this).val()) > max) { $(this).val(max); }
+        });
+
         $('#btn-agregar-nota').on('click', function () {
-            $('#ncnd-documento').val(data.nroComprobante);
-            $('#ncnd-fecha').val(new Date().toISOString().slice(0, 10));
+            const $doc = $('#ncnd-documento').empty();
+            $doc.append(new Option(data.nroComprobante, data.compraId, true, true));
+            const hoy = new Date();
+            $('#ncnd-fecha').val(hoy.toISOString().slice(0, 10));
+            $('#ncnd-mes-imputacion').val(hoy.toISOString().slice(0, 7));
+            mesImputacionTocado = false;
             $('#ncnd-monto').val('');
             $('#ncnd-descripcion').val('');
+            $('input[name="ncnd-afecta-stock"][value="0"]').prop('checked', true);
+            const $dep = $('#ncnd-deposito').empty();
+            (data.depositos || []).forEach((d) => $dep.append(new Option(d.nombre, d.id)));
+
+            $.getJSON(window.ComprasConfig.rutas.notasItemsDisponibles)
+                .done((resp) => {
+                    itemsDisponibles = resp.data || [];
+                    renderItemsStock();
+                    const sinProductos = itemsDisponibles.length === 0;
+                    $('#ncnd-afecta-si').prop('disabled', sinProductos);
+                    $('#ncnd-sin-productos').toggleClass('d-none', !sinProductos);
+                })
+                .fail(() => { itemsDisponibles = []; renderItemsStock(); });
+
+            toggleStockBloque();
             irAPaso(1);
             bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-ncnd')).show();
+        });
+
+        $('#ncnd-mes-imputacion').on('input', () => { mesImputacionTocado = true; });
+        $('#ncnd-fecha').on('change', function () {
+            if (mesImputacionTocado) { return; }
+            const v = $(this).val();
+            if (v) { $('#ncnd-mes-imputacion').val(v.slice(0, 7)); }
         });
 
         $('#btn-ncnd-siguiente').on('click', () => irAPaso(2));
         $('#btn-ncnd-volver').on('click', () => irAPaso(1));
 
         $('#btn-ncnd-guardar').on('click', function () {
+            const afectaStock = $('input[name="ncnd-afecta-stock"]:checked').val() === '1';
             const payload = {
                 tipo: $('#ncnd-tipo').val(),
-                afecta_stock: false,
+                afecta_stock: afectaStock,
+                mes_imputacion: $('#ncnd-mes-imputacion').val(),
                 fecha_emision: $('#ncnd-fecha').val(),
                 monto: $('#ncnd-monto').val(),
                 descripcion: $('#ncnd-descripcion').val(),
             };
+            if (afectaStock) {
+                payload.deposito_id = $('#ncnd-deposito').val();
+                payload.items = [];
+                $('.ncnd-item-chk:checked').each(function () {
+                    const productoId = $(this).data('producto');
+                    const cantidad = $('.ncnd-item-cant[data-producto="' + productoId + '"]').val();
+                    if (cantidad) { payload.items.push({ producto_id: productoId, cantidad }); }
+                });
+            }
 
             $.post(window.ComprasConfig.rutas.notasStore, payload)
                 .done((resp) => {

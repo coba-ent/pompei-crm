@@ -126,10 +126,11 @@
         items: @json($datosItems),
         conceptos: @json($datosConceptos),
         proveedor: @json($datosProveedor),
-        categoriaId: @json($compra?->categoria_id),
+        categoriaId: @json($compra?->categoria_id ?? (($defaults ?? null)['categoriaId'] ?? null)),
         notaInterna: @json($compra?->nota_interna),
-        fechaVtoPago: @json(optional($compra?->fecha_vto_pago)->format('Y-m-d')),
+        fechaVtoPago: @json(optional($compra?->fecha_vto_pago)->format('Y-m-d') ?: (($defaults ?? null)['fechaVtoPago'] ?? null)),
         mesImputacionIva: @json(optional($compra?->mes_imputacion_iva)->format('Y-m')),
+        tipoComprobanteDefault: @json($compra ? null : (($defaults ?? null)['tipoComprobante'] ?? null)),
     };
     window.ComprasConfig = {
         submitToken: "{{ $submitToken ?? '' }}",

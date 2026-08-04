@@ -7,6 +7,7 @@ use App\Http\Requests\UpdatePresupuestoRequest;
 use App\Models\Categoria;
 use App\Models\Cliente;
 use App\Models\CondicionIva;
+use App\Models\ConfiguracionVentas;
 use App\Models\Etiqueta;
 use App\Models\ListaPrecio;
 use App\Models\Presupuesto;
@@ -91,10 +92,37 @@ class PresupuestoController extends Controller
         $CurrentPage = 'presupuestos';
         $submitToken = (string) \Illuminate\Support\Str::uuid();
 
+        // Defaults de Configuración & Ajustes → Ventas (reutiliza Categoría/Vendedor/Lista de
+        // Precios de Ventas + días de validez propios), mismo criterio que VentaController@create:
+        // sólo alta nueva, y sólo si el registro configurado sigue existiendo y activo.
+        $configuracionVentas = ConfiguracionVentas::first();
+        $defaults = null;
+        if ($configuracionVentas) {
+            $categoriaDefault = $configuracionVentas->categoria_id
+                ? Categoria::venta()->activas()->find($configuracionVentas->categoria_id)
+                : null;
+            $vendedorDefault = $configuracionVentas->vendedor_id
+                ? Vendedor::find($configuracionVentas->vendedor_id)
+                : null;
+            $listaPrecioDefault = $configuracionVentas->lista_precio_id
+                ? ListaPrecio::where('activo', true)->find($configuracionVentas->lista_precio_id)
+                : null;
+
+            $defaults = [
+                'categoriaId' => $categoriaDefault?->id,
+                'vendedorId' => $vendedorDefault?->id,
+                'listaPrecioId' => $listaPrecioDefault?->id,
+                'fechaValidez' => $configuracionVentas->dias_validez_presupuesto !== null
+                    ? now()->addDays($configuracionVentas->dias_validez_presupuesto)->format('Y-m-d')
+                    : null,
+            ];
+        }
+
         return view('presupuestos.form', [
             'CurrentPage' => $CurrentPage,
             'presupuesto' => null,
             'submitToken' => $submitToken,
+            'defaults' => $defaults,
             'categoriasVenta' => Categoria::venta()->activas()->orderBy('nombre')->get(),
             'listasPrecio' => ListaPrecio::where('activo', true)->orderBy('nombre')->get(),
             'vendedores' => Vendedor::orderBy('nombre')->get(),

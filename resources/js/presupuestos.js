@@ -291,7 +291,7 @@
                 abrirModalVendedor('renombrar', id, v ? v.nombre : '');
             },
         });
-        renderVendedores((data.presupuesto && data.presupuesto.vendedor_id) || '');
+        renderVendedores((data.presupuesto && data.presupuesto.vendedor_id) || (data.defaults && data.defaults.vendedorId) || '');
 
         initSelect2($('#f-lista-precio'));
         initSelect2($('#f-etiquetas'), { tags: true, tokenSeparators: [','], placeholder: 'Buscar o crear etiqueta...' });
@@ -348,6 +348,12 @@
             renderCategorias(data.presupuesto.categoria_id || '');
             $('#f-lista-precio').val(data.presupuesto.lista_precio_id || '');
             $('#f-descuento-general').val(data.presupuesto.descuento_general_pct || '');
+        } else {
+            // Defaults de Configuración & Ajustes → Ventas (spec 043), sólo alta nueva.
+            const defaults = data.defaults || {};
+            if (defaults.categoriaId) { renderCategorias(defaults.categoriaId); }
+            if (defaults.listaPrecioId) { $('#f-lista-precio').val(defaults.listaPrecioId); }
+            if (defaults.fechaValidez) { $('#f-fecha-validez').val(defaults.fechaValidez); }
         }
         refreshSelect2($('#f-lista-precio'));
         if (Array.isArray(data.etiquetas)) {

@@ -8,7 +8,9 @@ use App\Http\Requests\StoreRetencionRequest;
 use App\Models\Categoria;
 use App\Models\Compra;
 use App\Models\ComprobanteFiscal;
+use App\Models\ConfiguracionVentas;
 use App\Models\CuentaTesoreria;
+use App\Models\Deposito;
 use App\Models\Pago;
 use App\Models\Remito;
 use App\Services\Egresos\Pagos;
@@ -98,10 +100,29 @@ class CompraController extends Controller
         $CurrentPage = 'compras';
         $submitToken = (string) \Illuminate\Support\Str::uuid();
 
+        // Defaults de Configuración & Ajustes → Ventas (spec 043): sección "Compras", mismo
+        // criterio que VentaController@create — sólo alta nueva, sólo catálogos vigentes/activos.
+        $configuracionVentas = ConfiguracionVentas::first();
+        $defaults = null;
+        if ($configuracionVentas) {
+            $categoriaCompraDefault = $configuracionVentas->categoria_compra_id
+                ? Categoria::compra()->activas()->find($configuracionVentas->categoria_compra_id)
+                : null;
+
+            $defaults = [
+                'categoriaId' => $categoriaCompraDefault?->id,
+                'tipoComprobante' => $configuracionVentas->tipo_comprobante_compra,
+                'fechaVtoPago' => $configuracionVentas->dias_vto_pago_compra !== null
+                    ? now()->addDays($configuracionVentas->dias_vto_pago_compra)->format('Y-m-d')
+                    : null,
+            ];
+        }
+
         return view('compras.form', [
             'CurrentPage' => $CurrentPage,
             'compra' => null,
             'submitToken' => $submitToken,
+            'defaults' => $defaults,
             'categoriasCompra' => Categoria::compra()->activas()->orderBy('nombre')->get(),
         ]);
     }
@@ -245,8 +266,9 @@ class CompraController extends Controller
         $CurrentPage = 'compras';
         $compra->load(['items', 'conceptos', 'proveedor.condicionIva', 'categoria', 'pagos.cuentaTesoreria', 'pagos.retenciones', 'notasCreditoDebito', 'remitos']);
         $cuentas = CuentaTesoreria::visibles()->orderBy('orden')->orderBy('nombre')->get();
+        $depositos = Deposito::where('activo', true)->orderBy('nombre')->get();
 
-        return view('compras.detalle', compact('CurrentPage', 'compra', 'cuentas'));
+        return view('compras.detalle', compact('CurrentPage', 'compra', 'cuentas', 'depositos'));
     }
 
     public function pdf(Compra $compra)

@@ -18,6 +18,10 @@ class ConfiguracionVentasController extends Controller
             'lista_precio_id' => ['nullable', 'integer', 'exists:listas_precio,id'],
             'tipo_comprobante' => ['nullable', 'in:A,B,C,E'],
             'dias_vto_cobro' => ['nullable', 'integer', 'min:0'],
+            'dias_validez_presupuesto' => ['nullable', 'integer', 'min:0'],
+            'categoria_compra_id' => ['nullable', 'integer', 'exists:categorias,id'],
+            'tipo_comprobante_compra' => ['nullable', 'in:A,B,C'],
+            'dias_vto_pago_compra' => ['nullable', 'integer', 'min:0'],
         ]);
 
         ConfiguracionVentas::query()->updateOrCreate([], $datos);
