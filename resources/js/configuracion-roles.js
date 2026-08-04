@@ -15,6 +15,25 @@
     const rutas = cfg.rutas || {};
     let catalogoModulos = [];
 
+    // Vistas del sidebar que habilita cada módulo de permisos (para el tooltip "?" de la matriz).
+    const VISTAS_POR_MODULO = {
+        'ventas': 'Ingresos → Ventas',
+        'presupuestos': 'Ingresos → Presupuestos',
+        'abonos': 'Ingresos → Cobranzas / Abonos de clientes',
+        'otros-ingresos': 'Ingresos → Otros Ingresos',
+        'compras': 'Egresos → Compras',
+        'gastos': 'Egresos → Gastos',
+        'clientes': 'Base de Datos → Clientes',
+        'proveedores': 'Base de Datos → Proveedores',
+        'productos': 'Base de Datos → Productos y Servicios',
+        'tesoreria': 'Tesorería → Cuentas y Movimientos',
+        'facturacion': 'Facturación → Puntos de Venta, Certificados y Comprobantes',
+        'informes': 'Informes (Cta. Cte., Stock, etc.)',
+        'mensajeria': 'Mensajería → Bandeja de Mercado Libre',
+        'integraciones': 'Ingresos → Mercado Libre / Tiendanube (vinculaciones y sincronización)',
+        'configuracion': 'Configuración & Ajustes (Mi Perfil, Usuarios, Roles, Funciones Avanzadas, Importación, Ajustes)',
+    };
+
     if (window.toastr) {
         window.toastr.options = {
             closeButton: true,
@@ -63,9 +82,26 @@
                     + '<label class="form-check-label" for="permiso-' + idSeguro + '">' + p.descripcion + '</label>'
                     + '</div>';
             }).join('');
-            return '<div class="mb-2"><strong class="text-capitalize">' + grupo.modulo + '</strong>' + items + '</div>';
+            const vistas = VISTAS_POR_MODULO[grupo.modulo];
+            const tooltip = vistas
+                ? ' <i class="fas fa-question-circle text-info" data-bs-toggle="tooltip" title="Vistas que habilita: ' + vistas + '"></i>'
+                : '';
+            return '<div class="mb-2"><strong class="text-capitalize">' + grupo.modulo + '</strong>' + tooltip + items + '</div>';
         }).join('');
         $('#permisos-matriz').html(html || '<p class="text-muted mb-0">Sin permisos en el catálogo.</p>');
+        inicializarTooltips();
+    }
+
+    function inicializarTooltips() {
+        if (window.bootstrap && window.bootstrap.Tooltip) {
+            document.querySelectorAll('#permisos-matriz [data-bs-toggle="tooltip"]').forEach(function (el) {
+                const instancia = window.bootstrap.Tooltip.getInstance(el);
+                if (instancia) {
+                    instancia.dispose();
+                }
+                new window.bootstrap.Tooltip(el);
+            });
+        }
     }
 
     function resetForm() {
