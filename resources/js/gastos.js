@@ -288,7 +288,7 @@
                 categoria_id: $('#gasto-categoria').val(),
                 cuenta_tesoreria_id: $('#gasto-pendiente').is(':checked') ? null : $('#gasto-cuenta').val(),
                 descripcion: $('#gasto-descripcion').val(),
-                pendiente: $('#gasto-pendiente').is(':checked'),
+                pendiente: $('#gasto-pendiente').is(':checked') ? 1 : 0,
             };
 
             const url = id ? rutas.updateBase + '/' + id : rutas.store;
