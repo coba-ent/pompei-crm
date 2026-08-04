@@ -15,6 +15,11 @@ use Illuminate\Http\Request;
  * Recibe notificaciones de Mercado Libre (topics `questions`/`messages`,
  * spec 032, contracts/webhook-mercadolibre.md). Sin middleware de sesión,
  * responde rápido y de forma idempotente ante reintentos (FR-004).
+ *
+ * Módulo Mensajería desactivado a propósito (oculto del sidebar, ver
+ * sidebar.blade.php): este endpoint queda "desconectado" — responde 200 sin
+ * procesar ni auditar nada, para que no quede escuchando del lado de la API
+ * de ML. Reactivar: descomentar el cuerpo original de recibir() de abajo.
  */
 class MercadoLibreMensajeriaWebhookController extends Controller
 {
@@ -22,38 +27,41 @@ class MercadoLibreMensajeriaWebhookController extends Controller
 
     public function recibir(Request $request): JsonResponse
     {
-        $applicationId = (string) $request->input('application_id');
-        $clientId = (string) MercadoLibreConfiguracion::actual()->client_id;
-
-        if ($clientId === '' || $applicationId !== $clientId) {
-            return response()->json(['ok' => false], 401);
-        }
-
-        // Auditoría del payload crudo (independiente de si el procesamiento tiene éxito):
-        // el shape exacto de topic=messages sigue sin confirmarse (T008, contracts/webhook-mercadolibre.md)
-        // — sin esto no hay forma de ver qué mandó ML realmente cuando algo falla.
-        MercadoLibreOperacionLog::registrar([
-            'operacion' => 'webhook_recibido',
-            'metodo' => 'POST',
-            'endpoint' => 'webhooks/mercadolibre',
-            'sentido' => 'lectura',
-            'resultado' => 'exito',
-            'payload_bloqueado' => json_encode($request->all()),
-        ]);
-
-        $mensajesNuevos = $this->recepcion->procesar($request->all());
-
-        // Spec 033, US2 (FR-004/FR-005): sólo mensajes del comprador disparan sugerencia — un
-        // mensaje propio notificado por ML (enviado desde otro lado) no necesita borrador. El
-        // dispatch() sólo encola, no bloquea la respuesta del webhook.
-        if (FuncionAvanzada::where('clave', 'mercadolibre_bot')->value('activa')) {
-            foreach ($mensajesNuevos as $mensaje) {
-                if ($mensaje->origen === 'comprador') {
-                    GenerarSugerenciaMercadoLibre::dispatch($mensaje);
-                }
-            }
-        }
-
         return response()->json(['ok' => true]);
+
+        // --- Cuerpo original (spec 032/033) — reactivar junto con el sidebar ---
+        // $applicationId = (string) $request->input('application_id');
+        // $clientId = (string) MercadoLibreConfiguracion::actual()->client_id;
+        //
+        // if ($clientId === '' || $applicationId !== $clientId) {
+        //     return response()->json(['ok' => false], 401);
+        // }
+        //
+        // // Auditoría del payload crudo (independiente de si el procesamiento tiene éxito):
+        // // el shape exacto de topic=messages sigue sin confirmarse (T008, contracts/webhook-mercadolibre.md)
+        // // — sin esto no hay forma de ver qué mandó ML realmente cuando algo falla.
+        // MercadoLibreOperacionLog::registrar([
+        //     'operacion' => 'webhook_recibido',
+        //     'metodo' => 'POST',
+        //     'endpoint' => 'webhooks/mercadolibre',
+        //     'sentido' => 'lectura',
+        //     'resultado' => 'exito',
+        //     'payload_bloqueado' => json_encode($request->all()),
+        // ]);
+        //
+        // $mensajesNuevos = $this->recepcion->procesar($request->all());
+        //
+        // // Spec 033, US2 (FR-004/FR-005): sólo mensajes del comprador disparan sugerencia — un
+        // // mensaje propio notificado por ML (enviado desde otro lado) no necesita borrador. El
+        // // dispatch() sólo encola, no bloquea la respuesta del webhook.
+        // if (FuncionAvanzada::where('clave', 'mercadolibre_bot')->value('activa')) {
+        //     foreach ($mensajesNuevos as $mensaje) {
+        //         if ($mensaje->origen === 'comprador') {
+        //             GenerarSugerenciaMercadoLibre::dispatch($mensaje);
+        //         }
+        //     }
+        // }
+        //
+        // return response()->json(['ok' => true]);
     }
 }

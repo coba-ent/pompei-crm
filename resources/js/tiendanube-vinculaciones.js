@@ -67,6 +67,12 @@
         inicializarVinculacionAutomatica();
         inicializarSincronizacionForzada();
         inicializarEliminarTodas();
+
+        if (window.bootstrap && window.bootstrap.Tooltip) {
+            document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+                new window.bootstrap.Tooltip(el);
+            });
+        }
     });
 
     /** "Sincronización forzada" (spec 035): recorre TODOS los vínculos, no sólo pendientes. */

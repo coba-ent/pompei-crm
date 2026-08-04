@@ -63,7 +63,7 @@
                     <div class="col-md-2">
                         <label class="form-label">Lista de Precios</label>
                         <select id="f-lista-precio" class="form-select" style="width:100%">
-                            <option value=""></option>
+                            <option value="">Principal</option>
                             @foreach ($listasPrecio as $lista)
                                 <option value="{{ $lista->id }}">{{ $lista->nombre }}</option>
                             @endforeach
@@ -157,7 +157,7 @@
 
 @include('presupuestos._modal_categoria')
 @include('presupuestos._modal_vendedor')
-@include('presupuestos._modal_cliente_rapido')
+@include('clientes._modal_form')
 @endsection
 
 @php
@@ -197,6 +197,8 @@
             clientesOpciones: "{{ route('clientes.opciones') }}",
             clientesStore: "{{ route('clientes.store') }}",
             clientesUpdateBase: "{{ url('clientes') }}",
+            clientesLocalidades: "{{ route('geo.localidades') }}",
+            clientesVerificarDocumento: "{{ route('clientes.verificar-documento') }}",
             productosOpciones: "{{ route('productos.opciones') }}",
             categoriaVentaStore: "{{ route('categorias.venta.store') }}",
             categoriaUpdateBase: "{{ url('categorias') }}",
@@ -209,5 +211,5 @@
         vendedores: @json($vendedores->map(fn ($v) => ['id' => $v->id, 'nombre' => $v->nombre])),
     };
 </script>
-@vite(['resources/js/ventas.js'])
+@vite(['resources/js/cliente-modal.js', 'resources/js/ventas.js'])
 @endsection

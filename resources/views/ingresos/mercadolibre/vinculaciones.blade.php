@@ -10,16 +10,16 @@
                 <p class="text-muted mb-0">Relación 1 a 1 entre publicaciones de Mercado Libre y productos del CRM.</p>
             </div>
             <div class="d-flex flex-wrap gap-2">
-                <a href="{{ route('ingresos.mercadolibre.index') }}" class="btn btn-outline-secondary">
+                <a href="{{ route('ingresos.mercadolibre.index') }}" class="btn btn-outline-secondary" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Volver al listado de Mercado Libre">
                     <i class="fas fa-arrow-left me-1"></i> Volver a Mercado Libre
                 </a>
-                <button type="button" class="btn btn-primary" id="btn-vincular-automaticamente">
+                <button type="button" class="btn btn-primary" id="btn-vincular-automaticamente" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Vincula automáticamente las publicaciones cuyo SKU coincide con el código de un producto del CRM">
                     <i class="fas fa-bolt me-1"></i> Vincular automáticamente
                 </button>
-                <button type="button" class="btn btn-outline-primary" id="btn-sincronizacion-forzada">
+                <button type="button" class="btn btn-outline-primary" id="btn-sincronizacion-forzada" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Reenvía stock y precio de todas las publicaciones ya vinculadas a Mercado Libre, ahora mismo">
                     <i class="fas fa-rotate me-1"></i> Sincronización forzada
                 </button>
-                <button type="button" class="btn btn-outline-danger" id="btn-eliminar-todas-vinculaciones">
+                <button type="button" class="btn btn-outline-danger" id="btn-eliminar-todas-vinculaciones" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Desvincula todas las publicaciones de sus productos del CRM (no borra publicaciones ni productos)">
                     <i class="fas fa-trash me-1"></i> Eliminar todas las vinculaciones
                 </button>
             </div>

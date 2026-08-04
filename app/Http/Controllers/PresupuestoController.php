@@ -6,9 +6,11 @@ use App\Http\Requests\StorePresupuestoRequest;
 use App\Http\Requests\UpdatePresupuestoRequest;
 use App\Models\Categoria;
 use App\Models\Cliente;
+use App\Models\CondicionIva;
 use App\Models\Etiqueta;
 use App\Models\ListaPrecio;
 use App\Models\Presupuesto;
+use App\Models\Provincia;
 use App\Models\Vendedor;
 use App\Models\Venta;
 use App\Services\Ingresos\CalculoComprobante;
@@ -97,6 +99,10 @@ class PresupuestoController extends Controller
             'categoriasVenta' => Categoria::venta()->activas()->orderBy('nombre')->get(),
             'listasPrecio' => ListaPrecio::where('activo', true)->orderBy('nombre')->get(),
             'vendedores' => Vendedor::orderBy('nombre')->get(),
+            // Para el modal completo de alta/edición de Cliente reutilizado desde el select (clientes._modal_form).
+            'categorias' => Categoria::venta()->orderBy('nombre')->get(),
+            'condicionesIva' => CondicionIva::orderBy('nombre')->get(),
+            'provincias' => Provincia::orderBy('nombre')->pluck('nombre'),
         ]);
     }
 
@@ -165,8 +171,11 @@ class PresupuestoController extends Controller
         $categoriasVenta = Categoria::venta()->activas()->orderBy('nombre')->get();
         $listasPrecio = ListaPrecio::where('activo', true)->orderBy('nombre')->get();
         $vendedores = Vendedor::orderBy('nombre')->get();
+        $categorias = Categoria::venta()->orderBy('nombre')->get();
+        $condicionesIva = CondicionIva::orderBy('nombre')->get();
+        $provincias = Provincia::orderBy('nombre')->pluck('nombre');
 
-        return view('presupuestos.form', compact('CurrentPage', 'presupuesto', 'categoriasVenta', 'listasPrecio', 'vendedores'));
+        return view('presupuestos.form', compact('CurrentPage', 'presupuesto', 'categoriasVenta', 'listasPrecio', 'vendedores', 'categorias', 'condicionesIva', 'provincias'));
     }
 
     public function update(UpdatePresupuestoRequest $request, Presupuesto $presupuesto): JsonResponse

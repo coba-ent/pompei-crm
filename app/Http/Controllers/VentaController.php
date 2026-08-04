@@ -7,11 +7,13 @@ use App\Http\Requests\StoreVentaRequest;
 use App\Http\Requests\UpdateVentaRequest;
 use App\Models\Categoria;
 use App\Models\Cobro;
+use App\Models\CondicionIva;
 use App\Models\CuentaTesoreria;
 use App\Models\Deposito;
 use App\Models\Etiqueta;
 use App\Models\ListaPrecio;
 use App\Models\Presupuesto;
+use App\Models\Provincia;
 use App\Models\Remito;
 use App\Models\Vendedor;
 use App\Models\Venta;
@@ -125,6 +127,10 @@ class VentaController extends Controller
             'categoriasVenta' => Categoria::venta()->activas()->orderBy('nombre')->get(),
             'listasPrecio' => ListaPrecio::where('activo', true)->orderBy('nombre')->get(),
             'vendedores' => Vendedor::orderBy('nombre')->get(),
+            // Para el modal completo de alta/edición de Cliente reutilizado desde el select (clientes._modal_form).
+            'categorias' => Categoria::venta()->orderBy('nombre')->get(),
+            'condicionesIva' => CondicionIva::orderBy('nombre')->get(),
+            'provincias' => Provincia::orderBy('nombre')->pluck('nombre'),
         ]);
     }
 
@@ -202,10 +208,13 @@ class VentaController extends Controller
         $categoriasVenta = Categoria::venta()->activas()->orderBy('nombre')->get();
         $listasPrecio = ListaPrecio::where('activo', true)->orderBy('nombre')->get();
         $vendedores = Vendedor::orderBy('nombre')->get();
+        $categorias = Categoria::venta()->orderBy('nombre')->get();
+        $condicionesIva = CondicionIva::orderBy('nombre')->get();
+        $provincias = Provincia::orderBy('nombre')->pluck('nombre');
 
         $presupuestoOrigen = null;
 
-        return view('ventas.form', compact('CurrentPage', 'venta', 'categoriasVenta', 'listasPrecio', 'vendedores', 'presupuestoOrigen'));
+        return view('ventas.form', compact('CurrentPage', 'venta', 'categoriasVenta', 'listasPrecio', 'vendedores', 'presupuestoOrigen', 'categorias', 'condicionesIva', 'provincias'));
     }
 
     public function update(UpdateVentaRequest $request, Venta $venta): JsonResponse
@@ -343,7 +352,7 @@ class VentaController extends Controller
             ], 422);
         }
 
-        $venta->load('cliente');
+        $venta->load(['cliente.condicionIva', 'items']);
 
         $datos = [
             'tipo_comprobante' => $venta->tipo_comprobante,
@@ -351,10 +360,15 @@ class VentaController extends Controller
             'cliente' => [
                 'cuit' => $venta->cliente?->cuit,
                 'dni' => $venta->cliente?->tipo_documento === 'DNI' ? $venta->cliente?->cuit : null,
+                'condicion_iva_codigo' => $venta->cliente?->condicionIva?->codigo_afip,
             ],
             'neto' => (float) $venta->subtotal_con_descuento,
             'iva' => round((float) $venta->total - (float) $venta->subtotal_con_descuento, 2),
             'total' => (float) $venta->total,
+            'items' => $venta->items->map(fn ($item) => [
+                'neto' => (float) $item->subtotal,
+                'iva_pct' => (float) $item->iva_pct,
+            ])->all(),
         ];
 
         try {
