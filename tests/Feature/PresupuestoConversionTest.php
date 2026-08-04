@@ -6,6 +6,7 @@ use App\Models\Cliente;
 use App\Models\Deposito;
 use App\Models\Presupuesto;
 use App\Models\Producto;
+use App\Models\Rol;
 use App\Models\Stock;
 use App\Models\Venta;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -14,6 +15,56 @@ use Tests\TestCase;
 class PresupuestoConversionTest extends TestCase
 {
     use RefreshDatabase;
+
+    /**
+     * Spec 044 — "convertir a Venta" (crearVenta) redirige a ventas.create con los datos del Presupuesto
+     * precargados en el formulario (VentaController@create, `presupuestoOrigen`); el submit final vuelve
+     * a pasar por el mismo `CalculoComprobante` con los mismos ítems y `descuento_general_pct`. Se
+     * verifica esa consistencia extremo a extremo: mismos ítems + mismo descuento general con múltiples
+     * alícuotas deben dar el mismo total en Presupuesto y en la Venta resultante.
+     */
+    public function test_convertir_a_venta_conserva_el_total_con_descuento_general_y_multiples_alicuotas(): void
+    {
+        $admin = Rol::firstOrCreate(['nombre' => 'Admin'], ['es_sistema' => true]);
+        auth()->user()->roles()->attach($admin->id);
+
+        $cliente = Cliente::factory()->create();
+        $items = [
+            ['descripcion' => 'Item 21%', 'cantidad' => 1, 'precio_unitario' => 1000, 'iva_pct' => '21'],
+            ['descripcion' => 'Item 10.5%', 'cantidad' => 1, 'precio_unitario' => 2000, 'iva_pct' => '10.5'],
+        ];
+
+        $this->postJson(route('presupuestos.store'), [
+            'submit_token' => (string) \Illuminate\Support\Str::uuid(),
+            'cliente_id' => $cliente->id,
+            'fecha_emision' => '2026-07-18',
+            'descuento_general_pct' => 15,
+            'items' => $items,
+        ])->assertCreated();
+
+        $presupuesto = Presupuesto::latest('id')->firstOrFail();
+        $totalPresupuesto = $presupuesto->total;
+
+        // "Crear Venta" desde el Presupuesto: no convierte del lado del servidor, redirige al form de
+        // Ventas con el Presupuesto como origen (mismos ítems/descuento se re-envían en el submit).
+        $this->postJson(route('presupuestos.crearVenta', $presupuesto))
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $this->postJson(route('ventas.store'), [
+            'submit_token' => (string) \Illuminate\Support\Str::uuid(),
+            'presupuesto_id' => $presupuesto->id,
+            'cliente_id' => $cliente->id,
+            'fecha_emision' => '2026-07-18',
+            'tipo_comprobante' => 'B',
+            'descuento_general_pct' => 15,
+            'items' => $items,
+        ])->assertCreated();
+
+        $venta = Venta::latest('id')->firstOrFail();
+        $this->assertSame($presupuesto->id, $venta->presupuesto_id);
+        $this->assertEqualsWithDelta($totalPresupuesto, $venta->total, 0.01);
+    }
 
     public function test_convertir_crea_una_venta_con_mismo_cliente_y_lineas_y_descuenta_stock(): void
     {

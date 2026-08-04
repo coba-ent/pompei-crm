@@ -21,8 +21,12 @@ class CalculoComprobante
      */
     public function calcular(array $items, float|string|null $descuentoGeneralPct, array $conceptos = []): array
     {
+        $descuentoGeneralPct = (float) ($descuentoGeneralPct ?? 0);
+        $factor = 1 - ($descuentoGeneralPct / 100);
+
         $itemsCalculados = [];
         $subtotalSinDescuento = 0.0;
+        $subtotalConDescuento = 0.0;
         $totalConIva = 0.0;
 
         foreach ($items as $item) {
@@ -32,8 +36,11 @@ class CalculoComprobante
             $ivaPct = Producto::porcentajeIva($item['iva_pct'] ?? null);
 
             $bruto = $cantidad * $precioUnitario;
-            $subtotal = round($bruto - ($bruto * $descuentoPct / 100), 2);
-            $subtotalConIva = round($subtotal + ($subtotal * $ivaPct / 100), 2);
+            $subtotalLinea = round($bruto - ($bruto * $descuentoPct / 100), 2);
+            $subtotalConIvaLinea = round($subtotalLinea + ($subtotalLinea * $ivaPct / 100), 2);
+
+            $subtotalFinal = round($subtotalLinea * $factor, 2);
+            $subtotalConIvaFinal = round($subtotalConIvaLinea * $factor, 2);
 
             $itemsCalculados[] = [
                 'producto_id' => $item['producto_id'] ?? null,
@@ -42,24 +49,24 @@ class CalculoComprobante
                 'precio_unitario' => $precioUnitario,
                 'descuento_pct' => $item['descuento_pct'] ?? null,
                 'iva_pct' => $item['iva_pct'] ?? null,
-                'subtotal' => $subtotal,
-                'subtotal_con_iva' => $subtotalConIva,
+                'subtotal' => $subtotalFinal,
+                'subtotal_con_iva' => $subtotalConIvaFinal,
             ];
 
-            $subtotalSinDescuento += $subtotal;
-            $totalConIva += $subtotalConIva;
+            $subtotalSinDescuento += $subtotalLinea;
+            $subtotalConDescuento += $subtotalFinal;
+            $totalConIva += $subtotalConIvaFinal;
         }
 
-        $descuentoGeneralPct = (float) ($descuentoGeneralPct ?? 0);
-        $descuento = round($subtotalSinDescuento * $descuentoGeneralPct / 100, 2);
-        $subtotalConDescuento = round($subtotalSinDescuento - $descuento, 2);
+        $subtotalConDescuento = round($subtotalConDescuento, 2);
+        $descuento = round($subtotalSinDescuento - $subtotalConDescuento, 2);
 
         $totalConceptos = 0.0;
         foreach ($conceptos as $concepto) {
             $totalConceptos += (float) $concepto['monto'];
         }
 
-        $total = round($totalConIva - $descuento + $totalConceptos, 2);
+        $total = round($totalConIva + $totalConceptos, 2);
 
         return [
             'items' => $itemsCalculados,

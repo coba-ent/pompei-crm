@@ -59,11 +59,14 @@ class ValidadorDatosFiscales
             $sumaIva += round($itemNeto * $ivaPct / 100, 2);
         }
 
-        if ($neto !== null && abs($sumaNeto - $neto) > self::TOLERANCIA_IMPORTE) {
+        // round() antes de comparar: evita que la representación float de una diferencia que en
+        // pesos es exactamente $0.01 (p. ej. 0.010000000002) quede por encima de la tolerancia por
+        // error de punto flotante en vez de por una inconsistencia real (spec 044).
+        if ($neto !== null && round(abs($sumaNeto - $neto), 2) > self::TOLERANCIA_IMPORTE) {
             return 'El IVA calculado no coincide con la suma por alícuota — revisar los ítems de la Venta.';
         }
 
-        if ($iva !== null && abs($sumaIva - $iva) > self::TOLERANCIA_IMPORTE) {
+        if ($iva !== null && round(abs($sumaIva - $iva), 2) > self::TOLERANCIA_IMPORTE) {
             return 'El IVA calculado no coincide con la suma por alícuota — revisar los ítems de la Venta.';
         }
 

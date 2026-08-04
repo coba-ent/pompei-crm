@@ -82,7 +82,7 @@ class EmisionComprobanteVentaTest extends TestCase
         });
     }
 
-    private function crearVenta(Cliente $cliente, ?array $items = null): Venta
+    private function crearVenta(Cliente $cliente, ?array $items = null, ?float $descuentoGeneralPct = null): Venta
     {
         $payload = [
             'submit_token' => (string) \Illuminate\Support\Str::uuid(),
@@ -92,6 +92,7 @@ class EmisionComprobanteVentaTest extends TestCase
             'items' => $items ?? [
                 ['descripcion' => 'Producto', 'cantidad' => 1, 'precio_unitario' => 1000, 'iva_pct' => '21'],
             ],
+            'descuento_general_pct' => $descuentoGeneralPct,
         ];
 
         $this->postJson(route('ventas.store'), $payload)->assertCreated();
@@ -134,6 +135,25 @@ class EmisionComprobanteVentaTest extends TestCase
             ['descripcion' => 'Producto 21%', 'cantidad' => 1, 'precio_unitario' => 1000, 'iva_pct' => '21'],
             ['descripcion' => 'Producto 10.5%', 'cantidad' => 1, 'precio_unitario' => 1000, 'iva_pct' => '10.5'],
         ]);
+
+        $response = $this->postJson(route('ventas.enviarArca', $venta));
+
+        $response->assertOk()->assertJsonPath('ok', true);
+        $this->assertSame('aprobado', $venta->fresh()->comprobanteFiscal->estado);
+    }
+
+    /** Spec 044 — el descuento general prorrateado a neto e IVA destraba la emisión que spec 042 rechazaba. */
+    public function test_enviar_a_arca_una_venta_con_descuento_general_obtiene_cae(): void
+    {
+        $consumidorFinal = CondicionIva::create(['nombre' => 'Consumidor Final', 'codigo_afip' => '5', 'requiere_cuit' => false]);
+        $cliente = Cliente::factory()->create(['condicion_iva_id' => $consumidorFinal->id]);
+        $venta = $this->crearVenta($cliente, [
+            ['descripcion' => 'Producto 1', 'cantidad' => 1, 'precio_unitario' => 157879.22, 'iva_pct' => '21'],
+            ['descripcion' => 'Producto 2', 'cantidad' => 1, 'precio_unitario' => 49859.48, 'iva_pct' => '21'],
+            ['descripcion' => 'Producto 3', 'cantidad' => 1, 'precio_unitario' => 91308.22, 'iva_pct' => '21'],
+        ], descuentoGeneralPct: 15);
+
+        $this->assertEqualsWithDelta(307569.76, $venta->total, 0.01);
 
         $response = $this->postJson(route('ventas.enviarArca', $venta));
 
