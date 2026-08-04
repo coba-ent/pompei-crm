@@ -243,8 +243,9 @@ class PresupuestoController extends Controller
     {
         $CurrentPage = 'presupuestos';
         $presupuesto->load(['items', 'conceptos', 'cliente.condicionIva', 'categoria', 'listaPrecio', 'vendedor', 'etiquetas']);
+        $datosEmpresa = \App\Models\DatosEmpresa::instancia();
 
-        return view('presupuestos.documento', compact('CurrentPage', 'presupuesto'));
+        return view('presupuestos.documento', compact('CurrentPage', 'presupuesto', 'datosEmpresa'));
     }
 
     public function pdf(Presupuesto $presupuesto)

@@ -13,12 +13,25 @@
                     <i class="fas fa-arrow-left me-1"></i> Volver
                 </a>
             </div>
+            <div class="col-sm-6 text-end">
+                @if (! $presupuesto->convertido())
+                    <button type="button" class="btn btn-success btn-sm" id="btn-crear-venta" data-url="{{ route('presupuestos.crearVenta', $presupuesto) }}">
+                        <i class="fas fa-shopping-cart me-1"></i> Crear Venta
+                    </button>
+                @endif
+            </div>
         </div>
 
         <div class="card">
             <div class="card-body p-4">
                 <div class="d-flex justify-content-between align-items-start mb-3">
-                    <div class="text-muted"><i class="fas fa-image fa-2x"></i><div>Agregar Mi Logo</div></div>
+                    @if ($datosEmpresa && $datosEmpresa->ruta_logo)
+                        <img src="{{ asset('storage/'.$datosEmpresa->ruta_logo) }}" alt="Logo" style="max-width:120px; max-height:80px;">
+                    @else
+                        <a href="{{ route('configuracion.mi-perfil.index') }}" class="text-muted text-decoration-none">
+                            <i class="fas fa-image fa-2x"></i><div>Agregar Mi Logo</div>
+                        </a>
+                    @endif
                     <div class="text-end">
                         <h4 class="mb-0">PRESUPUESTO {{ $presupuesto->nro_presupuesto }}</h4>
                         <div>Fecha de Emisión: {{ optional($presupuesto->fecha_emision)->format('d/m/Y') }}</div>
@@ -136,6 +149,30 @@
         } else {
             window.open(this.dataset.url, '_blank');
         }
+    });
+    document.getElementById('btn-crear-venta')?.addEventListener('click', function () {
+        const btn = this;
+        btn.disabled = true;
+        fetch(btn.dataset.url, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'Accept': 'application/json',
+            },
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.ok) {
+                    window.location.href = data.redirect;
+                } else {
+                    btn.disabled = false;
+                    toastr.error(data.mensaje || 'No se pudo crear la venta.');
+                }
+            })
+            .catch(() => {
+                btn.disabled = false;
+                toastr.error('No se pudo crear la venta.');
+            });
     });
 </script>
 @endsection
