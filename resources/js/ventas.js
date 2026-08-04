@@ -210,11 +210,18 @@
         // del 04/08/2026. El resultado real de ARCA (aprobado o rechazado) va en un modal
         // persistente (FR-007); un rechazo de precondición (422, ni siquiera llegó a ARCA) va en
         // toast (FR-007a).
+        let $btnArcaPendiente = null;
         $(document).on('click', '.js-enviar-arca', function (e) {
             e.preventDefault();
             const $btn = $(this);
             if ($btn.hasClass('disabled')) { return; }
-            if (!confirm('¿Enviar esta Venta a ARCA para solicitar el CAE? Es una acción real ante un ente fiscal.')) { return; }
+            $btnArcaPendiente = $btn;
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-confirmar-arca')).show();
+        });
+        $('#btn-confirmar-arca').on('click', function () {
+            const $btn = $btnArcaPendiente;
+            if (!$btn) { return; }
+            bootstrap.Modal.getInstance(document.getElementById('modal-confirmar-arca'))?.hide();
 
             $btn.addClass('disabled');
             $.ajax({ url: $btn.data('url'), method: 'POST' })
@@ -229,7 +236,10 @@
                         mostrarResultadoArca(xhr.responseJSON || { ok: false, mensaje: 'No se pudo enviar a ARCA.' });
                     }
                 })
-                .always(() => $btn.removeClass('disabled'));
+                .always(() => {
+                    $btn.removeClass('disabled');
+                    $btnArcaPendiente = null;
+                });
         });
 
         function mostrarResultadoArca(resp) {
