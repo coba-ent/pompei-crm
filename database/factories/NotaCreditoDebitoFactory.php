@@ -19,6 +19,7 @@ class NotaCreditoDebitoFactory extends Factory
             'venta_id' => Venta::factory(),
             'tipo' => 'credito',
             'afecta_stock' => false,
+            'mes_imputacion' => now()->startOfMonth()->toDateString(),
             'fecha_emision' => now()->toDateString(),
             'monto' => $this->faker->randomFloat(2, 100, 5000),
             'tipo_comprobante' => 'B',

@@ -47,6 +47,7 @@ class NotaCreditoDebitoCompraTest extends TestCase
             'afecta_stock' => false,
             'fecha_emision' => now()->toDateString(),
             'monto' => 210,
+            'mes_imputacion' => now()->toDateString(),
             'descripcion' => 'Devolución parcial',
         ])->assertCreated()->assertJsonPath('ok', true);
 
@@ -62,6 +63,7 @@ class NotaCreditoDebitoCompraTest extends TestCase
             'afecta_stock' => false,
             'fecha_emision' => now()->toDateString(),
             'monto' => 100,
+            'mes_imputacion' => now()->toDateString(),
             'descripcion' => 'Interés por mora',
         ])->assertCreated();
 
@@ -77,11 +79,68 @@ class NotaCreditoDebitoCompraTest extends TestCase
             'afecta_stock' => false,
             'fecha_emision' => now()->toDateString(),
             'monto' => 100,
+            'mes_imputacion' => now()->toDateString(),
             'descripcion' => 'Ajuste',
         ])->assertCreated();
 
         $nota = $compra->fresh()->notasCreditoDebito()->firstOrFail();
         $this->assertSame($compra->id, $nota->compra_id);
         $this->assertNull($nota->venta_id);
+    }
+
+    private function crearCompraConProducto(\App\Models\Producto $producto, float $cantidad): Compra
+    {
+        $proveedor = Proveedor::factory()->create();
+
+        $this->postJson(route('compras.store'), [
+            'submit_token' => (string) \Illuminate\Support\Str::uuid(),
+            'proveedor_id' => $proveedor->id,
+            'fecha_emision' => now()->toDateString(),
+            'tipo_comprobante' => 'A',
+            'items' => [
+                ['producto_id' => $producto->id, 'descripcion' => $producto->nombre, 'cantidad' => $cantidad, 'precio_unitario' => 1000, 'iva_pct' => '21'],
+            ],
+        ])->assertCreated();
+
+        return Compra::firstOrFail();
+    }
+
+    /** T022 (US2): NC sobre Compra con afecta_stock=true sube el stock (signo inverso a Venta). */
+    public function test_nota_de_credito_sobre_compra_que_afecta_stock_sube_stock(): void
+    {
+        $deposito = \App\Models\Deposito::create(['nombre' => 'Principal', 'activo' => true]);
+        $producto = \App\Models\Producto::factory()->create();
+        $compra = $this->crearCompraConProducto($producto, 5);
+
+        $stockAntes = $producto->stockTotal();
+
+        $this->postJson(route('compras.notas.store', $compra), [
+            'tipo' => 'credito',
+            'afecta_stock' => true,
+            'deposito_id' => $deposito->id,
+            'items' => [['producto_id' => $producto->id, 'cantidad' => 2, 'precio' => 1000]],
+            'mes_imputacion' => now()->toDateString(),
+            'fecha_emision' => now()->toDateString(),
+            'monto' => 2000,
+        ])->assertCreated();
+
+        $this->assertSame($stockAntes - 2.0, $producto->fresh()->stockTotal());
+    }
+
+    /** T026 (US2): afecta_stock=true sin deposito_id falla 422 (Compra). */
+    public function test_afecta_stock_sin_deposito_falla_validacion_en_compra(): void
+    {
+        \App\Models\Deposito::create(['nombre' => 'Principal', 'activo' => true]);
+        $producto = \App\Models\Producto::factory()->create();
+        $compra = $this->crearCompraConProducto($producto, 5);
+
+        $this->postJson(route('compras.notas.store', $compra), [
+            'tipo' => 'credito',
+            'afecta_stock' => true,
+            'items' => [['producto_id' => $producto->id, 'cantidad' => 2, 'precio' => 1000]],
+            'mes_imputacion' => now()->toDateString(),
+            'fecha_emision' => now()->toDateString(),
+            'monto' => 2000,
+        ])->assertStatus(422)->assertJsonValidationErrors('deposito_id');
     }
 }

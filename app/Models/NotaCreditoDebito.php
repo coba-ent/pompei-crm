@@ -17,12 +17,13 @@ class NotaCreditoDebito extends Model
     protected $table = 'notas_credito_debito';
 
     protected $fillable = [
-        'venta_id', 'compra_id', 'tipo', 'afecta_stock', 'fecha_emision', 'monto',
+        'venta_id', 'compra_id', 'tipo', 'afecta_stock', 'mes_imputacion', 'fecha_emision', 'monto',
         'tipo_comprobante', 'descripcion', 'impuestos',
     ];
 
     protected $casts = [
         'afecta_stock' => 'boolean',
+        'mes_imputacion' => 'date',
         'fecha_emision' => 'date',
         'monto' => 'decimal:2',
         'impuestos' => 'array',

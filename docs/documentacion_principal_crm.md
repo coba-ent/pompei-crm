@@ -414,12 +414,17 @@ Otros Ingresos y Abonos son independientes.
 - Menú de fila (12 opciones, el más completo de la app): Ver/Editar/Eliminar · Agregar Cobranza / Crear
   NC/ND / Crear Remito / **Cta Cte** · Ver Detalle (**PDF**, a diferencia de "Ver" en Presupuestos) /
   Imprimir Detalle / Imprimir Ticket / Enviar Detalle / Enviar WhatsApp.
-- **Crear NC/ND** *(corroborado y ampliado contra `help.contagram.com`, ver §3.6)*: wizard de 2 pasos.
-  Paso 1: Tipo (Crédito/Débito), Documento que Ajusta, "¿Afecta Stock?" — si es Sí: traer los productos
-  de la venta original con sus valores preexistentes, o elegir productos nuevos; si es No: sólo
-  descripción, sin productos. Paso 2 ("Siguiente"): Fecha de Emisión, Monto, Tipo de comprobante (igual
-  al de la factura original), Descripción, Impuestos aplicables. Al guardar se puede solicitar
-  aprobación ante ARCA.
+- **Crear NC/ND** *(corroborado y ampliado contra `help.contagram.com`, ver §3.6; captura real
+  aportada por el usuario en spec 045)*: wizard de 2 pasos.
+  Paso 1: Tipo (Crédito/Débito), Documento que Ajusta, "¿Queres que afecte Stock?" — si es Sí: traer
+  los productos de la venta/compra original con sus valores preexistentes (nuestro CRM restringe a
+  sólo esos productos, no permite elegir productos nuevos ajenos al comprobante — spec 045); si es
+  No: sólo descripción, sin productos. **Mes de Imputación** (mes/año, independiente de la Fecha de
+  Emisión — mismo propósito que el campo "Contador" del formulario de Nueva Compra, ver
+  informe de Egresos §2.4; en Contagram real este campo vive en el propio modal de NC/ND, tanto en
+  Compras como en Ventas — spec 045). Paso 2 ("Siguiente"): Fecha de Emisión, Monto, Tipo de
+  comprobante (igual al de la factura original), Descripción, Impuestos aplicables. Al guardar se
+  puede solicitar aprobación ante ARCA.
 - **Agregar Retención** *(corroborado, ver §3.6 — resuelve la duda abierta en
   `informe_contagram_funciones_avanzadas.md`)*: no está en el modal simple "Nuevo Cobro"; el botón vive
   **dentro de la sección de Cobranzas del Detalle de Venta**. Campos: Fecha, Monto, Tipo de Retención,

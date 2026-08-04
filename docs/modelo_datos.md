@@ -347,7 +347,10 @@ pasos — el informe con capturas sólo había relevado el paso 1.
 
 id, venta_id (FK → ventas, **nullable** — "Documento que Ajusta"), compra_id (FK → `compras`,
 **nullable**, agregado en spec 009 — exactamente uno de `venta_id`/`compra_id` debe estar seteado),
-tipo (enum `credito`,`debito`), afecta_stock (boolean, default false), fecha_emision (date), monto
+tipo (enum `credito`,`debito`), afecta_stock (boolean, default false), mes_imputacion (date, NOT
+NULL, agregado en spec 045 — se persiste con día fijado a `01`, representa "mes/año" de imputación
+para el informe al Contador, independiente de `fecha_emision`; precargado por defecto con el
+mes/año de `fecha_emision` al crear la nota, editable), fecha_emision (date), monto
 (decimal(14,2)), tipo_comprobante (string, igual al del comprobante original), descripcion (text,
 nullable — obligatoria si no afecta stock), impuestos (json, nullable — conceptos de impuesto
 aplicados, mismo patrón que `presupuesto_conceptos`). `nota_credito_debito_items` (pivot `producto_id`

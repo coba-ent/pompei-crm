@@ -17,7 +17,33 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Documento que Ajusta</label>
-                        <input type="text" class="form-control" id="ncnd-documento" disabled>
+                        <select id="ncnd-documento" class="form-select" style="width:100%" disabled></select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">¿Querés que afecte Stock?</label>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="ncnd-afecta-stock" id="ncnd-afecta-si" value="1">
+                            <label class="form-check-label" for="ncnd-afecta-si">Sí</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="ncnd-afecta-stock" id="ncnd-afecta-no" value="0" checked>
+                            <label class="form-check-label" for="ncnd-afecta-no">No</label>
+                        </div>
+                        <div class="form-text text-warning d-none" id="ncnd-sin-productos">
+                            Este comprobante no tiene productos (sólo conceptos/servicios) — no se puede afectar stock.
+                        </div>
+                    </div>
+                    <div id="ncnd-stock-bloque" class="d-none">
+                        <div class="mb-3">
+                            <label class="form-label">Depósito</label>
+                            <select id="ncnd-deposito" class="form-select" style="width:100%"></select>
+                        </div>
+                        <label class="form-label">Agregar Productos de la Compra</label>
+                        <div id="ncnd-items"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Mes de Imputación</label>
+                        <input type="month" class="form-control" id="ncnd-mes-imputacion">
                     </div>
                 </div>
 

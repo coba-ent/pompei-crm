@@ -62,6 +62,7 @@ class PdfNotaCreditoDebitoTest extends TestCase
         $nota = $venta->notasCreditoDebito()->create([
             'tipo' => 'credito',
             'afecta_stock' => false,
+            'mes_imputacion' => now()->startOfMonth()->toDateString(),
             'fecha_emision' => now()->toDateString(),
             'monto' => 100,
             'tipo_comprobante' => 'B',
@@ -97,6 +98,7 @@ class PdfNotaCreditoDebitoTest extends TestCase
         $nota = $venta->notasCreditoDebito()->create([
             'tipo' => 'debito',
             'afecta_stock' => false,
+            'mes_imputacion' => now()->startOfMonth()->toDateString(),
             'fecha_emision' => now()->toDateString(),
             'monto' => 50,
             'tipo_comprobante' => 'B',

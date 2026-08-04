@@ -202,7 +202,7 @@
                 </div>
                 <div class="table-responsive">
                     <table class="table table-sm">
-                        <thead><tr><th>Id</th><th>Tipo</th><th>Fecha</th><th>Afecta Stock</th><th>Monto</th></tr></thead>
+                        <thead><tr><th>Id</th><th>Tipo</th><th>Fecha</th><th>Afecta Stock</th><th>Mes de Imputación</th><th>Monto</th></tr></thead>
                         <tbody>
                             @forelse ($compra->notasCreditoDebito as $nota)
                                 <tr>
@@ -210,10 +210,11 @@
                                     <td>{{ $nota->tipo === 'credito' ? 'Nota de Crédito' : 'Nota de Débito' }}</td>
                                     <td>{{ $nota->fecha_emision->format('d/m/Y') }}</td>
                                     <td>{{ $nota->afecta_stock ? 'Sí' : 'No' }}</td>
+                                    <td>{{ $nota->mes_imputacion->format('m/Y') }}</td>
                                     <td>$ {{ number_format((float) $nota->monto, 2, ',', '.') }}</td>
                                 </tr>
                             @empty
-                                <tr><td colspan="5" class="text-center text-muted">Sin notas</td></tr>
+                                <tr><td colspan="6" class="text-center text-muted">Sin notas</td></tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -230,6 +231,7 @@
 
 @php
     $datosCuentas = $cuentas->map(fn ($c) => ['id' => $c->id, 'nombre' => $c->nombre]);
+    $datosDepositos = $depositos->map(fn ($d) => ['id' => $d->id, 'nombre' => $d->nombre]);
 @endphp
 @section('local-js')
 <script>
@@ -239,6 +241,7 @@
         aPagar: {{ $aPagar }},
         nroComprobante: @json($compra->nro_comprobante),
         cuentas: @json($datosCuentas),
+        depositos: @json($datosDepositos),
     };
     window.ComprasConfig = window.ComprasConfig || {};
     window.ComprasConfig.rutas = Object.assign(window.ComprasConfig.rutas || {}, {
@@ -247,6 +250,7 @@
         retencionStore: "{{ route('compras.retenciones.store', $compra) }}",
         remitoStore: "{{ route('compras.remitos.store', $compra) }}",
         notasStore: "{{ route('compras.notas.store', $compra) }}",
+        notasItemsDisponibles: "{{ route('compras.notas.itemsDisponibles', $compra) }}",
         pdf: "{{ route('compras.pdf', $compra) }}",
     });
 </script>

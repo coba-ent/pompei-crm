@@ -128,6 +128,7 @@ class EmisionComprobanteNotaCreditoDebitoTest extends TestCase
         $response = $this->postJson(route('ventas.notas.store', $venta), [
             'tipo' => 'credito',
             'fecha_emision' => now()->toDateString(),
+            'mes_imputacion' => now()->toDateString(),
             'monto' => 100,
             'afecta_stock' => false,
             'descripcion' => 'Ajuste de prueba',

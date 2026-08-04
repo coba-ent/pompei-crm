@@ -184,7 +184,7 @@
                 </div>
                 <div class="table-responsive">
                     <table class="table table-sm">
-                        <thead><tr><th>Id</th><th>Tipo</th><th>Fecha</th><th>Afecta Stock</th><th>Monto</th><th></th></tr></thead>
+                        <thead><tr><th>Id</th><th>Tipo</th><th>Fecha</th><th>Afecta Stock</th><th>Mes de Imputación</th><th>Monto</th><th></th></tr></thead>
                         <tbody>
                             @forelse ($venta->notasCreditoDebito as $nota)
                                 <tr>
@@ -192,13 +192,14 @@
                                     <td>{{ $nota->tipo === 'credito' ? 'Nota de Crédito' : 'Nota de Débito' }}</td>
                                     <td>{{ $nota->fecha_emision->format('d/m/Y') }}</td>
                                     <td>{{ $nota->afecta_stock ? 'Sí' : 'No' }}</td>
+                                    <td>{{ $nota->mes_imputacion->format('m/Y') }}</td>
                                     <td>$ {{ number_format((float) $nota->monto, 2, ',', '.') }}</td>
                                     <td>
                                         <a href="#" class="js-ver-detalle-nota" data-url="{{ route('ventas.notas.pdf', $nota) }}">Ver Detalle</a>
                                     </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="6" class="text-center text-muted">Sin notas</td></tr>
+                                <tr><td colspan="7" class="text-center text-muted">Sin notas</td></tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -235,6 +236,7 @@
         cobranzaDestroyBase: "{{ url('ventas/'.$venta->id.'/cobranzas') }}",
         remitoStore: "{{ route('ventas.remitos.store', $venta) }}",
         notasStore: "{{ route('ventas.notas.store', $venta) }}",
+        notasItemsDisponibles: "{{ route('ventas.notas.itemsDisponibles', $venta) }}",
         pdf: "{{ route('ventas.pdf', $venta) }}",
         ticket: "{{ route('ventas.ticket', $venta) }}",
     });

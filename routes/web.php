@@ -204,6 +204,7 @@ Route::middleware('permiso:ventas.ver')->prefix('ventas')->name('ventas.')->grou
     Route::get('{venta}/cobranzas/{cobro}/recibo', [VentaController::class, 'reciboCobranza'])->name('cobranzas.recibo');
     Route::post('{venta}/notas', [NotaCreditoDebitoController::class, 'store'])->name('notas.store');
     Route::get('notas/{notaCreditoDebito}/pdf', [NotaCreditoDebitoController::class, 'pdf'])->name('notas.pdf');
+    Route::get('{venta}/notas-credito-debito/items-disponibles', [NotaCreditoDebitoController::class, 'itemsDisponiblesVenta'])->name('notas.itemsDisponibles');
     Route::post('{venta}/remitos', [VentaController::class, 'remitoStore'])->name('remitos.store');
     Route::get('{venta}', [VentaController::class, 'show'])->name('show');
 });
@@ -289,6 +290,7 @@ Route::middleware('permiso:compras.ver')->prefix('compras')->name('compras.')->g
     Route::get('{compra}/pagos/{pago}/recibo', [CompraController::class, 'reciboPago'])->name('pagos.recibo');
     Route::post('{compra}/retenciones', [CompraController::class, 'retencionStore'])->name('retenciones.store');
     Route::post('{compra}/notas', [NotaCreditoDebitoController::class, 'storeCompra'])->name('notas.store');
+    Route::get('{compra}/notas-credito-debito/items-disponibles', [NotaCreditoDebitoController::class, 'itemsDisponiblesCompra'])->name('notas.itemsDisponibles');
     Route::post('{compra}/remitos', [CompraController::class, 'remitoStore'])->name('remitos.store');
     Route::get('{compra}', [CompraController::class, 'show'])->name('show');
 });

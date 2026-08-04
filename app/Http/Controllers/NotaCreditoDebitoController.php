@@ -13,6 +13,7 @@ use App\Services\Arca\EmisorComprobante;
 use App\Services\Arca\Excepciones\ArcaNoDisponibleException;
 use App\Services\Arca\Excepciones\ArcaRechazoException;
 use App\Services\Arca\Excepciones\CertificadoNoConfiguradoException;
+use App\Services\AjustesPendientesNotaCreditoDebito;
 use App\Services\Stock\StockService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -23,7 +24,20 @@ class NotaCreditoDebitoController extends Controller
     public function __construct(
         private readonly StockService $stockService,
         private readonly EmisorComprobante $emisorComprobante,
+        private readonly AjustesPendientesNotaCreditoDebito $ajustesPendientes,
     ) {
+    }
+
+    /** Spec 045 (T006): productos del comprobante original con su cantidad pendiente de ajuste. */
+    public function itemsDisponiblesVenta(Venta $venta): JsonResponse
+    {
+        return response()->json(['data' => $this->ajustesPendientes->itemsDisponibles($venta)]);
+    }
+
+    /** Spec 045 (T006): idem para Compra. */
+    public function itemsDisponiblesCompra(Compra $compra): JsonResponse
+    {
+        return response()->json(['data' => $this->ajustesPendientes->itemsDisponibles($compra)]);
     }
 
     public function store(StoreNotaCreditoDebitoRequest $request, Venta $venta): JsonResponse
@@ -35,6 +49,7 @@ class NotaCreditoDebitoController extends Controller
             $nota = $venta->notasCreditoDebito()->create([
                 'tipo' => $datos['tipo'],
                 'afecta_stock' => $afectaStock,
+                'mes_imputacion' => $datos['mes_imputacion'],
                 'fecha_emision' => $datos['fecha_emision'],
                 'monto' => $datos['monto'],
                 'tipo_comprobante' => $venta->tipo_comprobante,
@@ -154,6 +169,7 @@ class NotaCreditoDebitoController extends Controller
             $nota = $compra->notasCreditoDebito()->create([
                 'tipo' => $datos['tipo'],
                 'afecta_stock' => $afectaStock,
+                'mes_imputacion' => $datos['mes_imputacion'],
                 'fecha_emision' => $datos['fecha_emision'],
                 'monto' => $datos['monto'],
                 'tipo_comprobante' => $compra->tipo_comprobante,
