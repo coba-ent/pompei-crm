@@ -169,7 +169,7 @@
             },
             ajax: { url: rutas.data, data: (d) => $.extend(d, filtrosActuales()) },
             columns: [
-                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
+                { data: 'estado_badge', name: 'estado_badge', orderable: false, searchable: false },
                 { data: 'id', name: 'id' },
                 { data: 'fecha_emision', name: 'fecha_emision' },
                 { data: 'fecha_validez', name: 'fecha_validez' },
@@ -182,12 +182,10 @@
                 { data: 'total', name: 'total', render: money },
                 { data: 'nota_cliente', name: 'nota_cliente' },
                 { data: 'nota_interna', name: 'nota_interna' },
+                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
             ],
         });
 
-        // Reordenamos: "acciones" primero en el modelo de columnas pero la
-        // tabla visual pide "Estado" primero — reutilizamos la misma columna
-        // (el badge de estado abre el menú de fila).
         $('#btn-aplicar-filtros').on('click', () => tabla.ajax.reload());
         $('#btn-limpiar-filtros').on('click', () => {
             $('#filtro-cliente').val(null).trigger('change');

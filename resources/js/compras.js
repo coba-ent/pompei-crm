@@ -87,7 +87,7 @@
             },
             ajax: { url: rutas.data, data: (d) => $.extend(d, filtrosActuales()) },
             columns: [
-                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
+                { data: 'estado_badge', name: 'estado_badge', orderable: false, searchable: false },
                 { data: 'id', name: 'id' },
                 { data: 'fecha_emision', name: 'fecha_emision' },
                 { data: 'fecha_vto_pago', name: 'fecha_vto_pago' },
@@ -100,6 +100,7 @@
                 { data: 'pagado', name: 'pagado', render: money },
                 { data: 'a_pagar', name: 'a_pagar', render: money },
                 { data: 'medio_de_pago', name: 'medio_de_pago' },
+                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
             ],
         });
 

@@ -31,7 +31,6 @@
                     <table id="tabla-tn-vinculaciones" class="table table-hover display responsive nowrap" style="width:100%">
                         <thead>
                             <tr>
-                                <th>Acciones</th>
                                 <th>Producto (ID)</th>
                                 <th>Variante (ID)</th>
                                 <th>Nombre</th>
@@ -39,6 +38,7 @@
                                 <th>Fecha</th>
                                 <th>Stock</th>
                                 <th>Precio</th>
+                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody></tbody>

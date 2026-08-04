@@ -104,6 +104,7 @@
                                 <th>Pagado</th>
                                 <th>A Pagar</th>
                                 <th>Medio de Pago</th>
+                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody></tbody>

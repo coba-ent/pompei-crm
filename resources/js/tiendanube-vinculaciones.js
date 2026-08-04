@@ -185,7 +185,6 @@
             },
             ajax: { url: rutas.datatable },
             columns: [
-                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
                 { data: 'tn_product_id', name: 'tn_product_id' },
                 { data: 'variant_id', name: 'variant_id' },
                 { data: 'nombre_variante_tn', name: 'nombre_variante_tn' },
@@ -199,6 +198,7 @@
                     data: 'precio_estado', name: 'precio_pendiente', orderable: false,
                     render: (data, type, row) => renderEstadoSync(data, row, 'precio_sincronizado_en', 'precio_error'),
                 },
+                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
             ],
         });
     }

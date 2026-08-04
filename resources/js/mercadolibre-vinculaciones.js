@@ -166,7 +166,6 @@
             },
             ajax: { url: rutas.datatable },
             columns: [
-                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
                 { data: 'ml_item_id', name: 'ml_item_id' },
                 { data: 'titulo_ml', name: 'titulo_ml' },
                 { data: 'producto_nombre', name: 'producto.nombre' },
@@ -187,6 +186,7 @@
                     data: 'precio_estado', name: 'precio_estado', orderable: false, searchable: false,
                     render: (data, type, row) => renderEstadoPrecio(data, row),
                 },
+                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
             ],
         });
     }

@@ -77,6 +77,7 @@
                                 <th>Nota Interna</th>
                                 <th>Lista de Precios</th>
                                 <th>Vendedor</th>
+                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody></tbody>

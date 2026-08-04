@@ -86,7 +86,7 @@
             },
             ajax: { url: rutas.data, data: (d) => $.extend(d, filtrosActuales()) },
             columns: [
-                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
+                { data: 'estado_badge', name: 'estado_badge', orderable: false, searchable: false },
                 { data: 'id', name: 'id' },
                 { data: 'creada_desde', name: 'creada_desde' },
                 { data: 'fecha_emision', name: 'fecha_emision' },
@@ -105,6 +105,7 @@
                 { data: 'nota_interna', name: 'nota_interna' },
                 { data: 'lista_precio', name: 'lista_precio' },
                 { data: 'vendedor', name: 'vendedor' },
+                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
             ],
         });
 

@@ -51,6 +51,7 @@
                                 <th>Descripción</th>
                                 <th>Medio de Cobro</th>
                                 <th>Monto</th>
+                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody></tbody>

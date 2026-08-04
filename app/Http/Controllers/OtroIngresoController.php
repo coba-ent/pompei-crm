@@ -34,6 +34,7 @@ class OtroIngresoController extends Controller
         $query = OtroIngreso::query()->with(['categoria:id,nombre', 'cuentaTesoreria:id,nombre']);
 
         return DataTables::eloquent($query)
+            ->addColumn('estado_badge', fn (OtroIngreso $o) => view('otros-ingresos._estado_badge', ['otroIngreso' => $o])->render())
             ->addColumn('acciones', fn (OtroIngreso $o) => view('otros-ingresos._row_actions', ['otroIngreso' => $o])->render())
             ->addColumn('estado', fn (OtroIngreso $o) => $o->estado())
             ->addColumn('categoria', fn (OtroIngreso $o) => optional($o->categoria)->nombre)
@@ -41,7 +42,7 @@ class OtroIngresoController extends Controller
             ->addColumn('fecha_raw', fn (OtroIngreso $o) => optional($o->fecha)->format('Y-m-d'))
             ->editColumn('fecha', fn (OtroIngreso $o) => optional($o->fecha)->format('d/m/Y'))
             ->editColumn('monto', fn (OtroIngreso $o) => (float) $o->monto)
-            ->rawColumns(['acciones'])
+            ->rawColumns(['estado_badge', 'acciones'])
             ->toJson();
     }
 

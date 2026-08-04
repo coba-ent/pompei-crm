@@ -77,6 +77,7 @@ class VentaController extends Controller
         $query = $this->queryFiltrada($request);
 
         return DataTables::eloquent($query)
+            ->addColumn('estado_badge', fn (Venta $v) => view('ventas._estado_badge', ['venta' => $v])->render())
             ->addColumn('acciones', fn (Venta $v) => view('ventas._row_actions', ['venta' => $v])->render())
             ->addColumn('estado_cobro', fn (Venta $v) => $v->estadoCobro())
             ->addColumn('creada_desde', fn (Venta $v) => match (true) {
@@ -99,7 +100,7 @@ class VentaController extends Controller
             ->editColumn('descuento', fn (Venta $v) => (float) $v->descuento)
             ->editColumn('subtotal_con_descuento', fn (Venta $v) => (float) $v->subtotal_con_descuento)
             ->editColumn('total', fn (Venta $v) => (float) $v->total)
-            ->rawColumns(['acciones'])
+            ->rawColumns(['estado_badge', 'acciones'])
             ->toJson();
     }
 

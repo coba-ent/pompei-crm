@@ -1,18 +1,6 @@
-@php
-    $badge = match ($compra->estadoPago()) {
-        'pagado' => 'success',
-        'parcial' => 'warning',
-        default => 'danger',
-    };
-    $label = match ($compra->estadoPago()) {
-        'pagado' => 'Pagado',
-        'parcial' => 'Parcial',
-        default => 'A Pagar',
-    };
-@endphp
 <div class="dropdown">
-    <button class="btn btn-sm btn-outline-{{ $badge }} dropdown-toggle" type="button" data-bs-toggle="dropdown">
-        {{ $label }}
+    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        Acciones
     </button>
     <ul class="dropdown-menu dropdown-menu-end">
         <li><a class="dropdown-item" href="{{ route('compras.show', $compra) }}">Ver</a></li>

@@ -82,7 +82,6 @@
                     <table id="tabla-ml-ordenes" class="table table-hover display responsive nowrap" style="width:100%">
                         <thead>
                             <tr>
-                                <th>Acciones</th>
                                 <th>Orden</th>
                                 <th>Etiquetas</th>
                                 <th>Fecha</th>
@@ -93,6 +92,7 @@
                                 <th>Estado de conversión</th>
                                 <th>Motivo</th>
                                 <th>Venta</th>
+                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody></tbody>

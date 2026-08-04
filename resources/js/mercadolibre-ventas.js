@@ -66,10 +66,9 @@
                 paginate: { first: 'Primero', last: 'Último', next: 'Siguiente', previous: 'Anterior' },
                 processing: 'Cargando...',
             },
-            order: [[3, 'desc']],
+            order: [[2, 'desc']],
             ajax: { url: rutas.datatable, data: (d) => $.extend(d, filtrosActuales()) },
             columns: [
-                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
                 { data: 'ml_order_id', name: 'ml_order_id' },
                 {
                     data: null, name: 'etiquetas', orderable: false, searchable: false,
@@ -100,6 +99,7 @@
                     render: (data, type, row) => data && rutas.ventaShow
                         ? '<a href="' + rutas.ventaShow + '/' + row.venta_id + '">' + data + '</a>' : (data || '—'),
                 },
+                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
             ],
         });
 

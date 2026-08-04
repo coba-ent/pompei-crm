@@ -65,10 +65,9 @@
                 paginate: { first: 'Primero', last: 'Último', next: 'Siguiente', previous: 'Anterior' },
                 processing: 'Cargando...',
             },
-            order: [[2, 'desc']],
+            order: [[1, 'desc']],
             ajax: { url: rutas.datatable, data: (d) => $.extend(d, filtrosActuales()) },
             columns: [
-                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
                 { data: 'tn_order_id', name: 'tn_order_id' },
                 { data: 'fecha_cerrada', name: 'fecha_cerrada' },
                 {
@@ -91,6 +90,7 @@
                     render: (data, type, row) => data && rutas.ventaShow
                         ? '<a href="' + rutas.ventaShow + '/' + row.venta_id + '">' + data + '</a>' : (data || '—'),
                 },
+                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
             ],
         });
 

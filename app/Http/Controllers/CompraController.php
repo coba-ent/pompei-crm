@@ -76,6 +76,7 @@ class CompraController extends Controller
         $query = $this->queryFiltrada($request);
 
         return DataTables::eloquent($query)
+            ->addColumn('estado_badge', fn (Compra $c) => view('compras._estado_badge', ['compra' => $c])->render())
             ->addColumn('acciones', fn (Compra $c) => view('compras._row_actions', ['compra' => $c])->render())
             ->addColumn('estado_pago', fn (Compra $c) => $c->estadoPago())
             ->addColumn('proveedor', fn (Compra $c) => optional($c->proveedor)->nombre)
@@ -89,7 +90,7 @@ class CompraController extends Controller
             ->editColumn('descuento', fn (Compra $c) => (float) $c->descuento)
             ->editColumn('subtotal_con_descuento', fn (Compra $c) => (float) $c->subtotal_con_descuento)
             ->editColumn('total', fn (Compra $c) => (float) $c->total)
-            ->rawColumns(['acciones'])
+            ->rawColumns(['estado_badge', 'acciones'])
             ->toJson();
     }
 

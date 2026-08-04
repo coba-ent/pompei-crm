@@ -115,13 +115,14 @@
             ajax: { url: rutas.data, data: (d) => $.extend(d, filtrosActuales()) },
             columnDefs: columnasToggleables.filter((c) => c.ocultaPorDefecto).map((c) => ({ targets: c.idx, visible: false })),
             columns: [
-                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
+                { data: 'estado_badge', name: 'estado_badge', orderable: false, searchable: false },
                 { data: 'id', name: 'id' },
                 { data: 'fecha', name: 'fecha' },
                 { data: 'categoria', name: 'categoria.nombre' },
                 { data: 'descripcion', name: 'descripcion' },
                 { data: 'medio_de_pago', name: 'medio_de_pago' },
                 { data: 'monto', name: 'monto', render: money },
+                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
             ],
         });
 

@@ -114,6 +114,7 @@
                                 <th>Total</th>
                                 <th>Nota Cliente</th>
                                 <th>Nota Interna</th>
+                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
