@@ -42,7 +42,13 @@ class EmisorComprobante
             throw new CertificadoNoConfiguradoException('No hay Punto de Venta y/o certificado fiscal activo configurado.');
         }
 
-        $motivoInvalido = $this->validador->validar($datos['tipo_comprobante'], $datos['cliente'] ?? []);
+        $motivoInvalido = $this->validador->validar(
+            $datos['tipo_comprobante'],
+            $datos['cliente'] ?? [],
+            $datos['items'] ?? null,
+            isset($datos['items']) ? (float) $datos['neto'] : null,
+            isset($datos['items']) ? (float) $datos['iva'] : null,
+        );
         if ($motivoInvalido !== null) {
             $this->registrarLog(null, 'validacion_datos_fiscales', 'error', $motivoInvalido, $datos, null);
             throw new ArcaRechazoException($motivoInvalido);

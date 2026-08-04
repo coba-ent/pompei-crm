@@ -103,4 +103,96 @@ class MapeadorComprobanteTest extends TestCase
         $this->assertSame(8, $resultado['FeCabReq']['CbteTipo']);
         $this->assertSame(6, $resultado['FeDetReq']['FECAEDetRequest']['CbtesAsoc']['CbteAsoc']['Tipo']);
     }
+
+    public function test_arma_un_unico_bloque_alic_iva_para_alicuota_unica(): void
+    {
+        $mapeador = new MapeadorComprobante();
+
+        $resultado = $mapeador->mapear([
+            'tipo_comprobante' => 'B',
+            'punto_venta' => 1,
+            'numero' => 1,
+            'fecha' => '2026-08-14',
+            'cliente' => [],
+            'neto' => 1000.0,
+            'iva' => 210.0,
+            'total' => 1210.0,
+            'items' => [
+                ['neto' => 1000.0, 'iva_pct' => 21.0],
+            ],
+        ]);
+
+        $alicIva = $resultado['FeDetReq']['FECAEDetRequest']['Iva']['AlicIva'];
+        $this->assertArrayHasKey('Id', $alicIva);
+        $this->assertSame(5, $alicIva['Id']);
+        $this->assertSame(1000.0, $alicIva['BaseImp']);
+        $this->assertSame(210.0, $alicIva['Importe']);
+    }
+
+    public function test_arma_dos_bloques_alic_iva_consistentes_para_alicuotas_mixtas(): void
+    {
+        $mapeador = new MapeadorComprobante();
+
+        $resultado = $mapeador->mapear([
+            'tipo_comprobante' => 'B',
+            'punto_venta' => 9,
+            'numero' => 1,
+            'fecha' => '2026-08-14',
+            'cliente' => [],
+            'neto' => 110000.0,
+            'iva' => 23100.0,
+            'total' => 133100.0,
+            'items' => [
+                ['neto' => 100000.0, 'iva_pct' => 21.0],
+                ['neto' => 10000.0, 'iva_pct' => 10.5],
+            ],
+        ]);
+
+        $alicIva = $resultado['FeDetReq']['FECAEDetRequest']['Iva']['AlicIva'];
+        $this->assertCount(2, $alicIva);
+
+        $bloque21 = collect($alicIva)->firstWhere('Id', 5);
+        $bloque105 = collect($alicIva)->firstWhere('Id', 4);
+
+        $this->assertSame(100000.0, $bloque21['BaseImp']);
+        $this->assertSame(21000.0, $bloque21['Importe']);
+        $this->assertSame(10000.0, $bloque105['BaseImp']);
+        $this->assertSame(1050.0, $bloque105['Importe']);
+    }
+
+    public function test_incluye_condicion_iva_receptor_del_cliente(): void
+    {
+        $mapeador = new MapeadorComprobante();
+
+        $resultado = $mapeador->mapear([
+            'tipo_comprobante' => 'A',
+            'punto_venta' => 1,
+            'numero' => 1,
+            'fecha' => '2026-08-14',
+            'cliente' => ['cuit' => '20-12345678-9', 'condicion_iva_codigo' => '1'],
+            'neto' => 1000.0,
+            'iva' => 210.0,
+            'total' => 1210.0,
+        ]);
+
+        $this->assertSame(1, $resultado['FeDetReq']['FECAEDetRequest']['CondicionIVAReceptorId']);
+    }
+
+    public function test_incluye_condicion_iva_consumidor_final_por_defecto_para_receptor_anonimo(): void
+    {
+        $mapeador = new MapeadorComprobante();
+
+        $resultado = $mapeador->mapear([
+            'tipo_comprobante' => 'B',
+            'punto_venta' => 1,
+            'numero' => 1,
+            'fecha' => '2026-08-14',
+            'cliente' => [],
+            'neto' => 100.0,
+            'iva' => 21.0,
+            'total' => 121.0,
+        ]);
+
+        $this->assertSame(5, $resultado['FeDetReq']['FECAEDetRequest']['CondicionIVAReceptorId']);
+    }
 }

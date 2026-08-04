@@ -82,21 +82,21 @@ class EmisionComprobanteVentaTest extends TestCase
         });
     }
 
-    private function crearVenta(Cliente $cliente): Venta
+    private function crearVenta(Cliente $cliente, ?array $items = null): Venta
     {
         $payload = [
             'submit_token' => (string) \Illuminate\Support\Str::uuid(),
             'cliente_id' => $cliente->id,
             'fecha_emision' => now()->toDateString(),
             'tipo_comprobante' => 'B',
-            'items' => [
+            'items' => $items ?? [
                 ['descripcion' => 'Producto', 'cantidad' => 1, 'precio_unitario' => 1000, 'iva_pct' => '21'],
             ],
         ];
 
         $this->postJson(route('ventas.store'), $payload)->assertCreated();
 
-        return Venta::firstOrFail();
+        return Venta::latest('id')->firstOrFail();
     }
 
     public function test_enviar_a_arca_manualmente_obtiene_cae_y_persiste_comprobante_fiscal_aprobado(): void
@@ -124,5 +124,32 @@ class EmisionComprobanteVentaTest extends TestCase
         $this->assertSame('71234567890123', $comprobante->cae);
         $this->assertNotNull($comprobante->cae_vencimiento);
         $this->assertSame('0001-00000006', $comprobante->numero);
+    }
+
+    public function test_enviar_a_arca_una_venta_con_alicuotas_mixtas_obtiene_cae(): void
+    {
+        $consumidorFinal = CondicionIva::create(['nombre' => 'Consumidor Final', 'codigo_afip' => '5', 'requiere_cuit' => false]);
+        $cliente = Cliente::factory()->create(['condicion_iva_id' => $consumidorFinal->id]);
+        $venta = $this->crearVenta($cliente, [
+            ['descripcion' => 'Producto 21%', 'cantidad' => 1, 'precio_unitario' => 1000, 'iva_pct' => '21'],
+            ['descripcion' => 'Producto 10.5%', 'cantidad' => 1, 'precio_unitario' => 1000, 'iva_pct' => '10.5'],
+        ]);
+
+        $response = $this->postJson(route('ventas.enviarArca', $venta));
+
+        $response->assertOk()->assertJsonPath('ok', true);
+        $this->assertSame('aprobado', $venta->fresh()->comprobanteFiscal->estado);
+    }
+
+    public function test_enviar_a_arca_venta_de_cliente_sin_condicion_iva_es_rechazada_sin_contactar_arca(): void
+    {
+        $cliente = Cliente::factory()->conCuit('20111111112')->create(['condicion_iva_id' => null]);
+        $venta = $this->crearVenta($cliente);
+
+        $response = $this->postJson(route('ventas.enviarArca', $venta));
+
+        $response->assertOk()->assertJsonPath('ok', false);
+        $this->assertStringContainsString('Condición de IVA', $response->json('mensaje'));
+        $this->assertNull($venta->fresh()->comprobanteFiscal);
     }
 }

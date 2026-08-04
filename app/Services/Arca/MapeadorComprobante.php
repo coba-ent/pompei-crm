@@ -19,6 +19,47 @@ class MapeadorComprobante
     /** Códigos `CbteTipo` de WSFEv1 para Nota de Débito. */
     private const CBTE_TIPO_NOTA_DEBITO = ['A' => 2, 'B' => 7, 'C' => 12];
 
+    /**
+     * Códigos `AlicIva.Id` de WSFEv1 (`FEParamGetTiposIva`) por alícuota de IVA. Claves como string
+     * para evitar el truncamiento a entero que PHP aplica a claves de array de tipo float (10.5 → 10).
+     */
+    public const ALICUOTAS_IVA = [
+        '0' => 3,
+        '10.5' => 4,
+        '21' => 5,
+        '27' => 6,
+        '5' => 8,
+        '2.5' => 9,
+    ];
+
+    /** Código `CondicionIVAReceptorId` por defecto para receptor sin CUIT/DNI identificado (Consumidor Final). */
+    private const CONDICION_IVA_CONSUMIDOR_FINAL = 5;
+
+    /** @return int|null Código ARCA para la alícuota, o null si no está soportada (FR-004). */
+    public function codigoAlicuotaIva(float $ivaPct): ?int
+    {
+        return self::ALICUOTAS_IVA[self::formatearAlicuota($ivaPct)] ?? null;
+    }
+
+    /** Normaliza una alícuota float a la representación string usada como clave en ALICUOTAS_IVA. */
+    private static function formatearAlicuota(float $ivaPct): string
+    {
+        return rtrim(rtrim(number_format($ivaPct, 1, '.', ''), '0'), '.');
+    }
+
+    /**
+     * Devuelve el código ARCA de Condición de IVA del receptor: el informado, o Consumidor Final (5)
+     * por defecto si el receptor no tiene CUIT/DNI identificado (research.md §4, FR-007).
+     */
+    public function resolverCondicionIvaReceptor(?string $condicionIvaCodigo, array $cliente): int
+    {
+        if ($condicionIvaCodigo !== null) {
+            return (int) $condicionIvaCodigo;
+        }
+
+        return self::CONDICION_IVA_CONSUMIDOR_FINAL;
+    }
+
     public function cbteTipo(string $tipoComprobante, ?string $tipoNota = null): int
     {
         $tabla = match ($tipoNota) {
@@ -42,6 +83,7 @@ class MapeadorComprobante
      *     iva: float,
      *     total: float,
      *     alicuota_iva_id?: int,
+     *     items?: array<int, array{neto: float, iva_pct: float}>,
      *     comprobante_ajustado?: array{tipo: int, punto_venta: int, numero: int}|null,
      * }  $datos
      */
@@ -49,7 +91,8 @@ class MapeadorComprobante
     {
         $cbteTipo = $this->cbteTipo($datos['tipo_comprobante'], $datos['tipo_nota'] ?? null);
         $fecha = Carbon::parse($datos['fecha'])->format('Ymd');
-        [$docTipo, $docNro] = $this->documentoReceptor($datos['cliente'] ?? []);
+        $cliente = $datos['cliente'] ?? [];
+        [$docTipo, $docNro] = $this->documentoReceptor($cliente);
 
         $detalle = [
             'Concepto' => 1,
@@ -66,16 +109,11 @@ class MapeadorComprobante
             'ImpTrib' => 0,
             'MonId' => 'PES',
             'MonCotiz' => 1,
+            'CondicionIVAReceptorId' => $this->resolverCondicionIvaReceptor($cliente['condicion_iva_codigo'] ?? null, $cliente),
         ];
 
         if ((float) $datos['iva'] > 0) {
-            $detalle['Iva'] = [
-                'AlicIva' => [
-                    'Id' => $datos['alicuota_iva_id'] ?? 5,
-                    'BaseImp' => round((float) $datos['neto'], 2),
-                    'Importe' => round((float) $datos['iva'], 2),
-                ],
-            ];
+            $detalle['Iva'] = ['AlicIva' => $this->armarBloquesAlicIva($datos)];
         }
 
         if (! empty($datos['comprobante_ajustado'])) {
@@ -98,6 +136,46 @@ class MapeadorComprobante
                 'FECAEDetRequest' => $detalle,
             ],
         ];
+    }
+
+    /**
+     * Arma uno o más bloques `AlicIva` a partir de los ítems reales (agrupados por alícuota), o un
+     * único bloque con el comportamiento anterior (`alicuota_iva_id` o 21% por defecto) si no hay
+     * `items` — caso NC/ND, que no tiene desglose propio (research.md §1).
+     *
+     * @return array<string, mixed>|array<int, array<string, mixed>> Objeto único si hay una sola
+     *     alícuota, array de objetos si hay más de una (contracts/solicitud-cae.md).
+     */
+    private function armarBloquesAlicIva(array $datos): array
+    {
+        if (empty($datos['items'])) {
+            return [
+                'Id' => $datos['alicuota_iva_id'] ?? 5,
+                'BaseImp' => round((float) $datos['neto'], 2),
+                'Importe' => round((float) $datos['iva'], 2),
+            ];
+        }
+
+        $grupos = [];
+        foreach ($datos['items'] as $item) {
+            $ivaPct = (float) $item['iva_pct'];
+            $clave = self::formatearAlicuota($ivaPct);
+            $neto = (float) $item['neto'];
+            $grupos[$clave]['iva_pct'] = $ivaPct;
+            $grupos[$clave]['neto'] = ($grupos[$clave]['neto'] ?? 0) + $neto;
+            $grupos[$clave]['iva'] = ($grupos[$clave]['iva'] ?? 0) + round($neto * $ivaPct / 100, 2);
+        }
+
+        $bloques = [];
+        foreach ($grupos as $montos) {
+            $bloques[] = [
+                'Id' => $this->codigoAlicuotaIva($montos['iva_pct']) ?? throw new \InvalidArgumentException("Alícuota de IVA no soportada por ARCA: {$montos['iva_pct']}%"),
+                'BaseImp' => round($montos['neto'], 2),
+                'Importe' => round($montos['iva'], 2),
+            ];
+        }
+
+        return count($bloques) === 1 ? $bloques[0] : $bloques;
     }
 
     /** @return array{0: int, 1: string} [DocTipo, DocNro] — 80=CUIT, 96=DNI, 99=Consumidor Final sin identificar. */

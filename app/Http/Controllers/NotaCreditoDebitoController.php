@@ -111,7 +111,7 @@ class NotaCreditoDebitoController extends Controller
             return null;
         }
 
-        $venta->load('cliente');
+        $venta->load('cliente.condicionIva');
 
         $datos = [
             'tipo_comprobante' => $nota->tipo_comprobante,
@@ -120,6 +120,7 @@ class NotaCreditoDebitoController extends Controller
             'cliente' => [
                 'cuit' => $venta->cliente?->cuit,
                 'dni' => $venta->cliente?->tipo_documento === 'DNI' ? $venta->cliente?->cuit : null,
+                'condicion_iva_codigo' => $venta->cliente?->condicionIva?->codigo_afip,
             ],
             'neto' => round((float) $nota->monto / 1.21, 2),
             'iva' => round((float) $nota->monto - round((float) $nota->monto / 1.21, 2), 2),
