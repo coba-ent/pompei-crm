@@ -3,13 +3,17 @@
 namespace App\Providers;
 
 use App\Models\Compra;
+use App\Models\Integraciones\MercadoLibrePublicacionProducto;
+use App\Models\Integraciones\TiendanubeVarianteProducto;
 use App\Models\MovimientoStock;
 use App\Models\PrecioProducto;
 use App\Models\User;
 use App\Models\Venta;
 use App\Observers\CompraObserver;
+use App\Observers\MercadoLibrePublicacionProductoObserver;
 use App\Observers\MovimientoStockObserver;
 use App\Observers\PrecioProductoObserver;
+use App\Observers\TiendanubeVarianteProductoObserver;
 use App\Observers\VentaObserver;
 use App\Services\MercadoLibre\Bot\GeneradorDeSugerencias;
 use App\Services\MercadoLibre\Bot\GeneradorDeSugerenciasOpenAI;
@@ -39,6 +43,8 @@ class AppServiceProvider extends ServiceProvider
         Compra::observe(CompraObserver::class);
         MovimientoStock::observe(MovimientoStockObserver::class);
         PrecioProducto::observe(PrecioProductoObserver::class);
+        MercadoLibrePublicacionProducto::observe(MercadoLibrePublicacionProductoObserver::class);
+        TiendanubeVarianteProducto::observe(TiendanubeVarianteProductoObserver::class);
     }
 
     /** Admin pasa cualquier ability (research D2); el resto se resuelve contra los permisos del rol del usuario. */

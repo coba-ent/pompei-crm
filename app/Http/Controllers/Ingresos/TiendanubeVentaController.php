@@ -8,6 +8,7 @@ use App\Models\Integraciones\TiendanubeOrdenItem;
 use App\Models\Integraciones\TiendanubeVarianteProducto;
 use App\Models\Venta;
 use App\Services\Tiendanube\ConversorOrdenAVenta;
+use App\Services\Tiendanube\ReevaluadorOrdenes;
 use App\Services\Tiendanube\ResolutorCliente;
 use App\Services\Tiendanube\SincronizadorOrdenes;
 use App\Services\Tiendanube\SincronizadorPrecios;
@@ -31,6 +32,7 @@ class TiendanubeVentaController extends Controller
         private readonly ResolutorCliente $resolutorCliente,
         private readonly SincronizadorStock $sincronizadorStock,
         private readonly SincronizadorPrecios $sincronizadorPrecios,
+        private readonly ReevaluadorOrdenes $reevaluador,
     ) {
     }
 
@@ -43,6 +45,11 @@ class TiendanubeVentaController extends Controller
 
     public function datatable(Request $request): JsonResponse
     {
+        // On-view (spec 041, FR-006/FR-007): red de seguridad para órdenes que quedaron
+        // `requiere_atencion` desincronizadas porque su vinculación se creó después de
+        // sincronizarlas y, por lo que sea, no pasaron por el Observer evento-driven.
+        $this->reevaluador->reevaluarPendientesDelCanal(auth()->id());
+
         $query = TiendanubeOrden::query()->with(['items', 'venta:id,nro_comprobante']);
 
         if ($request->filled('estado_conversion')) {

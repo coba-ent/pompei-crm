@@ -8,6 +8,7 @@ use App\Models\Integraciones\MercadoLibreOrden;
 use App\Models\Integraciones\MercadoLibrePublicacionProducto;
 use App\Models\Venta;
 use App\Services\MercadoLibre\ConversorOrdenAVenta;
+use App\Services\MercadoLibre\ReevaluadorOrdenes;
 use App\Services\MercadoLibre\ResolutorCliente;
 use App\Services\MercadoLibre\SincronizadorOrdenes;
 use App\Services\MercadoLibre\SincronizadorPrecios;
@@ -31,6 +32,7 @@ class MercadoLibreVentaController extends Controller
         private readonly SincronizadorStock $sincronizadorStock,
         private readonly SincronizadorPrecios $sincronizadorPrecios,
         private readonly ResolutorCliente $resolutorCliente,
+        private readonly ReevaluadorOrdenes $reevaluador,
     ) {
     }
 
@@ -43,6 +45,11 @@ class MercadoLibreVentaController extends Controller
 
     public function datatable(Request $request): JsonResponse
     {
+        // On-view (spec 041, FR-006/FR-007): red de seguridad para órdenes que quedaron
+        // `requiere_atencion` desincronizadas porque su vinculación se creó después de
+        // sincronizarlas y, por lo que sea, no pasaron por el Observer evento-driven.
+        $this->reevaluador->reevaluarPendientesDelCanal(auth()->id());
+
         $query = MercadoLibreOrden::query()->with(['items', 'venta:id,nro_comprobante']);
 
         if ($request->filled('estado_orden')) {
