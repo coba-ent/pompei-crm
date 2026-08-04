@@ -111,7 +111,7 @@ class FuncionAvanzadaSeeder extends Seeder
                 'nombre' => 'Bot de Mercado Libre',
                 'descripcion' => 'Generar sugerencias de respuesta con IA para los mensajes de Mercado Libre.',
                 'icono' => 'fas fa-robot',
-                'disponible' => true,
+                'disponible' => false,
                 'activa' => false,
                 'ruta_configuracion' => 'configuracion.mercadolibre.bot',
             ],
