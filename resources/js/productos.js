@@ -126,7 +126,6 @@
         const tabla = $tabla.DataTable({
             processing: true,
             serverSide: true,
-            responsive: true,
             language: {
                 search: 'Buscar:',
                 lengthMenu: 'Mostrar _MENU_ registros',

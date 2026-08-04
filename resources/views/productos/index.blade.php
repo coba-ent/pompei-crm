@@ -200,7 +200,7 @@
                 </div>
 
                 <div class="table-responsive">
-                    <table id="tabla-productos" class="table table-hover display responsive nowrap" style="width:100%">
+                    <table id="tabla-productos" class="table table-hover display nowrap" style="width:100%">
                         <thead>
                             <tr>
                                 <th>
