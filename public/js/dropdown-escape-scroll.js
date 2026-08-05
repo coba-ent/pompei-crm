@@ -13,14 +13,20 @@
  * por ese clip si la fila está cerca del borde inferior de la tabla.
  *
  * Fix: cada botón toggle de estos dropdowns lleva `data-bs-display="static"`
- * (ver *_row_actions.blade.php) — eso apaga Popper.js en Bootstrap 5.1 y
- * deja el posicionamiento 100% manual, así este script no compite con
- * Popper por el `top/left/transform` inline del menú (si Popper sigue
- * activo, los dos sistemas se pisan y el menú termina en cualquier lado).
+ * (ver *_row_actions.blade.php), que en teoría apaga el modificador
+ * `applyStyles` de Popper (Bootstrap 5.1 sigue creando la instancia de
+ * Popper igual, sólo le pide que no escriba estilos). En la práctica sigue
+ * quedando un `transform: translate(...)` residual escrito en el menú
+ * (gotcha pisado en vivo, no documentado así en los docs de Bootstrap).
+ * Por eso el posicionamiento se hace en "shown.bs.dropdown" (después de
+ * que Popper terminó de intervenir, no antes) y se pisa explícitamente
+ * `transform: none` junto con el `top/left` calculados a mano — así,
+ * pase lo que pase con Popper, la única posición que queda vigente es la
+ * nuestra.
  *
- * Con Popper apagado: al abrir, se saca el `.dropdown-menu` del flujo (se
- * mueve a `<body>`, position:fixed, coordenadas calculadas a mano contra
- * el botón) y se lo devuelve a su lugar original al cerrarlo.
+ * Al abrir, se saca el `.dropdown-menu` del flujo (se mueve a `<body>`,
+ * position:fixed, coordenadas calculadas a mano contra el botón) y se lo
+ * devuelve a su lugar original al cerrarlo.
  */
 (function () {
     'use strict';
@@ -56,14 +62,14 @@
             left = window.innerWidth - menuWidth - 4;
         }
 
-        $menu.css({ top: top + 'px', left: left + 'px' });
+        $menu.css({ top: top + 'px', left: left + 'px', transform: 'none' });
     }
 
-    // "show" (no "shown"): con Popper apagado no hay nada más tocando el
-    // inline style del menú, así que podemos posicionar ya mismo. Se fuerza
-    // visibility:hidden -> se mide -> se calcula -> se muestra, para no
-    // parpadear en la posición vieja ni medir un elemento todavía oculto
-    // (display:none mide 0x0).
+    // Se saca del flujo YA en "show.bs.dropdown" (antes de que Popper corra:
+    // si se reparenta después, Popper mide contra la posición vieja adentro
+    // de la tabla). El posicionamiento en sí se calcula en "shown.bs.dropdown"
+    // — después de que Popper ya escribió lo que iba a escribir — así la
+    // única posición que queda vigente es la nuestra.
     $(document).on('show.bs.dropdown', '.dt-scroll-x .dropdown', function () {
         var $dropdown = $(this);
         var $menu = $dropdown.children('.dropdown-menu');
@@ -75,12 +81,19 @@
         var $marker = $('<span style="display:none"></span>');
         $menu.before($marker);
         $('body').append($menu);
-        $dropdown.data('dtMenu', $menu).data('dtMarker', $marker);
+        $dropdown.data('dtMenu', $menu).data('dtMarker', $marker).data('dtToggle', $toggle);
 
-        $menu.css({
-            position: 'fixed', margin: 0, zIndex: 3000,
-            display: 'block', visibility: 'hidden',
-        });
+        $menu.css({ position: 'fixed', margin: 0, zIndex: 3000, visibility: 'hidden' });
+    });
+
+    $(document).on('shown.bs.dropdown', '.dt-scroll-x .dropdown', function () {
+        var $dropdown = $(this);
+        var $menu = $dropdown.data('dtMenu');
+        var $toggle = $dropdown.data('dtToggle');
+        if (!$menu || !$toggle) {
+            return;
+        }
+
         reposicionar($menu, $toggle);
         $menu.css('visibility', '');
 
