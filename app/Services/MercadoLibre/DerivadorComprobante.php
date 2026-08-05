@@ -7,6 +7,7 @@ use App\Models\CondicionIva;
 use App\Models\Integraciones\MercadoLibreConfiguracion;
 use App\Models\Integraciones\MercadoLibreOrden;
 use App\Rules\CuitValido;
+use App\Services\Arca\ClienteConstanciaInscripcion;
 use App\Services\Arca\ClientePadron;
 use App\Services\Arca\ClienteWsaa;
 use App\Services\Arca\Excepciones\ArcaNoDisponibleException;
@@ -126,9 +127,19 @@ class DerivadorComprobante
             $ticketAcceso = app()->makeWith(ClienteWsaa::class, ['certificado' => $certificado])->obtenerTicketAcceso('ws_sr_padron_a13');
             $respuesta = app()->makeWith(ClientePadron::class, ['certificado' => $certificado])->consultarConstancia($ticketAcceso, $cuit);
 
-            return ResultadoConsultaPadron::desdeRespuesta($cuit, $respuesta);
+            $resultado = ResultadoConsultaPadron::desdeRespuesta($cuit, $respuesta);
         } catch (ArcaNoDisponibleException) {
             return null;
+        }
+
+        // Consulta independiente y best-effort a ws_sr_constancia_inscripcion (research.md R5 de spec 047).
+        try {
+            $ticketConstancia = app()->makeWith(ClienteWsaa::class, ['certificado' => $certificado])->obtenerTicketAcceso('ws_sr_constancia_inscripcion');
+            $respuestaConstancia = app()->makeWith(ClienteConstanciaInscripcion::class, ['certificado' => $certificado])->consultarConstancia($ticketConstancia, $cuit);
+
+            return ResultadoConsultaPadron::conCondicionIva($resultado, $respuestaConstancia);
+        } catch (ArcaNoDisponibleException) {
+            return $resultado;
         }
     }
 

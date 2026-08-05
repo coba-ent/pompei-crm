@@ -16,6 +16,10 @@ return [
             'homologacion' => env('ARCA_WSDL_PADRON_A13', 'https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA13?wsdl'),
             'produccion' => 'https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA13?wsdl',
         ],
+        'ws_sr_constancia_inscripcion' => [
+            'homologacion' => env('ARCA_WSDL_CONSTANCIA_INSCRIPCION', 'https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA5?wsdl'),
+            'produccion' => 'https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA5?wsdl',
+        ],
         'wsaa_url' => [
             'homologacion' => 'https://wsaahomo.afip.gov.ar/ws/services/LoginCms',
             'produccion' => 'https://wsaa.afip.gov.ar/ws/services/LoginCms',

@@ -78,6 +78,14 @@ El modelo de datos completo (entidades, campos y relaciones) está detallado en 
     interna y sin UI de búsqueda, en la conversión de órdenes de Tiendanube/MercadoLibre a venta
     para determinar el tipo de comprobante (A/B) cuando el cliente es nuevo o no tiene condición de
     IVA ya cargada — ver §5 (Ingresos > Tiendanube/MercadoLibre).
+  - **Corrección 05/08/2026 (spec 047)**: se detectó que `ws_sr_padron_a13` **no expone condición de
+    IVA en su schema** (confirmado contra el WSDL real de ARCA con dos CUITs reales muy distintos) —
+    sólo trae identidad y domicilios; el campo quedaba siempre sin completar pese a que la spec 037 lo
+    daba por incluido. Se suma una segunda consulta, independiente y best-effort, al servicio
+    **`ws_sr_constancia_inscripcion`** ("Consulta de constancia de inscripción" en el Administrador de
+    Relaciones de Clave Fiscal de ARCA, WSDL real `personaServiceA5`) para completar ese dato — ver
+    `specs/047-condicion-iva-padron-constancia/`. Ambas consultas usan el mismo certificado y
+    autenticación WSAA; el fallo de una no afecta a la otra.
 - Listado: tabla con columnas Id, Cliente, Nombre, Apellido, Mail, Teléfono, Teléfono Celular,
   Domicilio, Localidad, Provincia, DNI, CUIT, Condición de IVA, Usuario de Mercado Libre, Nota,
   Página Web (DNI y CUIT se muestran en columnas separadas según el tipo de documento). Buscador
@@ -538,7 +546,11 @@ Ver §5.2 para la divergencia deliberada de todo el módulo (aplicación propia 
   reemplazo de la aproximación previa basada sólo en el dato que informa Mercado Libre — sin UI de
   búsqueda, de forma interna, y degradando al comportamiento anterior si el padrón no responde o no
   encuentra el CUIT. Mismo criterio aplica a la conversión de órdenes de Tiendanube (que ya
-  aproximaba por longitud del documento crudo, no por un dato de condición fiscal propio).
+  aproximaba por longitud del documento crudo, no por un dato de condición fiscal propio). Con
+  **spec 047** (`specs/047-condicion-iva-padron-constancia/`) se corrige que la condición de IVA
+  efectivamente llegue: `ws_sr_padron_a13` no la expone (ver §2, corrección 05/08/2026), así que se
+  suma `ws_sr_constancia_inscripcion` para completarla — las reglas de precedencia de la spec 037
+  (arriba) no cambian, sólo dejan de depender de un dato que nunca llegaba.
 - **Fuera de alcance**: comisión de Mercado Libre y costo de envío (la Venta se crea por el monto
   bruto, por lo que el saldo de Mercado Pago en el CRM no coincidirá con el real, neto de comisiones).
   Las cancelaciones posteriores se señalan pero **no** modifican la Venta ya creada.

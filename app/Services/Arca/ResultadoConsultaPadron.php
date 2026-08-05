@@ -39,6 +39,65 @@ class ResultadoConsultaPadron
         return new self(cuit: $cuit, encontrado: false);
     }
 
+    /**
+     * Fusiona el resultado ya construido desde `ws_sr_padron_a13` con la respuesta
+     * (best effort, puede ser `null`) de `ws_sr_constancia_inscripcion`, aplicando
+     * la regla de derivación de condición de IVA de research.md R4. No toca
+     * `razonSocial`/`domicilioFiscal`/`localidadFiscal`/`activo` (siguen viniendo
+     * exclusivamente de A13, data-model.md).
+     */
+    public static function conCondicionIva(self $resultado, ?object $respuestaConstancia): self
+    {
+        $datos = $respuestaConstancia->personaReturn ?? $respuestaConstancia ?? null;
+        $datosGenerales = $datos->datosGenerales ?? null;
+
+        if (! $datosGenerales) {
+            return $resultado;
+        }
+
+        $condicionRaw = self::derivarCondicionIva($datos, $resultado->activo);
+
+        return new self(
+            cuit: $resultado->cuit,
+            encontrado: $resultado->encontrado,
+            razonSocial: $resultado->razonSocial,
+            domicilioFiscal: $resultado->domicilioFiscal,
+            localidadFiscal: $resultado->localidadFiscal,
+            condicionIvaRaw: $condicionRaw,
+            condicionIvaId: $condicionRaw ? CondicionIva::where('nombre', $condicionRaw)->value('id') : null,
+            activo: $resultado->activo,
+        );
+    }
+
+    /** Regla de derivación de research.md R4, a partir de `datosRegimenGeneral`/`datosMonotributo` de la constancia. */
+    private static function derivarCondicionIva(object $datos, ?bool $activoSegunPadron): ?string
+    {
+        if (! empty($datos->datosMonotributo ?? null)) {
+            return 'Monotributista';
+        }
+
+        $impuestos = $datos->datosRegimenGeneral->impuesto ?? [];
+        $impuestos = is_array($impuestos) ? $impuestos : [$impuestos];
+
+        $impuestoIva = null;
+        foreach ($impuestos as $impuesto) {
+            if (strtoupper((string) ($impuesto->descripcionImpuesto ?? '')) === 'IVA') {
+                $impuestoIva = $impuesto;
+                break;
+            }
+        }
+
+        if (! $impuestoIva) {
+            return null;
+        }
+
+        if (strtoupper((string) ($impuestoIva->estadoImpuesto ?? '')) === 'AC') {
+            return 'Responsable Inscripto';
+        }
+
+        return $activoSegunPadron === true ? 'Exento' : null;
+    }
+
     /** Parsea la respuesta cruda de `ClientePadron::consultarConstancia()` y aplica el mapeo de condición de IVA. */
     public static function desdeRespuesta(string $cuit, object $respuesta): self
     {

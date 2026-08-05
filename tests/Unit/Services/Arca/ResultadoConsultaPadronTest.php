@@ -72,4 +72,69 @@ class ResultadoConsultaPadronTest extends TestCase
         $this->assertFalse($resultado->encontrado);
         $this->assertNull($resultado->condicionIvaId);
     }
+
+    private function resultadoBase(?bool $activo = true): ResultadoConsultaPadron
+    {
+        return ResultadoConsultaPadron::desdeRespuesta('20304050607', json_decode(json_encode([
+            'personaReturn' => [
+                'persona' => [
+                    'razonSocial' => 'ACME SA',
+                    'domicilio' => [
+                        ['tipoDomicilio' => 'FISCAL', 'direccion' => 'AV CORRIENTES 1234', 'localidad' => 'CABA'],
+                    ],
+                    'estadoClave' => $activo === true ? 'ACTIVO' : 'INACTIVO',
+                ],
+            ],
+        ])));
+    }
+
+    private function respuestaConstanciaCon(array $personaReturn): object
+    {
+        return json_decode(json_encode(['personaReturn' => $personaReturn]));
+    }
+
+    public function test_con_condicion_iva_responsable_inscripto(): void
+    {
+        $resultado = ResultadoConsultaPadron::conCondicionIva($this->resultadoBase(), $this->respuestaConstanciaCon([
+            'datosGenerales' => ['razonSocial' => 'ACME SA'],
+            'datosRegimenGeneral' => [
+                'impuesto' => [
+                    ['idImpuesto' => 30, 'descripcionImpuesto' => 'IVA', 'estadoImpuesto' => 'AC'],
+                ],
+            ],
+        ]));
+
+        $this->assertSame(CondicionIva::where('nombre', 'Responsable Inscripto')->value('id'), $resultado->condicionIvaId);
+        $this->assertSame('ACME SA', $resultado->razonSocial);
+    }
+
+    public function test_con_condicion_iva_monotributista(): void
+    {
+        $resultado = ResultadoConsultaPadron::conCondicionIva($this->resultadoBase(), $this->respuestaConstanciaCon([
+            'datosGenerales' => ['razonSocial' => 'ACME SA'],
+            'datosMonotributo' => ['categoriaMonotributo' => 'B'],
+        ]));
+
+        $this->assertSame(CondicionIva::where('nombre', 'Monotributista')->value('id'), $resultado->condicionIvaId);
+    }
+
+    public function test_con_condicion_iva_sin_regimen_ni_monotributo_queda_null(): void
+    {
+        $resultado = ResultadoConsultaPadron::conCondicionIva($this->resultadoBase(), $this->respuestaConstanciaCon([
+            'datosGenerales' => ['razonSocial' => 'ACME SA'],
+        ]));
+
+        $this->assertNull($resultado->condicionIvaId);
+    }
+
+    public function test_con_condicion_iva_respuesta_null_deja_resultado_original_intacto(): void
+    {
+        $original = $this->resultadoBase();
+
+        $resultado = ResultadoConsultaPadron::conCondicionIva($original, null);
+
+        $this->assertSame($original, $resultado);
+        $this->assertNull($resultado->condicionIvaId);
+        $this->assertSame('ACME SA', $resultado->razonSocial);
+    }
 }

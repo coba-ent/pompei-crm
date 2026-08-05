@@ -11,6 +11,7 @@ use App\Models\CondicionIva;
 use App\Models\ListaPrecio;
 use App\Models\Provincia;
 use App\Rules\CuitValido;
+use App\Services\Arca\ClienteConstanciaInscripcion;
 use App\Services\Arca\ClientePadron;
 use App\Services\Arca\ClienteWsaa;
 use App\Services\Arca\Excepciones\ArcaNoDisponibleException;
@@ -93,6 +94,16 @@ class ClienteController extends Controller
 
         if (! $resultado->encontrado) {
             return ['consultado' => true, 'encontrado' => false, 'mensaje' => 'No se encontró el CUIT en el padrón de ARCA.'];
+        }
+
+        // Consulta independiente y best-effort a ws_sr_constancia_inscripcion (research.md R5 de spec 047):
+        // su éxito o fracaso no condiciona el resto de los datos ya resueltos por A13.
+        try {
+            $ticketConstancia = app()->makeWith(ClienteWsaa::class, ['certificado' => $certificado])->obtenerTicketAcceso('ws_sr_constancia_inscripcion');
+            $respuestaConstancia = app()->makeWith(ClienteConstanciaInscripcion::class, ['certificado' => $certificado])->consultarConstancia($ticketConstancia, $cuit);
+            $resultado = ResultadoConsultaPadron::conCondicionIva($resultado, $respuestaConstancia);
+        } catch (ArcaNoDisponibleException) {
+            // Sin efecto: la condición de IVA queda ausente, razón social/domicilio ya resueltos por A13.
         }
 
         return array_filter([

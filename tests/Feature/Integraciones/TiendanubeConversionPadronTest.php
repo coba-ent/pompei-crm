@@ -15,6 +15,7 @@ use App\Models\Integraciones\TiendanubeOrdenItem;
 use App\Models\Integraciones\TiendanubeVarianteProducto;
 use App\Models\Producto;
 use App\Models\Rol;
+use App\Services\Arca\ClienteConstanciaInscripcion;
 use App\Services\Arca\ClientePadron;
 use App\Services\Arca\ClienteWsaa;
 use App\Services\Arca\Excepciones\ArcaNoDisponibleException;
@@ -53,6 +54,17 @@ class TiendanubeConversionPadronTest extends TestCase
             'cuit' => '20111111112', 'ambiente' => 'homologacion',
             'ruta_certificado' => 'arca/test.crt', 'ruta_clave_privada' => 'arca/test.key', 'activo' => true,
         ]);
+
+        // Default: sin mock explícito, la constancia de inscripción no está disponible (evita golpear la red real en tests).
+        $this->app->bind(ClienteConstanciaInscripcion::class, fn () => new class extends ClienteConstanciaInscripcion
+        {
+            public function __construct() {}
+
+            public function consultarConstancia(array $ticketAcceso, string $cuit): object
+            {
+                throw new ArcaNoDisponibleException('no disponible en test');
+            }
+        });
     }
 
     private function crearOrden(array $overrides = []): TiendanubeOrden
@@ -115,16 +127,43 @@ class TiendanubeConversionPadronTest extends TestCase
                         ['tipoDomicilio' => 'FISCAL', 'direccion' => 'AV CORRIENTES 1234', 'localidad' => 'CABA'],
                     ],
                     'estadoClave' => 'ACTIVO',
-                    'datosRegimenGeneral' => ['impuesto' => [['descripcionImpuesto' => 'IVA RESPONSABLE INSCRIPTO']]],
                 ],
             ],
         ]));
+    }
+
+    private function respuestaConstanciaResponsableInscripto(): object
+    {
+        return json_decode(json_encode([
+            'personaReturn' => [
+                'datosGenerales' => ['razonSocial' => 'ACME SA'],
+                'datosRegimenGeneral' => [
+                    'impuesto' => [['idImpuesto' => 30, 'descripcionImpuesto' => 'IVA', 'estadoImpuesto' => 'AC']],
+                ],
+            ],
+        ]));
+    }
+
+    private function mockearClienteConstancia(\Closure $callback): void
+    {
+        $this->app->bind(ClienteConstanciaInscripcion::class, fn () => new class($callback) extends ClienteConstanciaInscripcion
+        {
+            public function __construct(private readonly \Closure $callback)
+            {
+            }
+
+            public function consultarConstancia(array $ticketAcceso, string $cuit): object
+            {
+                return ($this->callback)($cuit);
+            }
+        });
     }
 
     public function test_cliente_nuevo_con_cuit_confirmado_responsable_inscripto_genera_factura_a(): void
     {
         $this->bindWsaa();
         $this->mockearClientePadron(fn () => $this->respuestaResponsableInscripto());
+        $this->mockearClienteConstancia(fn () => $this->respuestaConstanciaResponsableInscripto());
 
         $orden = $this->crearOrden(['billing_document_number' => '20111111112']);
 
@@ -182,6 +221,26 @@ class TiendanubeConversionPadronTest extends TestCase
 
         $this->assertTrue($resultado['ok'], $resultado['mensaje'] ?? '');
         $this->assertSame('B', $resultado['venta']->tipo_comprobante);
+    }
+
+    /** T010 (spec 047): la constancia de inscripción falla pero A13 respondió — razón social/domicilio se completan, cae a la aproximación por documento. */
+    public function test_solo_falla_la_constancia_de_inscripcion_cae_a_aproximacion_por_documento(): void
+    {
+        $this->bindWsaa();
+        $this->mockearClientePadron(fn () => $this->respuestaResponsableInscripto());
+        $this->mockearClienteConstancia(function () {
+            throw new ArcaNoDisponibleException('timeout');
+        });
+
+        $orden = $this->crearOrden(['billing_document_number' => '20111111112']);
+
+        $resultado = app(ConversorOrdenAVenta::class)->convertir($orden, null, automatica: true);
+
+        $this->assertTrue($resultado['ok'], $resultado['mensaje'] ?? '');
+        // Sin condicionIvaId resuelto, tipoComprobante() no usa el resultado del padrón para completar
+        // datos fiscales (mismo comportamiento ya vigente de spec 037/T012) — cae a la aproximación por
+        // documento: CUIT (11 dígitos) → Factura A.
+        $this->assertSame('A', $resultado['venta']->tipo_comprobante);
     }
 
     public function test_arca_no_disponible_hace_fallback_sin_excepcion(): void
