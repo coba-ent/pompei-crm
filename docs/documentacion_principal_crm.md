@@ -374,6 +374,20 @@ Otros Ingresos y Abonos son independientes.
   (texto libre) · Etiquetas (catálogo con buscador + "Nueva Etiqueta") · Descuento General (%) · Total
   · **+ Percepciones / + Impuestos Internos / + Intereses** (cada uno agrega N filas de
   selector+monto+tacho). Botones Cancelar/Guardar/Guardar y Enviar.
+- **Fila de Percepciones — desplegable estático, no campo de texto libre (30/07/2026)**: el selector de
+  la fila "+ Percepciones" es un `<select>` con el catálogo fijo de 27 percepciones vigentes en
+  Argentina (IVA, Ganancias, Sellos e IIBB de las 24 jurisdicciones), no un input de texto libre. Es una
+  lista estática que no se gestiona desde ningún catálogo/CRUD — no se van a crear percepciones nuevas
+  en el uso normal del sistema, por eso no amerita una entidad de base de datos propia ni un panel de
+  administración; el listado vive hardcodeado en el JS de cada formulario (`PERCEPCIONES` en
+  `resources/js/ventas.js` y `resources/js/presupuestos.js`). Listado completo: IVA (Percepción),
+  Ganancias, Sellos, IIBB Buenos Aires, IIBB CABA, IIBB Catamarca, IIBB Chaco, IIBB Chubut, IIBB
+  Córdoba, IIBB Corrientes, IIBB Entre Ríos, IIBB Formosa, IIBB Jujuy, IIBB La Pampa, IIBB La Rioja,
+  IIBB Mendoza, IIBB Misiones, IIBB Neuquén, IIBB Río Negro, IIBB Salta, IIBB San Juan, IIBB San Luis,
+  IIBB Santa Cruz, IIBB Santa Fe, IIBB Santiago del Estero, IIBB Tierra del Fuego, IIBB Tucumán. Las
+  filas de Impuestos Internos e Intereses no se modificaron: siguen siendo texto libre. Aplicado en
+  Ventas y Presupuestos (Compras conserva por ahora el campo de texto libre en su fila de Percepciones,
+  fuera del alcance de este cambio).
 - **Catálogo editable inline en los selects de Cliente/Categoría de Venta/Vendedor (spec 028)**: el
   patrón real de Contagram no es un link "Renombrar"/"Eliminar" al lado del label, sino que vive
   *dentro* del propio dropdown Select2: una fila fija "Crear X" con ícono "+" siempre arriba del
@@ -1481,12 +1495,26 @@ nada por su cuenta.
 - **KPIs** (4 tarjetas, con variación % vs. el período anterior equivalente): Ventas Creadas, Venta
   Promedio, Cantidad de Ventas, Resultado (= Ventas + Otros Ingresos no pendientes − Compras − Gastos
   no pendientes). Variación `null` ("sin datos previos") cuando el período anterior valió cero.
+  "Ventas Creadas"/"Resultado" y el equivalente de Compras usan el **monto neto de Notas de
+  Crédito/Débito** (spec 046, ver más abajo); "Cantidad de Ventas" no se netea, sigue contando
+  comprobantes emitidos.
 - **Totales del período**: Ventas/Otros Ingresos/Compras/Gastos en barras de progreso proporcionales.
+  Ventas y Compras ya vienen netas de NC/ND (spec 046).
 - **Gráfico mensual**: barras apiladas de los últimos 12 meses (fijo, no depende del selector de
   período), con los 4 rubros anteriores; meses sin operaciones se muestran en cero, no se omiten.
-- **Selector de período**: Última Semana / Mes Actual (default) / Mes Anterior / Año Actual — recalcula
-  KPIs, Totales, Donas y Rankings. Tesorería y Cuentas a Cobrar/Pagar **no** se recalculan por período
-  (siempre "a hoy"), para no repetir cómputo que no cambia con el filtro.
+  Ventas y Compras de cada mes ya vienen netas de NC/ND de ese mes (spec 046).
+- **Selector de período**: Última Semana / **Hoy** / Mes Actual (default) / Mes Anterior / Año Actual
+  (spec 046 agregó "Hoy", comparado contra "Ayer") — recalcula KPIs, Totales, Donas y Rankings.
+  Tesorería y Cuentas a Cobrar/Pagar **no** se recalculan por período (siempre "a hoy"), para no
+  repetir cómputo que no cambia con el filtro.
+- **Neteo de Notas de Crédito/Débito en KPIs/Totales/Gráfico/Donas (spec 046)**: a diferencia del
+  aging de Cuentas a Cobrar/Pagar (que usa el saldo acumulado a hoy, sin acotar por período), estos
+  cálculos restan el monto de NC y suman el de ND **por la fecha de emisión de cada nota**, no por
+  la fecha de la Venta/Compra que ajustan — una NC emitida en agosto resta de "Ventas" de agosto
+  aunque la venta que anula sea de julio. Dentro del mismo período que la Venta/Compra, el neto
+  nunca baja de $0 (piso); si la nota cae en un período distinto, no hay piso (se resta/suma cruda,
+  sin "base" contra la cual acotar en ese período). Sin techo superior para ND. El Ranking de
+  Clientes/Productos **no** se netea (queda pendiente, ver §7).
 - **Resumen de Tesorería**: Total Disponible/Cajas/Bancos (reutiliza `Tesoreria::saldos()`, spec 007,
   sin lógica propia) + mini-tabla de últimos movimientos.
 - **Cuentas a Cobrar / a Pagar con aging**: dos bloques (Ventas a Cobrar en verde, Compras a Pagar en
@@ -1643,6 +1671,11 @@ salieron de esta lista:
   `bootstrap/app.php` — sincronización de órdenes/stock/precios de Mercado Libre y Tiendanube) falla o
   cuando una cuenta de integración pasa a `caida`/`desconectada`, en vez de que ese estado sólo quede
   registrado en un log que nadie mira proactivamente.
+- **Ranking de Clientes/Productos del Dashboard sin netear NC/ND**: el neteo de Notas de
+  Crédito/Débito en KPIs/Totales/Gráfico Mensual/Donas del Dashboard ya se implementó (spec 046,
+  ver §6.3), pero el Ranking de Clientes (por monto vendido) y de Productos (por cantidad vendida)
+  quedaron explícitamente fuera de alcance de esa spec — siguen calculándose sobre el monto/cantidad
+  bruto de la Venta, sin restar NC ni sumar ND. Pendiente de spec propia si se decide resolverlo.
 
 ---
 
