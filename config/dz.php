@@ -3,7 +3,7 @@
 
 return [
 	'site_level' => [
-		'site_title' => 'NexaDash Admin Dashboard Bootstrap 5 Template',
+		'site_title' => 'Pompei',
 		'favicon' => 'images/favicon.png',
 		'seo' => [
 			'page_title' => 'Dashboard',
