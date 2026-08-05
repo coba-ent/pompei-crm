@@ -102,6 +102,20 @@
                 { data: 'medio_de_pago', name: 'medio_de_pago' },
             ],
             order: [[2, 'desc']],
+            stateSave: true,
+            buttons: [
+                {
+                    extend: 'colvis',
+                    text: '<i class="fas fa-table-columns"></i>',
+                    className: 'btn btn-outline-secondary',
+                    // Columna 0 es "Acciones", no se puede ocultar.
+                    columns: function (idx) { return idx !== 0; },
+                },
+            ],
+        });
+
+        $tabla.one('init.dt', function () {
+            tabla.buttons().container().appendTo('#dt-buttons-compras');
         });
 
         $('#btn-aplicar-filtros').on('click', () => tabla.ajax.reload());

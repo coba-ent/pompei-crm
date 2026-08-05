@@ -123,8 +123,9 @@
 </div>
 
 <div class="card">
-    <div class="card-header">
+    <div class="card-header d-flex justify-content-between align-items-center">
         <h6 class="mb-0 fw-bold">Historial de operaciones</h6>
+        <span id="dt-buttons-tn-operaciones"></span>
     </div>
     <div class="card-body">
         <div class="row g-2 mb-3">

@@ -92,6 +92,20 @@
                         ? '<a href="' + rutas.ventaShow + '/' + row.venta_id + '">' + data + '</a>' : (data || '—'),
                 },
             ],
+            stateSave: true,
+            buttons: [
+                {
+                    extend: 'colvis',
+                    text: '<i class="fas fa-table-columns"></i>',
+                    className: 'btn btn-outline-secondary',
+                    // Columna 0 es "Acciones", no se puede ocultar.
+                    columns: function (idx) { return idx !== 0; },
+                },
+            ],
+        });
+
+        $tabla.one('init.dt', function () {
+            tabla.buttons().container().appendTo('#dt-buttons-tn-ordenes');
         });
 
         $('#btn-aplicar-filtros-tn').on('click', () => tabla.ajax.reload());

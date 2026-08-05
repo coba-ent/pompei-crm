@@ -394,6 +394,18 @@
                     },
                     { data: 'mensaje_error', name: 'mensaje_error', defaultContent: '—', orderable: false },
                 ],
+                stateSave: true,
+                buttons: [
+                    {
+                        extend: 'colvis',
+                        text: '<i class="fas fa-table-columns"></i>',
+                        className: 'btn btn-outline-secondary',
+                    },
+                ],
+            });
+
+            $('#tabla-tn-operaciones').one('init.dt', function () {
+                tablaOperaciones.buttons().container().appendTo('#dt-buttons-tn-operaciones');
             });
 
             $('#btn-filtrar-historial-tn').on('click', function () {

@@ -116,6 +116,20 @@
                 { data: 'medio_de_cobro', name: 'medio_de_cobro' },
                 { data: 'monto', name: 'monto', render: money },
             ],
+            stateSave: true,
+            buttons: [
+                {
+                    extend: 'colvis',
+                    text: '<i class="fas fa-table-columns"></i>',
+                    className: 'btn btn-outline-secondary',
+                    // Columna 0 es "Acciones", no se puede ocultar.
+                    columns: function (idx) { return idx !== 0; },
+                },
+            ],
+        });
+
+        $tabla.one('init.dt', function () {
+            tabla.buttons().container().appendTo('#dt-buttons-otros-ingresos');
         });
 
         $('#btn-aplicar-filtros').on('click', () => tabla.ajax.reload());

@@ -102,13 +102,7 @@
                         <i class="fas fa-eye-slash"></i>
                     </button>
 
-                    <div class="dropdown">
-                        <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown"
-                                data-bs-auto-close="outside" title="Columnas">
-                            <i class="fas fa-table-columns"></i>
-                        </button>
-                        <ul class="dropdown-menu p-2" id="menu-columnas" style="min-width:210px"></ul>
-                    </div>
+                    <span id="dt-buttons-productos"></span>
 
                     <button type="button" class="btn btn-outline-primary ms-auto" id="btn-exportar">
                         <i class="fas fa-file-excel me-1"></i> Exportar

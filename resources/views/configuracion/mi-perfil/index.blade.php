@@ -50,6 +50,7 @@
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="mb-0 fw-bold">Usuarios</h6>
                 <div>
+                    <span id="dt-buttons-usuarios"></span>
                     <a href="{{ route('configuracion.roles.index') }}" class="btn btn-outline-secondary me-1">
                         <i class="fas fa-user-shield me-1"></i> Roles y Permisos
                     </a>

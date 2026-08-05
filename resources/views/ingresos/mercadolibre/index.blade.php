@@ -34,6 +34,7 @@
                     <button type="button" class="btn btn-info" data-bs-toggle="collapse" data-bs-target="#panel-filtros-ml">
                         <i class="fas fa-filter me-1"></i> Filtros
                     </button>
+                    <span id="dt-buttons-ml-ordenes"></span>
                 </div>
 
                 <div class="collapse mb-3" id="panel-filtros-ml">

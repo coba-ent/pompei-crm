@@ -145,6 +145,20 @@
                 { data: 'usuarios_count', name: 'usuarios_count', orderable: false },
                 { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
             ],
+            stateSave: true,
+            buttons: [
+                {
+                    extend: 'colvis',
+                    text: '<i class="fas fa-table-columns"></i>',
+                    className: 'btn btn-outline-secondary',
+                    // Última columna ("Acciones") no se puede ocultar.
+                    columns: function (idx) { return idx !== tabla.columns().count() - 1; },
+                },
+            ],
+        });
+
+        $tabla.one('init.dt', function () {
+            tabla.buttons().container().appendTo('#dt-buttons-roles');
         });
 
         const $modal = $('#modal-rol');

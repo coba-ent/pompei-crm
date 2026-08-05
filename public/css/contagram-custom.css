@@ -187,6 +187,23 @@
 }
 
 /* --------------------------------------------------------------------------
+ * DataTables — scroll horizontal sólo del contenido de la tabla
+ * Fix: el scroll horizontal (cuando hay muchas columnas) tiene que mover
+ * sólo la <table>, no la paginación/length/info. Ver js/datatables-scroll-fix.js
+ * (envuelve la <table> en este div al iniciar cada DataTable).
+ * ------------------------------------------------------------------------ */
+.table-responsive .dt-scroll-x {
+    overflow-x: auto;
+    max-width: 100%;
+    /* dataTables_length/_filter (arriba) van flotados y dataTables_wrapper no
+     * los clampea (no es un BFC). Nuestro wrapper, al tener overflow-x:auto,
+     * SÍ es un BFC — y un BFC se acomoda AL LADO de floats en vez de debajo
+     * si entra en el espacio restante, en vez de limpiarlos. Forzamos que
+     * limpie los floats para que la tabla quede siempre debajo. */
+    clear: both;
+}
+
+/* --------------------------------------------------------------------------
  * DataTables — paginación
  * Fix: los botones "Anterior/Siguiente" se apilaban en vertical (una letra
  * por línea) porque el texto rompía dentro de un contenedor angosto.
@@ -407,9 +424,15 @@ table.dataTable > tbody > tr.child span.dtr-title {
     font-weight: 600;
 }
 
-/* Botón ColVis ("Columnas"): pequeño respiro respecto del buscador. */
+/* Botón ColVis ("Columnas") — extensión Buttons de DataTables.
+ * El template NexaDash trae `.dt-buttons { display:none }` en style.css
+ * (pensado para otras pantallas del template); lo revertimos acá. */
+.dt-buttons {
+    display: inline-block !important;
+}
 .dataTables_wrapper .dt-buttons {
-    margin-right: 0.5rem;
+    float: none;
+    margin: 0;
 }
 
 /* --------------------------------------------------------------------------

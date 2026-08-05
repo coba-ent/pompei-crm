@@ -194,6 +194,20 @@
                     render: (data, type, row) => renderEstadoPrecio(data, row),
                 },
             ],
+            stateSave: true,
+            buttons: [
+                {
+                    extend: 'colvis',
+                    text: '<i class="fas fa-table-columns"></i>',
+                    className: 'btn btn-outline-secondary',
+                    // Columna 0 es "Acciones", no se puede ocultar.
+                    columns: function (idx) { return idx !== 0; },
+                },
+            ],
+        });
+
+        $tabla.one('init.dt', function () {
+            tabla.buttons().container().appendTo('#dt-buttons-ml-vinculaciones');
         });
     }
 

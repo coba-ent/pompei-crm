@@ -432,6 +432,24 @@
                     { data: 'acciones', name: 'acciones', orderable: false, searchable: false, className: 'text-end' },
                 ],
                 order: [[1, 'asc'], [0, 'asc']],
+                // Selector de columnas nativo de DataTables (extensión Buttons) +
+                // stateSave: persiste qué columnas quedaron ocultas en localStorage.
+                stateSave: true,
+                buttons: [
+                    {
+                        extend: 'colvis',
+                        text: '<i class="fas fa-table-columns"></i>',
+                        className: 'btn btn-outline-secondary',
+                        // Última columna ("Acciones") no se puede ocultar.
+                        columns: function (idx) { return idx !== tablaLedger.columns().count() - 1; },
+                    },
+                ],
+            });
+
+            // serverSide:true => la tabla recién termina de inicializarse (y los
+            // Buttons quedan listos) cuando responde el primer AJAX.
+            $tablaLedger.one('init.dt', function () {
+                tablaLedger.buttons().container().appendTo('#dt-buttons-tesoreria-ledger');
             });
 
             window.TesoreriaLedger = { recargar: function () { tablaLedger.ajax.reload(); } };
@@ -439,26 +457,6 @@
             $('#filtro-tipo-operacion, #filtro-ledger-desde, #filtro-ledger-hasta').on('change', function () {
                 tablaLedger.ajax.reload();
             });
-
-            // --- Selector de columnas (colvis casero, igual patrón que Productos) ---
-            (function construirMenuColumnas() {
-                const $menu = $('#menu-columnas-ledger');
-                tablaLedger.columns().every(function (idx) {
-                    const titulo = $(this.header()).text().trim();
-                    if (!titulo) { return; }
-                    const id = 'col-vis-ledger-' + idx;
-                    const $li = $(
-                        '<li><label class="dropdown-item d-flex align-items-center gap-2 mb-0" for="' + id + '">' +
-                        '<input type="checkbox" class="form-check-input mt-0" id="' + id + '" checked data-col="' + idx + '"> ' +
-                        esc(titulo) + '</label></li>'
-                    );
-                    $menu.append($li);
-                });
-                $menu.on('change', 'input[type="checkbox"]', function () {
-                    const col = tablaLedger.column($(this).data('col'));
-                    col.visible(!col.visible());
-                });
-            })();
 
             // --- Menú de fila: Editar / Eliminar (sólo nativos se editan/eliminan íntegramente) ---
             const $modalMovEditar = $('#modal-movimiento-editar');

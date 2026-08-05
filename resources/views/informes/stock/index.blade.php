@@ -63,6 +63,7 @@
                     <button type="button" class="btn btn-info" data-bs-toggle="collapse" data-bs-target="#panel-filtros">
                         <i class="fas fa-filter me-1"></i> Filtros
                     </button>
+                    <span id="dt-buttons-informe-stock"></span>
                 </div>
 
                 {{-- Panel de Filtros (colapsable) --}}

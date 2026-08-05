@@ -18,12 +18,7 @@
                     <button type="button" class="btn btn-info" data-bs-toggle="collapse" data-bs-target="#panel-filtros-ledger">
                         <i class="fas fa-filter me-1"></i> Filtros
                     </button>
-                    <div class="dropdown">
-                        <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
-                            Columnas
-                        </button>
-                        <ul class="dropdown-menu" id="menu-columnas-ledger"></ul>
-                    </div>
+                    <span id="dt-buttons-tesoreria-ledger"></span>
                     <button type="button" class="btn btn-success js-movimiento-entre-cuentas">
                         <i class="fas fa-plus me-1"></i> Movimiento entre Cuentas
                     </button>

@@ -43,6 +43,7 @@ return [
 			],
 			'bottom' => [
 				'js/deznav-init.js',
+				'js/datatables-scroll-fix.js',
 			],
 		],
 	],
@@ -111,12 +112,15 @@ return [
 			'css' => [
 				'vendor/datatables/css/jquery.dataTables.min.css',
 				'vendor/datatables/responsive/responsive.css',
+				'vendor/datatables/css/buttons.dataTables.min.css',
 				'vendor/toastr/css/toastr.min.css',
 				'vendor/select2/css/select2.min.css',
 			],
 			'js' => [
 				'vendor/datatables/js/jquery.dataTables.min.js',
 				'vendor/datatables/responsive/responsive.js',
+				'vendor/datatables/js/dataTables.buttons.min.js',
+				'vendor/datatables/js/buttons.colVis.min.js',
 				'vendor/toastr/js/toastr.min.js',
 				'vendor/select2/js/select2.full.min.js',
 				'js/custom.js',
@@ -127,12 +131,15 @@ return [
 			'css' => [
 				'vendor/datatables/css/jquery.dataTables.min.css',
 				'vendor/datatables/responsive/responsive.css',
+				'vendor/datatables/css/buttons.dataTables.min.css',
 				'vendor/toastr/css/toastr.min.css',
 				'vendor/select2/css/select2.min.css',
 			],
 			'js' => [
 				'vendor/datatables/js/jquery.dataTables.min.js',
 				'vendor/datatables/responsive/responsive.js',
+				'vendor/datatables/js/dataTables.buttons.min.js',
+				'vendor/datatables/js/buttons.colVis.min.js',
 				'vendor/toastr/js/toastr.min.js',
 				'vendor/select2/js/select2.full.min.js',
 				'js/custom.js',
@@ -143,12 +150,15 @@ return [
 			'css' => [
 				'vendor/datatables/css/jquery.dataTables.min.css',
 				'vendor/datatables/responsive/responsive.css',
+				'vendor/datatables/css/buttons.dataTables.min.css',
 				'vendor/toastr/css/toastr.min.css',
 				'vendor/select2/css/select2.min.css',
 			],
 			'js' => [
 				'vendor/datatables/js/jquery.dataTables.min.js',
 				'vendor/datatables/responsive/responsive.js',
+				'vendor/datatables/js/dataTables.buttons.min.js',
+				'vendor/datatables/js/buttons.colVis.min.js',
 				'vendor/toastr/js/toastr.min.js',
 				'vendor/select2/js/select2.full.min.js',
 				'js/custom.js',
@@ -201,12 +211,15 @@ return [
 			'css' => [
 				'vendor/datatables/css/jquery.dataTables.min.css',
 				'vendor/datatables/responsive/responsive.css',
+				'vendor/datatables/css/buttons.dataTables.min.css',
 				'vendor/toastr/css/toastr.min.css',
 				'vendor/select2/css/select2.min.css',
 			],
 			'js' => [
 				'vendor/datatables/js/jquery.dataTables.min.js',
 				'vendor/datatables/responsive/responsive.js',
+				'vendor/datatables/js/dataTables.buttons.min.js',
+				'vendor/datatables/js/buttons.colVis.min.js',
 				'vendor/toastr/js/toastr.min.js',
 				'vendor/select2/js/select2.full.min.js',
 				'js/custom.js',
@@ -217,12 +230,15 @@ return [
 			'css' => [
 				'vendor/datatables/css/jquery.dataTables.min.css',
 				'vendor/datatables/responsive/responsive.css',
+				'vendor/datatables/css/buttons.dataTables.min.css',
 				'vendor/toastr/css/toastr.min.css',
 				'vendor/select2/css/select2.min.css',
 			],
 			'js' => [
 				'vendor/datatables/js/jquery.dataTables.min.js',
 				'vendor/datatables/responsive/responsive.js',
+				'vendor/datatables/js/dataTables.buttons.min.js',
+				'vendor/datatables/js/buttons.colVis.min.js',
 				'vendor/toastr/js/toastr.min.js',
 				'vendor/select2/js/select2.full.min.js',
 				'js/custom.js',
@@ -233,12 +249,15 @@ return [
 			'css' => [
 				'vendor/datatables/css/jquery.dataTables.min.css',
 				'vendor/datatables/responsive/responsive.css',
+				'vendor/datatables/css/buttons.dataTables.min.css',
 				'vendor/toastr/css/toastr.min.css',
 				'vendor/select2/css/select2.min.css',
 			],
 			'js' => [
 				'vendor/datatables/js/jquery.dataTables.min.js',
 				'vendor/datatables/responsive/responsive.js',
+				'vendor/datatables/js/dataTables.buttons.min.js',
+				'vendor/datatables/js/buttons.colVis.min.js',
 				'vendor/toastr/js/toastr.min.js',
 				'vendor/select2/js/select2.full.min.js',
 				'js/custom.js',
@@ -249,12 +268,15 @@ return [
 			'css' => [
 				'vendor/datatables/css/jquery.dataTables.min.css',
 				'vendor/datatables/responsive/responsive.css',
+				'vendor/datatables/css/buttons.dataTables.min.css',
 				'vendor/toastr/css/toastr.min.css',
 				'vendor/select2/css/select2.min.css',
 			],
 			'js' => [
 				'vendor/datatables/js/jquery.dataTables.min.js',
 				'vendor/datatables/responsive/responsive.js',
+				'vendor/datatables/js/dataTables.buttons.min.js',
+				'vendor/datatables/js/buttons.colVis.min.js',
 				'vendor/toastr/js/toastr.min.js',
 				'vendor/select2/js/select2.full.min.js',
 				'js/custom.js',
@@ -265,12 +287,15 @@ return [
 			'css' => [
 				'vendor/datatables/css/jquery.dataTables.min.css',
 				'vendor/datatables/responsive/responsive.css',
+				'vendor/datatables/css/buttons.dataTables.min.css',
 				'vendor/toastr/css/toastr.min.css',
 				'vendor/select2/css/select2.min.css',
 			],
 			'js' => [
 				'vendor/datatables/js/jquery.dataTables.min.js',
 				'vendor/datatables/responsive/responsive.js',
+				'vendor/datatables/js/dataTables.buttons.min.js',
+				'vendor/datatables/js/buttons.colVis.min.js',
 				'vendor/toastr/js/toastr.min.js',
 				'vendor/select2/js/select2.full.min.js',
 				'js/custom.js',
@@ -281,12 +306,15 @@ return [
 			'css' => [
 				'vendor/datatables/css/jquery.dataTables.min.css',
 				'vendor/datatables/responsive/responsive.css',
+				'vendor/datatables/css/buttons.dataTables.min.css',
 				'vendor/toastr/css/toastr.min.css',
 				'vendor/select2/css/select2.min.css',
 			],
 			'js' => [
 				'vendor/datatables/js/jquery.dataTables.min.js',
 				'vendor/datatables/responsive/responsive.js',
+				'vendor/datatables/js/dataTables.buttons.min.js',
+				'vendor/datatables/js/buttons.colVis.min.js',
 				'vendor/toastr/js/toastr.min.js',
 				'vendor/select2/js/select2.full.min.js',
 				'js/custom.js',
@@ -297,11 +325,14 @@ return [
 			'css' => [
 				'vendor/datatables/css/jquery.dataTables.min.css',
 				'vendor/datatables/responsive/responsive.css',
+				'vendor/datatables/css/buttons.dataTables.min.css',
 				'vendor/toastr/css/toastr.min.css',
 			],
 			'js' => [
 				'vendor/datatables/js/jquery.dataTables.min.js',
 				'vendor/datatables/responsive/responsive.js',
+				'vendor/datatables/js/dataTables.buttons.min.js',
+				'vendor/datatables/js/buttons.colVis.min.js',
 				'vendor/toastr/js/toastr.min.js',
 				'js/custom.js',
 			],
@@ -345,6 +376,7 @@ return [
 			'css' => [
 				'vendor/datatables/css/jquery.dataTables.min.css',
 				'vendor/datatables/responsive/responsive.css',
+				'vendor/datatables/css/buttons.dataTables.min.css',
 				'vendor/toastr/css/toastr.min.css',
 				'vendor/select2/css/select2.min.css',
 				'vendor/bootstrap-daterangepicker/daterangepicker.css',
@@ -352,6 +384,8 @@ return [
 			'js' => [
 				'vendor/datatables/js/jquery.dataTables.min.js',
 				'vendor/datatables/responsive/responsive.js',
+				'vendor/datatables/js/dataTables.buttons.min.js',
+				'vendor/datatables/js/buttons.colVis.min.js',
 				'vendor/toastr/js/toastr.min.js',
 				'vendor/select2/js/select2.full.min.js',
 				'vendor/moment/moment.min.js',
@@ -364,6 +398,7 @@ return [
 			'css' => [
 				'vendor/datatables/css/jquery.dataTables.min.css',
 				'vendor/datatables/responsive/responsive.css',
+				'vendor/datatables/css/buttons.dataTables.min.css',
 				'vendor/toastr/css/toastr.min.css',
 				'vendor/select2/css/select2.min.css',
 				'vendor/bootstrap-daterangepicker/daterangepicker.css',
@@ -371,6 +406,8 @@ return [
 			'js' => [
 				'vendor/datatables/js/jquery.dataTables.min.js',
 				'vendor/datatables/responsive/responsive.js',
+				'vendor/datatables/js/dataTables.buttons.min.js',
+				'vendor/datatables/js/buttons.colVis.min.js',
 				'vendor/toastr/js/toastr.min.js',
 				'vendor/select2/js/select2.full.min.js',
 				'vendor/moment/moment.min.js',
@@ -452,12 +489,15 @@ return [
 			'css' => [
 				'vendor/datatables/css/jquery.dataTables.min.css',
 				'vendor/datatables/responsive/responsive.css',
+				'vendor/datatables/css/buttons.dataTables.min.css',
 				'vendor/toastr/css/toastr.min.css',
 				'vendor/select2/css/select2.min.css',
 			],
 			'js' => [
 				'vendor/datatables/js/jquery.dataTables.min.js',
 				'vendor/datatables/responsive/responsive.js',
+				'vendor/datatables/js/dataTables.buttons.min.js',
+				'vendor/datatables/js/buttons.colVis.min.js',
 				'vendor/toastr/js/toastr.min.js',
 				'vendor/select2/js/select2.full.min.js',
 				'js/custom.js',
@@ -2367,11 +2407,14 @@ return [
 			'css' => [
 				'vendor/datatables/css/jquery.dataTables.min.css',
 				'vendor/datatables/responsive/responsive.css',
+				'vendor/datatables/css/buttons.dataTables.min.css',
 				'vendor/toastr/css/toastr.min.css',
 			],
 			'js' => [
 				'vendor/datatables/js/jquery.dataTables.min.js',
 				'vendor/datatables/responsive/responsive.js',
+				'vendor/datatables/js/dataTables.buttons.min.js',
+				'vendor/datatables/js/buttons.colVis.min.js',
 				'vendor/toastr/js/toastr.min.js',
 				'js/custom.js',
 			],
@@ -2391,11 +2434,14 @@ return [
 			'css' => [
 				'vendor/datatables/css/jquery.dataTables.min.css',
 				'vendor/datatables/responsive/responsive.css',
+				'vendor/datatables/css/buttons.dataTables.min.css',
 				'vendor/toastr/css/toastr.min.css',
 			],
 			'js' => [
 				'vendor/datatables/js/jquery.dataTables.min.js',
 				'vendor/datatables/responsive/responsive.js',
+				'vendor/datatables/js/dataTables.buttons.min.js',
+				'vendor/datatables/js/buttons.colVis.min.js',
 				'vendor/toastr/js/toastr.min.js',
 				'js/custom.js',
 			],
@@ -2425,12 +2471,15 @@ return [
 			'css' => [
 				'vendor/datatables/css/jquery.dataTables.min.css',
 				'vendor/datatables/responsive/responsive.css',
+				'vendor/datatables/css/buttons.dataTables.min.css',
 				'vendor/toastr/css/toastr.min.css',
 				'vendor/select2/css/select2.min.css',
 			],
 			'js' => [
 				'vendor/datatables/js/jquery.dataTables.min.js',
 				'vendor/datatables/responsive/responsive.js',
+				'vendor/datatables/js/dataTables.buttons.min.js',
+				'vendor/datatables/js/buttons.colVis.min.js',
 				'vendor/toastr/js/toastr.min.js',
 				'vendor/select2/js/select2.full.min.js',
 				'js/custom.js',
@@ -2451,11 +2500,14 @@ return [
 			'css' => [
 				'vendor/datatables/css/jquery.dataTables.min.css',
 				'vendor/datatables/responsive/responsive.css',
+				'vendor/datatables/css/buttons.dataTables.min.css',
 				'vendor/toastr/css/toastr.min.css',
 			],
 			'js' => [
 				'vendor/datatables/js/jquery.dataTables.min.js',
 				'vendor/datatables/responsive/responsive.js',
+				'vendor/datatables/js/dataTables.buttons.min.js',
+				'vendor/datatables/js/buttons.colVis.min.js',
 				'vendor/toastr/js/toastr.min.js',
 				'js/custom.js',
 			],

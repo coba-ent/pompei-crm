@@ -206,6 +206,20 @@
                     render: (data, type, row) => renderEstadoSync(data, row, 'precio_sincronizado_en', 'precio_error'),
                 },
             ],
+            stateSave: true,
+            buttons: [
+                {
+                    extend: 'colvis',
+                    text: '<i class="fas fa-table-columns"></i>',
+                    className: 'btn btn-outline-secondary',
+                    // Columna 0 es "Acciones", no se puede ocultar.
+                    columns: function (idx) { return idx !== 0; },
+                },
+            ],
+        });
+
+        $tabla.one('init.dt', function () {
+            tabla.buttons().container().appendTo('#dt-buttons-tn-vinculaciones');
         });
     }
 

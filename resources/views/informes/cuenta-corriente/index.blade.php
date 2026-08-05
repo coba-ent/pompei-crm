@@ -38,6 +38,9 @@
                                     <option value="">Todos</option>
                                 </select>
                             </div>
+                            <div class="col-md-8 d-flex justify-content-end align-items-end">
+                                <span id="dt-buttons-saldos-clientes"></span>
+                            </div>
                         </div>
 
                         <div class="table-responsive">
@@ -93,6 +96,9 @@
                                 <input type="text" id="filtro-movimientos-rango-fechas" class="form-control" placeholder="Todas las fechas">
                                 <input type="hidden" id="filtro-movimientos-fecha-desde">
                                 <input type="hidden" id="filtro-movimientos-fecha-hasta">
+                            </div>
+                            <div class="col-md-2 d-flex justify-content-end align-items-end">
+                                <span id="dt-buttons-movimientos"></span>
                             </div>
                         </div>
 

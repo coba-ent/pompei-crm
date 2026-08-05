@@ -239,6 +239,28 @@
                 { data: 'acciones', name: 'acciones', orderable: false, searchable: false, className: 'text-end' },
             ],
             order: [[1, 'asc']],
+            // Selector de columnas nativo de DataTables (extensión Buttons) +
+            // stateSave: persiste qué columnas quedaron ocultas en localStorage
+            // (clave por URL) y las restaura solo al recargar la página.
+            stateSave: true,
+            buttons: [
+                {
+                    extend: 'colvis',
+                    text: '<i class="fas fa-table-columns"></i>',
+                    className: 'btn btn-outline-secondary',
+                    // Selección (columna 0) y Acciones (última) no se pueden ocultar.
+                    columns: function (idx) {
+                        return idx !== 0 && idx !== tabla.columns().count() - 1;
+                    },
+                },
+            ],
+        });
+
+        // serverSide:true => la tabla recién termina de inicializarse (y los
+        // Buttons quedan listos) cuando responde el primer AJAX, no en el
+        // mismo tick del new DataTable(). Hay que esperar a "init.dt".
+        $tabla.one('init.dt', function () {
+            tabla.buttons().container().appendTo('#dt-buttons-productos');
         });
 
         // ================== SELECCIÓN MÚLTIPLE + ACCIONES MASIVAS (004) ==================
@@ -343,26 +365,6 @@
         initSelect2($('#filtro-proveedor'));
         initSelect2($('#filtro-estado'), { minimumResultsForSearch: Infinity });
         initSelect2($('#filtro-tipo'), { minimumResultsForSearch: Infinity });
-
-        // --- Selector de columnas (colvis casero via API de DataTables) ---
-        (function construirMenuColumnas() {
-            const $menu = $('#menu-columnas');
-            tabla.columns().every(function (idx) {
-                const titulo = $(this.header()).text().trim();
-                if (!titulo || idx === tabla.columns().count() - 1) { return; } // omitir Acciones
-                const id = 'col-vis-' + idx;
-                const $li = $(
-                    '<li><label class="dropdown-item d-flex align-items-center gap-2 mb-0" for="' + id + '">' +
-                    '<input type="checkbox" class="form-check-input mt-0" id="' + id + '" checked data-col="' + idx + '"> ' +
-                    esc(titulo) + '</label></li>'
-                );
-                $menu.append($li);
-            });
-            $menu.on('change', 'input[data-col]', function () {
-                const col = tabla.column($(this).data('col'));
-                col.visible($(this).is(':checked'));
-            });
-        })();
 
         function refrescarStats() {
             if (!rutas.stats) {

@@ -100,6 +100,18 @@
                 { data: 'total', name: 'total', className: 'text-end fw-bold', render: fmtMoney },
             ],
             order: [[0, 'asc']],
+            stateSave: true,
+            buttons: [
+                {
+                    extend: 'colvis',
+                    text: '<i class="fas fa-table-columns"></i>',
+                    className: 'btn btn-outline-secondary',
+                },
+            ],
+        });
+
+        $tablaSaldos.one('init.dt', function () {
+            tablaSaldos.buttons().container().appendTo('#dt-buttons-saldos-clientes');
         });
 
         $('#filtro-saldos-cliente').on('select2:select select2:clear change', function () {
@@ -192,6 +204,21 @@
                 { data: 'descripcion', name: 'mov.descripcion', defaultContent: '' },
             ],
             order: [[1, 'desc']],
+            stateSave: true,
+            buttons: [
+                {
+                    extend: 'colvis',
+                    text: '<i class="fas fa-table-columns"></i>',
+                    className: 'btn btn-outline-secondary',
+                    // "cliente_id" (idx 2) es una columna técnica oculta usada para
+                    // el deep-link, no se ofrece en el selector.
+                    columns: function (idx) { return idx !== 2; },
+                },
+            ],
+        });
+
+        $tablaMovimientos.one('init.dt', function () {
+            tablaMovimientos.buttons().container().appendTo('#dt-buttons-movimientos');
         });
 
         $('#filtro-movimientos-cliente, #filtro-movimientos-operacion').on('select2:select select2:clear change', function () {

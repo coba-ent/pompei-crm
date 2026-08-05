@@ -166,6 +166,18 @@
                 { data: 'usuario', name: 'usuario', defaultContent: '' },
             ],
             order: [[0, 'asc']],
+            stateSave: true,
+            buttons: [
+                {
+                    extend: 'colvis',
+                    text: '<i class="fas fa-table-columns"></i>',
+                    className: 'btn btn-outline-secondary',
+                },
+            ],
+        });
+
+        $tabla.one('init.dt', function () {
+            tabla.buttons().container().appendTo('#dt-buttons-informe-stock');
         });
 
         // --- Filtros ---

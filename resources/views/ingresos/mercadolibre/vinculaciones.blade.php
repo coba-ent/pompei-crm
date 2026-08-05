@@ -22,6 +22,7 @@
                 <button type="button" class="btn btn-outline-danger" id="btn-eliminar-todas-vinculaciones" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Desvincula todas las publicaciones de sus productos del CRM (no borra publicaciones ni productos)">
                     <i class="fas fa-trash me-1"></i> Eliminar todas las vinculaciones
                 </button>
+                <span id="dt-buttons-ml-vinculaciones"></span>
             </div>
         </div>
 

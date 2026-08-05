@@ -23,12 +23,7 @@
                             <i class="fas fa-filter me-1"></i> Filtros
                         </button>
                     </div>
-                    <div class="dropdown">
-                        <button class="btn btn-light dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                            <i class="fas fa-columns me-1"></i> Columnas
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end p-2" id="selector-columnas" style="min-width:220px;"></ul>
-                    </div>
+                    <span id="dt-buttons-gastos"></span>
                 </div>
 
                 <div class="collapse mb-3" id="panel-filtros">

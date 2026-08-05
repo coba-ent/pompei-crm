@@ -95,14 +95,6 @@
             return { buscar: $('#filtro-buscar').val() };
         }
 
-        const columnasToggleables = [
-            { idx: 2, label: 'Fecha' },
-            { idx: 3, label: 'Categoría' },
-            { idx: 4, label: 'Descripción' },
-            { idx: 5, label: 'Medio de Pago' },
-            { idx: 6, label: 'Monto', ocultaPorDefecto: true },
-        ];
-
         const tabla = $tabla.DataTable({
             processing: true, serverSide: true,
             language: {
@@ -113,7 +105,6 @@
                 processing: 'Cargando...',
             },
             ajax: { url: rutas.data, data: (d) => $.extend(d, filtrosActuales()) },
-            columnDefs: columnasToggleables.filter((c) => c.ocultaPorDefecto).map((c) => ({ targets: c.idx, visible: false })),
             columns: [
                 { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
                 { data: 'id', name: 'id' },
@@ -123,16 +114,20 @@
                 { data: 'medio_de_pago', name: 'medio_de_pago' },
                 { data: 'monto', name: 'monto', render: money },
             ],
+            stateSave: true,
+            buttons: [
+                {
+                    extend: 'colvis',
+                    text: '<i class="fas fa-table-columns"></i>',
+                    className: 'btn btn-outline-secondary',
+                    // Columna 0 es "Estado" (acciones), no se puede ocultar.
+                    columns: function (idx) { return idx !== 0; },
+                },
+            ],
         });
 
-        const $selectorColumnas = $('#selector-columnas').empty();
-        columnasToggleables.forEach((col) => {
-            const id = 'col-toggle-' + col.idx;
-            const $li = $('<li class="dropdown-item-text">');
-            const $check = $('<input type="checkbox" class="form-check-input me-2">').prop('checked', !col.ocultaPorDefecto).attr('id', id)
-                .on('change', function () { tabla.column(col.idx).visible($(this).is(':checked')); });
-            $li.append($check, $('<label>').attr('for', id).text(col.label));
-            $selectorColumnas.append($li);
+        $tabla.one('init.dt', function () {
+            tabla.buttons().container().appendTo('#dt-buttons-gastos');
         });
 
         $('#btn-aplicar-filtros').on('click', () => tabla.ajax.reload());
