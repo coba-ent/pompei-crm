@@ -435,6 +435,33 @@ table.dataTable > tbody > tr.child span.dtr-title {
     margin: 0;
 }
 
+/* buttons.dataTables.min.css define `button.dt-button` con su propio look
+ * (gradiente, borde, padding) con más especificidad (0,1,1) que nuestro
+ * `.btn` de arriba (0,1,0) — le gana aunque cargue después. El botón trae
+ * también las clases de Bootstrap (`btn btn-outline-secondary`, ver
+ * `columns: function` en cada *.js), así que acá apagamos el look propio de
+ * DataTables para que quede idéntico al resto de los botones de la barra
+ * (Filtros, Ver Totales, Exportar). */
+.dt-buttons button.dt-button.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: 0.3rem 0.75rem;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    font-weight: 500;
+    background-image: none;
+    text-shadow: none;
+    box-shadow: none;
+    overflow: visible;
+}
+.dt-buttons button.dt-button.btn:active:not(.disabled),
+.dt-buttons button.dt-button.btn.active:not(.disabled) {
+    box-shadow: none;
+    background-image: none;
+}
+
 /* --------------------------------------------------------------------------
  * DataTables Responsive — flecha de expandir (►) vs. dropdown "Acciones".
  * En todas las tablas del proyecto la columna "Acciones" es la primera
