@@ -356,7 +356,6 @@
             tablaOperaciones = $('#tabla-tn-operaciones').DataTable({
                 processing: true,
                 serverSide: true,
-                responsive: true,
                 order: [[0, 'desc']],
                 language: {
                     search: 'Buscar:',

@@ -54,7 +54,6 @@
         const tabla = $tabla.DataTable({
             processing: true,
             serverSide: true,
-            responsive: true,
             stateSave: true,
             stateDuration: 0, // 0 = indefinido (localStorage), persiste entre sesiones.
             dom:

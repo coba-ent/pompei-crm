@@ -86,7 +86,6 @@
             processing: true,
             serverSide: false,
             paging: false,
-            responsive: true,
             language: {
                 search: 'Buscar:',
                 lengthMenu: 'Mostrar _MENU_ registros',

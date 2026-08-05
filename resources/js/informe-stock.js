@@ -118,7 +118,6 @@
         const tabla = $tabla.DataTable({
             processing: true,
             serverSide: true,
-            responsive: true,
             language: {
                 lengthMenu: 'Mostrar _MENU_ registros',
                 info: 'Mostrando _START_ a _END_ de _TOTAL_ movimientos',

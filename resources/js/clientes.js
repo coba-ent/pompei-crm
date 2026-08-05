@@ -73,7 +73,6 @@
         const tabla = $tabla.DataTable({
             processing: true,
             serverSide: true,
-            responsive: true,
             // Recordar visibilidad de columnas / orden / búsqueda en localStorage.
             stateSave: true,
             stateDuration: 0, // 0 = indefinido (localStorage), persiste entre sesiones.

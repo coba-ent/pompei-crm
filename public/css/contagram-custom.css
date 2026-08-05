@@ -390,40 +390,6 @@ textarea.form-control {
     max-height: calc(100vh - 12rem);
 }
 
-/* --------------------------------------------------------------------------
- * DataTables Responsive — detalle de fila desplegado alineado a la IZQUIERDA.
- * Por defecto (y con el CSS del template) las columnas ocultas que se muestran
- * al expandir una fila quedaban corridas a la derecha. Forzamos que el detalle
- * (título + valor) se lea de izquierda a derecha, como el resto de la tabla.
- * Regla GLOBAL: aplica a todas las DataTables responsive del proyecto.
- * ------------------------------------------------------------------------ */
-table.dataTable > tbody > tr.child ul.dtr-details,
-table.dataTable > tbody > tr.child span.dtr-title,
-table.dataTable > tbody > tr.child span.dtr-data,
-table.dataTable > tbody > tr.child td.child {
-    text-align: left !important;
-}
-
-table.dataTable > tbody > tr.child ul.dtr-details {
-    display: block;
-    width: 100%;
-    margin: 0;
-    padding: 0;
-}
-
-table.dataTable > tbody > tr.child ul.dtr-details > li {
-    display: flex;
-    justify-content: flex-start;
-    gap: 0.5rem;
-    padding: 0.35rem 0;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-table.dataTable > tbody > tr.child span.dtr-title {
-    min-width: 11rem;
-    font-weight: 600;
-}
-
 /* Botón ColVis ("Columnas") — extensión Buttons de DataTables.
  * El template NexaDash trae `.dt-buttons { display:none }` en style.css
  * (pensado para otras pantallas del template); lo revertimos acá. */
@@ -460,30 +426,6 @@ table.dataTable > tbody > tr.child span.dtr-title {
 .dt-buttons button.dt-button.btn.active:not(.disabled) {
     box-shadow: none;
     background-image: none;
-}
-
-/* --------------------------------------------------------------------------
- * DataTables Responsive — flecha de expandir (►) vs. dropdown "Acciones".
- * En todas las tablas del proyecto la columna "Acciones" es la primera
- * columna (convención `{ data: 'acciones' }` como primer item de `columns`),
- * así que Responsive le agrega la clase `dtr-control` y antepone la flechita
- * como `::before` inline-block. El dropdown de acciones es un `<div>`, o sea
- * un bloque, así que caía a una línea nueva debajo de la flecha en vez de al
- * lado. Alcanza con volverlo inline-block para que queden en la misma fila.
- *
- * NO usar `display:flex` en el `<td>`: saca la celda del algoritmo de layout
- * de la tabla (deja de participar del cálculo de ancho de columna). Se probó
- * en vivo y da exactamente el mismo resultado visual que esto, sin ese riesgo.
- *
- * Regla GLOBAL: aplica a todas las DataTables responsive del proyecto.
- * ------------------------------------------------------------------------ */
-table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control > .dropdown {
-    display: inline-block;
-    vertical-align: middle;
-}
-
-table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control:before {
-    vertical-align: middle;
 }
 
 /* ------------------------------------------------------------------------
