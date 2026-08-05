@@ -39,6 +39,48 @@ class ResultadoConsultaPadronTest extends TestCase
         ]));
     }
 
+    private function respuestaConProvincia(string $descripcionProvincia): object
+    {
+        return json_decode(json_encode([
+            'personaReturn' => [
+                'persona' => [
+                    'razonSocial' => 'ACME SA',
+                    'domicilio' => [
+                        ['tipoDomicilio' => 'FISCAL', 'direccion' => 'AV CORRIENTES 1234', 'descripcionProvincia' => $descripcionProvincia],
+                    ],
+                    'estadoClave' => 'ACTIVO',
+                ],
+            ],
+        ]));
+    }
+
+    /**
+     * Bug reportado: el modal de Cliente no autocompletaba Provincia para CUITs con
+     * domicilio fiscal en CABA porque ARCA devuelve "CIUDAD AUTONOMA BUENOS AIRES" (catálogo
+     * oficial ws_sr_padron_a13, sin "DE" ni tildes) y el matcheo por texto exacto contra
+     * `provincias.nombre` ("Ciudad Autónoma de Buenos Aires") fallaba en silencio.
+     */
+    public function test_mapea_provincia_caba_al_nombre_completo_del_catalogo(): void
+    {
+        $resultado = ResultadoConsultaPadron::desdeRespuesta('20304050607', $this->respuestaConProvincia('CIUDAD AUTONOMA BUENOS AIRES'));
+
+        $this->assertSame('Ciudad Autónoma de Buenos Aires', $resultado->provinciaFiscal);
+    }
+
+    public function test_mapea_provincia_tierra_del_fuego_al_nombre_completo_del_catalogo(): void
+    {
+        $resultado = ResultadoConsultaPadron::desdeRespuesta('20304050607', $this->respuestaConProvincia('TIERRA DEL FUEGO'));
+
+        $this->assertSame('Tierra del Fuego, Antártida e Islas del Atlántico Sur', $resultado->provinciaFiscal);
+    }
+
+    public function test_provincia_sin_mapeo_conocido_se_devuelve_tal_cual(): void
+    {
+        $resultado = ResultadoConsultaPadron::desdeRespuesta('20304050607', $this->respuestaConProvincia('CORDOBA'));
+
+        $this->assertSame('CORDOBA', $resultado->provinciaFiscal);
+    }
+
     public function test_mapea_responsable_inscripto(): void
     {
         $resultado = ResultadoConsultaPadron::desdeRespuesta('20304050607', $this->respuestaCon('IVA RESPONSABLE INSCRIPTO'));

@@ -23,6 +23,20 @@ class ResultadoConsultaPadron
         'NO CATEGORIZADO' => 'No Categorizado',
     ];
 
+    /**
+     * Mapeo entre `descripcionProvincia` del catálogo oficial de ws_sr_padron_a13 (sin
+     * tildes, sin "de"/conectores) y `provincias.nombre` del CRM: el modal matchea la
+     * provincia devuelta por ARCA por texto exacto normalizado (case/acentos-insensitive)
+     * contra las <option> del select, y algunas descripciones de ARCA difieren del nombre
+     * completo del catálogo (ej. "CIUDAD AUTONOMA BUENOS AIRES" sin "DE"), lo que rompía el
+     * autocompletado de Provincia/Localidad en el modal de Cliente para esos casos.
+     */
+    private const MAPEO_PROVINCIA_ARCA = [
+        'CIUDAD AUTONOMA BUENOS AIRES' => 'Ciudad Autónoma de Buenos Aires',
+        'CABA' => 'Ciudad Autónoma de Buenos Aires',
+        'TIERRA DEL FUEGO' => 'Tierra del Fuego, Antártida e Islas del Atlántico Sur',
+    ];
+
     public function __construct(
         public readonly string $cuit,
         public readonly bool $encontrado,
@@ -121,7 +135,7 @@ class ResultadoConsultaPadron
             // Provincia y localidad son datos distintos (selects linkeados en el modal, docs §2.1) —
             // nunca conflatearlos: `localidad` es la ciudad/partido, `descripcionProvincia` la provincia.
             localidadFiscal: $domicilioFiscal->localidad ?? null,
-            provinciaFiscal: $domicilioFiscal->descripcionProvincia ?? null,
+            provinciaFiscal: self::mapearProvincia($domicilioFiscal->descripcionProvincia ?? null),
             condicionIvaRaw: $condicionRaw,
             condicionIvaId: self::mapearCondicionIva($condicionRaw),
             activo: isset($persona->estadoClave) ? strtoupper((string) $persona->estadoClave) === 'ACTIVO' : null,
@@ -167,5 +181,22 @@ class ResultadoConsultaPadron
         $nombre = self::MAPEO_CONDICION_IVA_CRM[strtoupper(trim($raw))] ?? null;
 
         return $nombre ? CondicionIva::where('nombre', $nombre)->value('id') : null;
+    }
+
+    /**
+     * Traduce la `descripcionProvincia` cruda de ARCA al nombre completo del catálogo
+     * `provincias.nombre` cuando difieren (ver MAPEO_PROVINCIA_ARCA); si no hay mapeo
+     * conocido, devuelve el valor tal cual llegó de ARCA (la mayoría de las provincias ya
+     * matchean sin cambios una vez que el JS del modal normaliza case/acentos).
+     */
+    private static function mapearProvincia(?string $raw): ?string
+    {
+        if ($raw === null || trim($raw) === '') {
+            return $raw;
+        }
+
+        $normalizado = strtoupper(\Illuminate\Support\Str::ascii(trim($raw)));
+
+        return self::MAPEO_PROVINCIA_ARCA[$normalizado] ?? $raw;
     }
 }
