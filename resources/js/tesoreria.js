@@ -410,6 +410,7 @@
                     },
                 },
                 columns: [
+                    { data: 'acciones', name: 'acciones', orderable: false, searchable: false, className: 'dt-acciones-caret no-colvis' },
                     { data: 'id', name: 'id', className: 'text-end' },
                     { data: 'fecha', name: 'fecha', render: fmtFecha },
                     { data: 'operacion', name: 'tipo' },
@@ -428,9 +429,8 @@
                     },
                     { data: 'nro_comprobante', name: 'nro_comprobante', defaultContent: '' },
                     { data: 'observacion', name: 'observacion', defaultContent: '' },
-                    { data: 'acciones', name: 'acciones', orderable: false, searchable: false, className: 'text-end' },
                 ],
-                order: [[1, 'asc'], [0, 'asc']],
+                order: [[2, 'asc'], [1, 'asc']],
                 // Selector de columnas nativo de DataTables (extensión Buttons) +
                 // stateSave: persiste qué columnas quedaron ocultas en localStorage.
                 stateSave: true,
@@ -439,8 +439,7 @@
                         extend: 'colvis',
                         text: '<i class="fas fa-table-columns"></i>',
                         className: 'btn btn-outline-secondary',
-                        // Última columna ("Acciones") no se puede ocultar.
-                        columns: function (idx) { return idx !== tablaLedger.columns().count() - 1; },
+                        columns: ':not(.no-colvis)',
                     },
                 ],
             });

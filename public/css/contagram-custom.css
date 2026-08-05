@@ -428,6 +428,25 @@ textarea.form-control {
     background-image: none;
 }
 
+/* --------------------------------------------------------------------------
+ * Columna "Acciones" como PRIMERA columna (fidelidad estructural a
+ * Contagram): sólo el caret nativo de Bootstrap (sin ícono de tres puntos ni
+ * texto), en una columna angosta. Regla GLOBAL — usar la clase
+ * `dt-acciones-caret` en el <th>/<td> de acciones cuando es la primera
+ * columna de la tabla.
+ * ------------------------------------------------------------------------ */
+th.dt-acciones-caret,
+td.dt-acciones-caret {
+    width: 2.5rem;
+    text-align: center;
+}
+td.dt-acciones-caret .dropdown-toggle {
+    padding: 0.25rem 0.5rem;
+}
+td.dt-acciones-caret .dropdown-toggle::after {
+    margin-left: 0;
+}
+
 /* ------------------------------------------------------------------------
  * Select2 (buscador en selects de datos dinámicos): alinear su alto y tipografía
  * con los form-control/form-select compactos del proyecto. Regla GLOBAL.

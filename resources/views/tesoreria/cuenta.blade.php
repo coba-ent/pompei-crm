@@ -54,9 +54,10 @@
                 </div>
 
                 <div class="table-responsive">
-                    <table id="tabla-ledger" class="table table-hover display responsive nowrap" style="width:100%">
+                    <table id="tabla-ledger" class="table table-hover display nowrap" style="width:100%">
                         <thead>
                             <tr>
+                                <th class="dt-acciones-caret"></th>
                                 <th>Id</th>
                                 <th>Fecha</th>
                                 <th>Operación</th>
@@ -66,7 +67,6 @@
                                 <th class="text-end">Balance</th>
                                 <th>N° Factura</th>
                                 <th>Observación</th>
-                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody></tbody>

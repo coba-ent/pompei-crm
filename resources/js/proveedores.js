@@ -74,6 +74,7 @@
                 url: rutas.data,
             },
             columns: [
+                { data: 'acciones', name: 'acciones', orderable: false, searchable: false, className: 'dt-acciones-caret no-colvis' },
                 { data: 'id', name: 'id' },
                 { data: 'nombre', name: 'nombre' },
                 { data: 'nombre_pila', name: 'nombre_pila', defaultContent: '' },
@@ -89,9 +90,8 @@
                 { data: 'condicion_iva', name: 'condicion_iva', orderable: false },
                 { data: 'nota', name: 'nota', defaultContent: '' },
                 { data: 'pagina_web', name: 'pagina_web', defaultContent: '' },
-                { data: 'acciones', name: 'acciones', orderable: false, searchable: false, className: 'text-end no-colvis' },
             ],
-            order: [[1, 'asc']],
+            order: [[2, 'asc']],
         });
 
         // Botón ColVis ("Columnas") creado DESPUÉS de la tabla y anexado al toolbar.

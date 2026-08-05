@@ -142,11 +142,12 @@
             },
             columns: [
                 {
-                    data: null, orderable: false, searchable: false, className: 'text-center',
+                    data: null, orderable: false, searchable: false, className: 'text-center no-colvis',
                     render: function (data, type, row) {
                         return '<input type="checkbox" class="form-check-input js-chk-producto" data-id="' + row.id + '">';
                     },
                 },
+                { data: 'acciones', name: 'acciones', orderable: false, searchable: false, className: 'dt-acciones-caret no-colvis' },
                 { data: 'id', name: 'id', className: 'text-end' },
                 { data: 'nombre', name: 'nombre', render: $.fn.dataTable.render.text() },
                 { data: 'codigo', name: 'codigo', defaultContent: '', render: $.fn.dataTable.render.text() },
@@ -236,9 +237,8 @@
                             : '<span class="badge bg-light text-dark">Inactivo</span>';
                     },
                 },
-                { data: 'acciones', name: 'acciones', orderable: false, searchable: false, className: 'text-end' },
             ],
-            order: [[1, 'asc']],
+            order: [[2, 'asc']],
             // Selector de columnas nativo de DataTables (extensión Buttons) +
             // stateSave: persiste qué columnas quedaron ocultas en localStorage
             // (clave por URL) y las restaura solo al recargar la página.
@@ -248,10 +248,7 @@
                     extend: 'colvis',
                     text: '<i class="fas fa-table-columns"></i>',
                     className: 'btn btn-outline-secondary',
-                    // Selección (columna 0) y Acciones (última) no se pueden ocultar.
-                    columns: function (idx) {
-                        return idx !== 0 && idx !== tabla.columns().count() - 1;
-                    },
+                    columns: ':not(.no-colvis)',
                 },
             ],
         });

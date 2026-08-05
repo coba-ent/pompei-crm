@@ -138,11 +138,11 @@
             },
             ajax: { url: rutas.data },
             columns: [
+                { data: 'acciones', name: 'acciones', orderable: false, searchable: false, className: 'dt-acciones-caret no-colvis' },
                 { data: 'nombre', name: 'nombre' },
                 { data: 'descripcion', name: 'descripcion', defaultContent: '' },
                 { data: 'permisos_count', name: 'permisos_count', orderable: false },
                 { data: 'usuarios_count', name: 'usuarios_count', orderable: false },
-                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
             ],
             stateSave: true,
             buttons: [
@@ -150,8 +150,7 @@
                     extend: 'colvis',
                     text: '<i class="fas fa-table-columns"></i>',
                     className: 'btn btn-outline-secondary',
-                    // Última columna ("Acciones") no se puede ocultar.
-                    columns: function (idx) { return idx !== tabla.columns().count() - 1; },
+                    columns: ':not(.no-colvis)',
                 },
             ],
         });

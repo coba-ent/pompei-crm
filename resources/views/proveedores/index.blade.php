@@ -94,9 +94,10 @@
                 </div>
 
                 <div class="table-responsive">
-                    <table id="tabla-proveedores" class="table table-hover display responsive nowrap" style="width:100%">
+                    <table id="tabla-proveedores" class="table table-hover display nowrap" style="width:100%">
                         <thead>
                             <tr>
+                                <th class="dt-acciones-caret"></th>
                                 <th>Id</th>
                                 <th>Proveedor</th>
                                 <th>Nombre</th>
@@ -112,7 +113,6 @@
                                 <th>Condición de IVA</th>
                                 <th>Nota</th>
                                 <th>Página Web</th>
-                                <th class="text-end">Acciones</th>
                             </tr>
                         </thead>
                         <tbody></tbody>

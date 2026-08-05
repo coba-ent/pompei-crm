@@ -200,6 +200,7 @@
                                 <th>
                                     <input type="checkbox" class="form-check-input" id="chk-seleccionar-todo">
                                 </th>
+                                <th class="dt-acciones-caret"></th>
                                 <th>Id</th>
                                 <th>Nombre</th>
                                 <th>Código/SKU</th>
@@ -222,7 +223,6 @@
                                 <th>Descripción</th>
                                 <th>Imagen</th>
                                 <th>Estado</th>
-                                <th class="text-end">Acciones</th>
                             </tr>
                         </thead>
                         <tbody></tbody>

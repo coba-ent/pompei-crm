@@ -110,9 +110,10 @@
                 </div>
 
                 <div class="table-responsive">
-                    <table id="tabla-clientes" class="table table-hover display responsive nowrap" style="width:100%">
+                    <table id="tabla-clientes" class="table table-hover display nowrap" style="width:100%">
                         <thead>
                             <tr>
+                                <th class="dt-acciones-caret"></th>
                                 <th>Id</th>
                                 <th>Cliente</th>
                                 <th>Nombre</th>
@@ -129,7 +130,6 @@
                                 <th>Usuario de Mercado Libre</th>
                                 <th>Nota</th>
                                 <th>Página Web</th>
-                                <th class="text-end">Acciones</th>
                             </tr>
                         </thead>
                         <tbody></tbody>

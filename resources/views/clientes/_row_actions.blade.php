@@ -1,8 +1,6 @@
 @php($activo = $cliente->activo)
 <div class="dropdown">
-    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-        <i class="fas fa-ellipsis-v"></i>
-    </button>
+    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"></button>
     <ul class="dropdown-menu dropdown-menu-end">
         <li>
             <button type="button" class="dropdown-item js-cliente-ver" data-id="{{ $cliente->id }}">

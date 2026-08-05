@@ -61,14 +61,14 @@
             </div>
             <div class="card-body">
                 <div class="table-responsive">
-                    <table id="tabla-usuarios" class="table table-hover display responsive nowrap" style="width:100%">
+                    <table id="tabla-usuarios" class="table table-hover display nowrap" style="width:100%">
                         <thead>
                             <tr>
+                                <th class="dt-acciones-caret"></th>
                                 <th>Nombre</th>
                                 <th>Email</th>
                                 <th>Roles</th>
                                 <th>Estado</th>
-                                <th class="text-end">Acciones</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
