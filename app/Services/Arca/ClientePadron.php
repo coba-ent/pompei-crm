@@ -50,7 +50,7 @@ class ClientePadron
         return new SoapClient(
             config('arca.wsdl.ws_sr_padron_a13.'.$this->certificado->ambiente),
             [
-                'soap_version' => SOAP_1_2,
+                'soap_version' => SOAP_1_1,
                 'connection_timeout' => 8,
                 'exceptions' => true,
                 // Mismos servidores de ARCA que WSFEv1: negocian DH con clave débil
