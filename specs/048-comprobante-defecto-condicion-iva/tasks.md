@@ -37,20 +37,30 @@ condición → confirmar que el valor editado no se pisa (quickstart.md Escenari
 
 ### Implementación de User Story 1
 
-- [ ] T001 [US1] Agregar `'tipo_comprobante_defecto'` a `CAMPOS_PADRON` en `resources/js/cliente-modal.js` (research.md R3) para que el mecanismo de "tocado" ya existente (`tocadoPadron`, `resetearTocadoPadron()`, el listener genérico `input change` sobre `CAMPOS_PADRON`) cubra también este campo sin código adicional
-- [ ] T002 [US1] Crear función `derivarComprobantePorCondicionIva()` en `resources/js/cliente-modal.js`: lee el texto visible de la `<option>` seleccionada de `select[name="condicion_iva_id"]` (mismo patrón de match por texto ya usado en `autocompletarDesdePadron()` para `condicion_iva`), completa `select[name="tipo_comprobante_defecto"]` con `'A'` si el texto es exactamente `'Responsable Inscripto'`, `'B'` en cualquier otro caso — sólo si `!tocadoPadron.tipo_comprobante_defecto` (research.md R2)
-- [ ] T003 [US1] Enganchar `derivarComprobantePorCondicionIva()` al evento `change` de `select[name="condicion_iva_id"]` (delegado sobre `$form`, mismo bloque donde ya está el listener de `.js-provincia` en `resources/js/cliente-modal.js`) (research.md R1)
-- [ ] T004 [US1] En `autocompletarDesdePadron()` (`resources/js/cliente-modal.js`), agregar `.trigger('change')` al `$select` de `condicion_iva_id` cuando se le asigna un valor nuevo del padrón, para que dispare el listener de T003 y la derivación también aplique al autocompletado por "Verificar" (research.md R1 — cubre además la Historia 3 del spec)
+- [X] T001 [US1] Agregar `'tipo_comprobante_defecto'` a `CAMPOS_PADRON` en `resources/js/cliente-modal.js` (research.md R3) para que el mecanismo de "tocado" ya existente (`tocadoPadron`, `resetearTocadoPadron()`, el listener genérico `input change` sobre `CAMPOS_PADRON`) cubra también este campo sin código adicional
+- [X] T002 [US1] Crear función `derivarComprobantePorCondicionIva()` en `resources/js/cliente-modal.js`: lee el texto visible de la `<option>` seleccionada de `select[name="condicion_iva_id"]` (mismo patrón de match por texto ya usado en `autocompletarDesdePadron()` para `condicion_iva`), completa `select[name="tipo_comprobante_defecto"]` con `'A'` si el texto es exactamente `'Responsable Inscripto'`, `'B'` en cualquier otro caso — sólo si `!tocadoPadron.tipo_comprobante_defecto` (research.md R2)
+- [X] T003 [US1] Enganchar `derivarComprobantePorCondicionIva()` al evento `change` de `select[name="condicion_iva_id"]` (delegado sobre `$form`, mismo bloque donde ya está el listener de `.js-provincia` en `resources/js/cliente-modal.js`) (research.md R1)
+- [X] T004 [US1] En `autocompletarDesdePadron()` (`resources/js/cliente-modal.js`), agregar `.trigger('change')` al `$select` de `condicion_iva_id` cuando se le asigna un valor nuevo del padrón, para que dispare el listener de T003 y la derivación también aplique al autocompletado por "Verificar" (research.md R1 — cubre además la Historia 3 del spec)
 
 **Checkpoint**: con T001-T004 la feature está completa y es el único cambio de código necesario — MVP y alcance total en un solo checkpoint (no hay historias P2/P3 con código propio).
+
+**Hallazgo durante implementación (no cubierto por research.md)**: el modal "Nuevo Cliente"/edición
+que se abre desde el propio módulo Clientes (`/clientes`) **no** usa `cliente-modal.js` — usa una
+copia paralela del mismo mecanismo (`CAMPOS_PADRON`, `tocadoPadron`, `autocompletarDesdePadron()`)
+embebida directamente en `resources/js/clientes.js` (`cliente-modal.js` sólo se carga en los modales
+rápidos de "agregar cliente" de Ventas/Presupuestos, vía `@vite` en `ventas/form.blade.php` y
+`presupuestos/form.blade.php`). Como el spec apunta genéricamente al "modal de alta/edición manual de
+Cliente", se replicaron los mismos 4 cambios (T001-T004) en `resources/js/clientes.js` para que la
+derivación también aplique ahí — de lo contrario el caso de uso principal (botón "+ Nuevo Cliente" en
+`/clientes`) hubiera quedado sin la feature.
 
 ---
 
 ## Phase 4: Polish & Cross-Cutting
 
-- [ ] T005 [P] `npm run build` para regenerar `public/build/` con el `cliente-modal.js` actualizado
-- [ ] T006 Verificar manualmente en navegador los 4 escenarios de `quickstart.md` (alta con derivación, edición manual no pisada, autocompletado por padrón, edición de cliente existente sin recálculo al abrir)
-- [ ] T007 [P] Confirmar que `docs/documentacion_principal_crm.md` §2.1 (ya actualizado durante `/speckit-plan`) sigue siendo consistente con la implementación final; ajustar si algo cambió
+- [X] T005 [P] `npm run build` para regenerar `public/build/` con el `cliente-modal.js` actualizado
+- [X] T006 Verificar manualmente en navegador los 4 escenarios de `quickstart.md` (alta con derivación, edición manual no pisada, autocompletado por padrón, edición de cliente existente sin recálculo al abrir) — verificado en `/clientes` (botón "+ Nuevo Cliente"): Responsable Inscripto → Factura A, Monotributista → Factura B, edición manual a Factura C no se pisa al volver a cambiar la Condición de IVA
+- [X] T007 [P] Confirmar que `docs/documentacion_principal_crm.md` §2.1 (ya actualizado durante `/speckit-plan`) sigue siendo consistente con la implementación final; ajustar si algo cambió
 
 ---
 

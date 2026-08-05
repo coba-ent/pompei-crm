@@ -97,7 +97,7 @@
         }
     }
 
-    const CAMPOS_PADRON = ['razon_social', 'domicilio_fiscal', 'provincia_fiscal', 'localidad_fiscal', 'condicion_iva_id'];
+    const CAMPOS_PADRON = ['razon_social', 'domicilio_fiscal', 'provincia_fiscal', 'localidad_fiscal', 'condicion_iva_id', 'tipo_comprobante_defecto'];
 
     /** Matchea por texto (case/acentos-insensitive) contra las <option> de un <select>; devuelve el value si matchea. */
     function normalizarTexto(txt) {
@@ -147,8 +147,17 @@
             const $opcion = $select.find('option').filter(function () {
                 return $(this).text().trim() === padron.condicion_iva;
             });
-            if ($opcion.length) { $select.val($opcion.val()); }
+            if ($opcion.length) { $select.val($opcion.val()).trigger('change'); }
         }
+    }
+
+    /** Deriva Factura A/B en "Comprobante por defecto" según el texto de la Condición de IVA elegida (docs §2.1). */
+    function derivarComprobantePorCondicionIva() {
+        if (tocadoPadron.tipo_comprobante_defecto) { return; }
+        const $condicion = $form.find('select[name="condicion_iva_id"]');
+        const texto = $condicion.find('option:selected').text().trim();
+        if (!texto) { return; }
+        $form.find('select[name="tipo_comprobante_defecto"]').val(texto === 'Responsable Inscripto' ? 'A' : 'B');
     }
 
     function mostrarMensajePadron(padron) {
@@ -356,6 +365,8 @@
             const $loc = $form.find('.js-localidad[data-provincia="' + target + '"]');
             cargarLocalidades($loc, $(this).val(), null);
         });
+
+        $form.on('change', 'select[name="condicion_iva_id"]', derivarComprobantePorCondicionIva);
 
         $('#btn-agregar-contacto').on('click', function () { agregarContacto({}); });
         $('#contactos-container').on('click', '.js-quitar-contacto', function () {

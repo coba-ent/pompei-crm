@@ -243,7 +243,7 @@
         // Campos que el padrón puede completar: sólo se pisan si el usuario no
         // los tocó manualmente desde la última consulta (se resetea al abrir el
         // modal / cambiar de cliente, en resetForm()).
-        const CAMPOS_PADRON = ['razon_social', 'domicilio_fiscal', 'localidad_fiscal', 'condicion_iva_id'];
+        const CAMPOS_PADRON = ['razon_social', 'domicilio_fiscal', 'localidad_fiscal', 'condicion_iva_id', 'tipo_comprobante_defecto'];
         let tocadoPadron = {};
 
         function resetearTocadoPadron() {
@@ -279,10 +279,26 @@
                     return $(this).text().trim() === padron.condicion_iva;
                 });
                 if ($opcion.length) {
-                    $select.val($opcion.val());
+                    $select.val($opcion.val()).trigger('change');
                 }
             }
         }
+
+        // Deriva Factura A/B en "Comprobante por defecto" según el texto de la Condición de
+        // IVA elegida (spec 048), mismo criterio que ResolutorCliente/DerivadorComprobante.
+        function derivarComprobantePorCondicionIva() {
+            if (tocadoPadron.tipo_comprobante_defecto) {
+                return;
+            }
+            const $condicion = $form.find('select[name="condicion_iva_id"]');
+            const texto = $condicion.find('option:selected').text().trim();
+            if (!texto) {
+                return;
+            }
+            $form.find('select[name="tipo_comprobante_defecto"]').val(texto === 'Responsable Inscripto' ? 'A' : 'B');
+        }
+
+        $form.on('change', 'select[name="condicion_iva_id"]', derivarComprobantePorCondicionIva);
 
         function mostrarMensajePadron(padron) {
             if (!padron) {
