@@ -946,7 +946,7 @@
             const afectaStock = $('input[name="ncnd-afecta-stock"]:checked').val() === '1';
             const payload = {
                 tipo: $('#ncnd-tipo').val(),
-                afecta_stock: afectaStock,
+                afecta_stock: afectaStock ? 1 : 0,
                 mes_imputacion: $('#ncnd-mes-imputacion').val(),
                 fecha_emision: $('#ncnd-fecha').val(),
                 monto: $('#ncnd-monto').val(),
