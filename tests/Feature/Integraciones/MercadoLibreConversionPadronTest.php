@@ -118,12 +118,14 @@ class MercadoLibreConversionPadronTest extends TestCase
     {
         return json_decode(json_encode([
             'personaReturn' => [
-                'datosGenerales' => [
+                'persona' => [
                     'razonSocial' => 'ACME SA',
-                    'domicilioFiscal' => ['direccion' => 'AV CORRIENTES 1234', 'localidad' => 'CABA'],
+                    'domicilio' => [
+                        ['tipoDomicilio' => 'FISCAL', 'direccion' => 'AV CORRIENTES 1234', 'localidad' => 'CABA'],
+                    ],
                     'estadoClave' => 'ACTIVO',
+                    'datosRegimenGeneral' => ['impuesto' => [['descripcionImpuesto' => 'IVA RESPONSABLE INSCRIPTO']]],
                 ],
-                'datosRegimenGeneral' => ['impuesto' => [['descripcionImpuesto' => 'IVA RESPONSABLE INSCRIPTO']]],
             ],
         ]));
     }

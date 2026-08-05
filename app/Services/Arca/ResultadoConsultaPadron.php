@@ -43,29 +43,45 @@ class ResultadoConsultaPadron
     public static function desdeRespuesta(string $cuit, object $respuesta): self
     {
         $datos = $respuesta->personaReturn ?? $respuesta;
-        $persona = $datos->datosGenerales ?? null;
+        $persona = $datos->persona ?? null;
 
         if (! $persona) {
             return self::noEncontrado($cuit);
         }
 
-        $condicionRaw = self::extraerCondicionIva($datos);
+        $domicilioFiscal = self::extraerDomicilioFiscal($persona);
+        $condicionRaw = self::extraerCondicionIva($persona);
 
         return new self(
             cuit: $cuit,
             encontrado: true,
             razonSocial: $persona->razonSocial ?? trim(($persona->nombre ?? '').' '.($persona->apellido ?? '')) ?: null,
-            domicilioFiscal: $persona->domicilioFiscal->direccion ?? null,
-            localidadFiscal: $persona->domicilioFiscal->localidad ?? null,
+            domicilioFiscal: $domicilioFiscal->direccion ?? null,
+            localidadFiscal: $domicilioFiscal->localidad ?? $domicilioFiscal->descripcionProvincia ?? null,
             condicionIvaRaw: $condicionRaw,
             condicionIvaId: self::mapearCondicionIva($condicionRaw),
             activo: isset($persona->estadoClave) ? strtoupper((string) $persona->estadoClave) === 'ACTIVO' : null,
         );
     }
 
-    private static function extraerCondicionIva(object $datos): ?string
+    /** El padrón A13 devuelve `domicilio` como array de domicilios (FISCAL, LEGAL/REAL, etc.), no un único campo. */
+    private static function extraerDomicilioFiscal(object $persona): object
     {
-        $impuestos = $datos->datosRegimenGeneral->impuesto ?? $datos->datosMonotributo ?? null;
+        $domicilios = $persona->domicilio ?? [];
+        $domicilios = is_array($domicilios) ? $domicilios : [$domicilios];
+
+        foreach ($domicilios as $domicilio) {
+            if (strtoupper((string) ($domicilio->tipoDomicilio ?? '')) === 'FISCAL') {
+                return $domicilio;
+            }
+        }
+
+        return $domicilios[0] ?? (object) [];
+    }
+
+    private static function extraerCondicionIva(object $persona): ?string
+    {
+        $impuestos = $persona->datosRegimenGeneral->impuesto ?? $persona->datosMonotributo ?? null;
 
         if (is_array($impuestos)) {
             foreach ($impuestos as $impuesto) {
@@ -75,7 +91,7 @@ class ResultadoConsultaPadron
             }
         }
 
-        return $datos->datosMonotributo->categoria ?? null ? 'MONOTRIBUTO' : null;
+        return $persona->datosMonotributo->categoria ?? null ? 'MONOTRIBUTO' : null;
     }
 
     private static function mapearCondicionIva(?string $raw): ?int

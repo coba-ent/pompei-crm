@@ -23,14 +23,16 @@ class ResultadoConsultaPadronTest extends TestCase
     {
         return json_decode(json_encode([
             'personaReturn' => [
-                'datosGenerales' => [
+                'persona' => [
                     'razonSocial' => 'ACME SA',
-                    'domicilioFiscal' => ['direccion' => 'AV CORRIENTES 1234', 'localidad' => 'CABA'],
+                    'domicilio' => [
+                        ['tipoDomicilio' => 'FISCAL', 'direccion' => 'AV CORRIENTES 1234', 'localidad' => 'CABA'],
+                    ],
                     'estadoClave' => 'ACTIVO',
-                ],
-                'datosRegimenGeneral' => [
-                    'impuesto' => [
-                        ['descripcionImpuesto' => $condicionIva],
+                    'datosRegimenGeneral' => [
+                        'impuesto' => [
+                            ['descripcionImpuesto' => $condicionIva],
+                        ],
                     ],
                 ],
             ],
