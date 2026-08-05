@@ -36,7 +36,7 @@ class DerivadorComprobante
     }
 
     /**
-     * @return array{tipo_comprobante: string, condicion_iva: string, doc_tipo: ?string, doc_numero: ?string, aproximado: bool, razon_social: ?string, domicilio_fiscal: ?string, localidad_fiscal: ?string}
+     * @return array{tipo_comprobante: string, condicion_iva: string, doc_tipo: ?string, doc_numero: ?string, aproximado: bool, razon_social: ?string, domicilio_fiscal: ?string, localidad_fiscal: ?string, provincia_fiscal: ?string}
      */
     public function derivar(MercadoLibreOrden $orden): array
     {
@@ -55,6 +55,7 @@ class DerivadorComprobante
                 'razon_social' => null,
                 'domicilio_fiscal' => null,
                 'localidad_fiscal' => null,
+                'provincia_fiscal' => null,
             ];
         }
 
@@ -77,6 +78,7 @@ class DerivadorComprobante
                     'razon_social' => $resultadoPadron->razonSocial,
                     'domicilio_fiscal' => $resultadoPadron->domicilioFiscal,
                     'localidad_fiscal' => $resultadoPadron->localidadFiscal,
+                    'provincia_fiscal' => $resultadoPadron->provinciaFiscal,
                 ];
             }
 
@@ -89,6 +91,7 @@ class DerivadorComprobante
                 'razon_social' => null,
                 'domicilio_fiscal' => null,
                 'localidad_fiscal' => null,
+                'provincia_fiscal' => null,
             ];
         }
 
@@ -102,6 +105,7 @@ class DerivadorComprobante
             'razon_social' => null,
             'domicilio_fiscal' => null,
             'localidad_fiscal' => null,
+            'provincia_fiscal' => null,
         ];
     }
 

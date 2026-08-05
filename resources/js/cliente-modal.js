@@ -97,7 +97,21 @@
         }
     }
 
-    const CAMPOS_PADRON = ['razon_social', 'domicilio_fiscal', 'localidad_fiscal', 'condicion_iva_id'];
+    const CAMPOS_PADRON = ['razon_social', 'domicilio_fiscal', 'provincia_fiscal', 'localidad_fiscal', 'condicion_iva_id'];
+
+    /** Matchea por texto (case/acentos-insensitive) contra las <option> de un <select>; devuelve el value si matchea. */
+    function normalizarTexto(txt) {
+        return (txt || '').toString().trim().toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    }
+
+    function buscarOpcionPorTexto($select, valor) {
+        if (!valor) { return null; }
+        const buscado = normalizarTexto(valor);
+        const $opcion = $select.find('option').filter(function () {
+            return normalizarTexto($(this).text()) === buscado || normalizarTexto($(this).val()) === buscado;
+        });
+        return $opcion.length ? $opcion.first().val() : null;
+    }
     let tocadoPadron = {};
 
     function resetearTocadoPadron() {
@@ -114,8 +128,19 @@
         if (padron.domicilio_fiscal && !tocadoPadron.domicilio_fiscal) {
             $form.find('input[name="domicilio_fiscal"]').val(padron.domicilio_fiscal);
         }
-        if (padron.localidad_fiscal && !tocadoPadron.localidad_fiscal) {
-            $form.find('select[name="localidad_fiscal"]').val(padron.localidad_fiscal);
+        // Provincia y Localidad son selects linkeados (docs §2.1): primero seleccionar la
+        // provincia que devuelve el padrón, y recién con eso disparar la carga AJAX de
+        // localidades de esa provincia para poder seleccionar la localidad devuelta.
+        if (padron.provincia_fiscal && !tocadoPadron.provincia_fiscal) {
+            const $provincia = $form.find('select[name="provincia_fiscal"]');
+            const valorProvincia = buscarOpcionPorTexto($provincia, padron.provincia_fiscal);
+            if (valorProvincia !== null) {
+                $provincia.val(valorProvincia);
+                const $loc = $form.find('select[name="localidad_fiscal"]');
+                if (!tocadoPadron.localidad_fiscal) {
+                    cargarLocalidades($loc, valorProvincia, padron.localidad_fiscal || null);
+                }
+            }
         }
         if (padron.condicion_iva && !tocadoPadron.condicion_iva_id) {
             const $select = $form.find('select[name="condicion_iva_id"]');
@@ -146,10 +171,11 @@
         if (!provincia || !rutas.localidades) {
             return $.Deferred().resolve().promise();
         }
+        const buscado = seleccionar ? normalizarTexto(seleccionar) : null;
         return $.getJSON(rutas.localidades, { provincia: provincia })
             .done(function (resp) {
                 (resp.localidades || []).forEach(function (nombre) {
-                    const sel = (nombre === seleccionar) ? ' selected' : '';
+                    const sel = (buscado !== null && normalizarTexto(nombre) === buscado) ? ' selected' : '';
                     $localidad.append('<option value="' + esc(nombre) + '"' + sel + '>' + esc(nombre) + '</option>');
                 });
             });

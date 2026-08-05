@@ -86,6 +86,22 @@ El modelo de datos completo (entidades, campos y relaciones) está detallado en 
     Relaciones de Clave Fiscal de ARCA, WSDL real `personaServiceA5`) para completar ese dato — ver
     `specs/047-condicion-iva-padron-constancia/`. Ambas consultas usan el mismo certificado y
     autenticación WSAA; el fallo de una no afecta a la otra.
+  - **Corrección 05/08/2026 (fix junto con spec 047)**: el autocompletado de domicilio fiscal conflateaba
+    provincia y localidad en un único campo (`localidad_fiscal`), y el JS del modal intentaba escribir
+    ese valor directo en el `<select>` de Localidad sin antes seleccionar la Provincia — como ese select
+    depende de la Provincia elegida (opciones cargadas por AJAX), el autocompletado nunca surtía efecto.
+    Se separaron `provinciaFiscal`/`localidadFiscal` en `ResultadoConsultaPadron` (uno viene de
+    `descripcionProvincia`, el otro de `localidad` de la respuesta de ARCA) y el modal ahora selecciona
+    primero la Provincia y recién con eso carga/selecciona la Localidad. Aplica tanto al modal de
+    Cliente como a la creación/actualización automática de Cliente en la conversión de órdenes de
+    Tiendanube/MercadoLibre (mismo `ResultadoConsultaPadron` compartido).
+  - **Comprobante por defecto derivado de la Condición de IVA (spec 048)**: en el modal de alta/edición
+    de Cliente, al elegir (a mano o vía "Verificar") la Condición de IVA, "Tipo de comprobante por
+    defecto" se autocompleta con el mismo criterio ya usado en backend para la conversión de órdenes de
+    Tiendanube/MercadoLibre: Responsable Inscripto → Factura A, cualquier otra condición → Factura B.
+    El usuario puede sobreescribirlo a mano sin que se le pise (mismo mecanismo de "no pisar ediciones
+    manuales" ya usado para razón social/domicilio/condición de IVA) — ver
+    `specs/048-comprobante-defecto-condicion-iva/`.
 - Listado: tabla con columnas Id, Cliente, Nombre, Apellido, Mail, Teléfono, Teléfono Celular,
   Domicilio, Localidad, Provincia, DNI, CUIT, Condición de IVA, Usuario de Mercado Libre, Nota,
   Página Web (DNI y CUIT se muestran en columnas separadas según el tipo de documento). Buscador

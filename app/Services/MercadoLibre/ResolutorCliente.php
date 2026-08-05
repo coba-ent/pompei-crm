@@ -15,7 +15,7 @@ use App\Models\Integraciones\MercadoLibreOrden;
 class ResolutorCliente
 {
     /**
-     * @param  array{tipo_comprobante: string, condicion_iva: string, doc_tipo: ?string, doc_numero: ?string, aproximado: bool}  $datosFiscales
+     * @param  array{tipo_comprobante: string, condicion_iva: string, doc_tipo: ?string, doc_numero: ?string, aproximado: bool, razon_social?: ?string, domicilio_fiscal?: ?string, localidad_fiscal?: ?string, provincia_fiscal?: ?string}  $datosFiscales
      * @return array{cliente: ?Cliente, ambiguo: bool}
      */
     public function resolver(MercadoLibreOrden $orden, array $datosFiscales): array
@@ -80,6 +80,7 @@ class ResolutorCliente
             'razon_social' => $datosFiscales['razon_social'] ?? null,
             'domicilio_fiscal' => $datosFiscales['domicilio_fiscal'] ?? null,
             'localidad_fiscal' => $datosFiscales['localidad_fiscal'] ?? null,
+            'provincia_fiscal' => $datosFiscales['provincia_fiscal'] ?? null,
             'activo' => true,
         ]);
     }
@@ -109,6 +110,9 @@ class ResolutorCliente
         }
         if (empty($cliente->localidad_fiscal) && ! empty($datosFiscales['localidad_fiscal'])) {
             $cambios['localidad_fiscal'] = $datosFiscales['localidad_fiscal'];
+        }
+        if (empty($cliente->provincia_fiscal) && ! empty($datosFiscales['provincia_fiscal'])) {
+            $cambios['provincia_fiscal'] = $datosFiscales['provincia_fiscal'];
         }
 
         if ($cambios) {

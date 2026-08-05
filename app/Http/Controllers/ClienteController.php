@@ -112,6 +112,7 @@ class ClienteController extends Controller
             'razon_social' => $resultado->razonSocial,
             'domicilio_fiscal' => $resultado->domicilioFiscal,
             'localidad_fiscal' => $resultado->localidadFiscal,
+            'provincia_fiscal' => $resultado->provinciaFiscal,
             'condicion_iva' => $resultado->condicionIvaId ? CondicionIva::find($resultado->condicionIvaId)?->nombre : null,
             'activo' => $resultado->activo,
         ], fn ($valor) => $valor !== null);

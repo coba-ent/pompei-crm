@@ -29,6 +29,7 @@ class ResultadoConsultaPadron
         public readonly ?string $razonSocial = null,
         public readonly ?string $domicilioFiscal = null,
         public readonly ?string $localidadFiscal = null,
+        public readonly ?string $provinciaFiscal = null,
         public readonly ?string $condicionIvaRaw = null,
         public readonly ?int $condicionIvaId = null,
         public readonly ?bool $activo = null,
@@ -63,6 +64,7 @@ class ResultadoConsultaPadron
             razonSocial: $resultado->razonSocial,
             domicilioFiscal: $resultado->domicilioFiscal,
             localidadFiscal: $resultado->localidadFiscal,
+            provinciaFiscal: $resultado->provinciaFiscal,
             condicionIvaRaw: $condicionRaw,
             condicionIvaId: $condicionRaw ? CondicionIva::where('nombre', $condicionRaw)->value('id') : null,
             activo: $resultado->activo,
@@ -116,7 +118,10 @@ class ResultadoConsultaPadron
             encontrado: true,
             razonSocial: $persona->razonSocial ?? trim(($persona->nombre ?? '').' '.($persona->apellido ?? '')) ?: null,
             domicilioFiscal: $domicilioFiscal->direccion ?? null,
-            localidadFiscal: $domicilioFiscal->localidad ?? $domicilioFiscal->descripcionProvincia ?? null,
+            // Provincia y localidad son datos distintos (selects linkeados en el modal, docs §2.1) —
+            // nunca conflatearlos: `localidad` es la ciudad/partido, `descripcionProvincia` la provincia.
+            localidadFiscal: $domicilioFiscal->localidad ?? null,
+            provinciaFiscal: $domicilioFiscal->descripcionProvincia ?? null,
             condicionIvaRaw: $condicionRaw,
             condicionIvaId: self::mapearCondicionIva($condicionRaw),
             activo: isset($persona->estadoClave) ? strtoupper((string) $persona->estadoClave) === 'ACTIVO' : null,

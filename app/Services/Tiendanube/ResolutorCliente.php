@@ -180,6 +180,7 @@ class ResolutorCliente
             'razon_social' => $resultadoPadron?->razonSocial,
             'domicilio_fiscal' => $resultadoPadron?->domicilioFiscal,
             'localidad_fiscal' => $resultadoPadron?->localidadFiscal,
+            'provincia_fiscal' => $resultadoPadron?->provinciaFiscal,
             'activo' => true,
         ]);
     }
@@ -198,6 +199,7 @@ class ResolutorCliente
                 'razon_social' => $cliente->razon_social ?: $resultadoPadron?->razonSocial,
                 'domicilio_fiscal' => $cliente->domicilio_fiscal ?: $resultadoPadron?->domicilioFiscal,
                 'localidad_fiscal' => $cliente->localidad_fiscal ?: $resultadoPadron?->localidadFiscal,
+                'provincia_fiscal' => $cliente->provincia_fiscal ?: $resultadoPadron?->provinciaFiscal,
             ]);
         }
     }
