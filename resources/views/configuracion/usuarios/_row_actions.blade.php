@@ -1,6 +1,6 @@
 @php($activo = $usuario->activo)
 <div class="dropdown">
-    <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"></button>
+    <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false"></button>
     <ul class="dropdown-menu">
         <li>
             <button type="button" class="dropdown-item js-usuario-editar" data-id="{{ $usuario->id }}">

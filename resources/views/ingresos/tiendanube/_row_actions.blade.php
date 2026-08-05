@@ -2,7 +2,7 @@
     $puedeConvertir = $orden->estado_conversion->habilitaCrearVenta();
 @endphp
 <div class="dropdown">
-    <button class="btn btn-sm btn-outline-{{ $orden->estado_conversion->color() }} dropdown-toggle" type="button" data-bs-toggle="dropdown">
+    <button class="btn btn-sm btn-outline-{{ $orden->estado_conversion->color() }} dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-display="static">
         Acciones
     </button>
     <ul class="dropdown-menu">

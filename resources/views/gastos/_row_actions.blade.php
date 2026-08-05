@@ -3,7 +3,7 @@
     $label = $gasto->estado() === 'pendiente' ? 'Pendiente' : 'Pagado';
 @endphp
 <div class="dropdown">
-    <button class="btn btn-sm btn-outline-{{ $badge }} dropdown-toggle" type="button" data-bs-toggle="dropdown">
+    <button class="btn btn-sm btn-outline-{{ $badge }} dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-display="static">
         {{ $label }}
     </button>
     <ul class="dropdown-menu dropdown-menu-end">

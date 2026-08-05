@@ -44,6 +44,7 @@ return [
 			'bottom' => [
 				'js/deznav-init.js',
 				'js/datatables-scroll-fix.js',
+				'js/dropdown-escape-scroll.js',
 			],
 		],
 	],

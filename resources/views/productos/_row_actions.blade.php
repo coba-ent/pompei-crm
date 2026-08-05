@@ -1,6 +1,6 @@
 @php($activo = $producto->activo)
 <div class="dropdown">
-    <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"></button>
+    <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false"></button>
     <ul class="dropdown-menu dropdown-menu-end">
         <li><a class="dropdown-item js-producto-ver" href="#" data-id="{{ $producto->id }}">Ver</a></li>
         <li><a class="dropdown-item js-producto-editar" href="#" data-id="{{ $producto->id }}">Editar</a></li>

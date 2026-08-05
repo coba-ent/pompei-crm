@@ -14,7 +14,7 @@
 @endphp
 <div class="dropdown">
     <button class="btn btn-sm btn-outline-{{ $badge }} dropdown-toggle js-fila-estado" type="button"
-            data-bs-toggle="dropdown" data-id="{{ $presupuesto->id }}">
+            data-bs-toggle="dropdown" data-bs-display="static" data-id="{{ $presupuesto->id }}">
         {{ $label }}
     </button>
     <ul class="dropdown-menu dropdown-menu-end">

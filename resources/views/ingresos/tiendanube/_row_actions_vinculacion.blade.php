@@ -1,5 +1,5 @@
 <div class="dropdown">
-    <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+    <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-display="static">
         Acciones
     </button>
     <ul class="dropdown-menu">
