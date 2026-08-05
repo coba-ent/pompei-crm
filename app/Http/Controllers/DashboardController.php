@@ -16,6 +16,7 @@ use App\Services\Tesoreria\Tesoreria;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Pantalla de aterrizaje `/dashboard` (spec 010): agrega, en modo sólo lectura,
@@ -27,7 +28,7 @@ use Illuminate\Support\Carbon;
  */
 class DashboardController extends Controller
 {
-    private const PERIODOS_VALIDOS = ['semana', 'mes_actual', 'mes_anterior', 'anio_actual'];
+    private const PERIODOS_VALIDOS = ['hoy', 'semana', 'mes_actual', 'mes_anterior', 'anio_actual'];
 
     private const LIMITE_MOVIMIENTOS_RECIENTES = 8;
 
@@ -125,9 +126,9 @@ class DashboardController extends Controller
             $hasta = $desde->copy()->endOfMonth();
 
             $labels[] = $desde->format('Y-m');
-            $series['ventas'][] = (float) Venta::whereBetween('fecha_emision', [$desde->toDateString(), $hasta->toDateString()])->sum('total');
+            $series['ventas'][] = $this->montoNetoQuery(Venta::class, 'venta_id', 'fecha_emision', $desde, $hasta);
             $series['otros_ingresos'][] = (float) OtroIngreso::whereBetween('fecha', [$desde->toDateString(), $hasta->toDateString()])->sum('monto');
-            $series['compras'][] = (float) Compra::whereBetween('fecha_emision', [$desde->toDateString(), $hasta->toDateString()])->sum('total');
+            $series['compras'][] = $this->montoNetoQuery(Compra::class, 'compra_id', 'fecha_emision', $desde, $hasta);
             $series['gastos'][] = (float) Gasto::whereBetween('fecha', [$desde->toDateString(), $hasta->toDateString()])->sum('monto');
         }
 
@@ -191,14 +192,18 @@ class DashboardController extends Controller
     /** @return array{ventas_creadas: float, venta_promedio: float, cantidad_ventas: int, resultado: float, otros_ingresos: float, compras: float, gastos: float} */
     private function metricasRango(Carbon $desde, Carbon $hasta): array
     {
-        $rango = [$desde->toDateString(), $hasta->toDateString()];
+        // Límite superior con hora de fin de día: las columnas `date` de MySQL no tienen
+        // componente horario, pero comparar por string (como hace SQLite en tests) requiere
+        // que el límite superior no sea "menor" que un valor con hora — necesario para que un
+        // rango de un solo día (periodo "hoy", FR-010) incluya sus propias operaciones.
+        $rango = [$desde->toDateString(), $hasta->copy()->endOfDay()->toDateTimeString()];
 
-        $ventasCreadas = (float) Venta::whereBetween('fecha_emision', $rango)->sum('total');
+        $ventasCreadas = $this->montoNetoQuery(Venta::class, 'venta_id', 'fecha_emision', $desde, $hasta);
         $cantidadVentas = (int) Venta::whereBetween('fecha_emision', $rango)->count();
         $ventaPromedio = $cantidadVentas > 0 ? round($ventasCreadas / $cantidadVentas, 2) : 0.0;
 
         $otrosIngresos = (float) OtroIngreso::whereBetween('fecha', $rango)->where('pendiente', false)->sum('monto');
-        $compras = (float) Compra::whereBetween('fecha_emision', $rango)->sum('total');
+        $compras = $this->montoNetoQuery(Compra::class, 'compra_id', 'fecha_emision', $desde, $hasta);
         $gastos = (float) Gasto::whereBetween('fecha', $rango)->where('pendiente', false)->sum('monto');
 
         $resultado = round($ventasCreadas + $otrosIngresos - $compras - $gastos, 2);
@@ -217,19 +222,40 @@ class DashboardController extends Controller
     /** @return array{0: string, 1: float}[] lista [nombre_categoria, monto] ordenada desc */
     private function composicionPorCategoria(string $modelo, string $campoFecha, string $campoMonto, Carbon $desde, Carbon $hasta): array
     {
-        $filas = $modelo::whereBetween($campoFecha, [$desde->toDateString(), $hasta->toDateString()])
-            ->selectRaw("categoria_id, SUM({$campoMonto}) as monto")
-            ->groupBy('categoria_id')
-            ->get();
+        $columnaFk = match ($modelo) {
+            Venta::class => 'venta_id',
+            Compra::class => 'compra_id',
+            default => null,
+        };
 
-        $idsCategorias = $filas->pluck('categoria_id')->filter()->values();
-        $categorias = Categoria::whereIn('id', $idsCategorias)->get()->keyBy('id');
+        if ($columnaFk !== null) {
+            // Venta/Compra: neta de NC/ND por categoría (FR-006), ver montoNetoPorCategoriaQuery().
+            $porCategoria = $this->montoNetoPorCategoriaQuery($modelo, $columnaFk, $campoFecha, $desde, $hasta);
+            $idsCategorias = collect(array_keys($porCategoria))->filter(fn ($id) => $id !== 'sin_categoria')->values();
+            $categorias = Categoria::whereIn('id', $idsCategorias)->get()->keyBy('id');
 
-        $totales = [];
-        foreach ($filas as $fila) {
-            $categoria = $fila->categoria_id ? $categorias->get($fila->categoria_id) : null;
-            $nombre = ($categoria && $categoria->activo) ? $categoria->nombre : 'Sin categoría';
-            $totales[$nombre] = ($totales[$nombre] ?? 0.0) + (float) $fila->monto;
+            $totales = [];
+            foreach ($porCategoria as $categoriaId => $monto) {
+                $categoria = $categoriaId !== 'sin_categoria' ? $categorias->get($categoriaId) : null;
+                $nombre = ($categoria && $categoria->activo) ? $categoria->nombre : 'Sin categoría';
+                $totales[$nombre] = ($totales[$nombre] ?? 0.0) + $monto;
+            }
+        } else {
+            // Gasto: sin NC/ND, se mantiene la suma bruta agrupada por categoría.
+            $filas = $modelo::whereBetween($campoFecha, [$desde->toDateString(), $hasta->copy()->endOfDay()->toDateTimeString()])
+                ->selectRaw("categoria_id, SUM({$campoMonto}) as monto")
+                ->groupBy('categoria_id')
+                ->get();
+
+            $idsCategorias = $filas->pluck('categoria_id')->filter()->values();
+            $categorias = Categoria::whereIn('id', $idsCategorias)->get()->keyBy('id');
+
+            $totales = [];
+            foreach ($filas as $fila) {
+                $categoria = $fila->categoria_id ? $categorias->get($fila->categoria_id) : null;
+                $nombre = ($categoria && $categoria->activo) ? $categoria->nombre : 'Sin categoría';
+                $totales[$nombre] = ($totales[$nombre] ?? 0.0) + (float) $fila->monto;
+            }
         }
 
         arsort($totales);
@@ -238,6 +264,97 @@ class DashboardController extends Controller
             ->map(fn ($monto, $nombre) => ['categoria' => $nombre, 'monto' => round($monto, 2)])
             ->values()
             ->all();
+    }
+
+    /**
+     * Monto neto de Venta/Compra en `[$desde, $hasta]`, restando NC y sumando ND por período de
+     * emisión de cada nota (research.md Decisión 1): componente 1 = suma por fila con piso $0 de
+     * las ventas/compras del propio rango; componente 2 = ajuste crudo sin piso de notas cuyo
+     * período cae en el rango pero cuya venta/compra base cayó en otro período. El piso $0 se
+     * aplica con `CASE WHEN ... > 0` sobre una subconsulta derivada (en vez de `GREATEST`/`MAX`
+     * multi-argumento) para que la misma consulta corra tanto en MySQL (producción) como en
+     * SQLite (tests).
+     */
+    private function montoNetoQuery(string $modelo, string $columnaFk, string $campoFecha, Carbon $desde, Carbon $hasta): float
+    {
+        $tabla = (new $modelo)->getTable();
+        // Límite superior con hora de fin de día (mismo motivo que en metricasRango()): necesario
+        // para que un rango de un solo día (periodo "hoy") incluya sus propias operaciones.
+        $rango = [$desde->toDateString(), $hasta->copy()->endOfDay()->toDateTimeString()];
+
+        $componente1 = DB::selectOne(
+            "SELECT COALESCE(SUM(CASE WHEN x.monto_bruto > 0 THEN x.monto_bruto ELSE 0 END), 0) as monto
+            FROM (
+                SELECT (t.total
+                    + COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.{$columnaFk} = t.id AND n.tipo = 'debito' AND n.deleted_at IS NULL AND n.fecha_emision BETWEEN ? AND ?), 0)
+                    - COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.{$columnaFk} = t.id AND n.tipo = 'credito' AND n.deleted_at IS NULL AND n.fecha_emision BETWEEN ? AND ?), 0)
+                ) as monto_bruto
+                FROM {$tabla} t
+                WHERE t.deleted_at IS NULL AND t.{$campoFecha} BETWEEN ? AND ?
+            ) x",
+            [...$rango, ...$rango, ...$rango]
+        )->monto;
+
+        $componente2 = DB::selectOne(
+            "SELECT COALESCE(SUM(CASE WHEN n.tipo = 'debito' THEN n.monto ELSE -n.monto END), 0) as monto
+            FROM notas_credito_debito n
+            JOIN {$tabla} t ON t.id = n.{$columnaFk}
+            WHERE n.fecha_emision BETWEEN ? AND ?
+              AND n.deleted_at IS NULL
+              AND t.deleted_at IS NULL
+              AND t.{$campoFecha} NOT BETWEEN ? AND ?",
+            [...$rango, ...$rango]
+        )->monto;
+
+        return (float) $componente1 + (float) $componente2;
+    }
+
+    /**
+     * Igual que {@see montoNetoQuery()} pero agrupado por `categoria_id` (categoría vigente
+     * heredada de la Venta/Compra, FR-006), para alimentar `composicionPorCategoria()`.
+     *
+     * @return array<int|string, float> monto neto indexado por categoria_id (clave string 'sin_categoria' si null)
+     */
+    private function montoNetoPorCategoriaQuery(string $modelo, string $columnaFk, string $campoFecha, Carbon $desde, Carbon $hasta): array
+    {
+        $tabla = (new $modelo)->getTable();
+        // Límite superior con hora de fin de día (mismo motivo que en metricasRango()): necesario
+        // para que un rango de un solo día (periodo "hoy") incluya sus propias operaciones.
+        $rango = [$desde->toDateString(), $hasta->copy()->endOfDay()->toDateTimeString()];
+
+        $filas1 = DB::select(
+            "SELECT x.categoria_id as categoria_id, COALESCE(SUM(CASE WHEN x.monto_bruto > 0 THEN x.monto_bruto ELSE 0 END), 0) as monto
+            FROM (
+                SELECT t.categoria_id, (t.total
+                    + COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.{$columnaFk} = t.id AND n.tipo = 'debito' AND n.deleted_at IS NULL AND n.fecha_emision BETWEEN ? AND ?), 0)
+                    - COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.{$columnaFk} = t.id AND n.tipo = 'credito' AND n.deleted_at IS NULL AND n.fecha_emision BETWEEN ? AND ?), 0)
+                ) as monto_bruto
+                FROM {$tabla} t
+                WHERE t.deleted_at IS NULL AND t.{$campoFecha} BETWEEN ? AND ?
+            ) x
+            GROUP BY x.categoria_id",
+            [...$rango, ...$rango, ...$rango]
+        );
+
+        $filas2 = DB::select(
+            "SELECT t.categoria_id as categoria_id, COALESCE(SUM(CASE WHEN n.tipo = 'debito' THEN n.monto ELSE -n.monto END), 0) as monto
+            FROM notas_credito_debito n
+            JOIN {$tabla} t ON t.id = n.{$columnaFk}
+            WHERE n.fecha_emision BETWEEN ? AND ?
+              AND n.deleted_at IS NULL
+              AND t.deleted_at IS NULL
+              AND t.{$campoFecha} NOT BETWEEN ? AND ?
+            GROUP BY t.categoria_id",
+            [...$rango, ...$rango]
+        );
+
+        $totales = [];
+        foreach ([...$filas1, ...$filas2] as $fila) {
+            $clave = $fila->categoria_id ?? 'sin_categoria';
+            $totales[$clave] = ($totales[$clave] ?? 0.0) + (float) $fila->monto;
+        }
+
+        return $totales;
     }
 
     /**
@@ -254,6 +371,10 @@ class DashboardController extends Controller
         $hoy = Carbon::today();
 
         switch ($periodo) {
+            case 'hoy':
+                $desde = $hoy->copy();
+                $hasta = $hoy->copy();
+                break;
             case 'semana':
                 $desde = $hoy->copy()->startOfWeek();
                 $hasta = $hoy->copy()->endOfWeek();

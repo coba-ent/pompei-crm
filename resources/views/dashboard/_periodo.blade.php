@@ -1,5 +1,8 @@
 <ul class="nav nav-pills" id="dashboard-periodo">
     <li class="nav-item">
+        <button type="button" class="nav-link" data-periodo="hoy">Hoy</button>
+    </li>
+    <li class="nav-item">
         <button type="button" class="nav-link" data-periodo="semana">Última Semana</button>
     </li>
     <li class="nav-item">
