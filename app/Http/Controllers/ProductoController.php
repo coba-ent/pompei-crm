@@ -276,7 +276,10 @@ class ProductoController extends Controller
         $depositos = $this->depositosActivos();
 
         $encabezados = [
-            'Nombre', 'Código/SKU', 'Tipo', 'Tipo de Producto', 'Proveedor', 'Precio venta',
+            // "Id" primero: permite reimportar este mismo CSV mapeando Id + las columnas
+            // editadas para que el importador (ImportadorFilas::resolverModoFila()) lo
+            // reconozca como actualización de estos productos en vez de crear duplicados.
+            'Id', 'Nombre', 'Código/SKU', 'Tipo', 'Tipo de Producto', 'Proveedor', 'Precio venta',
             ...$listas->map(fn ($l) => $l->nombre)->all(),
             'IVA venta', 'Costo', 'IVA compra', 'Stock total',
             // Mismo desglose por depósito que el listado, en el mismo orden.
@@ -292,6 +295,7 @@ class ProductoController extends Controller
             $query->orderBy('nombre')->chunk(500, function ($productos) use ($salida, $listas, $depositos) {
                 foreach ($productos as $p) {
                     fputcsv($salida, [
+                        $p->id,
                         $p->nombre,
                         $p->codigo,
                         $p->tipo,

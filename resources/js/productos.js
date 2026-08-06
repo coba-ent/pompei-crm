@@ -399,12 +399,17 @@
             }
         });
 
-        // Exportar respetando filtros y búsqueda.
+        // Exportar respetando todos los filtros vigentes del panel (mismo criterio
+        // que la DataTable y que Acciones Masivas "todos los que matchean el
+        // filtro"), no sólo estado/tipo/búsqueda.
         $('#btn-exportar').on('click', function () {
-            const params = new URLSearchParams({
-                estado: $('#filtro-estado').val() || '',
-                tipo: $('#filtro-tipo').val() || '',
-                buscar: (tabla.search() || ''),
+            const filtros = filtrosActuales();
+            filtros.buscar = filtros.buscar || tabla.search() || '';
+            const params = new URLSearchParams();
+            Object.entries(filtros).forEach(([clave, valor]) => {
+                if (valor !== null && valor !== undefined && valor !== '') {
+                    params.set(clave, valor);
+                }
             });
             window.location = rutas.export + '?' + params.toString();
             toast('info', 'Generando la exportación...');

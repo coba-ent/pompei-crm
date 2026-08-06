@@ -86,9 +86,13 @@ class ImportadorFilas
                     continue;
                 }
 
-                // Actualización parcial real: `update()` sólo persiste las columnas
-                // presentes en $datos (research.md §3, FR-003).
-                $resolucion['registro']->update($datos);
+                // Actualización parcial real: `update()`/`actualizarProducto()` sólo
+                // persisten las columnas presentes en $datos (research.md §3, FR-003).
+                if ($entidad === 'productos') {
+                    $this->actualizarProducto($resolucion['registro'], $datos, $usuario);
+                } else {
+                    $resolucion['registro']->update($datos);
+                }
                 $importados++;
 
                 foreach ($advertenciasFila as $motivo) {
@@ -672,7 +676,15 @@ class ImportadorFilas
      *
      * @param  array<string, mixed>  $datos
      */
-    private function crearProducto(array $datos, ?User $usuario, ?int $idForzado = null): void
+    /**
+     * Saca del payload las claves que no son columnas reales de `productos`
+     * (`precio_lista_{id}`, `stock_deposito_{id}`, `stock_total_verificacion`) —
+     * comparten este parseo el alta y la actualización.
+     *
+     * @param  array<string, mixed>  $datos
+     * @return array{0: array<int, mixed>, 1: array<int, float>} [precios por lista_precio_id, stock por deposito_id]
+     */
+    private function extraerPreciosYStock(array &$datos): array
     {
         $precios = [];
         $stockPorDeposito = [];
@@ -688,7 +700,7 @@ class ImportadorFilas
 
             if (preg_match('/^stock_deposito_(\d+)$/', $campo, $m)) {
                 unset($datos[$campo]);
-                if ($valor !== null && $valor !== '' && (float) $valor > 0) {
+                if ($valor !== null && $valor !== '') {
                     $stockPorDeposito[(int) $m[1]] = (float) $valor;
                 }
 
@@ -699,6 +711,13 @@ class ImportadorFilas
                 unset($datos[$campo]);
             }
         }
+
+        return [$precios, $stockPorDeposito];
+    }
+
+    private function crearProducto(array $datos, ?User $usuario, ?int $idForzado = null): void
+    {
+        [$precios, $stockPorDeposito] = $this->extraerPreciosYStock($datos);
 
         if ($idForzado === null) {
             $producto = Producto::create($datos);
@@ -717,12 +736,59 @@ class ImportadorFilas
 
         if ($producto->controlaStock()) {
             foreach ($stockPorDeposito as $depositoId => $cantidad) {
+                if ($cantidad <= 0) {
+                    continue;
+                }
                 $this->stockService->ajustar(
                     $producto,
                     null,
                     Deposito::findOrFail($depositoId),
                     $cantidad,
                     'Registro inicial (importación)',
+                    $usuario,
+                );
+            }
+        }
+    }
+
+    /**
+     * Camino de actualización para productos (spec de edición masiva vía Excel):
+     * el mismo tratamiento que `crearProducto()` para `precio_lista_*`/`stock_deposito_*`,
+     * pero contra un producto existente — upsert por lista de precio en vez de `create()`
+     * (evita duplicar filas en `precios_producto` si ya tenía precio en esa lista), y
+     * ajuste de stock por diferencia contra la cantidad actual (la planilla trae el
+     * valor final deseado, no un delta) vía `StockService::ajustar()` para que quede
+     * también el `MovimientoStock` correspondiente.
+     *
+     * @param  array<string, mixed>  $datos
+     */
+    private function actualizarProducto(Producto $producto, array $datos, ?User $usuario): void
+    {
+        [$precios, $stockPorDeposito] = $this->extraerPreciosYStock($datos);
+
+        $producto->update($datos);
+
+        foreach ($precios as $listaPrecioId => $precio) {
+            $producto->precios()->updateOrCreate(
+                ['lista_precio_id' => $listaPrecioId],
+                ['precio' => $precio],
+            );
+        }
+
+        if ($producto->controlaStock()) {
+            foreach ($stockPorDeposito as $depositoId => $cantidadDeseada) {
+                $deposito = Deposito::findOrFail($depositoId);
+                $actual = $this->stockService->disponibilidad($producto, null, $deposito);
+                $diferencia = $cantidadDeseada - $actual;
+                if ($diferencia === 0.0) {
+                    continue;
+                }
+                $this->stockService->ajustar(
+                    $producto,
+                    null,
+                    $deposito,
+                    $diferencia,
+                    'Ajuste (importación)',
                     $usuario,
                 );
             }
