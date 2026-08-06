@@ -31,7 +31,12 @@
 
             <div class="card mb-3">
                 <div class="card-body">
-                    <h6 class="fw-bold mb-3">Mapeo de columnas</h6>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-bold mb-0">Mapeo de columnas</h6>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-desmapear-todo">
+                            <i class="fas fa-eraser me-1"></i> Desmapear todo
+                        </button>
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-bordered align-middle">
                             <thead>
@@ -125,6 +130,13 @@
         };
         select.addEventListener('change', actualizar);
         actualizar();
+    });
+
+    document.getElementById('btn-desmapear-todo').addEventListener('click', function () {
+        document.querySelectorAll('.js-select-mapeo').forEach(function (select) {
+            select.value = '';
+            select.dispatchEvent(new Event('change'));
+        });
     });
 
     document.getElementById('form-cancelar').addEventListener('submit', function () {
