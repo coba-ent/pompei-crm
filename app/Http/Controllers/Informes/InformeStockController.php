@@ -8,6 +8,7 @@ use App\Models\Producto;
 use App\Models\Proveedor;
 use App\Models\TipoProducto;
 use App\Models\User;
+use App\Models\Venta;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -67,6 +68,11 @@ class InformeStockController extends Controller
             ->leftJoin('productos', 'productos.id', '=', 'mov.producto_id')
             ->leftJoin('depositos', 'depositos.id', '=', 'mov.deposito_id')
             ->leftJoin('users', 'users.id', '=', 'mov.usuario_id')
+            ->leftJoin('ventas', function ($join) {
+                $join->on('ventas.id', '=', 'mov.origen_id')
+                    ->where('mov.origen_type', '=', Venta::class);
+            })
+            ->leftJoin('clientes', 'clientes.id', '=', 'ventas.cliente_id')
             ->select([
                 'mov.id as id',
                 'mov.fecha as fecha',
@@ -82,7 +88,29 @@ class InformeStockController extends Controller
                 'productos.activo as producto_activo',
                 'depositos.nombre as deposito',
                 'users.name as usuario',
+                DB::raw($this->sqlDetalle().' as detalle'),
             ]);
+    }
+
+    /**
+     * Columna calculada `detalle` (CASE SQL): comprobante + cliente cuando el
+     * movimiento viene de una Venta, o `mov.descripcion` para el resto de
+     * orígenes (FR-004/FR-005/FR-006). Sintaxis de concatenación portable
+     * entre MySQL (producción) y SQLite (tests).
+     */
+    private function sqlDetalle(): string
+    {
+        if (DB::getDriverName() === 'sqlite') {
+            return "CASE WHEN ventas.id IS NOT NULL THEN ".
+                "ventas.tipo_comprobante || ' ' || ventas.nro_comprobante || ".
+                "CASE WHEN clientes.nombre IS NOT NULL THEN ' - ' || clientes.nombre ELSE '' END ".
+                'ELSE mov.descripcion END';
+        }
+
+        return "CASE WHEN ventas.id IS NOT NULL THEN ".
+            "CONCAT(ventas.tipo_comprobante, ' ', ventas.nro_comprobante, ".
+            "IF(clientes.nombre IS NOT NULL, CONCAT(' - ', clientes.nombre), '')) ".
+            'ELSE mov.descripcion END';
     }
 
     /** Aplica los filtros externos de pantalla (nunca dentro de la ventana). */

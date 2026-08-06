@@ -17,7 +17,7 @@ class MovimientoStock extends Model
 
     protected $casts = [
         'cantidad' => 'decimal:3',
-        'fecha' => 'date',
+        'fecha' => 'datetime',
     ];
 
     public function origen(): MorphTo

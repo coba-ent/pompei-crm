@@ -152,7 +152,7 @@
                         return etiquetas[val] || val;
                     },
                 },
-                { data: 'descripcion', name: 'descripcion', defaultContent: '' },
+                { data: 'detalle', name: 'detalle', defaultContent: '' },
                 { data: 'producto', name: 'producto', defaultContent: '' },
                 {
                     data: 'cantidad', name: 'cantidad', className: 'text-end',

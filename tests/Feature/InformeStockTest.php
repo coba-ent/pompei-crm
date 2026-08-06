@@ -2,17 +2,23 @@
 
 namespace Tests\Feature;
 
+use App\Models\Cliente;
 use App\Models\Deposito;
 use App\Models\MovimientoStock;
 use App\Models\Producto;
 use App\Models\Stock;
+use App\Models\Venta;
+use App\Services\Stock\StockService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
  * US3 — Informe de Stock: cálculo de "Stock Saldo" (research.md §2), KPIs de
  * valorización (misma fórmula que ProductoController::estadisticas()) y el
  * límite del filtro "Operación" a los tipos que el sistema genera hoy (FR-013).
+ *
+ * spec 051: orden por fecha+hora real y columna Detalle con datos de Venta.
  */
 class InformeStockTest extends TestCase
 {
@@ -122,5 +128,167 @@ class InformeStockTest extends TestCase
 
         $this->assertCount(1, $resp['data']);
         $this->assertSame($productoA->id, $resp['data'][0]['producto_id']);
+    }
+
+    private function deposito(): Deposito
+    {
+        return Deposito::create(['nombre' => 'Principal', 'activo' => true]);
+    }
+
+    public function test_movimientos_del_mismo_dia_se_ordenan_por_hora_real(): void
+    {
+        $deposito = $this->deposito();
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+        $stock = app(StockService::class);
+
+        $stock->ajustar($producto, null, $deposito, 5, 'Tarde', fecha: '2026-08-06 18:00:00');
+        $stock->ajustar($producto, null, $deposito, 3, 'Mañana', fecha: '2026-08-06 08:00:00');
+
+        $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
+        $descripciones = collect($respuesta->json('data'))->pluck('descripcion')->all();
+
+        $this->assertSame(['Mañana', 'Tarde'], $descripciones);
+    }
+
+    public function test_saldo_corrido_correcto_con_varios_movimientos_mismo_dia_distinta_hora(): void
+    {
+        $deposito = $this->deposito();
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+        $stock = app(StockService::class);
+
+        $stock->ajustar($producto, null, $deposito, 5, 'Tarde', fecha: '2026-08-06 18:00:00');
+        $stock->ajustar($producto, null, $deposito, 3, 'Mañana', fecha: '2026-08-06 08:00:00');
+
+        $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
+        $saldos = collect($respuesta->json('data'))->pluck('stock_saldo')->all();
+
+        $this->assertEquals([3.0, 8.0], $saldos);
+    }
+
+    public function test_ajuste_sin_fecha_explicita_persiste_con_hora_real(): void
+    {
+        $deposito = $this->deposito();
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+
+        $this->travelTo(now()->setTime(15, 30, 0));
+
+        app(StockService::class)->ajustar($producto, null, $deposito, 1, 'Ajuste sin fecha');
+
+        $movimiento = MovimientoStock::where('descripcion', 'Ajuste sin fecha')->firstOrFail();
+
+        $this->assertSame('15:30:00', $movimiento->fecha->format('H:i:s'));
+    }
+
+    public function test_alta_de_stock_por_compra_conserva_hora_00_00_00(): void
+    {
+        $deposito = $this->deposito();
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+
+        $this->travelTo(now()->setTime(15, 30, 0));
+
+        app(StockService::class)->registrarEntrada($producto, null, $deposito, 1, null, null, '2026-08-06');
+
+        $movimiento = MovimientoStock::latest('id')->firstOrFail();
+
+        $this->assertSame('00:00:00', $movimiento->fecha->format('H:i:s'));
+    }
+
+    public function test_filtros_de_fecha_existentes_siguen_funcionando_con_fecha_datetime(): void
+    {
+        $deposito = $this->deposito();
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+        $stock = app(StockService::class);
+
+        $stock->ajustar($producto, null, $deposito, 5, 'Dentro del rango', fecha: '2026-08-06 10:00:00');
+        $stock->ajustar($producto, null, $deposito, 2, 'Fuera del rango', fecha: '2026-08-10 10:00:00');
+
+        $respuesta = $this->getJson(route('informes.stock.data', [
+            'fecha_desde' => '2026-08-06',
+            'fecha_hasta' => '2026-08-06',
+        ]))->assertOk();
+
+        $descripciones = collect($respuesta->json('data'))->pluck('descripcion')->all();
+
+        $this->assertSame(['Dentro del rango'], $descripciones);
+    }
+
+    private function crearVenta(Cliente $cliente, string $nroComprobante = '0001-00000001'): Venta
+    {
+        return Venta::create([
+            'cliente_id' => $cliente->id,
+            'tipo_comprobante' => 'B',
+            'nro_comprobante' => $nroComprobante,
+            'fecha_emision' => '2026-08-06',
+            'total' => 100,
+        ]);
+    }
+
+    public function test_detalle_de_venta_con_cliente_incluye_comprobante_y_cliente(): void
+    {
+        $deposito = $this->deposito();
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+        $cliente = Cliente::factory()->create(['nombre' => 'Juan Pérez']);
+        $venta = $this->crearVenta($cliente);
+
+        app(StockService::class)->registrarSalida($producto, null, $deposito, 1, $venta);
+
+        $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
+        $detalle = collect($respuesta->json('data'))->pluck('detalle')->first();
+
+        $this->assertSame('B 0001-00000001 - Juan Pérez', $detalle);
+    }
+
+    /**
+     * FR-005 exige que, cuando la venta de origen no tiene cliente, el Detalle
+     * omita esa parte sin error. `ventas.cliente_id` es NOT NULL en el modelo
+     * de datos actual (toda venta requiere cliente), así que se ejercita la
+     * misma rama de la CASE SQL (`clientes.nombre IS NULL`) por la vía
+     * alcanzable dentro de esa restricción: una venta cuyo `origen_id` ya no
+     * resuelve a una fila accesible (venta borrada a nivel de datos / dato
+     * legado), degradando el Detalle sin romper (edge case del spec.md).
+     */
+    public function test_detalle_degrada_sin_error_si_la_venta_de_origen_no_es_accesible(): void
+    {
+        $deposito = $this->deposito();
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+
+        app(StockService::class)->registrarSalida($producto, null, $deposito, 1, new Venta(['id' => 999999]));
+
+        $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
+        $detalle = collect($respuesta->json('data'))->pluck('detalle')->first();
+
+        $this->assertNull($detalle);
+    }
+
+    public function test_reintegro_por_eliminacion_de_venta_conserva_el_detalle_de_origen(): void
+    {
+        $deposito = $this->deposito();
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+        $cliente = Cliente::factory()->create(['nombre' => 'Juan Pérez']);
+        $venta = $this->crearVenta($cliente);
+
+        $stock = app(StockService::class);
+        $stock->registrarSalida($producto, null, $deposito, 1, $venta);
+        $stock->registrarEntrada($producto, null, $deposito, 1, $venta);
+        $venta->delete();
+
+        $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
+        $detalles = collect($respuesta->json('data'))->pluck('detalle')->all();
+
+        $this->assertSame(['B 0001-00000001 - Juan Pérez', 'B 0001-00000001 - Juan Pérez'], $detalles);
+    }
+
+    public function test_movimientos_de_compra_ajuste_y_transferencia_usan_descripcion_como_detalle(): void
+    {
+        $deposito = $this->deposito();
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+
+        app(StockService::class)->ajustar($producto, null, $deposito, 5, 'Ajuste manual de prueba');
+
+        $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
+        $fila = collect($respuesta->json('data'))->first();
+
+        $this->assertSame('Ajuste manual de prueba', $fila['detalle']);
+        $this->assertSame($fila['descripcion'], $fila['detalle']);
     }
 }

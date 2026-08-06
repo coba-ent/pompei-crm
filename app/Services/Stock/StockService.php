@@ -50,7 +50,7 @@ class StockService
                 'tipo' => 'ajuste',
                 'cantidad' => $cantidadConSigno,
                 'descripcion' => $descripcion,
-                'fecha' => $fecha ?: now()->toDateString(),
+                'fecha' => $fecha ?: now(),
                 'usuario_id' => $usuario?->id,
             ]);
 
@@ -77,7 +77,7 @@ class StockService
         ?string $fecha = null,
     ): array {
         $cantidad = abs($cantidad);
-        $fecha = $fecha ?: now()->toDateString();
+        $fecha = $fecha ?: now();
 
         return DB::transaction(function () use ($producto, $variante, $salida, $entrada, $cantidad, $descripcion, $usuario, $fecha) {
             $stockSalida = Stock::lockForUpdate()->firstOrNew([
@@ -197,7 +197,7 @@ class StockService
                 'cantidad' => $signo * $cantidad,
                 'origen_type' => $origen ? $origen->getMorphClass() : null,
                 'origen_id' => $origen?->getKey(),
-                'fecha' => $fecha ?: now()->toDateString(),
+                'fecha' => $fecha ?: now(),
                 'usuario_id' => $usuario?->id,
             ]);
 

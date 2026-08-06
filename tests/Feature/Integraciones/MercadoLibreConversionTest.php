@@ -294,6 +294,28 @@ class MercadoLibreConversionTest extends TestCase
         $this->assertDatabaseHas('stocks', ['cantidad' => -1]);
     }
 
+    /**
+     * spec 051 (research.md D4): el movimiento de stock que genera una venta
+     * de Mercado Libre resuelve el mismo Detalle (comprobante + cliente) que
+     * una venta manual en el Informe de Stock, porque ambas usan el mismo
+     * modelo `Venta` como origen polimórfico.
+     */
+    public function test_movimiento_de_venta_de_mercadolibre_resuelve_detalle_en_informe_de_stock(): void
+    {
+        $orden = $this->crearOrden();
+
+        $resultado = app(ConversorOrdenAVenta::class)->convertir($orden, null, automatica: true);
+        $venta = $resultado['venta']->fresh(['cliente']);
+
+        $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
+        $detalle = collect($respuesta->json('data'))->firstWhere('tipo', 'salida')['detalle'];
+
+        $this->assertSame(
+            "{$venta->tipo_comprobante} {$venta->nro_comprobante} - {$venta->cliente->nombre}",
+            $detalle
+        );
+    }
+
     // -------------------------------------------------------------------
     // T068 — resolución de Cliente
     // -------------------------------------------------------------------
