@@ -581,7 +581,7 @@
 
         $('#f-producto').on('select2:select', function (e) {
             const producto = e.params.data.producto;
-            items.push({ producto_id: producto.id, descripcion: producto.nombre, cantidad: 1, precio_unitario: producto.precio || 0, descuento_pct: null, iva_pct: producto.iva_venta_pct || '21' });
+            items.unshift({ producto_id: producto.id, descripcion: producto.nombre, cantidad: 1, precio_unitario: producto.precio || 0, descuento_pct: null, iva_pct: producto.iva_venta_pct || '21' });
             renderItems();
             $(this).val(null).trigger('change');
         });
@@ -619,8 +619,8 @@
 
                 const $tr = $('<tr>');
                 $tr.append($('<td>').text(item.descripcion));
-                $tr.append($('<td style="width:90px">').append($('<input type="text" inputmode="decimal" class="form-control form-control-sm">').attr('data-idx', idx).attr('data-field', 'cantidad').val(item.cantidad === undefined || item.cantidad === '' ? cant : item.cantidad).on('input', function () { items[idx].cantidad = normalizarDecimal($(this).val()); renderItems(); })));
-                $tr.append($('<td style="width:110px">').append($('<input type="text" inputmode="decimal" class="form-control form-control-sm">').attr('data-idx', idx).attr('data-field', 'precio_unitario').val(item.precio_unitario === undefined || item.precio_unitario === '' ? precio : item.precio_unitario).on('input', function () { items[idx].precio_unitario = normalizarDecimal($(this).val()); renderItems(); })));
+                $tr.append($('<td style="width:90px">').append($('<input type="text" inputmode="decimal" class="form-control form-control-sm">').attr('data-idx', idx).attr('data-field', 'cantidad').val(item.cantidad === undefined ? cant : item.cantidad).on('input', function () { items[idx].cantidad = normalizarDecimal($(this).val()); renderItems(); })));
+                $tr.append($('<td style="width:110px">').append($('<input type="text" inputmode="decimal" class="form-control form-control-sm">').attr('data-idx', idx).attr('data-field', 'precio_unitario').val(item.precio_unitario === undefined ? precio : item.precio_unitario).on('input', function () { items[idx].precio_unitario = normalizarDecimal($(this).val()); renderItems(); })));
                 $tr.append($('<td style="width:90px">').append($('<input type="text" inputmode="decimal" class="form-control form-control-sm">').attr('data-idx', idx).attr('data-field', 'descuento_pct').val(item.descuento_pct || '').on('input', function () { items[idx].descuento_pct = normalizarDecimal($(this).val()); renderItems(); })));
                 $tr.append($('<td>').text(money(subtotal)));
                 $tr.append($('<td style="width:90px">').append($('<select class="form-select form-select-sm">' + ['5', '10.5', '21', '27', 'exento', 'no_gravado'].map((v) => '<option value="' + v + '"' + (v === item.iva_pct ? ' selected' : '') + '>' + v + '</option>').join('') + '</select>').on('change', function () { items[idx].iva_pct = $(this).val(); renderItems(); })));
