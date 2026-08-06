@@ -235,6 +235,7 @@ class MercadoLibreConversionTest extends TestCase
         $respuesta = $this->putJson(route('ventas.update', $venta), [
             'submit_token' => (string) \Illuminate\Support\Str::uuid(),
             'cliente_id' => $venta->cliente_id,
+            'deposito_id' => Deposito::first()->id,
             'fecha_emision' => $venta->fecha_emision->toDateString(),
             'tipo_comprobante' => 'A',
             'items' => $itemsPayload,

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Compra;
+use App\Models\Deposito;
 use App\Models\Proveedor;
 use App\Models\Rol;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -23,9 +24,13 @@ class CompraCalculoTest extends TestCase
 
     private function payload(Proveedor $proveedor, array $overrides = []): array
     {
+        $deposito = Deposito::first() ?? Deposito::create(['nombre' => 'Principal', 'activo' => true]);
+
         return array_merge([
             'submit_token' => (string) \Illuminate\Support\Str::uuid(),
             'proveedor_id' => $proveedor->id,
+            'deposito_id' => $deposito->id,
+            'nro_comprobante' => '0001-'.str_pad((string) random_int(1, 99999999), 8, '0', STR_PAD_LEFT),
             'fecha_emision' => now()->toDateString(),
             'tipo_comprobante' => 'A',
             'items' => [

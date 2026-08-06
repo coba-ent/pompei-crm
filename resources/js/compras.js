@@ -197,6 +197,8 @@
             }
         });
 
+        initSelect2($('#f-deposito'), { placeholder: 'Seleccioná un Depósito' });
+
         initSelect2($('#f-proveedor'), {
             placeholder: 'Seleccionar Proveedor',
             ajax: {
@@ -220,6 +222,13 @@
             refreshSelect2($('#f-proveedor'));
         }
         if (data.categoriaId) { renderCategorias(data.categoriaId); }
+        if (data.depositoId) { $('#f-deposito').val(data.depositoId).trigger('change.select2'); }
+        if (data.nroComprobante) { $('#f-nro-comprobante').val(data.nroComprobante); }
+        if (!$('#f-deposito option').length) {
+            $('#f-deposito').prop('disabled', true);
+            $('#btn-guardar-compra').prop('disabled', true);
+            toast('error', 'No hay Depósitos activos — creá uno en Configuración & Ajustes → Depósitos antes de cargar una Compra.');
+        }
         if (data.compra && data.compra.tipo_comprobante) {
             $('#f-tipo-comprobante').val(data.compra.tipo_comprobante);
         } else if (data.tipoComprobanteDefault) {
@@ -412,6 +421,8 @@
                 submit_token: cfg.submitToken,
                 proveedor_id: $('#f-proveedor').val(),
                 categoria_id: $('#f-categoria').val() || null,
+                deposito_id: $('#f-deposito').val(),
+                nro_comprobante: $('#f-nro-comprobante').val(),
                 fecha_emision: $('#f-fecha-emision').val(),
                 tipo_comprobante: $('#f-tipo-comprobante').val(),
                 fecha_vto_pago: $('#f-fecha-vto-pago').val() || null,
@@ -425,6 +436,8 @@
 
         function validar() {
             if (!$('#f-proveedor').val()) { toast('error', 'Seleccioná un proveedor.'); return false; }
+            if (!$('#f-deposito').val()) { toast('error', 'Seleccioná un Depósito.'); return false; }
+            if (!$('#f-nro-comprobante').val()) { toast('error', 'Ingresá el N° de Comprobante.'); return false; }
             if (!items.length) { toast('error', 'Agregá al menos un ítem.'); return false; }
             return true;
         }

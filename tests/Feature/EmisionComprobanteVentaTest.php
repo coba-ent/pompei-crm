@@ -6,6 +6,7 @@ use App\Models\Cliente;
 use App\Models\CondicionIva;
 use App\Models\CertificadoFiscal;
 use App\Models\CuentaTesoreria;
+use App\Models\Deposito;
 use App\Models\FuncionAvanzada;
 use App\Models\PuntoVenta;
 use App\Models\Rol;
@@ -84,9 +85,12 @@ class EmisionComprobanteVentaTest extends TestCase
 
     private function crearVenta(Cliente $cliente, ?array $items = null, ?float $descuentoGeneralPct = null): Venta
     {
+        $deposito = Deposito::first() ?? Deposito::create(['nombre' => 'Principal', 'activo' => true]);
+
         $payload = [
             'submit_token' => (string) \Illuminate\Support\Str::uuid(),
             'cliente_id' => $cliente->id,
+            'deposito_id' => $deposito->id,
             'fecha_emision' => now()->toDateString(),
             'tipo_comprobante' => 'B',
             'items' => $items ?? [

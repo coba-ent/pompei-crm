@@ -30,6 +30,8 @@ class UpdateCompraRequest extends FormRequest
         return [
             'proveedor_id' => 'required|exists:proveedores,id',
             'categoria_id' => 'nullable|exists:categorias,id',
+            'deposito_id' => 'required|integer|exists:depositos,id,activo,1',
+            'nro_comprobante' => 'required|string|max:20',
             'fecha_emision' => 'required|date',
             'fecha_vto_pago' => 'nullable|date',
             'servicio_desde' => 'nullable|date',

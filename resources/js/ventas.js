@@ -453,6 +453,7 @@
 
         initSelect2($('#f-lista-precio'));
         initSelect2($('#f-etiquetas'), { tags: true, tokenSeparators: [','], placeholder: 'Buscar o crear etiqueta...' });
+        initSelect2($('#f-deposito'), { placeholder: 'Seleccioná un Depósito' });
 
         // ---- Cliente (catálogo editable inline: "Crear Cliente" + lápiz por fila, abren la
         // ficha COMPLETA de Cliente — mismo modal que en el módulo Clientes) ----
@@ -514,6 +515,12 @@
             $('#f-tipo-comprobante').val(defaults.tipoComprobante);
         }
         if (defaults.fechaVtoCobro) { $('#f-fecha-vto-cobro').val(defaults.fechaVtoCobro); }
+        if (data.depositoId) { $('#f-deposito').val(data.depositoId).trigger('change.select2'); } else if (defaults.depositoId) { $('#f-deposito').val(defaults.depositoId).trigger('change.select2'); }
+        if (!$('#f-deposito option').length) {
+            $('#f-deposito').prop('disabled', true);
+            $('#btn-guardar-venta').prop('disabled', true);
+            toast('error', 'No hay Depósitos activos — creá uno en Configuración & Ajustes → Depósitos antes de cargar una Venta.');
+        }
         if (data.descuentoGeneralPct !== undefined && data.descuentoGeneralPct !== null) { $('#f-descuento-general').val(data.descuentoGeneralPct); }
         if (data.notaCliente) { $('#f-nota-cliente').val(data.notaCliente); }
         if (data.notaInterna) { $('#f-nota-interna').val(data.notaInterna); }
@@ -825,6 +832,7 @@
                 categoria_id: $('#f-categoria').val() || null,
                 lista_precio_id: $('#f-lista-precio').val() || null,
                 vendedor_id: $('#f-vendedor').val() || null,
+                deposito_id: $('#f-deposito').val(),
                 fecha_emision: $('#f-fecha-emision').val(),
                 servicio_desde: $('#f-servicio-desde').val() || null,
                 servicio_hasta: $('#f-servicio-hasta').val() || null,
@@ -843,6 +851,7 @@
 
         function validar() {
             if (!$('#f-cliente').val()) { toast('error', 'Seleccioná un cliente.'); return false; }
+            if (!$('#f-deposito').val()) { toast('error', 'Seleccioná un Depósito.'); return false; }
             if (!items.length) { toast('error', 'Agregá al menos un ítem.'); return false; }
             return true;
         }

@@ -28,7 +28,7 @@ class StockDeCompra
             return;
         }
 
-        $deposito = $this->depositoPorDefecto();
+        $deposito = $compra->deposito ?? $this->depositoPorDefecto();
 
         foreach ($items as $item) {
             $this->stock->registrarEntrada($item->producto, null, $deposito, (float) $item->cantidad, $compra, fecha: $compra->fecha_emision->toDateString());
@@ -44,7 +44,7 @@ class StockDeCompra
             return;
         }
 
-        $deposito = $this->depositoPorDefecto();
+        $deposito = $compra->deposito ?? $this->depositoPorDefecto();
 
         foreach ($items as $item) {
             $this->stock->registrarSalida($item->producto, null, $deposito, (float) $item->cantidad, $compra);
@@ -57,12 +57,12 @@ class StockDeCompra
      * ítems viejos del formulario; los nuevos ya deben estar persistidos en
      * $compra->items al momento de llamar este método.
      */
-    public function reaplicarPorEdicion(Compra $compra, Collection $itemsAnteriores): void
+    public function reaplicarPorEdicion(Compra $compra, Collection $itemsAnteriores, ?Deposito $depositoAnterior = null): void
     {
         $anteriores = $this->itemsQueMuevenStock($itemsAnteriores);
 
         if ($anteriores->isNotEmpty()) {
-            $deposito = $this->depositoPorDefecto();
+            $deposito = $depositoAnterior ?? $compra->deposito ?? $this->depositoPorDefecto();
 
             foreach ($anteriores as $item) {
                 $this->stock->registrarSalida($item->producto, null, $deposito, (float) $item->cantidad, $compra);

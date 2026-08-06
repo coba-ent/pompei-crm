@@ -60,12 +60,12 @@ class StockDeVenta
      * viejos del formulario; los nuevos ya deben estar persistidos en
      * $venta->items al momento de llamar este método.
      */
-    public function reaplicarPorEdicion(Venta $venta, Collection $itemsAnteriores): void
+    public function reaplicarPorEdicion(Venta $venta, Collection $itemsAnteriores, ?Deposito $depositoAnterior = null): void
     {
         $anteriores = $this->itemsQueMuevenStock($itemsAnteriores);
 
         if ($anteriores->isNotEmpty()) {
-            $deposito = $this->resolverDeposito($venta);
+            $deposito = $depositoAnterior ?? $this->resolverDeposito($venta);
 
             foreach ($anteriores as $item) {
                 $this->stock->registrarEntrada($item->producto, null, $deposito, (float) $item->cantidad, $venta);
@@ -92,7 +92,7 @@ class StockDeVenta
             return TiendanubeConexionRest::actual()->depositoEfectivo();
         }
 
-        return $this->depositoPorDefecto();
+        return $venta->deposito ?? $this->depositoPorDefecto();
     }
 
     /** Ver Deposito::porDefecto() — única definición de "depósito por defecto del CRM". */

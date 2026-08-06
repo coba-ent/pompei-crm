@@ -34,6 +34,7 @@ class StoreVentaRequest extends FormRequest
             'categoria_id' => 'nullable|exists:categorias,id',
             'lista_precio_id' => 'nullable|exists:listas_precio,id',
             'vendedor_id' => 'nullable|integer|exists:vendedores,id',
+            'deposito_id' => 'required|integer|exists:depositos,id,activo,1',
             'fecha_emision' => 'required|date',
             'fecha_validez' => 'nullable|date',
             'servicio_desde' => 'nullable|date',

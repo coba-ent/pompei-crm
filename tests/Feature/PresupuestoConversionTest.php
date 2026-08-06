@@ -29,6 +29,7 @@ class PresupuestoConversionTest extends TestCase
         auth()->user()->roles()->attach($admin->id);
 
         $cliente = Cliente::factory()->create();
+        $deposito = Deposito::create(['nombre' => 'Principal', 'activo' => true]);
         $items = [
             ['descripcion' => 'Item 21%', 'cantidad' => 1, 'precio_unitario' => 1000, 'iva_pct' => '21'],
             ['descripcion' => 'Item 10.5%', 'cantidad' => 1, 'precio_unitario' => 2000, 'iva_pct' => '10.5'],
@@ -55,6 +56,7 @@ class PresupuestoConversionTest extends TestCase
             'submit_token' => (string) \Illuminate\Support\Str::uuid(),
             'presupuesto_id' => $presupuesto->id,
             'cliente_id' => $cliente->id,
+            'deposito_id' => $deposito->id,
             'fecha_emision' => '2026-07-18',
             'tipo_comprobante' => 'B',
             'descuento_general_pct' => 15,

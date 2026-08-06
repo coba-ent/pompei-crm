@@ -78,6 +78,14 @@
                         </label>
                         <select id="f-vendedor" class="form-select" style="width:100%"></select>
                     </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Depósito</label>
+                        <select id="f-deposito" class="form-select" style="width:100%">
+                            @foreach ($depositos ?? [] as $deposito)
+                                <option value="{{ $deposito->id }}">{{ $deposito->nombre }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                 </div>
 
                 <hr>
@@ -162,7 +170,7 @@
 
 @php
     $clienteOrigen = $venta?->cliente ?? $presupuestoOrigen?->cliente;
-    $datosVenta = $venta ? $venta->only(['id', 'cliente_id', 'categoria_id', 'lista_precio_id', 'vendedor_id', 'descuento_general_pct', 'tipo_comprobante', 'nota_cliente', 'nota_interna', 'formas_pago', 'metodos_envio']) : null;
+    $datosVenta = $venta ? $venta->only(['id', 'cliente_id', 'categoria_id', 'lista_precio_id', 'vendedor_id', 'deposito_id', 'descuento_general_pct', 'tipo_comprobante', 'nota_cliente', 'nota_interna', 'formas_pago', 'metodos_envio']) : null;
     $datosItems = ($venta?->items ?? $presupuestoOrigen?->items ?? collect())->map(fn ($i) => $i->only(['producto_id', 'descripcion', 'cantidad', 'precio_unitario', 'descuento_pct', 'iva_pct']))->values();
     $datosConceptos = ($venta?->conceptos ?? $presupuestoOrigen?->conceptos ?? collect())->map(fn ($c) => $c->only(['tipo', 'concepto', 'monto']))->values();
     $datosEtiquetas = ($venta?->etiquetas ?? $presupuestoOrigen?->etiquetas ?? collect())->pluck('nombre');
@@ -181,6 +189,7 @@
         categoriaId: @json($venta?->categoria_id ?? $presupuestoOrigen?->categoria_id),
         listaPrecioId: @json($venta?->lista_precio_id ?? $presupuestoOrigen?->lista_precio_id),
         vendedorId: @json($venta?->vendedor_id),
+        depositoId: @json($venta?->deposito_id),
         servicioDesde: @json(optional($venta?->servicio_desde ?? $presupuestoOrigen?->servicio_desde)->format('Y-m-d')),
         servicioHasta: @json(optional($venta?->servicio_hasta ?? $presupuestoOrigen?->servicio_hasta)->format('Y-m-d')),
         notaCliente: @json($venta?->nota_cliente ?? $presupuestoOrigen?->nota_cliente),

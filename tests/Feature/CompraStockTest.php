@@ -33,9 +33,13 @@ class CompraStockTest extends TestCase
     {
         $proveedor = Proveedor::factory()->create();
 
+        $deposito = Deposito::first() ?? Deposito::create(['nombre' => 'Principal', 'activo' => true]);
+
         $respuesta = $this->postJson(route('compras.store'), [
             'submit_token' => (string) Str::uuid(),
             'proveedor_id' => $proveedor->id,
+            'deposito_id' => $deposito->id,
+            'nro_comprobante' => '0001-'.str_pad((string) random_int(1, 99999999), 8, '0', STR_PAD_LEFT),
             'fecha_emision' => '2026-07-27',
             'items' => [[
                 'producto_id' => $producto->id,
@@ -93,6 +97,8 @@ class CompraStockTest extends TestCase
 
         $respuesta = $this->putJson(route('compras.update', $compra), [
             'proveedor_id' => $compra->proveedor_id,
+            'deposito_id' => $compra->deposito_id,
+            'nro_comprobante' => $compra->nro_comprobante,
             'fecha_emision' => '2026-07-27',
             'items' => [[
                 'producto_id' => $producto->id,
@@ -120,6 +126,8 @@ class CompraStockTest extends TestCase
 
         $this->putJson(route('compras.update', $compra), [
             'proveedor_id' => $compra->proveedor_id,
+            'deposito_id' => $compra->deposito_id,
+            'nro_comprobante' => $compra->nro_comprobante,
             'fecha_emision' => '2026-07-27',
             'items' => [[
                 'producto_id' => $productoB->id,
@@ -161,9 +169,13 @@ class CompraStockTest extends TestCase
         $producto = Producto::factory()->create(['tipo' => 'producto']);
         $proveedor = Proveedor::factory()->create();
 
+        $deposito = Deposito::first() ?? Deposito::create(['nombre' => 'Principal', 'activo' => true]);
+
         $respuesta = $this->postJson(route('compras.store'), [
             'submit_token' => (string) Str::uuid(),
             'proveedor_id' => $proveedor->id,
+            'deposito_id' => $deposito->id,
+            'nro_comprobante' => '0001-'.str_pad((string) random_int(1, 99999999), 8, '0', STR_PAD_LEFT),
             'fecha_emision' => '2026-07-27',
             'items' => [
                 [

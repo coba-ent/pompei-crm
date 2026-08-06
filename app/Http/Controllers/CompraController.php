@@ -108,14 +108,21 @@ class CompraController extends Controller
             $categoriaCompraDefault = $configuracionVentas->categoria_compra_id
                 ? Categoria::compra()->activas()->find($configuracionVentas->categoria_compra_id)
                 : null;
+            $depositoDefault = $configuracionVentas->deposito_compra_id
+                ? Deposito::activos()->find($configuracionVentas->deposito_compra_id)
+                : null;
 
             $defaults = [
                 'categoriaId' => $categoriaCompraDefault?->id,
+                'depositoId' => $depositoDefault?->id,
                 'tipoComprobante' => $configuracionVentas->tipo_comprobante_compra,
                 'fechaVtoPago' => $configuracionVentas->dias_vto_pago_compra !== null
                     ? now()->addDays($configuracionVentas->dias_vto_pago_compra)->format('Y-m-d')
                     : null,
+                'nroComprobanteSugerido' => Compra::siguienteNroComprobante($configuracionVentas->tipo_comprobante_compra ?? 'B'),
             ];
+        } else {
+            $defaults = ['nroComprobanteSugerido' => Compra::siguienteNroComprobante('B')];
         }
 
         return view('compras.form', [
@@ -124,6 +131,7 @@ class CompraController extends Controller
             'submitToken' => $submitToken,
             'defaults' => $defaults,
             'categoriasCompra' => Categoria::compra()->activas()->orderBy('nombre')->get(),
+            'depositos' => Deposito::activos()->orderBy('nombre')->get(),
         ]);
     }
 
@@ -148,13 +156,14 @@ class CompraController extends Controller
             $compra = Compra::create([
                 'proveedor_id' => $datos['proveedor_id'],
                 'categoria_id' => $datos['categoria_id'] ?? null,
+                'deposito_id' => $datos['deposito_id'],
                 'fecha_emision' => $datos['fecha_emision'],
                 'fecha_vto_pago' => $datos['fecha_vto_pago'] ?? null,
                 'servicio_desde' => $datos['servicio_desde'] ?? null,
                 'servicio_hasta' => $datos['servicio_hasta'] ?? null,
                 'mes_imputacion_iva' => $datos['mes_imputacion_iva'] ?? null,
                 'tipo_comprobante' => $datos['tipo_comprobante'] ?? null,
-                'nro_comprobante' => Compra::siguienteNroComprobante($datos['tipo_comprobante'] ?? ''),
+                'nro_comprobante' => $datos['nro_comprobante'],
                 'subtotal_sin_descuento' => $resultado['subtotal_sin_descuento'],
                 'descuento' => $resultado['descuento'],
                 'subtotal_con_descuento' => $resultado['subtotal_con_descuento'],
@@ -208,10 +217,11 @@ class CompraController extends Controller
     public function edit(Compra $compra)
     {
         $CurrentPage = 'compras';
-        $compra->load(['items', 'conceptos', 'proveedor', 'categoria']);
+        $compra->load(['items', 'conceptos', 'proveedor', 'categoria', 'deposito']);
         $categoriasCompra = Categoria::compra()->activas()->orderBy('nombre')->get();
+        $depositos = Deposito::activos()->orderBy('nombre')->get();
 
-        return view('compras.form', compact('CurrentPage', 'compra', 'categoriasCompra'));
+        return view('compras.form', compact('CurrentPage', 'compra', 'categoriasCompra', 'depositos'));
     }
 
     public function update(\App\Http\Requests\UpdateCompraRequest $request, Compra $compra): JsonResponse
@@ -221,10 +231,13 @@ class CompraController extends Controller
         DB::transaction(function () use ($datos, $compra) {
             $resultado = $this->calculo->calcular($datos['items'], $datos['descuento_general_pct'] ?? null, $datos['conceptos'] ?? []);
             $itemsAnteriores = $compra->items()->with('producto')->get();
+            $depositoAnteriorId = $compra->deposito_id;
 
             $compra->update([
                 'proveedor_id' => $datos['proveedor_id'],
                 'categoria_id' => $datos['categoria_id'] ?? null,
+                'deposito_id' => $datos['deposito_id'],
+                'nro_comprobante' => $datos['nro_comprobante'],
                 'fecha_emision' => $datos['fecha_emision'],
                 'fecha_vto_pago' => $datos['fecha_vto_pago'] ?? null,
                 'servicio_desde' => $datos['servicio_desde'] ?? null,
@@ -243,7 +256,8 @@ class CompraController extends Controller
             $this->guardarItems($compra, $resultado['items']);
             $this->guardarConceptos($compra, $datos['conceptos'] ?? []);
 
-            $this->stockDeCompra->reaplicarPorEdicion($compra->load('items.producto'), $itemsAnteriores);
+            $depositoAnterior = $depositoAnteriorId ? Deposito::find($depositoAnteriorId) : null;
+            $this->stockDeCompra->reaplicarPorEdicion($compra->load('items.producto'), $itemsAnteriores, $depositoAnterior);
         });
 
         return response()->json([

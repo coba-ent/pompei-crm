@@ -226,7 +226,7 @@ en `movimientos_stock`.
 | tipo | enum(`entrada`,`salida`,`ajuste`,`transferencia`) | `transferencia` = movimiento entre depósitos (2 filas: salida negativa + entrada positiva). `ajuste` = ajuste manual o NC/ND que afecta stock (spec 008/009). **`salida`/`entrada` = Ventas, desde la spec 012** (`salida` al crear la Venta, `entrada` al eliminarla o reintegrar por edición). **`entrada`/`salida` = Compras, desde la spec 030** (`entrada` al crear la Compra, `salida` al eliminarla o reintegrar por edición — mismo patrón que Ventas mas invertido) |
 | cantidad | decimal | |
 | origen_type / origen_id | polimórfico | **`Venta` desde la spec 012**; **`Compra` desde la spec 030**. En los ajustes manuales y en NC/ND queda nulo |
-| fecha | date | Ventas: fecha del guardado. **Compras (spec 030): `fecha_emision` de la Compra** en el alta/edición (no la fecha de guardado), para que el histórico refleje cuándo entró realmente la mercadería aunque la carga sea retroactiva; el reintegro por eliminación usa la fecha del día en que se elimina. |
+| fecha | **datetime** (spec 051) | Ventas/ajustes/transferencias: fecha y **hora real** del momento en que se generó el movimiento (`now()`). **Compras (spec 030): `fecha_emision` de la Compra** en el alta (no la fecha/hora de guardado), para que el histórico refleje cuándo entró realmente la mercadería aunque la carga sea retroactiva — esta excepción se mantiene con hora `00:00:00` (spec 051 FR-001); el reintegro por eliminación de Compra sí usa fecha/hora real del momento en que se elimina. Movimientos creados antes de spec 051 quedan con hora `00:00:00` (MySQL completa la parte horaria al ensanchar DATE→DATETIME). |
 | usuario_id | FK → usuarios, nullable | quién generó el movimiento |
 
 > **"Stock Saldo" del Informe de Stock (spec 003, 24/07/2026):** columna **calculada, no persistida** —
@@ -334,6 +334,7 @@ Etiquetas/Notas/Formas de Pago/Métodos de Envío/Vendedor), con estos agregados
 | a_cobrar | decimal(14,2) | = total al momento de guardar |
 | cobrado | decimal(14,2), default 0 | suma de `cobros.monto` asociados |
 | creado_por_id | FK → users, nullable | **Columna nueva**: "Usuario" (quién cargó la Venta), distinto de `vendedor_id` (quién vendió) — dos filtros independientes confirmados por el informe real. Se setea con `auth()->id()` sólo en altas nuevas; Ventas anteriores a esta columna quedan con `null` (no reconstruible retroactivamente). |
+| deposito_id | FK → depositos, nullable, `restrictOnDelete()` | **Columna nueva (spec 049)**: depósito del que descuenta stock esta Venta. Obligatorio a nivel de formulario para altas nuevas (Select2, catálogo de depósitos activos); nullable en DB porque Ventas previas a spec 049 quedan sin backfill (`deposito_id = null`, cambio sólo hacia adelante). Reemplaza a `Deposito::porDefecto()` como fuente del depósito para el movimiento de stock en Ventas de origen manual — Ventas de Mercado Libre/Tiendanube siguen resolviendo su depósito por `ml_configuracion`/`tn_configuracion` (sin cambios, spec 049 no las toca). Divergencia deliberada sin confirmación contra capturas reales de Contagram — ver `specs/049-deposito-ventas-compras/spec.md` § Assumptions. |
 
 `ventas.venta_items` y `ventas.conceptos` son análogos a `presupuesto_items`/`presupuesto_conceptos`
 (mismas columnas, FK `venta_id`) — no se listan de nuevo.
@@ -476,13 +477,14 @@ a Tesorería, `saldos()`, `flujo()`).
 | proveedor_id | FK → proveedores | |
 | categoria_id | FK → categorias (tipo=`compra`), nullable | autocompletada desde `proveedores.categoria_id` al elegir el proveedor |
 | tipo_comprobante | string, nullable | "Tipo" del formulario — sin validez fiscal real sin Facturación Electrónica, mismo patrón que `ventas.tipo_comprobante` |
-| nro_comprobante | string, nullable | numeración asociada al Tipo |
+| nro_comprobante | string, nullable | numeración asociada al Tipo. **Actualización (spec 049, 06/08/2026)**: antes se autogeneraba siempre server-side (`Compra::siguienteNroComprobante()`, correlativo interno, punto de venta fijo "0001"), sin input en el formulario. Ahora es un campo editable y obligatorio en "Nueva Compra"/"Editar Compra"; `siguienteNroComprobante()` sigue existiendo pero sólo como valor de precarga sugerido — el valor final que se persiste es el que confirma o edita el usuario. |
 | fecha_emision | date | |
 | fecha_vto_pago | date, nullable | "Vto. del Pago" |
 | servicio_desde, servicio_hasta | date, nullable | |
 | mes_imputacion_iva | date, nullable | campo **"Contador"**, exclusivo de Compras (sin equivalente en Ventas) — mes de imputación en el IVA Compras, independiente de `fecha_emision` |
 | subtotal_sin_descuento, descuento, subtotal_con_descuento, total | decimal(14,2) | mismo cálculo que `ventas`/`presupuestos`; `total` es un snapshot congelado |
 | nota_interna | text, nullable | |
+| deposito_id | FK → depositos, nullable, `restrictOnDelete()` | **Columna nueva (spec 049)**: depósito al que suma stock esta Compra. Mismo criterio que `ventas.deposito_id` — obligatorio en el formulario, nullable en DB por retrocompatibilidad, reemplaza a `Deposito::porDefecto()` como fuente para `StockDeCompra`. |
 | deleted_at | timestamp, nullable | SoftDeletes (Principio III) |
 
 `compras.venta_id`/`presupuesto_id` no aplican — Compras no deriva de otro documento. `pagado`
@@ -748,6 +750,18 @@ publicaciones vinculadas, no sólo hacia una — ver `specs/036-vinculacion-mult
 > (datetime, nullable), `precio_error` (string(255), nullable), `precio_error_en` (datetime, nullable).
 > Detalle completo en `specs/016-lista-precio-mercadolibre/data-model.md`.
 
+> **Columnas nuevas (spec 050, implementada)** — tipo de publicación por vínculo:
+> `listing_type_id` (string(30), nullable — valor crudo informado por Mercado Libre, `gold_pro`/
+> `gold_special`/etc.; `null` hasta la primera consulta exitosa), `listing_type_sincronizado_en`
+> (datetime, nullable — último refresco exitoso; ante fallo de la API se conserva el último valor
+> conocido en ambas columnas, no se pisan). Método `esPremium(): bool` en el modelo (único lugar que
+> traduce el valor crudo a "Premium sí/no", comparando contra `gold_pro`) — usado por
+> `SincronizadorPrecios` para resolver qué Lista de Precios (`lista_precio_id` vs
+> `lista_precio_id_premium`) corresponde a cada publicación, evaluado por vínculo individual (no por
+> producto, spec 036). Mantenido por el comando `mercadolibre:sincronizar-tipos-publicacion` (corrida
+> diaria, independiente de la de stock) y completado al vincular una publicación nueva. Detalle
+> completo en `specs/050-lista-precio-premium-ml/data-model.md`.
+
 ### `ml_configuracion` (columnas nuevas)
 `creacion_automatica` (bool, default false), `frecuencia_sync_minutos` (default 15),
 `deposito_id` (FK → depositos, nullable — null usa el depósito por defecto), `categoria_venta_id`
@@ -769,6 +783,15 @@ publicaciones vinculadas, no sólo hacia una — ver `specs/036-vinculacion-mult
 > sincronización de precio; sin fallback "por defecto del CRM", a diferencia de `deposito_id` — ese
 > concepto no existe para Listas de Precios en ningún otro punto del sistema. Detalle completo en
 > `specs/016-lista-precio-mercadolibre/data-model.md`.
+
+> **Columnas nuevas (spec 050, implementada)**: `lista_precio_id_premium` (FK → `listas_precio`,
+> nullable, `nullOnDelete`) — segunda Lista de Precios, opcional, exclusiva para publicaciones de tipo
+> **Premium** (`listing_type_id = gold_pro`); coexiste con `lista_precio_id` (la general, arriba).
+> `tipo_publicacion_ultima_sync_en` (datetime, nullable) — última corrida del comando
+> `mercadolibre:sincronizar-tipos-publicacion`, comparada contra un intervalo fijo de 24hs (no
+> configurable, a diferencia de `frecuencia_sync_minutos`). Ver `ml_publicacion_producto.listing_type_id`
+> abajo para la clasificación por vínculo. Detalle completo en
+> `specs/050-lista-precio-premium-ml/data-model.md`.
 
 > **Columna nueva (spec 020, implementada)**: `vendedor_id` (FK →
 > `vendedores`, nullable, `restrictOnDelete`). "Vendedor por defecto" asignado a las Ventas que se
@@ -1220,9 +1243,20 @@ global del negocio, no un registro con historial fiscal.
 | `lista_precio_id` | bigint, nullable, FK → `listas_precio.id` `nullOnDelete` | Lista de Precios por defecto (si `null`, sigue el fallback actual "Principal") |
 | `tipo_comprobante` | enum(`A`,`B`,`C`,`E`), nullable | Tipo de Comprobante por defecto (si `null`, sigue el fallback actual "B") |
 | `dias_vto_cobro` | unsigned smallint, nullable | Días a sumar a la fecha de Emisión para precalcular "Vto. del Cobro" en altas nuevas (si `null`, el campo se deja vacío) |
+| `dias_validez_presupuesto` | unsigned smallint, nullable | **(spec 044)** Días a sumar a la fecha de Emisión para precalcular "Vto. de Validez" en "Crear Presupuesto" — reutiliza Categoría/Vendedor/Lista de Precios de la sección Ventas de arriba |
+| `categoria_compra_id` | bigint, nullable, FK → `categorias.id` (`tipo=compra`) `nullOnDelete` | **(spec 044)** Categoría de Compra preseleccionada por defecto en "Crear Compra" |
+| `tipo_comprobante_compra` | enum(`A`,`B`,`C`), nullable | **(spec 044)** Tipo de Comprobante por defecto de Compra (si `null`, sigue el fallback "B") |
+| `dias_vto_pago_compra` | unsigned smallint, nullable | **(spec 044)** Días a sumar a la fecha de Emisión para precalcular "Vto. de Pago" en "Crear Compra" |
+| `deposito_id` | bigint, nullable, FK → `depositos.id` `nullOnDelete` | **(spec 049)** Depósito por defecto de "Crear Venta" (sección "Ventas" de la pantalla). Si `null`, o si el depósito referenciado ya no está activo, cae al fallback global `Deposito::porDefecto()` |
+| `deposito_compra_id` | bigint, nullable, FK → `depositos.id` `nullOnDelete` | **(spec 049)** Depósito por defecto de "Crear Compra" (sección "Compras" de la misma pantalla), mismo fallback |
 
-Consumida por `VentaController@create` sólo para altas nuevas (no edición, no conversión desde
-Presupuesto): si el registro referenciado por una FK ya no existe en su catálogo, ese campo no se
-precarga (no rompe el formulario). El default de Tipo de Comprobante es sólo una preselección inicial:
-sigue pisado por `cliente.tipo_comprobante_defecto` cuando el usuario elige un Cliente (prioridad ya
-existente, sin cambios), y no altera la derivación fiscal por condición de IVA ya vigente.
+Consumida por `VentaController@create`/`CompraController@create` sólo para altas nuevas (no edición,
+no conversión desde Presupuesto): si el registro referenciado por una FK ya no existe o no está
+activo en su catálogo, ese campo no se precarga (no rompe el formulario). El default de Tipo de
+Comprobante de Venta es sólo una preselección inicial: sigue pisado por `cliente.tipo_comprobante_defecto`
+cuando el usuario elige un Cliente (prioridad ya existente, sin cambios), y no altera la derivación
+fiscal por condición de IVA ya vigente.
+
+Ventas, Presupuestos y Compras comparten esta misma fila única de configuración (no hay tabla
+`configuracion_compras` separada) — decisión ya tomada en spec 043/044 y confirmada al planificar
+spec 049, que suma los campos de Depósito al mismo patrón en vez de crear infraestructura nueva.

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Cliente;
 use App\Models\CondicionIva;
 use App\Models\ComprobanteFiscal;
+use App\Models\Deposito;
 use App\Models\NotaCreditoDebito;
 use App\Models\PuntoVenta;
 use App\Models\Rol;
@@ -29,9 +30,12 @@ class PdfNotaCreditoDebitoTest extends TestCase
         $condicionIva = CondicionIva::create(['nombre' => 'Consumidor Final', 'codigo_afip' => '5', 'requiere_cuit' => false]);
         $cliente = Cliente::factory()->create(['condicion_iva_id' => $condicionIva->id]);
 
+        $deposito = Deposito::first() ?? Deposito::create(['nombre' => 'Principal', 'activo' => true]);
+
         $payload = [
             'submit_token' => (string) \Illuminate\Support\Str::uuid(),
             'cliente_id' => $cliente->id,
+            'deposito_id' => $deposito->id,
             'fecha_emision' => now()->toDateString(),
             'tipo_comprobante' => 'B',
             'items' => [

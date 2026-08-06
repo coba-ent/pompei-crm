@@ -20,7 +20,7 @@ class Venta extends Model
     protected $table = 'ventas';
 
     protected $fillable = [
-        'presupuesto_id', 'origen', 'cliente_id', 'categoria_id', 'lista_precio_id',
+        'presupuesto_id', 'origen', 'cliente_id', 'categoria_id', 'lista_precio_id', 'deposito_id',
         'fecha_emision', 'fecha_validez', 'servicio_desde', 'servicio_hasta',
         'tipo_comprobante', 'nro_comprobante', 'fecha_vto_cobro',
         'descuento_general_pct', 'subtotal_sin_descuento', 'descuento',
@@ -55,6 +55,11 @@ class Venta extends Model
     public function listaPrecio(): BelongsTo
     {
         return $this->belongsTo(ListaPrecio::class);
+    }
+
+    public function deposito(): BelongsTo
+    {
+        return $this->belongsTo(Deposito::class);
     }
 
     public function vendedor(): BelongsTo

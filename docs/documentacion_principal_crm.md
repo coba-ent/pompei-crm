@@ -450,6 +450,13 @@ Otros Ingresos y Abonos son independientes.
   `vendedor_id`, confirmando la nota ya registrada ahí. **Transportista queda pendiente**: no existe
   tabla/columna propia en el CRM para transportistas; el campo se muestra deshabilitado en el panel
   hasta que se releve y modele esa entidad en un spec propio.
+- **Depósito (spec 049, 06/08/2026)**: el formulario "Nueva Venta"/"Editar Venta" suma un campo
+  Depósito obligatorio (Select2, catálogo de depósitos activos), que determina de qué depósito se
+  descuenta el stock de la operación — antes siempre se usaba, sin poder elegirlo, el mismo
+  `Deposito::porDefecto()`. Precarga desde Configuración & Ajustes → Ventas (sección "Ventas",
+  `configuracion_ventas.deposito_id`) con fallback al mismo `Deposito::porDefecto()`. Cierra la
+  inconsistencia por la que el filtro por Depósito del listado (arriba) no reflejaba ninguna elección
+  real del usuario. Divergencia deliberada, sin capturas de Contagram real que confirmen este campo.
 - Botón **"Analizar" (IA/Gemini)**: exclusivo de Ventas — genera un resumen del período (producto
   estrella, categoría más rentable, récord de venta, recomendación de negocio), con advertencia
   explícita de que "puede no ser del todo precisa o real". Misma tecnología (Gemini) que "Buscar
@@ -558,6 +565,20 @@ Ver §5.2 para la divergencia deliberada de todo el módulo (aplicación propia 
   de Precios (a diferencia del resto de las Ventas del CRM). Sin configurar, no hay ninguna
   sincronización de precio; no existe un fallback "por defecto del CRM" para este campo (a diferencia del
   depósito).
+  > 💎 **Lista de Precios diferenciada para publicaciones Premium (spec 050, implementada)**: además de
+  > la Lista de Precios general de arriba, la configuración permite elegir opcionalmente una segunda
+  > Lista de Precios (`ml_configuracion.lista_precio_id_premium`) sólo para publicaciones de tipo
+  > **Premium** (`listing_type_id = gold_pro`, informado por Mercado Libre). Cada vínculo
+  > (`ml_publicacion_producto`) persiste su propio `listing_type_id`, evaluado por publicación —no por
+  > producto—, dado que un mismo producto puede tener publicaciones de distinto tipo vinculadas
+  > (spec 036). Al sincronizar, cada publicación Premium con precio cargado en la lista Premium recibe
+  > ese precio; si no tiene precio ahí, o si no hay lista Premium configurada, cae al mismo
+  > comportamiento de siempre (lista general). Las publicaciones no Premium siempre usan la lista
+  > general. `listing_type_id` se completa al vincular una publicación nueva y se refresca una vez por
+  > día mediante el comando `mercadolibre:sincronizar-tipos-publicacion` (independiente de la corrida de
+  > stock cada 15 minutos, para no multiplicar llamadas a la API por un dato que casi no cambia); si la
+  > consulta a Mercado Libre falla, se conserva el último tipo conocido. Ver
+  > `specs/050-lista-precio-premium-ml/`.
 - **Tipo de comprobante derivado** de la condición fiscal que informa Mercado Libre: Responsable
   Inscripto → A; Consumidor Final/Monotributo o sin dato → B. Coherente con el principio III de la
   constitución, que exige derivar el comprobante de la condición de IVA. Con **spec 037**
@@ -1033,7 +1054,17 @@ Remito, Cta Cte (proveedor), Imprimir Detalle, Eliminar.
 existente precarga su **Categoría de Compras** guardada como default), Emisión, Vto. del Pago, Servicio
 Desde/Hasta, **Contador** (campo exclusivo de Compras, sin equivalente en Ventas — tooltip: "Mes de
 imputación en el IVA Compras, para el informe a tu Contador"; permite imputar el período fiscal de IVA
-Compras independientemente de la fecha de emisión), Tipo de comprobante + numeración. Línea de
+Compras independientemente de la fecha de emisión), Tipo de comprobante + numeración. **N° de
+comprobante editable (spec 049, 06/08/2026)**: antes de esta spec, la numeración se autogeneraba
+siempre como un correlativo interno ficticio (`Compra::siguienteNroComprobante()`, punto de venta fijo
+"0001") sin relación con la factura real del Proveedor. Ahora el campo es un input de texto editable,
+precargado con ese mismo correlativo como valor sugerido de partida; el usuario puede dejarlo tal cual
+o reemplazarlo por el número real de la factura del Proveedor (punto de venta + número). El campo sigue
+siendo obligatorio — no se puede guardar la Compra con el campo vacío. Es independiente de
+`punto_venta_proveedor`/`numero_comprobante_proveedor`/`cae_proveedor` (campos ya existentes, sólo
+usados cuando la función avanzada "Facturación Electrónica" está activa y se carga el CAE real del
+Proveedor) — divergencia deliberada, sin capturas de Contagram real que confirmen este comportamiento
+específico. Línea de
 producto/servicio con buscador + ícono de **lector de código de barras** (materializa la Función
 Avanzada homónima). Grilla de ítems: Producto, Cant., Precio, Desc. (%), Subtotal, **IVA**, Total —
 **diferencia clave frente a Ventas**: el IVA **no viene preseleccionado** al agregar un producto
@@ -1059,10 +1090,17 @@ Categoría, tabla de Conceptos, panel de totales, Observaciones. Botones Imprimi
 Detalle/Editar Compra. Sección "Notas de Crédito y Débito" (tabla + enlace + Agregar, igual patrón que
 Ventas §3.2). Botón "Crear Remito" visible en la parte superior de la ficha.
 
-**Compras suma stock (spec 030, cierra la brecha simétrica a la de Ventas §3.2):** al guardar una
-Compra, cada ítem cuyo producto controla stock suma su cantidad al stock del depósito por defecto del
-CRM (mismo depósito único que usan las Ventas manuales — sin selector de depósito en el formulario, no
-relevado en el informe real de Contagram). Editar una Compra reintegra el stock de la versión anterior y
+**Depósito (spec 049, 06/08/2026):** el formulario "Nueva Compra"/"Editar Compra" suma un campo
+Depósito obligatorio (Select2, catálogo de depósitos activos), simétrico al de Ventas (§3.2), que
+determina a qué depósito suma el stock la operación. Precarga desde Configuración & Ajustes → Ventas
+(sección "Compras", `configuracion_ventas.deposito_compra_id`) con fallback a `Deposito::porDefecto()`.
+Divergencia deliberada, sin capturas de Contagram real que confirmen este campo — motivada por la
+misma inconsistencia que en Ventas (el filtro por Depósito no reflejaba ninguna elección real).
+
+**Compras suma stock (spec 030, cierra la brecha simétrica a la de Ventas §3.2; actualizado por spec
+049):** al guardar una Compra, cada ítem cuyo producto controla stock suma su cantidad al stock del
+depósito elegido en el formulario (antes de spec 049, siempre el depósito por defecto del CRM, sin
+poder elegirlo). Editar una Compra reintegra el stock de la versión anterior y
 aplica el de la nueva; eliminarla reintegra todo el stock que había sumado. El movimiento queda fechado
 con la `fecha_emision` de la Compra (no la fecha de guardado), para que el histórico de stock refleje
 cuándo entró realmente la mercadería aunque la carga sea retroactiva. Las Notas de Crédito/Débito de
@@ -1141,6 +1179,15 @@ numeración local (`tipo_comprobante`/`nro_comprobante`) sin validez fiscal, igu
 > tabla `configuracion_ventas`) de Categoría/Vendedor/Lista de Precios/Tipo de Comprobante por defecto y
 > días por defecto de "Vto. del Cobro", que precargan el alta de "Crear Venta" (no afecta ediciones ni
 > conversiones desde Presupuesto). Ver `specs/043-configuracion-empresa-ventas/`.
+>
+> **Actualización (spec 049, 06/08/2026):** ambas secciones ("Ventas" y "Compras", ver más abajo) de
+> esta misma pantalla suman un campo **Depósito por defecto** (`deposito_id`/`deposito_compra_id`).
+> Precarga, respectivamente, el selector de Depósito ahora obligatorio en "Nueva Venta"/"Nueva Compra"
+> (§3.2/§4.1); si no está configurado o el depósito referenciado se inactiva, cae al fallback ya
+> existente `Deposito::porDefecto()`. **Divergencia deliberada** sin confirmación contra capturas
+> reales de Contagram (motivada por una inconsistencia interna: el filtro por Depósito del listado de
+> Ventas no reflejaba nada real porque toda Venta/Compra manual movía stock siempre contra el mismo
+> depósito implícito). Ver `specs/049-deposito-ventas-compras/`.
 
 | Sección | Contenido |
 |---|---|
@@ -1150,7 +1197,7 @@ numeración local (`tipo_comprobante`/`nro_comprobante`) sin validez fiscal, igu
 | Funciones Avanzadas | Lista de las 10 funciones activables, con toggle Sí/No (spec 011) — ver §5.1. Tab por defecto de la pantalla Configuración & Ajustes (spec 043) |
 | Mercado Libre | Configuración de la integración y vinculación de cuenta (spec 011) — ver §5.2 |
 | Tiendanube | Configuración de la integración (OAuth 2.1 vía admin-mcp.tiendanube.com, spec 019, corrige a spec 015) + apartado aislado de conexión vía Application REST del Partner Portal (spec 022) — ver §5.3 |
-| Ventas | Valores globales por defecto para "Crear Venta": Categoría, Vendedor, Lista de Precios, Tipo de Comprobante, días de Vto. de Cobro (spec 043) |
+| Ventas | Valores globales por defecto para "Crear Venta" (Categoría, Vendedor, Lista de Precios, Tipo de Comprobante, días de Vto. de Cobro, **Depósito** — spec 043/049), sección "Presupuestos" (días de Vto. de Validez, spec 044) y sección "Compras" (Categoría de Compra, Tipo de Comprobante, días de Vto. de Pago, **Depósito** — spec 044/049), todo en una misma pantalla/tabla `configuracion_ventas` |
 
 > **Adaptación single-tenant:** este CRM es single-tenant, sin plan contratado ni costo por usuario
 > adicional. Los permisos son **sólo por rol** (el usuario hereda los permisos de sus roles; no hay
@@ -1514,8 +1561,17 @@ para el form de Ajuste de Stock); navega a una **pantalla propia** (`/informes/s
 - **Tabla**: Fecha, Operación, Detalle, Producto, Cantidad, **Stock Saldo** (saldo corrido por
   producto+depósito, calculado sobre el histórico completo de `movimientos_stock` vía función de
   ventana SQL — los filtros de pantalla nunca alteran ese cálculo, sólo qué filas se muestran).
+  Ordenada por defecto por **fecha y hora ascendente** (spec 051, 06/08/2026) — antes ordenaba sólo
+  por fecha (sin hora), lo que no distinguía el orden real entre varios movimientos del mismo día.
 - Es de **sólo lectura**: no edita ni elimina movimientos desde ahí. El alta de movimientos sigue
   siendo "Ajuste de Stock" (Aumentar/Disminuir/Transferencia) desde Productos, sin cambios.
+
+  > **Detalle enriquecido para movimientos de Venta (spec 051, 06/08/2026)**: cuando el movimiento
+  > tiene como origen una Venta (manual, Mercado Libre o Tiendanube), la columna "Detalle" muestra
+  > `"{tipo de comprobante} {número de comprobante} - {cliente}"` (o sin el segmento de cliente si
+  > la venta no tiene uno asignado), en vez de la descripción libre genérica. Para movimientos de
+  > Compra, ajuste manual o transferencia, la columna sigue mostrando lo mismo que mostraba antes
+  > (sin cambios de comportamiento).
 
 ---
 

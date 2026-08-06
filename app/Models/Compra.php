@@ -17,7 +17,7 @@ class Compra extends Model
     protected $table = 'compras';
 
     protected $fillable = [
-        'proveedor_id', 'categoria_id', 'tipo_comprobante', 'nro_comprobante',
+        'proveedor_id', 'categoria_id', 'deposito_id', 'tipo_comprobante', 'nro_comprobante',
         'fecha_emision', 'fecha_vto_pago', 'servicio_desde', 'servicio_hasta',
         'mes_imputacion_iva', 'subtotal_sin_descuento', 'descuento',
         'subtotal_con_descuento', 'total', 'nota_interna', 'submit_token',
@@ -43,6 +43,11 @@ class Compra extends Model
     public function categoria(): BelongsTo
     {
         return $this->belongsTo(Categoria::class);
+    }
+
+    public function deposito(): BelongsTo
+    {
+        return $this->belongsTo(Deposito::class);
     }
 
     public function items(): HasMany

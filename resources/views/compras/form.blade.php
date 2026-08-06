@@ -51,6 +51,18 @@
                         <label class="form-label">Vto. del Pago</label>
                         <input type="date" id="f-fecha-vto-pago" class="form-control">
                     </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Depósito</label>
+                        <select id="f-deposito" class="form-select" style="width:100%">
+                            @foreach ($depositos ?? [] as $deposito)
+                                <option value="{{ $deposito->id }}">{{ $deposito->nombre }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">N° de Comprobante</label>
+                        <input type="text" id="f-nro-comprobante" class="form-control" maxlength="20">
+                    </div>
                 </div>
 
                 <hr>
@@ -114,7 +126,7 @@
 @endsection
 
 @php
-    $datosCompra = $compra ? $compra->only(['id', 'proveedor_id', 'categoria_id', 'tipo_comprobante', 'nota_interna', 'fecha_vto_pago', 'mes_imputacion_iva']) : null;
+    $datosCompra = $compra ? $compra->only(['id', 'proveedor_id', 'categoria_id', 'deposito_id', 'nro_comprobante', 'tipo_comprobante', 'nota_interna', 'fecha_vto_pago', 'mes_imputacion_iva']) : null;
     $datosItems = ($compra?->items ?? collect())->map(fn ($i) => $i->only(['producto_id', 'descripcion', 'cantidad', 'precio_unitario', 'descuento_pct', 'iva_pct']))->values();
     $datosConceptos = ($compra?->conceptos ?? collect())->map(fn ($c) => $c->only(['tipo', 'concepto', 'monto']))->values();
     $datosProveedor = $compra?->proveedor ? ['id' => $compra->proveedor->id, 'nombre' => $compra->proveedor->nombre] : null;
@@ -127,6 +139,8 @@
         conceptos: @json($datosConceptos),
         proveedor: @json($datosProveedor),
         categoriaId: @json($compra?->categoria_id ?? (($defaults ?? null)['categoriaId'] ?? null)),
+        depositoId: @json($compra?->deposito_id ?? (($defaults ?? null)['depositoId'] ?? null)),
+        nroComprobante: @json($compra?->nro_comprobante ?? (($defaults ?? null)['nroComprobanteSugerido'] ?? null)),
         notaInterna: @json($compra?->nota_interna),
         fechaVtoPago: @json(optional($compra?->fecha_vto_pago)->format('Y-m-d') ?: (($defaults ?? null)['fechaVtoPago'] ?? null)),
         mesImputacionIva: @json(optional($compra?->mes_imputacion_iva)->format('Y-m')),

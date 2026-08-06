@@ -44,10 +44,12 @@ class VentaStockTest extends TestCase
     private function crearVentaConProducto(Producto $producto, float $cantidad = 3): Venta
     {
         $cliente = Cliente::factory()->create();
+        $deposito = Deposito::first() ?? Deposito::create(['nombre' => 'Principal', 'activo' => true]);
 
         $respuesta = $this->postJson(route('ventas.store'), [
             'submit_token' => (string) Str::uuid(),
             'cliente_id' => $cliente->id,
+            'deposito_id' => $deposito->id,
             'fecha_emision' => '2026-07-27',
             'tipo_comprobante' => 'B',
             'items' => [[

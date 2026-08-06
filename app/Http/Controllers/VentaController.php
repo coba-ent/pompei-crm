@@ -220,11 +220,15 @@ class VentaController extends Controller
                 $listaPrecioDefault = $configuracionVentas->lista_precio_id
                     ? ListaPrecio::where('activo', true)->find($configuracionVentas->lista_precio_id)
                     : null;
+                $depositoDefault = $configuracionVentas->deposito_id
+                    ? Deposito::activos()->find($configuracionVentas->deposito_id)
+                    : null;
 
                 $defaults = [
                     'categoriaId' => $categoriaDefault?->id,
                     'vendedorId' => $vendedorDefault?->id,
                     'listaPrecioId' => $listaPrecioDefault?->id,
+                    'depositoId' => $depositoDefault?->id,
                     'tipoComprobante' => $configuracionVentas->tipo_comprobante,
                     'fechaVtoCobro' => $configuracionVentas->dias_vto_cobro !== null
                         ? now()->addDays($configuracionVentas->dias_vto_cobro)->format('Y-m-d')
@@ -242,6 +246,7 @@ class VentaController extends Controller
             'categoriasVenta' => Categoria::venta()->activas()->orderBy('nombre')->get(),
             'listasPrecio' => ListaPrecio::where('activo', true)->orderBy('nombre')->get(),
             'vendedores' => Vendedor::orderBy('nombre')->get(),
+            'depositos' => Deposito::activos()->orderBy('nombre')->get(),
             // Para el modal completo de alta/edición de Cliente reutilizado desde el select (clientes._modal_form).
             'categorias' => Categoria::venta()->orderBy('nombre')->get(),
             'condicionesIva' => CondicionIva::orderBy('nombre')->get(),
@@ -272,6 +277,7 @@ class VentaController extends Controller
                 'cliente_id' => $datos['cliente_id'],
                 'categoria_id' => $datos['categoria_id'] ?? null,
                 'lista_precio_id' => $datos['lista_precio_id'] ?? null,
+                'deposito_id' => $datos['deposito_id'],
                 'fecha_emision' => $datos['fecha_emision'],
                 'fecha_validez' => $datos['fecha_validez'] ?? null,
                 'servicio_desde' => $datos['servicio_desde'] ?? null,
@@ -320,17 +326,18 @@ class VentaController extends Controller
     public function edit(Venta $venta)
     {
         $CurrentPage = 'ventas';
-        $venta->load(['items', 'conceptos', 'etiquetas', 'cliente', 'categoria', 'listaPrecio', 'vendedor']);
+        $venta->load(['items', 'conceptos', 'etiquetas', 'cliente', 'categoria', 'listaPrecio', 'vendedor', 'deposito']);
         $categoriasVenta = Categoria::venta()->activas()->orderBy('nombre')->get();
         $listasPrecio = ListaPrecio::where('activo', true)->orderBy('nombre')->get();
         $vendedores = Vendedor::orderBy('nombre')->get();
+        $depositos = Deposito::activos()->orderBy('nombre')->get();
         $categorias = Categoria::venta()->orderBy('nombre')->get();
         $condicionesIva = CondicionIva::orderBy('nombre')->get();
         $provincias = Provincia::orderBy('nombre')->pluck('nombre');
 
         $presupuestoOrigen = null;
 
-        return view('ventas.form', compact('CurrentPage', 'venta', 'categoriasVenta', 'listasPrecio', 'vendedores', 'presupuestoOrigen', 'categorias', 'condicionesIva', 'provincias'));
+        return view('ventas.form', compact('CurrentPage', 'venta', 'categoriasVenta', 'listasPrecio', 'vendedores', 'depositos', 'presupuestoOrigen', 'categorias', 'condicionesIva', 'provincias'));
     }
 
     public function update(UpdateVentaRequest $request, Venta $venta): JsonResponse
@@ -340,11 +347,13 @@ class VentaController extends Controller
         DB::transaction(function () use ($datos, $venta) {
             $resultado = $this->calculo->calcular($datos['items'], $datos['descuento_general_pct'] ?? null, $datos['conceptos'] ?? []);
             $itemsAnteriores = $venta->items()->with('producto')->get();
+            $depositoAnteriorId = $venta->deposito_id;
 
             $venta->update([
                 'cliente_id' => $datos['cliente_id'],
                 'categoria_id' => $datos['categoria_id'] ?? null,
                 'lista_precio_id' => $datos['lista_precio_id'] ?? null,
+                'deposito_id' => $datos['deposito_id'],
                 'fecha_emision' => $datos['fecha_emision'],
                 'fecha_validez' => $datos['fecha_validez'] ?? null,
                 'servicio_desde' => $datos['servicio_desde'] ?? null,
@@ -369,7 +378,8 @@ class VentaController extends Controller
             $this->guardarConceptos($venta, $datos['conceptos'] ?? []);
             $this->sincronizarEtiquetas($venta, $datos['etiquetas'] ?? []);
 
-            $this->stockDeVenta->reaplicarPorEdicion($venta->load('items.producto'), $itemsAnteriores);
+            $depositoAnterior = $depositoAnteriorId ? \App\Models\Deposito::find($depositoAnteriorId) : null;
+            $this->stockDeVenta->reaplicarPorEdicion($venta->load('items.producto'), $itemsAnteriores, $depositoAnterior);
         });
 
         return response()->json([

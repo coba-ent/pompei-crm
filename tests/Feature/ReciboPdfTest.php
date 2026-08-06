@@ -6,6 +6,7 @@ use App\Models\CondicionIva;
 use App\Models\Cliente;
 use App\Models\Compra;
 use App\Models\CuentaTesoreria;
+use App\Models\Deposito;
 use App\Models\Proveedor;
 use App\Models\Rol;
 use App\Models\Venta;
@@ -29,10 +30,12 @@ class ReciboPdfTest extends TestCase
         $condicionIva = CondicionIva::create(['nombre' => 'Consumidor Final', 'codigo_afip' => '5', 'requiere_cuit' => false]);
         $cliente = Cliente::factory()->create(['condicion_iva_id' => $condicionIva->id]);
         $cuenta = CuentaTesoreria::factory()->tipo('efectivo')->create();
+        $deposito = Deposito::create(['nombre' => 'Principal', 'activo' => true]);
 
         $this->postJson(route('ventas.store'), [
             'submit_token' => (string) \Illuminate\Support\Str::uuid(),
             'cliente_id' => $cliente->id,
+            'deposito_id' => $deposito->id,
             'fecha_emision' => now()->toDateString(),
             'tipo_comprobante' => 'B',
             'items' => [
@@ -58,10 +61,13 @@ class ReciboPdfTest extends TestCase
     {
         $proveedor = Proveedor::factory()->create();
         $cuenta = CuentaTesoreria::factory()->tipo('efectivo')->create();
+        $deposito = Deposito::create(['nombre' => 'Principal', 'activo' => true]);
 
         $this->postJson(route('compras.store'), [
             'submit_token' => (string) \Illuminate\Support\Str::uuid(),
             'proveedor_id' => $proveedor->id,
+            'deposito_id' => $deposito->id,
+            'nro_comprobante' => '0001-00000001',
             'fecha_emision' => now()->toDateString(),
             'tipo_comprobante' => 'A',
             'items' => [
@@ -88,11 +94,13 @@ class ReciboPdfTest extends TestCase
         $condicionIva = CondicionIva::create(['nombre' => 'Consumidor Final', 'codigo_afip' => '5', 'requiere_cuit' => false]);
         $cliente = Cliente::factory()->create(['condicion_iva_id' => $condicionIva->id]);
         $cuenta = CuentaTesoreria::factory()->tipo('efectivo')->create();
+        $deposito = Deposito::create(['nombre' => 'Principal', 'activo' => true]);
 
         foreach ([1, 2] as $i) {
             $this->postJson(route('ventas.store'), [
                 'submit_token' => (string) \Illuminate\Support\Str::uuid(),
                 'cliente_id' => $cliente->id,
+                'deposito_id' => $deposito->id,
                 'fecha_emision' => now()->toDateString(),
                 'tipo_comprobante' => 'B',
                 'items' => [

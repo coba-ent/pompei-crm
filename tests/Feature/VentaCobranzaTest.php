@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Cliente;
 use App\Models\CuentaTesoreria;
+use App\Models\Deposito;
 use App\Models\Presupuesto;
 use App\Models\Rol;
 use App\Models\Venta;
@@ -25,9 +26,12 @@ class VentaCobranzaTest extends TestCase
 
     private function crearVenta(Cliente $cliente, array $overrides = []): Venta
     {
+        $deposito = Deposito::first() ?? Deposito::create(['nombre' => 'Principal', 'activo' => true]);
+
         $payload = array_merge([
             'submit_token' => (string) \Illuminate\Support\Str::uuid(),
             'cliente_id' => $cliente->id,
+            'deposito_id' => $deposito->id,
             'fecha_emision' => now()->toDateString(),
             'tipo_comprobante' => 'B',
             'items' => [

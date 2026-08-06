@@ -16,8 +16,8 @@ class ConfiguracionVentas extends Model
 
     protected $fillable = [
         'categoria_id', 'vendedor_id', 'lista_precio_id', 'tipo_comprobante', 'dias_vto_cobro',
-        'dias_validez_presupuesto',
-        'categoria_compra_id', 'tipo_comprobante_compra', 'dias_vto_pago_compra',
+        'dias_validez_presupuesto', 'deposito_id',
+        'categoria_compra_id', 'tipo_comprobante_compra', 'dias_vto_pago_compra', 'deposito_compra_id',
     ];
 
     public function categoria(): BelongsTo
@@ -38,5 +38,15 @@ class ConfiguracionVentas extends Model
     public function categoriaCompra(): BelongsTo
     {
         return $this->belongsTo(Categoria::class, 'categoria_compra_id');
+    }
+
+    public function deposito(): BelongsTo
+    {
+        return $this->belongsTo(Deposito::class);
+    }
+
+    public function depositoCompra(): BelongsTo
+    {
+        return $this->belongsTo(Deposito::class, 'deposito_compra_id');
     }
 }

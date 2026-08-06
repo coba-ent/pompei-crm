@@ -64,6 +64,17 @@
                            value="{{ $configuracionVentas?->dias_vto_cobro }}" placeholder="Sin valor por defecto">
                     <div class="form-text">Se suma a la fecha de Emisión. 0 significa la misma fecha que la Emisión.</div>
                 </div>
+                <div class="col-md-6">
+                    <label class="form-label">Depósito por defecto</label>
+                    <select class="form-select" id="cv-deposito-id" name="deposito_id" style="width:100%">
+                        <option value="">Sin valor por defecto (usa el Depósito por defecto del sistema)</option>
+                        @foreach ($depositos as $deposito)
+                            <option value="{{ $deposito->id }}" {{ $configuracionVentas?->deposito_id == $deposito->id ? 'selected' : '' }}>
+                                {{ $deposito->nombre }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
             </div>
         </div>
     </div>
@@ -120,6 +131,17 @@
                     <input type="number" min="0" step="1" class="form-control" id="cv-dias-vto-pago-compra" name="dias_vto_pago_compra"
                            value="{{ $configuracionVentas?->dias_vto_pago_compra }}" placeholder="Sin valor por defecto">
                     <div class="form-text">Se suma a la fecha de Emisión. 0 significa la misma fecha que la Emisión.</div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Depósito por defecto</label>
+                    <select class="form-select" id="cv-deposito-compra-id" name="deposito_compra_id" style="width:100%">
+                        <option value="">Sin valor por defecto (usa el Depósito por defecto del sistema)</option>
+                        @foreach ($depositos as $deposito)
+                            <option value="{{ $deposito->id }}" {{ $configuracionVentas?->deposito_compra_id == $deposito->id ? 'selected' : '' }}>
+                                {{ $deposito->nombre }}
+                            </option>
+                        @endforeach
+                    </select>
                 </div>
             </div>
         </div>

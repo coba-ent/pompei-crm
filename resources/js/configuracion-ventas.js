@@ -33,7 +33,9 @@
         initSelect2($('#cv-categoria-id'));
         initSelect2($('#cv-vendedor-id'));
         initSelect2($('#cv-lista-precio-id'));
+        initSelect2($('#cv-deposito-id'));
         initSelect2($('#cv-categoria-compra-id'));
+        initSelect2($('#cv-deposito-compra-id'));
 
         function initSelect2($el) {
             if (!$.fn.select2 || !$el.length) {
@@ -49,10 +51,12 @@
                 categoria_id: $('#cv-categoria-id').val() || null,
                 vendedor_id: $('#cv-vendedor-id').val() || null,
                 lista_precio_id: $('#cv-lista-precio-id').val() || null,
+                deposito_id: $('#cv-deposito-id').val() || null,
                 tipo_comprobante: $('#cv-tipo-comprobante').val() || null,
                 dias_vto_cobro: $('#cv-dias-vto-cobro').val() !== '' ? $('#cv-dias-vto-cobro').val() : null,
                 dias_validez_presupuesto: $('#cv-dias-validez-presupuesto').val() !== '' ? $('#cv-dias-validez-presupuesto').val() : null,
                 categoria_compra_id: $('#cv-categoria-compra-id').val() || null,
+                deposito_compra_id: $('#cv-deposito-compra-id').val() || null,
                 tipo_comprobante_compra: $('#cv-tipo-comprobante-compra').val() || null,
                 dias_vto_pago_compra: $('#cv-dias-vto-pago-compra').val() !== '' ? $('#cv-dias-vto-pago-compra').val() : null,
             };
