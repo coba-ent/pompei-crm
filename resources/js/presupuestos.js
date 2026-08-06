@@ -179,12 +179,37 @@
                 processResults: (data) => ({ results: data.data.map((c) => ({ id: c.id, text: c.nombre })) }),
             },
         });
+        initSelect2($('#filtro-producto'), {
+            placeholder: 'Todos', allowClear: true,
+            ajax: {
+                url: rutas.productosOpciones,
+                data: (params) => ({ q: params.term, incluir_servicios: 1 }),
+                processResults: (resp) => ({ results: resp.data.map((p) => ({ id: p.id, text: p.nombre + (p.codigo ? ' (' + p.codigo + ')' : '') })) }),
+            },
+        });
+        initSelect2($('#filtro-categoria'), { placeholder: 'Todas', allowClear: true });
+        initSelect2($('#filtro-etiqueta'), { placeholder: 'Todas', allowClear: true });
+        initSelect2($('#filtro-vendedor'), { placeholder: 'Todos', allowClear: true });
+        initSelect2($('#filtro-usuario'), { placeholder: 'Todos', allowClear: true });
+        initSelect2($('#filtro-estado'));
 
         function filtrosActuales() {
             return {
+                id: $('#filtro-id').val(),
+                producto_id: $('#filtro-producto').val(),
                 cliente_id: $('#filtro-cliente').val(),
                 estado: $('#filtro-estado').val(),
+                categoria_id: $('#filtro-categoria').val(),
                 buscar: $('#filtro-buscar').val(),
+                etiqueta_id: $('#filtro-etiqueta').val(),
+                vendedor_id: $('#filtro-vendedor').val(),
+                formas_pago: $('#filtro-formas-pago').val(),
+                metodos_envio: $('#filtro-metodos-envio').val(),
+                usuario_id: $('#filtro-usuario').val(),
+                nota_cliente: $('#filtro-nota-cliente').val(),
+                nota_interna: $('#filtro-nota-interna').val(),
+                servicio_desde: $('#filtro-servicio-desde').val(),
+                servicio_hasta: $('#filtro-servicio-hasta').val(),
             };
         }
 
@@ -232,9 +257,9 @@
 
         $('#btn-aplicar-filtros').on('click', () => tabla.ajax.reload());
         $('#btn-limpiar-filtros').on('click', () => {
-            $('#filtro-cliente').val(null).trigger('change');
-            $('#filtro-estado').val('');
-            $('#filtro-buscar').val('');
+            $('#filtro-id, #filtro-buscar, #filtro-formas-pago, #filtro-metodos-envio, #filtro-nota-cliente, #filtro-nota-interna, #filtro-servicio-desde, #filtro-servicio-hasta').val('');
+            $('#filtro-producto, #filtro-cliente, #filtro-categoria, #filtro-etiqueta, #filtro-vendedor, #filtro-usuario').val(null).trigger('change');
+            $('#filtro-estado').val('').trigger('change');
             tabla.ajax.reload();
         });
 

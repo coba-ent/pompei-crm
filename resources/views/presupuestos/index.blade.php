@@ -72,22 +72,91 @@
                     <div class="border rounded p-3">
                         <div class="row g-2">
                             <div class="col-md-3">
-                                <label class="form-label">N° de Presupuesto</label>
-                                <input type="text" id="filtro-buscar" class="form-control" placeholder="Buscar por N°">
+                                <label class="form-label">Id</label>
+                                <input type="text" id="filtro-id" class="form-control" placeholder="Buscar por número de ID">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Producto/Servicio</label>
+                                <select id="filtro-producto" class="form-select" multiple></select>
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label">Cliente</label>
-                                <select id="filtro-cliente" class="form-select"><option value="">Todos</option></select>
+                                <select id="filtro-cliente" class="form-select" multiple></select>
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label">Estado del Presupuesto</label>
                                 <select id="filtro-estado" class="form-select">
                                     <option value="">Todos</option>
                                     <option value="pendiente">Pendiente</option>
+                                    <option value="vencido">Vencido</option>
                                     <option value="rechazado">Rechazado</option>
                                     <option value="aceptado">Aceptado</option>
                                 </select>
                             </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Categoría de Venta</label>
+                                <select id="filtro-categoria" class="form-select" multiple>
+                                    @foreach ($categoriasVenta as $c)
+                                        <option value="{{ $c->id }}">{{ $c->nombre }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">N° de Presupuesto</label>
+                                <input type="text" id="filtro-buscar" class="form-control" placeholder="Buscar por número de presupuesto">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Etiqueta</label>
+                                <select id="filtro-etiqueta" class="form-select" multiple>
+                                    @foreach ($etiquetas as $e)
+                                        <option value="{{ $e->id }}">{{ $e->nombre }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Vendedor</label>
+                                <select id="filtro-vendedor" class="form-select" multiple>
+                                    @foreach ($vendedores as $v)
+                                        <option value="{{ $v->id }}">{{ $v->nombre }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Formas de Pago</label>
+                                <input type="text" id="filtro-formas-pago" class="form-control" placeholder="Buscar por Formas de Pago">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Métodos de Envío</label>
+                                <input type="text" id="filtro-metodos-envio" class="form-control" placeholder="Buscar por Métodos de Envío">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Usuario</label>
+                                <select id="filtro-usuario" class="form-select" multiple>
+                                    @foreach ($usuarios as $u)
+                                        <option value="{{ $u->id }}">{{ $u->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Nota para el Cliente</label>
+                                <input type="text" id="filtro-nota-cliente" class="form-control" placeholder="Buscar por Nota para el Cliente">
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Nota Interna</label>
+                                <input type="text" id="filtro-nota-interna" class="form-control" placeholder="Buscar por Nota Interna">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Servicio Desde</label>
+                                <input type="date" id="filtro-servicio-desde" class="form-control">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Hasta Servicio</label>
+                                <input type="date" id="filtro-servicio-hasta" class="form-control">
+                            </div>
+
                             <div class="col-12 text-end">
                                 <button type="button" class="btn btn-light" id="btn-limpiar-filtros">Limpiar</button>
                                 <button type="button" class="btn btn-primary" id="btn-aplicar-filtros">
@@ -154,6 +223,7 @@
             crearVenta: "{{ url('presupuestos') }}",
             pdf: "{{ url('presupuestos') }}",
             clientesOpciones: "{{ route('clientes.opciones') }}",
+            productosOpciones: "{{ route('productos.opciones') }}",
         },
     };
 </script>

@@ -21,7 +21,7 @@ class Presupuesto extends Model
         'estado', 'venta_id', 'descuento_general_pct',
         'subtotal_sin_descuento', 'descuento', 'subtotal_con_descuento', 'total',
         'nota_cliente', 'nota_interna', 'formas_pago', 'metodos_envio',
-        'vendedor_id', 'submit_token',
+        'vendedor_id', 'creado_por_id', 'submit_token',
     ];
 
     protected $casts = [
@@ -54,6 +54,11 @@ class Presupuesto extends Model
     public function vendedor(): BelongsTo
     {
         return $this->belongsTo(Vendedor::class, 'vendedor_id');
+    }
+
+    public function creadoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'creado_por_id');
     }
 
     public function venta(): BelongsTo

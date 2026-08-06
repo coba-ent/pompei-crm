@@ -376,12 +376,14 @@ Otros Ingresos y Abonos son independientes.
   Aceptados, Total Posibles) y **18 columnas**: Estado, Id, Emisión, Vencimiento, Cliente, Categoría,
   Nro. Presupuesto, Subtotal sin Descuento, Descuento, Subtotal con Descuento, Total, Etiquetas, Nota
   Cliente, Nota Interna, Lista de Precios, Vendedor, Formas de Pago, Métodos de Envío.
-- Filtros (15 campos): Id, Producto/Servicio, Cliente, Estado del Presupuesto, Categoría de Venta, N°
-  de Presupuesto, Etiqueta, Vendedor, Formas de Pago, Métodos de Envío, Usuario, Nota para el Cliente,
-  Nota Interna, Servicio Desde/Hasta. **Brecha detectada (spec 020, análisis, 30/07/2026)**: hoy sólo 3
-  de estos 15 campos están implementados en el panel de filtros real (Buscar, Cliente, Creada Desde);
-  el resto —incluidos Vendedor y Usuario— están documentados acá pero no construidos todavía. Pendiente
-  de una spec propia que complete el panel de filtros (brecha de las specs 008/017, no de la 020).
+- Filtros (15 campos, implementados 06/08/2026 — cambio menor sin spec propia, calcado de
+  `docs/informe_contagram_ingresos.md` §2.2 `[67]` y del mismo patrón ya usado en Ventas): Id,
+  Producto/Servicio, Cliente, Estado del Presupuesto (incluye "Vencido", derivado), Categoría de
+  Venta, N° de Presupuesto, Etiqueta, Vendedor, Formas de Pago, Métodos de Envío, Usuario, Nota
+  para el Cliente, Nota Interna, Servicio Desde/Hasta. "Usuario" requirió agregar `creado_por_id`
+  a `presupuestos` (migración `2026_08_16_060004`, mismo criterio que `ventas.creado_por_id`).
+  Formas de Pago y Métodos de Envío filtran por texto libre (like) — no son catálogo, igual que
+  en Ventas.
 - Menú de fila (badge de Estado ▾, 10 opciones en 4 bloques): Ver/Editar/Eliminar · cambio de estado
   directo (Pendiente/Rechazado/Aceptado) · **Crear Venta** (convierte el presupuesto) ·
   Ver/Imprimir/Enviar Presupuesto.

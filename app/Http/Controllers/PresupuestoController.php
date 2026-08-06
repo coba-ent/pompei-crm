@@ -33,22 +33,72 @@ class PresupuestoController extends Controller
         $CurrentPage = 'presupuestos';
         $kpis = $this->kpis();
 
-        return view('presupuestos.index', compact('CurrentPage', 'kpis'));
+        return view('presupuestos.index', [
+            'CurrentPage' => $CurrentPage,
+            'kpis' => $kpis,
+            'categoriasVenta' => Categoria::venta()->activas()->orderBy('nombre')->get(['id', 'nombre']),
+            'vendedores' => Vendedor::orderBy('nombre')->get(['id', 'nombre']),
+            'etiquetas' => Etiqueta::orderBy('nombre')->get(['id', 'nombre']),
+            'usuarios' => \App\Models\User::orderBy('name')->get(['id', 'name']),
+        ]);
     }
 
+    /**
+     * Panel de Filtros de Presupuestos (informe §2.2 `[67]`, 15 campos). Formas de Pago y
+     * Métodos de Envío son texto libre en el modelo (sin catálogo propio, igual que en Ventas).
+     */
     private function queryFiltrada(Request $request): Builder
     {
         $query = Presupuesto::query()->with(['cliente:id,nombre', 'categoria:id,nombre']);
 
+        if ($request->filled('id')) {
+            $query->where('id', (int) $request->input('id'));
+        }
+        if ($request->filled('producto_id')) {
+            $query->whereHas('items', fn (Builder $q) => $q->whereIn('producto_id', (array) $request->input('producto_id')));
+        }
         if ($request->filled('cliente_id')) {
-            $query->where('cliente_id', $request->input('cliente_id'));
+            $query->whereIn('cliente_id', (array) $request->input('cliente_id'));
         }
         if ($request->filled('estado')) {
-            $query->where('estado', $request->input('estado'));
+            match ($request->input('estado')) {
+                'vencido' => $query->where('estado', 'pendiente')->whereDate('fecha_validez', '<', now()),
+                default => $query->where('estado', $request->input('estado')),
+            };
+        }
+        if ($request->filled('categoria_id')) {
+            $query->whereIn('categoria_id', (array) $request->input('categoria_id'));
         }
         if ($request->filled('buscar')) {
             $kw = $request->input('buscar');
             $query->where('nro_presupuesto', 'like', "%{$kw}%");
+        }
+        if ($request->filled('etiqueta_id')) {
+            $query->whereHas('etiquetas', fn (Builder $q) => $q->whereIn('etiquetas.id', (array) $request->input('etiqueta_id')));
+        }
+        if ($request->filled('vendedor_id')) {
+            $query->whereIn('vendedor_id', (array) $request->input('vendedor_id'));
+        }
+        if ($request->filled('formas_pago')) {
+            $query->where('formas_pago', 'like', '%'.$request->input('formas_pago').'%');
+        }
+        if ($request->filled('metodos_envio')) {
+            $query->where('metodos_envio', 'like', '%'.$request->input('metodos_envio').'%');
+        }
+        if ($request->filled('usuario_id')) {
+            $query->whereIn('creado_por_id', (array) $request->input('usuario_id'));
+        }
+        if ($request->filled('nota_cliente')) {
+            $query->where('nota_cliente', 'like', '%'.$request->input('nota_cliente').'%');
+        }
+        if ($request->filled('nota_interna')) {
+            $query->where('nota_interna', 'like', '%'.$request->input('nota_interna').'%');
+        }
+        if ($request->filled('servicio_desde')) {
+            $query->whereDate('servicio_desde', '>=', $request->input('servicio_desde'));
+        }
+        if ($request->filled('servicio_hasta')) {
+            $query->whereDate('servicio_hasta', '<=', $request->input('servicio_hasta'));
         }
 
         return $query;
@@ -173,6 +223,7 @@ class PresupuestoController extends Controller
                 'formas_pago' => $datos['formas_pago'] ?? null,
                 'metodos_envio' => $datos['metodos_envio'] ?? null,
                 'vendedor_id' => $vendedorId,
+                'creado_por_id' => auth()->id(),
                 'submit_token' => $datos['submit_token'],
             ]);
 
