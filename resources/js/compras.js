@@ -50,6 +50,30 @@
         return PCT_IVA[valor] || 0;
     }
 
+    // Preserva el foco (y la posición del cursor) de un input dentro de un
+    // contenedor que se re-renderiza por completo, para que escribir un
+    // caracter no lo saque del campo (re-render en cada 'input').
+    function capturarFoco(contenedorSelector) {
+        const activo = document.activeElement;
+        if (!activo || !$.contains(document.querySelector(contenedorSelector), activo)) { return null; }
+        const $activo = $(activo);
+        return {
+            idx: $activo.attr('data-idx'),
+            field: $activo.attr('data-field'),
+            selectionStart: activo.selectionStart,
+            selectionEnd: activo.selectionEnd,
+        };
+    }
+    function restaurarFoco(contenedorSelector, foco) {
+        if (!foco || foco.idx === undefined || !foco.field) { return; }
+        const $input = $(contenedorSelector).find('[data-idx="' + foco.idx + '"][data-field="' + foco.field + '"]');
+        if (!$input.length) { return; }
+        $input.trigger('focus');
+        if (typeof foco.selectionStart === 'number' && $input[0].setSelectionRange) {
+            try { $input[0].setSelectionRange(foco.selectionStart, foco.selectionEnd); } catch (e) { /* input type=number en algunos navegadores no soporta selectionRange */ }
+        }
+    }
+
     $(function () {
         inicializarListado();
         inicializarFormulario();
@@ -255,6 +279,7 @@
         });
 
         function renderItems() {
+            const foco = capturarFoco('#items-body');
             const $body = $('#items-body').empty();
             items.forEach((item, idx) => {
                 const cant = Number(item.cantidad) || 0;
@@ -271,9 +296,9 @@
 
                 const $tr = $('<tr>');
                 $tr.append($('<td>').text(item.descripcion));
-                $tr.append($('<td style="width:90px">').append($('<input type="number" step="0.001" class="form-control form-control-sm">').val(cant).on('input', function () { items[idx].cantidad = $(this).val(); renderItems(); })));
-                $tr.append($('<td style="width:110px">').append($('<input type="number" step="0.01" class="form-control form-control-sm">').val(precio).on('input', function () { items[idx].precio_unitario = $(this).val(); renderItems(); })));
-                $tr.append($('<td style="width:90px">').append($('<input type="number" step="0.01" class="form-control form-control-sm">').val(item.descuento_pct || '').on('input', function () { items[idx].descuento_pct = $(this).val(); renderItems(); })));
+                $tr.append($('<td style="width:90px">').append($('<input type="number" step="0.001" class="form-control form-control-sm">').attr('data-idx', idx).attr('data-field', 'cantidad').val(cant).on('input', function () { items[idx].cantidad = $(this).val(); renderItems(); })));
+                $tr.append($('<td style="width:110px">').append($('<input type="number" step="0.01" class="form-control form-control-sm">').attr('data-idx', idx).attr('data-field', 'precio_unitario').val(precio).on('input', function () { items[idx].precio_unitario = $(this).val(); renderItems(); })));
+                $tr.append($('<td style="width:90px">').append($('<input type="number" step="0.01" class="form-control form-control-sm">').attr('data-idx', idx).attr('data-field', 'descuento_pct').val(item.descuento_pct || '').on('input', function () { items[idx].descuento_pct = $(this).val(); renderItems(); })));
                 $tr.append($('<td>').text(money(subtotal)));
                 $tr.append($('<td style="width:110px">').append($(selectHtml).on('change', function () { items[idx].iva_pct = $(this).val() || null; renderItems(); })));
                 $tr.append($('<td>').text(money(subtotalConIva)));
@@ -281,6 +306,7 @@
                 $body.append($tr);
             });
             recalcular();
+            restaurarFoco('#items-body', foco);
         }
 
         function renderConceptos() {

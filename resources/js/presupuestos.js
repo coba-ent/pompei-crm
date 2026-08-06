@@ -129,6 +129,30 @@
         return '$ ' + (Number(v) || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
+    // Preserva el foco (y la posición del cursor) de un input dentro de un
+    // contenedor que se re-renderiza por completo, para que escribir un
+    // caracter no lo saque del campo (re-render en cada 'input').
+    function capturarFoco(contenedorSelector) {
+        const activo = document.activeElement;
+        if (!activo || !$.contains(document.querySelector(contenedorSelector), activo)) { return null; }
+        const $activo = $(activo);
+        return {
+            idx: $activo.attr('data-idx'),
+            field: $activo.attr('data-field'),
+            selectionStart: activo.selectionStart,
+            selectionEnd: activo.selectionEnd,
+        };
+    }
+    function restaurarFoco(contenedorSelector, foco) {
+        if (!foco || foco.idx === undefined || !foco.field) { return; }
+        const $input = $(contenedorSelector).find('[data-idx="' + foco.idx + '"][data-field="' + foco.field + '"]');
+        if (!$input.length) { return; }
+        $input.trigger('focus');
+        if (typeof foco.selectionStart === 'number' && $input[0].setSelectionRange) {
+            try { $input[0].setSelectionRange(foco.selectionStart, foco.selectionEnd); } catch (e) { /* input type=number en algunos navegadores no soporta selectionRange */ }
+        }
+    }
+
     $(function () {
         inicializarListado();
         inicializarFormulario();
@@ -428,6 +452,7 @@
         });
 
         function renderItems() {
+            const foco = capturarFoco('#items-body');
             const $body = $('#items-body').empty();
             items.forEach((item, idx) => {
                 const cant = Number(item.cantidad) || 0;
@@ -441,17 +466,17 @@
                 const $tr = $('<tr>');
                 $tr.append($('<td>').text(item.descripcion));
                 $tr.append($('<td style="width:90px">').append(
-                    $('<input type="number" step="0.001" class="form-control form-control-sm js-item-cant">').val(cant).on('input', function () {
+                    $('<input type="number" step="0.001" class="form-control form-control-sm js-item-cant">').attr('data-idx', idx).attr('data-field', 'cantidad').val(cant).on('input', function () {
                         items[idx].cantidad = $(this).val(); renderItems();
                     })
                 ));
                 $tr.append($('<td style="width:110px">').append(
-                    $('<input type="number" step="0.01" class="form-control form-control-sm js-item-precio">').val(precio).on('input', function () {
+                    $('<input type="number" step="0.01" class="form-control form-control-sm js-item-precio">').attr('data-idx', idx).attr('data-field', 'precio_unitario').val(precio).on('input', function () {
                         items[idx].precio_unitario = $(this).val(); renderItems();
                     })
                 ));
                 $tr.append($('<td style="width:90px">').append(
-                    $('<input type="number" step="0.01" class="form-control form-control-sm">').val(item.descuento_pct || '').on('input', function () {
+                    $('<input type="number" step="0.01" class="form-control form-control-sm">').attr('data-idx', idx).attr('data-field', 'descuento_pct').val(item.descuento_pct || '').on('input', function () {
                         items[idx].descuento_pct = $(this).val(); renderItems();
                     })
                 ));
@@ -472,6 +497,7 @@
                 $body.append($tr);
             });
             recalcular();
+            restaurarFoco('#items-body', foco);
         }
 
         const PERCEPCIONES = ['IVA (Percepción)', 'Ganancias', 'Sellos', 'IIBB Buenos Aires', 'IIBB CABA', 'IIBB Catamarca', 'IIBB Chaco', 'IIBB Chubut', 'IIBB Córdoba', 'IIBB Corrientes', 'IIBB Entre Ríos', 'IIBB Formosa', 'IIBB Jujuy', 'IIBB La Pampa', 'IIBB La Rioja', 'IIBB Mendoza', 'IIBB Misiones', 'IIBB Neuquén', 'IIBB Río Negro', 'IIBB Salta', 'IIBB San Juan', 'IIBB San Luis', 'IIBB Santa Cruz', 'IIBB Santa Fe', 'IIBB Santiago del Estero', 'IIBB Tierra del Fuego', 'IIBB Tucumán'];
