@@ -14,8 +14,10 @@ use App\Models\Deposito;
 use App\Models\Etiqueta;
 use App\Models\ListaPrecio;
 use App\Models\Presupuesto;
+use App\Models\Proveedor;
 use App\Models\Provincia;
 use App\Models\Remito;
+use App\Models\TipoProducto;
 use App\Models\Vendedor;
 use App\Models\Venta;
 use App\Services\Arca\EmisorComprobante;
@@ -252,6 +254,10 @@ class VentaController extends Controller
             'categorias' => Categoria::venta()->orderBy('nombre')->get(),
             'condicionesIva' => CondicionIva::orderBy('nombre')->get(),
             'provincias' => Provincia::orderBy('nombre')->pluck('nombre'),
+            // Catálogos para los modales Ver/Editar de Producto reutilizados desde el
+            // detalle de la Venta (spec 052).
+            'tiposProducto' => TipoProducto::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']),
+            'proveedores' => Proveedor::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']),
         ]);
     }
 
@@ -337,8 +343,10 @@ class VentaController extends Controller
         $provincias = Provincia::orderBy('nombre')->pluck('nombre');
 
         $presupuestoOrigen = null;
+        $tiposProducto = TipoProducto::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']);
+        $proveedores = Proveedor::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']);
 
-        return view('ventas.form', compact('CurrentPage', 'venta', 'categoriasVenta', 'listasPrecio', 'vendedores', 'depositos', 'presupuestoOrigen', 'categorias', 'condicionesIva', 'provincias'));
+        return view('ventas.form', compact('CurrentPage', 'venta', 'categoriasVenta', 'listasPrecio', 'vendedores', 'depositos', 'presupuestoOrigen', 'categorias', 'condicionesIva', 'provincias', 'tiposProducto', 'proveedores'));
     }
 
     public function update(UpdateVentaRequest $request, Venta $venta): JsonResponse

@@ -282,9 +282,28 @@
         $('#f-producto').on('select2:select', function (e) {
             const producto = e.params.data.producto;
             const ivaAuto = $('#f-tipo-comprobante').val() === 'A' ? (producto.iva_compra_pct || null) : null;
-            items.unshift({ producto_id: producto.id, descripcion: producto.nombre, cantidad: 1, precio_unitario: producto.costo || 0, descuento_pct: null, iva_pct: ivaAuto });
+            items.unshift({ producto_id: producto.id, descripcion: producto.nombre, cantidad: 1, precio_unitario: producto.costo || 0, descuento_pct: null, iva_pct: ivaAuto, _precioCatalogoOriginal: producto.costo || 0 });
             renderItems();
             $(this).val(null).trigger('change');
+        });
+
+        // Refresco de fila al editar el producto desde el desplegable ▾ del detalle
+        // (spec 052): actualiza nombre siempre; precio (costo) sólo si no fue tipeado
+        // a mano.
+        document.addEventListener('producto:actualizado', function (e) {
+            const producto = e.detail && e.detail.producto;
+            if (!producto) { return; }
+            let cambio = false;
+            items.forEach(function (item) {
+                if (String(item.producto_id) !== String(producto.id)) { return; }
+                item.descripcion = producto.nombre;
+                if (Number(item.precio_unitario) === Number(item._precioCatalogoOriginal)) {
+                    item.precio_unitario = producto.costo;
+                }
+                item._precioCatalogoOriginal = producto.costo;
+                cambio = true;
+            });
+            if (cambio) { renderItems(); }
         });
 
         // Si se cambia el comprobante a tipo A, completa el IVA de los ítems que
@@ -323,7 +342,22 @@
                 const selectHtml = '<select class="form-select form-select-sm">' + opcionesIva.map((v) => '<option value="' + v + '"' + (v === (item.iva_pct || '') ? ' selected' : '') + '>' + etiquetas[v] + '</option>').join('') + '</select>';
 
                 const $tr = $('<tr>');
-                $tr.append($('<td>').text(item.descripcion));
+                if (item.producto_id) {
+                    $tr.append(
+                        $('<td>').append(
+                            $('<div class="dropdown d-inline-block me-1">').append(
+                                $('<button type="button" class="btn btn-sm btn-link p-0 text-body" data-bs-toggle="dropdown" aria-expanded="false">').html('<i class="fas fa-caret-down"></i>'),
+                                $('<ul class="dropdown-menu">').append(
+                                    $('<li>').append($('<a class="dropdown-item js-item-producto-ver" href="#">').text('Ver').on('click', function (e) { e.preventDefault(); if (window.ProductoModales) { window.ProductoModales.abrirVer(item.producto_id); } })),
+                                    $('<li>').append($('<a class="dropdown-item js-item-producto-editar" href="#">').text('Editar').on('click', function (e) { e.preventDefault(); if (window.ProductoModales) { window.ProductoModales.abrirEditar(item.producto_id); } }))
+                                )
+                            ),
+                            $('<span>').text(item.descripcion)
+                        )
+                    );
+                } else {
+                    $tr.append($('<td>').text(item.descripcion));
+                }
                 $tr.append($('<td style="width:90px">').append($('<input type="text" inputmode="decimal" class="form-control form-control-sm">').attr('data-idx', idx).attr('data-field', 'cantidad').val(item.cantidad === undefined ? cant : item.cantidad).on('input', function () { items[idx].cantidad = normalizarDecimal($(this).val()); renderItems(); })));
                 $tr.append($('<td style="width:110px">').append($('<input type="text" inputmode="decimal" class="form-control form-control-sm">').attr('data-idx', idx).attr('data-field', 'precio_unitario').val(item.precio_unitario === undefined ? precio : item.precio_unitario).on('input', function () { items[idx].precio_unitario = normalizarDecimal($(this).val()); renderItems(); })));
                 $tr.append($('<td style="width:90px">').append($('<input type="text" inputmode="decimal" class="form-control form-control-sm">').attr('data-idx', idx).attr('data-field', 'descuento_pct').val(item.descuento_pct || '').on('input', function () { items[idx].descuento_pct = normalizarDecimal($(this).val()); renderItems(); })));

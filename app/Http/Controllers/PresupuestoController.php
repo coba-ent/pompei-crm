@@ -10,8 +10,11 @@ use App\Models\CondicionIva;
 use App\Models\ConfiguracionVentas;
 use App\Models\Etiqueta;
 use App\Models\ListaPrecio;
+use App\Models\Deposito;
 use App\Models\Presupuesto;
+use App\Models\Proveedor;
 use App\Models\Provincia;
+use App\Models\TipoProducto;
 use App\Models\Vendedor;
 use App\Models\Venta;
 use App\Services\Ingresos\CalculoComprobante;
@@ -180,6 +183,11 @@ class PresupuestoController extends Controller
             'categorias' => Categoria::venta()->orderBy('nombre')->get(),
             'condicionesIva' => CondicionIva::orderBy('nombre')->get(),
             'provincias' => Provincia::orderBy('nombre')->pluck('nombre'),
+            // Catálogos para los modales Ver/Editar de Producto reutilizados desde el
+            // detalle del Presupuesto (spec 052).
+            'tiposProducto' => TipoProducto::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']),
+            'proveedores' => Proveedor::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']),
+            'depositos' => Deposito::activos()->orderBy('nombre')->get(),
         ]);
     }
 
@@ -252,8 +260,11 @@ class PresupuestoController extends Controller
         $categorias = Categoria::venta()->orderBy('nombre')->get();
         $condicionesIva = CondicionIva::orderBy('nombre')->get();
         $provincias = Provincia::orderBy('nombre')->pluck('nombre');
+        $tiposProducto = TipoProducto::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']);
+        $proveedores = Proveedor::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']);
+        $depositos = Deposito::activos()->orderBy('nombre')->get();
 
-        return view('presupuestos.form', compact('CurrentPage', 'presupuesto', 'categoriasVenta', 'listasPrecio', 'vendedores', 'categorias', 'condicionesIva', 'provincias'));
+        return view('presupuestos.form', compact('CurrentPage', 'presupuesto', 'categoriasVenta', 'listasPrecio', 'vendedores', 'categorias', 'condicionesIva', 'provincias', 'tiposProducto', 'proveedores', 'depositos'));
     }
 
     public function update(UpdatePresupuestoRequest $request, Presupuesto $presupuesto): JsonResponse

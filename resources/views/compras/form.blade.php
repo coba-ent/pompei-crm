@@ -123,6 +123,11 @@
 </div>
 
 @include('compras._modal_categoria')
+{{-- Ver/Editar de producto desde el detalle (spec 052): reutiliza los modales de Productos. --}}
+@include('productos._modal_form')
+@include('productos._modal_ver')
+@include('productos._modal_listas')
+@include('productos._modal_tipos')
 @endsection
 
 @php
@@ -160,6 +165,18 @@
         },
         categorias: @json($categoriasCompra->map(fn ($c) => ['id' => $c->id, 'nombre' => $c->nombre, 'es_sistema' => $c->es_sistema])),
     };
+    {{-- Ver/Editar de producto desde el detalle (spec 052): mismos modales/config que Productos. --}}
+    window.ProductosConfig = {
+        rutas: {
+            store: "{{ route('productos.store') }}",
+            show: "{{ url('productos') }}",
+            listas: "{{ url('listas-precio') }}",
+            tipos: "{{ url('tipos-producto') }}",
+        },
+        listasPrecio: @json($listasPrecioProductos->map(fn ($l) => ['id' => $l->id, 'nombre' => $l->nombre])),
+        tiposProducto: @json($tiposProducto->map(fn ($t) => ['id' => $t->id, 'nombre' => $t->nombre])),
+        proveedores: @json($proveedores->map(fn ($p) => ['id' => $p->id, 'nombre' => $p->nombre])),
+    };
 </script>
-@vite(['resources/js/compras.js'])
+@vite(['resources/js/producto-modales.js', 'resources/js/compras.js'])
 @endsection

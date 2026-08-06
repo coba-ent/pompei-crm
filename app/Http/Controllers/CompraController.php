@@ -11,8 +11,11 @@ use App\Models\ComprobanteFiscal;
 use App\Models\ConfiguracionVentas;
 use App\Models\CuentaTesoreria;
 use App\Models\Deposito;
+use App\Models\ListaPrecio;
 use App\Models\Pago;
+use App\Models\Proveedor;
 use App\Models\Remito;
+use App\Models\TipoProducto;
 use App\Services\Egresos\Pagos;
 use App\Services\Egresos\StockDeCompra;
 use App\Services\Ingresos\CalculoComprobante;
@@ -132,6 +135,11 @@ class CompraController extends Controller
             'defaults' => $defaults,
             'categoriasCompra' => Categoria::compra()->activas()->orderBy('nombre')->get(),
             'depositos' => Deposito::activos()->orderBy('nombre')->get(),
+            // Catálogos para los modales Ver/Editar de Producto reutilizados desde el
+            // detalle de la Compra (spec 052).
+            'tiposProducto' => TipoProducto::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']),
+            'proveedores' => Proveedor::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']),
+            'listasPrecioProductos' => ListaPrecio::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']),
         ]);
     }
 
@@ -220,8 +228,11 @@ class CompraController extends Controller
         $compra->load(['items', 'conceptos', 'proveedor', 'categoria', 'deposito']);
         $categoriasCompra = Categoria::compra()->activas()->orderBy('nombre')->get();
         $depositos = Deposito::activos()->orderBy('nombre')->get();
+        $tiposProducto = TipoProducto::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']);
+        $proveedores = Proveedor::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']);
+        $listasPrecioProductos = ListaPrecio::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']);
 
-        return view('compras.form', compact('CurrentPage', 'compra', 'categoriasCompra', 'depositos'));
+        return view('compras.form', compact('CurrentPage', 'compra', 'categoriasCompra', 'depositos', 'tiposProducto', 'proveedores', 'listasPrecioProductos'));
     }
 
     public function update(\App\Http\Requests\UpdateCompraRequest $request, Compra $compra): JsonResponse
