@@ -262,6 +262,7 @@
                 { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
                 { data: 'id', name: 'id' },
                 { data: 'creada_desde', name: 'creada_desde' },
+                { data: 'created_at', name: 'created_at' },
                 { data: 'fecha_emision', name: 'fecha_emision' },
                 { data: 'fecha_validez', name: 'fecha_validez' },
                 { data: 'cliente', name: 'cliente.nombre' },

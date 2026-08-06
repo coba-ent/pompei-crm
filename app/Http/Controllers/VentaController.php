@@ -181,6 +181,7 @@ class VentaController extends Controller
             ->addColumn('etiquetas', fn (Venta $v) => $v->etiquetas->pluck('nombre')->implode(', '))
             ->addColumn('lista_precio', fn (Venta $v) => optional($v->listaPrecio)->nombre)
             ->addColumn('vendedor', fn (Venta $v) => optional($v->vendedor)->nombre)
+            ->editColumn('created_at', fn (Venta $v) => optional($v->created_at)->format('d/m/Y H:i'))
             ->editColumn('fecha_emision', fn (Venta $v) => optional($v->fecha_emision)->format('d/m/Y'))
             ->editColumn('fecha_validez', fn (Venta $v) => optional($v->fecha_validez)->format('d/m/Y'))
             ->editColumn('subtotal_sin_descuento', fn (Venta $v) => (float) $v->subtotal_sin_descuento)
