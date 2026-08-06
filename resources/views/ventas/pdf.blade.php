@@ -97,6 +97,29 @@
         <tr><td><strong>Total</strong></td><td class="text-end"><strong>$ {{ number_format((float) $venta->total, 2, ',', '.') }}</strong></td></tr>
     </table>
 
+    @if ($venta->cobros->isNotEmpty())
+        <h4>Cobranzas</h4>
+        <table>
+            <thead>
+                <tr><th>Fecha</th><th>Cuenta</th><th>Nota</th><th>Monto</th></tr>
+            </thead>
+            <tbody>
+                @foreach ($venta->cobros as $cobro)
+                    <tr>
+                        <td>{{ optional($cobro->fecha)->format('d/m/Y') }}</td>
+                        <td>{{ optional($cobro->cuentaTesoreria)->nombre ?: '-' }}</td>
+                        <td>{{ $cobro->nota ?: '-' }}</td>
+                        <td class="text-end">$ {{ number_format((float) $cobro->monto, 2, ',', '.') }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+        <table style="width:40%; margin-left:auto;">
+            <tr><td>Total Cobrado</td><td class="text-end">$ {{ number_format((float) $venta->cobros->sum('monto'), 2, ',', '.') }}</td></tr>
+            <tr><td><strong>Saldo Pendiente</strong></td><td class="text-end"><strong>$ {{ number_format((float) $venta->total - (float) $venta->cobros->sum('monto'), 2, ',', '.') }}</strong></td></tr>
+        </table>
+    @endif
+
     <div>Formas de Pago: {{ $venta->formas_pago ?: '-' }}</div>
     <div>Métodos de Envío: {{ $venta->metodos_envio ?: '-' }}</div>
 </body>

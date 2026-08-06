@@ -313,7 +313,7 @@ class VentaController extends Controller
 
     public function pdf(Venta $venta)
     {
-        $venta->load(['items', 'conceptos', 'cliente.condicionIva', 'categoria', 'listaPrecio', 'vendedor', 'comprobanteFiscal.puntoVenta']);
+        $venta->load(['items', 'conceptos', 'cliente.condicionIva', 'categoria', 'listaPrecio', 'vendedor', 'comprobanteFiscal.puntoVenta', 'cobros.cuentaTesoreria']);
         $datosEmpresa = \App\Models\DatosEmpresa::instancia();
 
         $qrDataUri = null;
