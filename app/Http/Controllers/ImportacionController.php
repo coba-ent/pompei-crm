@@ -37,6 +37,11 @@ class ImportacionController extends Controller
     {
         $this->validarEntidad($entidad);
 
+        // Un archivo grande puede agotar el memory_limit de PHP-FPM al parsearlo con
+        // PhpSpreadsheet (Excel::toArray() carga todo el archivo en memoria) — mismo
+        // criterio que set_time_limit(0) en ImportadorFilas::importar().
+        ini_set('memory_limit', '512M');
+
         $archivo = $request->file('archivo');
         $nombreArchivo = Str::uuid()->toString().'.'.$archivo->getClientOriginalExtension();
         $archivo->storeAs('imports', $nombreArchivo, 'local');
