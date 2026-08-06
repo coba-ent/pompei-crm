@@ -18,7 +18,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Yajra\DataTables\Facades\DataTables;
 
 class ProductoController extends Controller
@@ -258,8 +257,14 @@ class ProductoController extends Controller
         return Producto::whereNotNull('codigo')->orderByDesc('id')->value('codigo');
     }
 
-    /** Exporta el listado filtrado a CSV con BOM UTF-8, por streaming. */
-    public function export(Request $request): StreamedResponse
+    /**
+     * Exporta el listado filtrado a XLSX real, con los precios/stock como celdas
+     * numéricas (no texto) — ver App\Exports\ProductosExport para el porqué: un CSV
+     * de texto plano se corrompe si se abre y re-guarda con una app de planillas en
+     * otra configuración regional, que es justo el flujo que habilita la edición
+     * masiva por Excel (exportar, editar, reimportar).
+     */
+    public function export(Request $request): \Symfony\Component\HttpFoundation\BinaryFileResponse
     {
         $listas = $this->listasActivas();
         $query = $this->queryFiltrada($request, $listas);
@@ -272,51 +277,13 @@ class ProductoController extends Controller
             });
         }
 
-        $nombreArchivo = 'productos_'.now()->format('Ymd_His').'.csv';
+        $nombreArchivo = 'productos_'.now()->format('Ymd_His').'.xlsx';
         $depositos = $this->depositosActivos();
 
-        $encabezados = [
-            // "Id" primero: permite reimportar este mismo CSV mapeando Id + las columnas
-            // editadas para que el importador (ImportadorFilas::resolverModoFila()) lo
-            // reconozca como actualización de estos productos en vez de crear duplicados.
-            'Id', 'Nombre', 'Código/SKU', 'Tipo', 'Tipo de Producto', 'Proveedor', 'Precio venta',
-            ...$listas->map(fn ($l) => $l->nombre)->all(),
-            'IVA venta', 'Costo', 'IVA compra', 'Stock total',
-            // Mismo desglose por depósito que el listado, en el mismo orden.
-            ...$depositos->map(fn ($d) => 'Stock '.$d->nombre)->all(),
-            'Estado',
-        ];
-
-        return response()->streamDownload(function () use ($query, $encabezados, $listas, $depositos) {
-            $salida = fopen('php://output', 'w');
-            fwrite($salida, "\xEF\xBB\xBF");
-            fputcsv($salida, $encabezados, ';');
-
-            $query->orderBy('nombre')->chunk(500, function ($productos) use ($salida, $listas, $depositos) {
-                foreach ($productos as $p) {
-                    fputcsv($salida, [
-                        $p->id,
-                        $p->nombre,
-                        $p->codigo,
-                        $p->tipo,
-                        optional($p->tipoProducto)->nombre,
-                        optional($p->proveedor)->nombre,
-                        $p->precio_venta,
-                        ...$listas->map(fn ($l) => $p->{'precio_lista_'.$l->id})->all(),
-                        Producto::etiquetaIva($p->iva_venta_pct),
-                        $p->costo,
-                        Producto::etiquetaIva($p->iva_compra_pct),
-                        $p->esServicio() ? '' : (float) ($p->stock_total ?? 0),
-                        ...$depositos->map(fn ($d) => $p->esServicio() ? '' : (float) ($p->{'stock_deposito_'.$d->id} ?? 0))->all(),
-                        $p->activo ? 'Activo' : 'Inactivo',
-                    ], ';');
-                }
-            });
-
-            fclose($salida);
-        }, $nombreArchivo, [
-            'Content-Type' => 'text/csv; charset=UTF-8',
-        ]);
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\ProductosExport($query, $listas, $depositos),
+            $nombreArchivo
+        );
     }
 
     /** Crear producto/servicio (desde el modal). */
