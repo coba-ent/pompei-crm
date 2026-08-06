@@ -1,16 +1,18 @@
 /**
  * Fix: los dropdowns de fila (menú de Acciones) que abren DENTRO de
  * `.dt-scroll-x` (el wrapper de scroll horizontal de las tablas, ver
- * datatables-scroll-fix.js) quedaban recortados verticalmente cuando la
- * tabla tenía pocas filas.
+ * datatables-scroll-fix.js) o de `.table-responsive` (mismo problema, pero en
+ * tablas de detalle sin DataTable — ej. el desplegable Ver/Editar de producto
+ * en Ventas/Presupuestos/Compras, spec 052) quedaban recortados verticalmente
+ * cuando la tabla tenía pocas filas.
  *
- * Motivo: `.dt-scroll-x` tiene `overflow-x: auto`. El navegador NO permite
- * un eje en `auto` y el otro en `visible` — si se pide `overflow-x: auto`
- * sin tocar `overflow-y`, el valor usado de `overflow-y` pasa a ser `auto`
- * también (spec CSS Overflow). Eso convierte a `.dt-scroll-x` en un
- * contenedor con scroll/clip en AMBOS ejes, y el `.dropdown-menu` de
- * Bootstrap (position:absolute, posicionado por Popper) queda recortado
- * por ese clip si la fila está cerca del borde inferior de la tabla.
+ * Motivo: `.dt-scroll-x`/`.table-responsive` tienen `overflow-x: auto`. El
+ * navegador NO permite un eje en `auto` y el otro en `visible` — si se pide
+ * `overflow-x: auto` sin tocar `overflow-y`, el valor usado de `overflow-y`
+ * pasa a ser `auto` también (spec CSS Overflow). Eso convierte al contenedor
+ * en uno con scroll/clip en AMBOS ejes, y el `.dropdown-menu` de Bootstrap
+ * (position:absolute, posicionado por Popper) queda recortado por ese clip
+ * si la fila está cerca del borde inferior de la tabla.
  *
  * Fix: cada botón toggle de estos dropdowns lleva `data-bs-display="static"`
  * (ver *_row_actions.blade.php), que en teoría apaga el modificador
@@ -35,6 +37,11 @@
     if (!$) {
         return;
     }
+
+    // Selector combinado: cualquier `.dropdown` de fila que viva dentro de un
+    // wrapper con overflow-x (DataTable con scroll horizontal, o una tabla de
+    // detalle envuelta en `.table-responsive`).
+    var SELECTOR = '.dt-scroll-x .dropdown, .table-responsive .dropdown';
 
     function reposicionar($menu, $toggle) {
         var rect = $toggle[0].getBoundingClientRect();
@@ -70,7 +77,7 @@
     // de la tabla). El posicionamiento en sí se calcula en "shown.bs.dropdown"
     // — después de que Popper ya escribió lo que iba a escribir — así la
     // única posición que queda vigente es la nuestra.
-    $(document).on('show.bs.dropdown', '.dt-scroll-x .dropdown', function () {
+    $(document).on('show.bs.dropdown', SELECTOR, function () {
         var $dropdown = $(this);
         var $menu = $dropdown.children('.dropdown-menu');
         var $toggle = $dropdown.children('[data-bs-toggle="dropdown"]');
@@ -86,7 +93,7 @@
         $menu.css({ position: 'fixed', margin: 0, zIndex: 3000, visibility: 'hidden' });
     });
 
-    $(document).on('shown.bs.dropdown', '.dt-scroll-x .dropdown', function () {
+    $(document).on('shown.bs.dropdown', SELECTOR, function () {
         var $dropdown = $(this);
         var $menu = $dropdown.data('dtMenu');
         var $toggle = $dropdown.data('dtToggle');
@@ -97,17 +104,19 @@
         reposicionar($menu, $toggle);
         $menu.css('visibility', '');
 
+        var $scrollWrap = $dropdown.closest('.dt-scroll-x, .table-responsive');
         var handler = function () { reposicionar($menu, $toggle); };
         $(window).on('scroll.dtDropdown resize.dtDropdown', handler);
-        $dropdown.closest('.dt-scroll-x').on('scroll.dtDropdown', handler);
-        $dropdown.data('dtHandler', handler);
+        $scrollWrap.on('scroll.dtDropdown', handler);
+        $dropdown.data('dtHandler', handler).data('dtScrollWrap', $scrollWrap);
     });
 
-    $(document).on('hidden.bs.dropdown', '.dt-scroll-x .dropdown', function () {
+    $(document).on('hidden.bs.dropdown', SELECTOR, function () {
         var $dropdown = $(this);
         var $menu = $dropdown.data('dtMenu');
         var $marker = $dropdown.data('dtMarker');
         var handler = $dropdown.data('dtHandler');
+        var $scrollWrap = $dropdown.data('dtScrollWrap');
 
         if ($menu && $marker) {
             $menu.css({ position: '', margin: '', top: '', left: '', zIndex: '', display: '', width: '' });
@@ -115,8 +124,8 @@
         }
         if (handler) {
             $(window).off('scroll.dtDropdown resize.dtDropdown', handler);
-            $dropdown.closest('.dt-scroll-x').off('scroll.dtDropdown', handler);
+            if ($scrollWrap) { $scrollWrap.off('scroll.dtDropdown', handler); }
         }
-        $dropdown.removeData('dtMenu').removeData('dtMarker').removeData('dtHandler');
+        $dropdown.removeData('dtMenu').removeData('dtMarker').removeData('dtHandler').removeData('dtScrollWrap');
     });
 })();
