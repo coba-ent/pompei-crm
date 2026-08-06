@@ -315,13 +315,22 @@
             restaurarFoco('#items-body', foco);
         }
 
+        const PERCEPCIONES = ['IVA (Percepción)', 'Ganancias', 'Sellos', 'IIBB Buenos Aires', 'IIBB CABA', 'IIBB Catamarca', 'IIBB Chaco', 'IIBB Chubut', 'IIBB Córdoba', 'IIBB Corrientes', 'IIBB Entre Ríos', 'IIBB Formosa', 'IIBB Jujuy', 'IIBB La Pampa', 'IIBB La Rioja', 'IIBB Mendoza', 'IIBB Misiones', 'IIBB Neuquén', 'IIBB Río Negro', 'IIBB Salta', 'IIBB San Juan', 'IIBB San Luis', 'IIBB Santa Cruz', 'IIBB Santa Fe', 'IIBB Santiago del Estero', 'IIBB Tierra del Fuego', 'IIBB Tucumán'];
+
         function renderConceptos() {
             const $body = $('#conceptos-body').empty();
             const etiquetas = { percepcion: 'Percepción', impuesto_interno: 'Impuesto Interno', interes: 'Interés' };
             conceptos.forEach((c, idx) => {
                 const $row = $('<div class="input-group input-group-sm mb-2">');
                 $row.append($('<span class="input-group-text">').text(etiquetas[c.tipo] || c.tipo));
-                $row.append($('<input type="text" class="form-control" placeholder="Concepto">').val(c.concepto || '').on('input', function () { conceptos[idx].concepto = $(this).val(); }));
+                if (c.tipo === 'percepcion') {
+                    const $select = $('<select class="form-select"><option value="">Seleccionar...</option></select>');
+                    PERCEPCIONES.forEach((p) => { $select.append($('<option>').val(p).text(p)); });
+                    $select.val(c.concepto || '').on('change', function () { conceptos[idx].concepto = $(this).val(); });
+                    $row.append($select);
+                } else {
+                    $row.append($('<input type="text" class="form-control" placeholder="Concepto">').val(c.concepto || '').on('input', function () { conceptos[idx].concepto = $(this).val(); }));
+                }
                 $row.append($('<input type="text" inputmode="decimal" class="form-control" placeholder="Monto">').val(c.monto || '').on('input', function () { conceptos[idx].monto = normalizarDecimal($(this).val()); recalcular(); }));
                 $row.append($('<button type="button" class="btn btn-outline-danger"><i class="fas fa-trash"></i></button>').on('click', () => { conceptos.splice(idx, 1); renderConceptos(); recalcular(); }));
                 $body.append($row);

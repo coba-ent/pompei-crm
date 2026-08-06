@@ -410,8 +410,8 @@ Otros Ingresos y Abonos son independientes.
   IIBB Mendoza, IIBB Misiones, IIBB Neuquén, IIBB Río Negro, IIBB Salta, IIBB San Juan, IIBB San Luis,
   IIBB Santa Cruz, IIBB Santa Fe, IIBB Santiago del Estero, IIBB Tierra del Fuego, IIBB Tucumán. Las
   filas de Impuestos Internos e Intereses no se modificaron: siguen siendo texto libre. Aplicado en
-  Ventas y Presupuestos (Compras conserva por ahora el campo de texto libre en su fila de Percepciones,
-  fuera del alcance de este cambio).
+  Ventas, Presupuestos y Compras (mismo `PERCEPCIONES` hardcodeado replicado en `resources/js/compras.js`,
+  06/08/2026).
 - **Catálogo editable inline en los selects de Cliente/Categoría de Venta/Vendedor (spec 028)**: el
   patrón real de Contagram no es un link "Renombrar"/"Eliminar" al lado del label, sino que vive
   *dentro* del propio dropdown Select2: una fila fija "Crear X" con ícono "+" siempre arriba del
