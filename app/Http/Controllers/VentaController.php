@@ -47,13 +47,29 @@ class VentaController extends Controller
     {
         $CurrentPage = 'ventas';
 
-        return view('ventas.index', compact('CurrentPage'));
+        return view('ventas.index', [
+            'CurrentPage' => $CurrentPage,
+            'categoriasVenta' => Categoria::venta()->activas()->orderBy('nombre')->get(['id', 'nombre']),
+            'vendedores' => Vendedor::orderBy('nombre')->get(['id', 'nombre']),
+            'etiquetas' => Etiqueta::orderBy('nombre')->get(['id', 'nombre']),
+            'cuentasTesoreria' => CuentaTesoreria::visibles()->orderBy('orden')->orderBy('nombre')->get(['id', 'nombre']),
+            'depositos' => Deposito::activos()->orderBy('nombre')->get(['id', 'nombre']),
+            'usuarios' => \App\Models\User::orderBy('name')->get(['id', 'name']),
+        ]);
     }
 
+    /**
+     * Panel de Filtros de Ventas (informe §3.5 `[90]` + captura real 06/08/2026 con 20 campos).
+     * Transportista no tiene tabla/columna propia en el CRM — se omite (brecha documentada en
+     * documentacion_principal_crm.md §5).
+     */
     private function queryFiltrada(Request $request): Builder
     {
         $query = Venta::query()->with(['cliente:id,nombre', 'categoria:id,nombre', 'presupuesto:id', 'listaPrecio:id,nombre', 'vendedor:id,nombre', 'etiquetas:id,nombre', 'cobros.cuentaTesoreria:id,nombre', 'comprobanteFiscal:id,comprobantable_type,comprobantable_id,estado']);
 
+        if ($request->filled('id')) {
+            $query->where('id', (int) $request->input('id'));
+        }
         if ($request->filled('cliente_id')) {
             $query->whereIn('cliente_id', (array) $request->input('cliente_id'));
         }
@@ -70,6 +86,75 @@ class VentaController extends Controller
                 'presupuesto' => $query->whereNotNull('presupuesto_id'),
                 default => $query->whereNull('presupuesto_id')->whereNotIn('origen', ['mercadolibre', 'tiendanube']),
             };
+        }
+        if ($request->filled('estado_cobro')) {
+            match ($request->input('estado_cobro')) {
+                'sin_cobrar' => $query->whereDoesntHave('cobros'),
+                'cobrada' => $query->whereHas('cobros')->whereRaw('(select coalesce(sum(monto),0) from cobros where cobros.venta_id = ventas.id) >= ventas.total'),
+                'parcial' => $query->whereHas('cobros')->whereRaw('(select coalesce(sum(monto),0) from cobros where cobros.venta_id = ventas.id) < ventas.total'),
+                default => null,
+            };
+        }
+        if ($request->filled('categoria_id')) {
+            $query->whereIn('categoria_id', (array) $request->input('categoria_id'));
+        }
+        if ($request->filled('estado_factura')) {
+            match ($request->input('estado_factura')) {
+                'sin_emitir' => $query->whereDoesntHave('comprobanteFiscal'),
+                default => $query->whereHas('comprobanteFiscal', fn (Builder $q) => $q->where('estado', $request->input('estado_factura'))),
+            };
+        }
+        if ($request->filled('factura_buscar')) {
+            $kw = $request->input('factura_buscar');
+            $query->where(function (Builder $q) use ($kw) {
+                $q->where('tipo_comprobante', 'like', "%{$kw}%")
+                    ->orWhereHas('comprobanteFiscal', fn (Builder $qq) => $qq->where('numero', 'like', "%{$kw}%"));
+            });
+        }
+        if ($request->filled('etiqueta_id')) {
+            $query->whereHas('etiquetas', fn (Builder $q) => $q->whereIn('etiquetas.id', (array) $request->input('etiqueta_id')));
+        }
+        if ($request->filled('vendedor_id')) {
+            $query->whereIn('vendedor_id', (array) $request->input('vendedor_id'));
+        }
+        if ($request->filled('remitos')) {
+            $request->input('remitos') === '1' ? $query->whereHas('remitos') : $query->whereDoesntHave('remitos');
+        }
+        if ($request->filled('remito_buscar')) {
+            $query->whereHas('remitos', fn (Builder $q) => $q->where('nro_remito', 'like', '%'.$request->input('remito_buscar').'%'));
+        }
+        if ($request->filled('deposito_id')) {
+            $query->whereHas('movimientosStock', fn (Builder $q) => $q->where('deposito_id', $request->input('deposito_id')));
+        }
+        if ($request->filled('medio_cobro_id')) {
+            $query->whereHas('cobros', fn (Builder $q) => $q->where('cuenta_tesoreria_id', $request->input('medio_cobro_id')));
+        }
+        if ($request->filled('usuario_id')) {
+            $query->whereIn('creado_por_id', (array) $request->input('usuario_id'));
+        }
+        if ($request->filled('nota_cliente')) {
+            $query->where('nota_cliente', 'like', '%'.$request->input('nota_cliente').'%');
+        }
+        if ($request->filled('nota_interna')) {
+            $query->where('nota_interna', 'like', '%'.$request->input('nota_interna').'%');
+        }
+        if ($request->filled('emision_desde')) {
+            $query->whereDate('fecha_emision', '>=', $request->input('emision_desde'));
+        }
+        if ($request->filled('emision_hasta')) {
+            $query->whereDate('fecha_emision', '<=', $request->input('emision_hasta'));
+        }
+        if ($request->filled('vencimiento_desde')) {
+            $query->whereDate('fecha_vto_cobro', '>=', $request->input('vencimiento_desde'));
+        }
+        if ($request->filled('vencimiento_hasta')) {
+            $query->whereDate('fecha_vto_cobro', '<=', $request->input('vencimiento_hasta'));
+        }
+        if ($request->filled('servicio_desde')) {
+            $query->whereDate('servicio_desde', '>=', $request->input('servicio_desde'));
+        }
+        if ($request->filled('servicio_hasta')) {
+            $query->whereDate('servicio_hasta', '<=', $request->input('servicio_hasta'));
         }
 
         return $query;
@@ -204,6 +289,7 @@ class VentaController extends Controller
                 'formas_pago' => $datos['formas_pago'] ?? null,
                 'metodos_envio' => $datos['metodos_envio'] ?? null,
                 'vendedor_id' => $datos['vendedor_id'] ?? null,
+                'creado_por_id' => auth()->id(),
                 'submit_token' => $datos['submit_token'],
             ]);
 

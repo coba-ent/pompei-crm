@@ -25,7 +25,7 @@ class Venta extends Model
         'tipo_comprobante', 'nro_comprobante', 'fecha_vto_cobro',
         'descuento_general_pct', 'subtotal_sin_descuento', 'descuento',
         'subtotal_con_descuento', 'total', 'nota_cliente', 'nota_interna',
-        'formas_pago', 'metodos_envio', 'vendedor_id', 'submit_token', 'legacy_id',
+        'formas_pago', 'metodos_envio', 'vendedor_id', 'creado_por_id', 'submit_token', 'legacy_id',
         'ml_order_id', 'tn_order_id',
     ];
 
@@ -60,6 +60,18 @@ class Venta extends Model
     public function vendedor(): BelongsTo
     {
         return $this->belongsTo(Vendedor::class, 'vendedor_id');
+    }
+
+    /** Usuario que cargó la Venta — distinto de "Vendedor" (ver modelo_datos.md §ventas). */
+    public function creadoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'creado_por_id');
+    }
+
+    /** Movimientos de stock generados por esta Venta (StockDeVenta usa $venta como $origen morph). */
+    public function movimientosStock(): \Illuminate\Database\Eloquent\Relations\MorphMany
+    {
+        return $this->morphMany(MovimientoStock::class, 'origen');
     }
 
     public function presupuesto(): BelongsTo

@@ -21,20 +21,127 @@
                     <button type="button" class="btn btn-info" data-bs-toggle="collapse" data-bs-target="#panel-filtros">
                         <i class="fas fa-filter me-1"></i> Filtros
                     </button>
-                    <span id="dt-buttons-ventas"></span>
+                    <div class="ms-auto d-flex flex-wrap gap-2 align-items-center">
+                        <input type="text" id="filtro-rango-emision" class="form-control" style="width:170px" placeholder="Emisión">
+                        <input type="text" id="filtro-rango-vencimiento" class="form-control" style="width:170px" placeholder="Vencimiento">
+                        <span id="dt-buttons-ventas"></span>
+                    </div>
                 </div>
 
                 <div class="collapse mb-3" id="panel-filtros">
                     <div class="border rounded p-3">
                         <div class="row g-2">
                             <div class="col-md-3">
-                                <label class="form-label">N° de Comprobante</label>
-                                <input type="text" id="filtro-buscar" class="form-control" placeholder="Buscar por N°">
+                                <label class="form-label">Id</label>
+                                <input type="text" id="filtro-id" class="form-control" placeholder="Buscar por número de ID">
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label">Cliente</label>
                                 <select id="filtro-cliente" class="form-select" multiple></select>
                             </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Estado del Cobro</label>
+                                <select id="filtro-estado-cobro" class="form-select">
+                                    <option value="">Todos</option>
+                                    <option value="sin_cobrar">Sin Cobrar</option>
+                                    <option value="parcial">Parcial</option>
+                                    <option value="cobrada">Cobrada</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Categoría de Venta</label>
+                                <select id="filtro-categoria" class="form-select" multiple>
+                                    @foreach ($categoriasVenta as $c)
+                                        <option value="{{ $c->id }}">{{ $c->nombre }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Estado de Factura</label>
+                                <select id="filtro-estado-factura" class="form-select">
+                                    <option value="">Todas</option>
+                                    <option value="sin_emitir">Sin Emitir</option>
+                                    <option value="pendiente">Pendiente</option>
+                                    <option value="aprobado">Aprobado</option>
+                                    <option value="rechazado">Rechazado</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Tipo y N° de Factura</label>
+                                <input type="text" id="filtro-factura" class="form-control" placeholder="Buscar por tipo y número">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Etiqueta</label>
+                                <select id="filtro-etiqueta" class="form-select" multiple>
+                                    @foreach ($etiquetas as $e)
+                                        <option value="{{ $e->id }}">{{ $e->nombre }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Vendedor</label>
+                                <select id="filtro-vendedor" class="form-select" multiple>
+                                    @foreach ($vendedores as $v)
+                                        <option value="{{ $v->id }}">{{ $v->nombre }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Remitos</label>
+                                <select id="filtro-remitos" class="form-select">
+                                    <option value="">Todos</option>
+                                    <option value="1">Con Remito</option>
+                                    <option value="0">Sin Remito</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Tipo y N° de Remito</label>
+                                <input type="text" id="filtro-remito-buscar" class="form-control" placeholder="Buscar por tipo y número">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label" title="Transportista: no disponible en este CRM (sin tabla/columna propia — ver documentacion_principal_crm.md §5)">Transportista</label>
+                                <select class="form-select" disabled>
+                                    <option>Todos (no disponible)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Medio de Cobro</label>
+                                <select id="filtro-medio-cobro" class="form-select">
+                                    <option value="">Todos</option>
+                                    @foreach ($cuentasTesoreria as $ct)
+                                        <option value="{{ $ct->id }}">{{ $ct->nombre }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Usuario</label>
+                                <select id="filtro-usuario" class="form-select" multiple>
+                                    @foreach ($usuarios as $u)
+                                        <option value="{{ $u->id }}">{{ $u->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Nota Cliente</label>
+                                <input type="text" id="filtro-nota-cliente" class="form-control" placeholder="Todos">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Nota Interna</label>
+                                <input type="text" id="filtro-nota-interna" class="form-control" placeholder="Todos">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Depósito</label>
+                                <select id="filtro-deposito" class="form-select">
+                                    <option value="">Todos</option>
+                                    @foreach ($depositos as $d)
+                                        <option value="{{ $d->id }}">{{ $d->nombre }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+
                             <div class="col-md-3">
                                 <label class="form-label">Creada Desde</label>
                                 <select id="filtro-creada-desde" class="form-select">
@@ -45,6 +152,15 @@
                                     <option value="tiendanube">Tiendanube</option>
                                 </select>
                             </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Servicio Desde</label>
+                                <input type="date" id="filtro-servicio-desde" class="form-control">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Servicio Hasta</label>
+                                <input type="date" id="filtro-servicio-hasta" class="form-control">
+                            </div>
+
                             <div class="col-12 text-end">
                                 <button type="button" class="btn btn-light" id="btn-limpiar-filtros">Limpiar</button>
                                 <button type="button" class="btn btn-primary" id="btn-aplicar-filtros">

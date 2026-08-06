@@ -333,6 +333,7 @@ Etiquetas/Notas/Formas de Pago/Métodos de Envío/Vendedor), con estos agregados
 | fecha_vto_cobro | date, nullable | |
 | a_cobrar | decimal(14,2) | = total al momento de guardar |
 | cobrado | decimal(14,2), default 0 | suma de `cobros.monto` asociados |
+| creado_por_id | FK → users, nullable | **Columna nueva**: "Usuario" (quién cargó la Venta), distinto de `vendedor_id` (quién vendió) — dos filtros independientes confirmados por el informe real. Se setea con `auth()->id()` sólo en altas nuevas; Ventas anteriores a esta columna quedan con `null` (no reconstruible retroactivamente). |
 
 `ventas.venta_items` y `ventas.conceptos` son análogos a `presupuesto_items`/`presupuesto_conceptos`
 (mismas columnas, FK `venta_id`) — no se listan de nuevo.

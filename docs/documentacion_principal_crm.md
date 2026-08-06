@@ -441,10 +441,15 @@ Otros Ingresos y Abonos son independientes.
 - Listado: **19 columnas** — igual que Presupuestos más "Creada Desde" (Presupuesto/Venta directa), A
   Cobrar, Cobrado, Medio de Cobro (con link a la cuenta de Tesorería); columnas ocultas opcionales:
   Envío de Mail, CUIT, Servicio Desde/Hasta.
-- Filtros (11 campos): Id, Cliente, Estado del Cobro, Categoría de Venta, Facturado, Tipo y N° de
-  Factura, Etiqueta, Vendedor, Medio de Cobro, Usuario, Nota Cliente/Interna, Creada Desde, Servicio
-  Desde/Hasta. **Misma brecha que en Presupuestos** (spec 020, análisis): sólo Buscar/Cliente/Creada
-  Desde están implementados hoy; el resto —incluido Vendedor— sigue pendiente.
+- Filtros — **implementados (06/08/2026, fix directo sin spec)** contra captura real: Id, Cliente,
+  Estado del Cobro, Categoría de Venta, Estado de Factura, Tipo y N° de Factura, Etiqueta, Vendedor,
+  Remitos, Tipo y N° de Remito, Depósito, Medio de Cobro, Usuario, Nota Cliente, Nota Interna, Creada
+  Desde, Servicio Desde/Hasta, y dos selectores de rango de fecha en el header (Emisión/Vencimiento,
+  con presets Hoy/Ayer/Última Semana/Mes actual/Mes anterior/Últimos 30 días/Año actual/Desde-Hasta).
+  "Usuario" requirió columna nueva `ventas.creado_por_id` (ver modelo_datos.md §ventas) — distinta de
+  `vendedor_id`, confirmando la nota ya registrada ahí. **Transportista queda pendiente**: no existe
+  tabla/columna propia en el CRM para transportistas; el campo se muestra deshabilitado en el panel
+  hasta que se releve y modele esa entidad en un spec propio.
 - Botón **"Analizar" (IA/Gemini)**: exclusivo de Ventas — genera un resumen del período (producto
   estrella, categoría más rentable, récord de venta, recomendación de negocio), con advertencia
   explícita de que "puede no ser del todo precisa o real". Misma tecnología (Gemini) que "Buscar
