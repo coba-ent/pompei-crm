@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Ingresos;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Integraciones\VincularPublicacionRequest;
-use App\Models\FuncionAvanzada;
+use App\Jobs\SincronizacionForzadaMercadoLibre;
 use App\Models\Integraciones\MercadoLibreConfiguracion;
 use App\Models\Integraciones\MercadoLibreCuenta;
 use App\Models\Integraciones\MercadoLibreOperacionLog;
@@ -31,8 +31,7 @@ class MercadoLibreVinculacionController extends Controller
     public function __construct(
         private readonly SincronizadorStock $sincronizadorStock,
         private readonly SincronizadorPrecios $sincronizadorPrecios,
-    ) {
-    }
+    ) {}
 
     public function index()
     {
@@ -143,42 +142,30 @@ class MercadoLibreVinculacionController extends Controller
      * vínculos (no sólo pendientes) y reenvía stock y precio reales. Reusa
      * los mismos cortes y candados de `SincronizadorStock`/`SincronizadorPrecios`
      * — si el stock queda bloqueado, no se intenta precio.
+     *
+     * Encola la corrida en vez de ejecutarla en el ciclo request/response: con
+     * catálogos grandes (270+ vínculos) la corrida síncrona superaba el
+     * proxy_read_timeout de Nginx y devolvía 504 aunque la sincronización
+     * terminaba bien del lado del servidor (bug detectado 06/08/2026).
      */
     public function sincronizacionForzada(): JsonResponse
     {
-        $resultadoStock = $this->sincronizadorStock->sincronizarTodos();
+        Cache::put(SincronizacionForzadaMercadoLibre::ESTADO_CACHE_KEY, ['estado' => 'en_curso'], now()->addMinutes(15));
 
-        if (! $resultadoStock['ok']) {
-            return response()->json($resultadoStock, 409);
-        }
-
-        $configuracion = MercadoLibreConfiguracion::actual();
-        $resultadoPrecio = null;
-
-        if ($configuracion->lista_precio_id) {
-            $resultadoPrecio = $this->sincronizadorPrecios->sincronizarListaCompleta($configuracion->lista_precio_id);
-        }
-
-        // Un rechazo de credencial durante la fase de stock puede bloquear la
-        // cuenta a mitad de la corrida y frenar la fase de precio que corre
-        // después — ese resultado no trae 'actualizados'/'con_error', se
-        // informa como precio no intentado (mismo criterio que Tiendanube).
-        $precioBloqueado = $resultadoPrecio && ! ($resultadoPrecio['ok'] ?? false);
-
-        $mensaje = match (true) {
-            $precioBloqueado => "{$resultadoStock['mensaje']} (stock) — precio no sincronizado: {$resultadoPrecio['mensaje']}",
-            (bool) $resultadoPrecio => "{$resultadoStock['mensaje']} (stock) — {$resultadoPrecio['mensaje']} (precio)",
-            default => "{$resultadoStock['mensaje']} (stock) — sin lista de precios configurada, precio no sincronizado.",
-        };
+        SincronizacionForzadaMercadoLibre::dispatch();
 
         return response()->json([
             'ok' => true,
-            'mensaje' => $mensaje,
-            'stock' => ['actualizados' => $resultadoStock['actualizados'], 'con_error' => $resultadoStock['con_error']],
-            'precio' => ($resultadoPrecio && ! $precioBloqueado)
-                ? ['actualizados' => $resultadoPrecio['actualizados'], 'con_error' => $resultadoPrecio['con_error']]
-                : null,
-        ]);
+            'encolado' => true,
+            'mensaje' => 'Sincronización forzada encolada, se está ejecutando en segundo plano.',
+        ], 202);
+    }
+
+    public function sincronizacionForzadaEstado(): JsonResponse
+    {
+        $estado = Cache::get(SincronizacionForzadaMercadoLibre::ESTADO_CACHE_KEY);
+
+        return response()->json($estado ?? ['estado' => 'sin_datos']);
     }
 
     /**

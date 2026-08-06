@@ -75,24 +75,54 @@
         }
     });
 
-    /** "Sincronización forzada" (spec 035): recorre TODOS los vínculos, no sólo pendientes. */
+    /**
+     * "Sincronización forzada" (spec 035): recorre TODOS los vínculos, no sólo
+     * pendientes. Corre encolada del lado del servidor (catálogos grandes
+     * tardan más que el timeout del proxy si se corrieran en el propio
+     * request — bug detectado 06/08/2026), así que el botón dispara el job y
+     * hace polling del estado hasta que termina.
+     */
     function inicializarSincronizacionForzada() {
         const $btn = $('#btn-sincronizacion-forzada');
         if (!$btn.length) { return; }
+
+        const POLL_INTERVALO_MS = 4000;
+        const POLL_MAXIMO = 90; // ~6 minutos
+
+        function consultarEstado(intentosRestantes) {
+            if (intentosRestantes <= 0) {
+                toast('warning', 'La sincronización sigue en curso en segundo plano; recargá la tabla en un rato.');
+                window.AppBtn.loading($btn, false);
+                return;
+            }
+
+            $.ajax({ url: rutas.sincronizacionForzadaEstado, method: 'GET' })
+                .done((estado) => {
+                    if (estado.estado === 'en_curso') {
+                        setTimeout(() => consultarEstado(intentosRestantes - 1), POLL_INTERVALO_MS);
+                        return;
+                    }
+
+                    window.AppBtn.loading($btn, false);
+                    toast(estado.estado === 'ok' ? 'success' : 'error', estado.mensaje || 'Sincronización forzada finalizada.');
+                    if (tabla) { tabla.ajax.reload(null, false); }
+                })
+                .fail(() => {
+                    setTimeout(() => consultarEstado(intentosRestantes - 1), POLL_INTERVALO_MS);
+                });
+        }
 
         $btn.on('click', function () {
             window.AppBtn.loading($btn, true);
 
             $.ajax({ url: rutas.sincronizacionForzada, method: 'POST' })
                 .done((resp) => {
-                    toast('success', resp.mensaje || 'Sincronización forzada ejecutada.');
-                    if (tabla) { tabla.ajax.reload(null, false); }
+                    toast('info', resp.mensaje || 'Sincronización forzada encolada.');
+                    setTimeout(() => consultarEstado(POLL_MAXIMO), POLL_INTERVALO_MS);
                 })
                 .fail((xhr) => {
                     const resp = xhr.responseJSON || {};
-                    toast('error', resp.mensaje || resp.message || 'No se pudo ejecutar la sincronización forzada.');
-                })
-                .always(() => {
+                    toast('error', resp.mensaje || resp.message || 'No se pudo encolar la sincronización forzada.');
                     window.AppBtn.loading($btn, false);
                 });
         });

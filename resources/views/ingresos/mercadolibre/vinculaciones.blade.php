@@ -153,6 +153,7 @@
             pendientes: @json(route('ingresos.mercadolibre.vinculaciones.pendientes')),
             vincularAutomaticamente: @json(route('ingresos.mercadolibre.vinculaciones.vincularAutomaticamente')),
             sincronizacionForzada: @json(route('ingresos.mercadolibre.vinculaciones.sincronizacionForzada')),
+            sincronizacionForzadaEstado: @json(route('ingresos.mercadolibre.vinculaciones.sincronizacionForzada.estado')),
             eliminarTodas: @json(route('ingresos.mercadolibre.vinculaciones.eliminarTodas')),
             base: @json(url('ingresos/mercadolibre/vinculaciones')),
             productosOpciones: @json(route('productos.opciones')),

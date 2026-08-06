@@ -150,6 +150,7 @@
             datatable: @json(route('ingresos.tiendanube.vinculaciones.datatable')),
             vincularAutomaticamente: @json(route('ingresos.tiendanube.vinculaciones.vincularAutomaticamente')),
             sincronizacionForzada: @json(route('ingresos.tiendanube.vinculaciones.sincronizacionForzada')),
+            sincronizacionForzadaEstado: @json(route('ingresos.tiendanube.vinculaciones.sincronizacionForzada.estado')),
             eliminarTodas: @json(route('ingresos.tiendanube.vinculaciones.eliminarTodas')),
             base: @json(url('ingresos/tiendanube/vinculaciones')),
             productosOpciones: @json(route('productos.opciones')),

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Ingresos;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Integraciones\VincularVarianteRequest;
+use App\Jobs\SincronizacionForzadaTiendanube;
 use App\Models\Integraciones\TiendanubeConexionRest;
 use App\Models\Integraciones\TiendanubeOrdenItem;
 use App\Models\Integraciones\TiendanubeRestOperacionLog;
@@ -30,8 +31,7 @@ class TiendanubeVinculacionController extends Controller
     public function __construct(
         private readonly SincronizadorStock $sincronizadorStock,
         private readonly SincronizadorPrecios $sincronizadorPrecios,
-    ) {
-    }
+    ) {}
 
     public function index()
     {
@@ -99,42 +99,29 @@ class TiendanubeVinculacionController extends Controller
      * vínculos (no sólo pendientes) y reenvía stock y precio reales. Reusa
      * los mismos cortes y candados de `SincronizadorStock`/`SincronizadorPrecios`
      * — si el stock queda bloqueado, no se intenta precio.
+     *
+     * Encola la corrida en vez de ejecutarla en el ciclo request/response —
+     * mismo motivo que MercadoLibreVinculacionController::sincronizacionForzada()
+     * (bug de timeout con catálogos grandes, detectado 06/08/2026).
      */
     public function sincronizacionForzada(): JsonResponse
     {
-        $resultadoStock = $this->sincronizadorStock->sincronizarTodos();
+        Cache::put(SincronizacionForzadaTiendanube::ESTADO_CACHE_KEY, ['estado' => 'en_curso'], now()->addMinutes(15));
 
-        if (! $resultadoStock['ok']) {
-            return response()->json($resultadoStock, 409);
-        }
-
-        $conexion = TiendanubeConexionRest::actual();
-        $resultadoPrecio = null;
-
-        if ($conexion->lista_precio_id) {
-            $resultadoPrecio = $this->sincronizadorPrecios->sincronizarListaCompleta($conexion->lista_precio_id);
-        }
-
-        // Un rechazo de credencial (401/404) durante la fase de stock puede
-        // marcar la conexión "Caida" a mitad de la corrida (ClienteTiendanubeRest)
-        // y bloquear la fase de precio que corre después — ese resultado no
-        // trae 'actualizados'/'con_error', se informa como precio no intentado.
-        $precioBloqueado = $resultadoPrecio && ! ($resultadoPrecio['ok'] ?? false);
-
-        $mensaje = match (true) {
-            $precioBloqueado => "{$resultadoStock['mensaje']} (stock) — precio no sincronizado: {$resultadoPrecio['mensaje']}",
-            (bool) $resultadoPrecio => "{$resultadoStock['mensaje']} (stock) — {$resultadoPrecio['mensaje']} (precio)",
-            default => "{$resultadoStock['mensaje']} (stock) — sin lista de precios configurada, precio no sincronizado.",
-        };
+        SincronizacionForzadaTiendanube::dispatch();
 
         return response()->json([
             'ok' => true,
-            'mensaje' => $mensaje,
-            'stock' => ['actualizados' => $resultadoStock['actualizados'], 'con_error' => $resultadoStock['con_error']],
-            'precio' => ($resultadoPrecio && ! $precioBloqueado)
-                ? ['actualizados' => $resultadoPrecio['actualizados'], 'con_error' => $resultadoPrecio['con_error']]
-                : null,
-        ]);
+            'encolado' => true,
+            'mensaje' => 'Sincronización forzada encolada, se está ejecutando en segundo plano.',
+        ], 202);
+    }
+
+    public function sincronizacionForzadaEstado(): JsonResponse
+    {
+        $estado = Cache::get(SincronizacionForzadaTiendanube::ESTADO_CACHE_KEY);
+
+        return response()->json($estado ?? ['estado' => 'sin_datos']);
     }
 
     /**
