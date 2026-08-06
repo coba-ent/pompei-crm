@@ -129,6 +129,12 @@
         return '$ ' + (Number(v) || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
+    // Acepta coma o punto como separador decimal (teclado es-AR) y lo normaliza
+    // a punto, que es lo que Number()/el backend esperan.
+    function normalizarDecimal(v) {
+        return String(v == null ? '' : v).replace(',', '.');
+    }
+
     // Preserva el foco (y la posición del cursor) de un input dentro de un
     // contenedor que se re-renderiza por completo, para que escribir un
     // caracter no lo saque del campo (re-render en cada 'input').
@@ -466,18 +472,18 @@
                 const $tr = $('<tr>');
                 $tr.append($('<td>').text(item.descripcion));
                 $tr.append($('<td style="width:90px">').append(
-                    $('<input type="number" step="0.001" class="form-control form-control-sm js-item-cant">').attr('data-idx', idx).attr('data-field', 'cantidad').val(cant).on('input', function () {
-                        items[idx].cantidad = $(this).val(); renderItems();
+                    $('<input type="text" inputmode="decimal" class="form-control form-control-sm js-item-cant">').attr('data-idx', idx).attr('data-field', 'cantidad').val(item.cantidad === undefined || item.cantidad === '' ? cant : item.cantidad).on('input', function () {
+                        items[idx].cantidad = normalizarDecimal($(this).val()); renderItems();
                     })
                 ));
                 $tr.append($('<td style="width:110px">').append(
-                    $('<input type="number" step="0.01" class="form-control form-control-sm js-item-precio">').attr('data-idx', idx).attr('data-field', 'precio_unitario').val(precio).on('input', function () {
-                        items[idx].precio_unitario = $(this).val(); renderItems();
+                    $('<input type="text" inputmode="decimal" class="form-control form-control-sm js-item-precio">').attr('data-idx', idx).attr('data-field', 'precio_unitario').val(item.precio_unitario === undefined || item.precio_unitario === '' ? precio : item.precio_unitario).on('input', function () {
+                        items[idx].precio_unitario = normalizarDecimal($(this).val()); renderItems();
                     })
                 ));
                 $tr.append($('<td style="width:90px">').append(
-                    $('<input type="number" step="0.01" class="form-control form-control-sm">').attr('data-idx', idx).attr('data-field', 'descuento_pct').val(item.descuento_pct || '').on('input', function () {
-                        items[idx].descuento_pct = $(this).val(); renderItems();
+                    $('<input type="text" inputmode="decimal" class="form-control form-control-sm">').attr('data-idx', idx).attr('data-field', 'descuento_pct').val(item.descuento_pct || '').on('input', function () {
+                        items[idx].descuento_pct = normalizarDecimal($(this).val()); renderItems();
                     })
                 ));
                 $tr.append($('<td>').text(money(subtotal)));
@@ -518,8 +524,8 @@
                         conceptos[idx].concepto = $(this).val();
                     }));
                 }
-                $row.append($('<input type="number" step="0.01" class="form-control" placeholder="Monto">').val(c.monto || '').on('input', function () {
-                    conceptos[idx].monto = $(this).val(); recalcular();
+                $row.append($('<input type="text" inputmode="decimal" class="form-control" placeholder="Monto">').val(c.monto || '').on('input', function () {
+                    conceptos[idx].monto = normalizarDecimal($(this).val()); recalcular();
                 }));
                 $row.append($('<button type="button" class="btn btn-outline-danger"><i class="fas fa-trash"></i></button>').on('click', () => {
                     conceptos.splice(idx, 1); renderConceptos(); recalcular();

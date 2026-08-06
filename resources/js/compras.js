@@ -50,6 +50,12 @@
         return PCT_IVA[valor] || 0;
     }
 
+    // Acepta coma o punto como separador decimal (teclado es-AR) y lo normaliza
+    // a punto, que es lo que Number()/el backend esperan.
+    function normalizarDecimal(v) {
+        return String(v == null ? '' : v).replace(',', '.');
+    }
+
     // Preserva el foco (y la posición del cursor) de un input dentro de un
     // contenedor que se re-renderiza por completo, para que escribir un
     // caracter no lo saque del campo (re-render en cada 'input').
@@ -296,9 +302,9 @@
 
                 const $tr = $('<tr>');
                 $tr.append($('<td>').text(item.descripcion));
-                $tr.append($('<td style="width:90px">').append($('<input type="number" step="0.001" class="form-control form-control-sm">').attr('data-idx', idx).attr('data-field', 'cantidad').val(cant).on('input', function () { items[idx].cantidad = $(this).val(); renderItems(); })));
-                $tr.append($('<td style="width:110px">').append($('<input type="number" step="0.01" class="form-control form-control-sm">').attr('data-idx', idx).attr('data-field', 'precio_unitario').val(precio).on('input', function () { items[idx].precio_unitario = $(this).val(); renderItems(); })));
-                $tr.append($('<td style="width:90px">').append($('<input type="number" step="0.01" class="form-control form-control-sm">').attr('data-idx', idx).attr('data-field', 'descuento_pct').val(item.descuento_pct || '').on('input', function () { items[idx].descuento_pct = $(this).val(); renderItems(); })));
+                $tr.append($('<td style="width:90px">').append($('<input type="text" inputmode="decimal" class="form-control form-control-sm">').attr('data-idx', idx).attr('data-field', 'cantidad').val(item.cantidad === undefined || item.cantidad === '' ? cant : item.cantidad).on('input', function () { items[idx].cantidad = normalizarDecimal($(this).val()); renderItems(); })));
+                $tr.append($('<td style="width:110px">').append($('<input type="text" inputmode="decimal" class="form-control form-control-sm">').attr('data-idx', idx).attr('data-field', 'precio_unitario').val(item.precio_unitario === undefined || item.precio_unitario === '' ? precio : item.precio_unitario).on('input', function () { items[idx].precio_unitario = normalizarDecimal($(this).val()); renderItems(); })));
+                $tr.append($('<td style="width:90px">').append($('<input type="text" inputmode="decimal" class="form-control form-control-sm">').attr('data-idx', idx).attr('data-field', 'descuento_pct').val(item.descuento_pct || '').on('input', function () { items[idx].descuento_pct = normalizarDecimal($(this).val()); renderItems(); })));
                 $tr.append($('<td>').text(money(subtotal)));
                 $tr.append($('<td style="width:110px">').append($(selectHtml).on('change', function () { items[idx].iva_pct = $(this).val() || null; renderItems(); })));
                 $tr.append($('<td>').text(money(subtotalConIva)));
@@ -316,7 +322,7 @@
                 const $row = $('<div class="input-group input-group-sm mb-2">');
                 $row.append($('<span class="input-group-text">').text(etiquetas[c.tipo] || c.tipo));
                 $row.append($('<input type="text" class="form-control" placeholder="Concepto">').val(c.concepto || '').on('input', function () { conceptos[idx].concepto = $(this).val(); }));
-                $row.append($('<input type="number" step="0.01" class="form-control" placeholder="Monto">').val(c.monto || '').on('input', function () { conceptos[idx].monto = $(this).val(); recalcular(); }));
+                $row.append($('<input type="text" inputmode="decimal" class="form-control" placeholder="Monto">').val(c.monto || '').on('input', function () { conceptos[idx].monto = normalizarDecimal($(this).val()); recalcular(); }));
                 $row.append($('<button type="button" class="btn btn-outline-danger"><i class="fas fa-trash"></i></button>').on('click', () => { conceptos.splice(idx, 1); renderConceptos(); recalcular(); }));
                 $body.append($row);
             });
@@ -621,7 +627,7 @@
                     )
                 ));
                 $row.append($('<div class="col-6">').append(
-                    $('<input type="number" step="0.001" class="form-control form-control-sm" placeholder="Cantidad">')
+                    $('<input type="text" inputmode="decimal" class="form-control form-control-sm" placeholder="Cantidad">')
                         .addClass('ncnd-item-cant')
                         .attr('max', item.pendiente)
                         .data('producto', item.producto_id)
@@ -645,7 +651,7 @@
 
         $(document).on('input', '.ncnd-item-cant', function () {
             const max = parseFloat($(this).data('max'));
-            if (max && parseFloat($(this).val()) > max) { $(this).val(max); }
+            if (max && parseFloat(normalizarDecimal($(this).val())) > max) { $(this).val(String(max)); }
         });
 
         $('#btn-agregar-nota').on('click', function () {
@@ -693,7 +699,7 @@
                 afecta_stock: afectaStock ? 1 : 0,
                 mes_imputacion: $('#ncnd-mes-imputacion').val(),
                 fecha_emision: $('#ncnd-fecha').val(),
-                monto: $('#ncnd-monto').val(),
+                monto: normalizarDecimal($('#ncnd-monto').val()),
                 descripcion: $('#ncnd-descripcion').val(),
             };
             if (afectaStock) {
@@ -701,7 +707,7 @@
                 payload.items = [];
                 $('.ncnd-item-chk:checked').each(function () {
                     const productoId = $(this).data('producto');
-                    const cantidad = $('.ncnd-item-cant[data-producto="' + productoId + '"]').val();
+                    const cantidad = normalizarDecimal($('.ncnd-item-cant[data-producto="' + productoId + '"]').val());
                     if (cantidad) { payload.items.push({ producto_id: productoId, cantidad }); }
                 });
             }

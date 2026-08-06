@@ -55,7 +55,7 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Monto</label>
-                        <input type="number" step="0.01" class="form-control" id="ncnd-monto">
+                        <input type="text" inputmode="decimal" class="form-control" id="ncnd-monto">
                     </div>
                     <div class="mb-3" id="ncnd-descripcion-wrapper">
                         <label class="form-label">Descripción</label>
