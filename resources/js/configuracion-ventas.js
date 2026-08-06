@@ -68,8 +68,10 @@
                     const resp = jqXHR.responseJSON || {};
                     if (jqXHR.status === 422) {
                         toast('error', 'Revisá los datos ingresados.');
+                    } else if (jqXHR.status === 419) {
+                        toast('error', 'Tu sesión expiró. Recargá la página e intentá de nuevo.');
                     } else {
-                        toast('error', resp.mensaje || 'No se pudo guardar la configuración de Ventas.');
+                        toast('error', resp.mensaje || resp.message || 'No se pudo guardar la configuración de Ventas.');
                     }
                 })
                 .always(function () {
