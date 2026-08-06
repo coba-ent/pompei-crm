@@ -143,7 +143,13 @@
             columns: [
                 {
                     data: 'fecha', name: 'fecha',
-                    render: function (val) { return val ? String(val).slice(0, 10).split('-').reverse().join('/') : ''; },
+                    render: function (val) {
+                        if (!val) return '';
+                        const texto = String(val);
+                        const fecha = texto.slice(0, 10).split('-').reverse().join('/');
+                        const hora = texto.slice(11, 16);
+                        return hora ? `${fecha} ${hora}` : fecha;
+                    },
                 },
                 {
                     data: 'tipo', name: 'tipo',
