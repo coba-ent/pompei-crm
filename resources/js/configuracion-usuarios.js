@@ -134,7 +134,12 @@
             modalUsuario.show();
         });
 
-        $tabla.on('click', '.js-usuario-editar', function () {
+        // Delegado en document (no en $tabla): el fix global de dropdowns
+        // (dropdown-escape-scroll.js) reparenta el .dropdown-menu a <body>
+        // al abrirse para evitar que quede recortado por el scroll de la
+        // tabla, así que al momento del click el botón ya no es descendiente
+        // de $tabla y un delegado ahí nunca se dispara.
+        $(document).on('click', '.js-usuario-editar', function () {
             const id = $(this).data('id');
             resetForm();
 
@@ -154,7 +159,7 @@
             });
         });
 
-        $tabla.on('click', '.js-usuario-estado', function () {
+        $(document).on('click', '.js-usuario-estado', function () {
             const id = $(this).data('id');
             const activo = $(this).data('activo') === 1;
 
