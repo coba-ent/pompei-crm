@@ -236,6 +236,7 @@
 </div>
 
 @include('productos._modal_form')
+@include('productos._modal_ver')
 @include('productos._modal_stock_global')
 @include('productos._modal_listas')
 @include('productos._modal_tipos')

@@ -790,10 +790,9 @@
             $(this).closest('.js-variante').remove();
         });
 
-        // Editar / Ver: precargar por AJAX.
-        $tabla.on('click', '.js-producto-editar, .js-producto-ver', function (e) {
+        // Editar: precargar el formulario por AJAX.
+        $tabla.on('click', '.js-producto-editar', function (e) {
             e.preventDefault();
-            const soloVer = $(this).hasClass('js-producto-ver');
             const id = $(this).data('id');
             resetForm();
             $.getJSON(rutas.show + '/' + id)
@@ -833,11 +832,100 @@
                     renderTiposProducto(p.tipo_producto_id || '');
                     mostrarPreviewImagen(p.imagen_url);
                     toggleStockSection();
-                    abrirModal(soloVer ? 'Ver Producto' : 'Editar Producto');
+                    abrirModal('Editar Producto');
                 })
                 .fail(function () {
                     toast('error', 'No se pudo cargar el producto.');
                 });
+        });
+
+        // Ver: modal de solo lectura (fiel a Contagram, informe §4.7) — no reutiliza
+        // el formulario de edición.
+        const $modalVer = $('#modal-producto-ver');
+        const modalVer = window.bootstrap ? new window.bootstrap.Modal($modalVer[0]) : null;
+        let verProductoId = null;
+
+        function moneda(v) {
+            return '$ ' + Number(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function nombrePorId(lista, id) {
+            const item = (lista || []).find(function (x) { return String(x.id) === String(id); });
+            return item ? item.nombre : null;
+        }
+
+        function etiquetaIva(campo, valor) {
+            const $opt = $form.find('select[name="' + campo + '"] option[value="' + valor + '"]');
+            return $opt.length ? $opt.text() : (valor || '—');
+        }
+
+        $tabla.on('click', '.js-producto-ver', function (e) {
+            e.preventDefault();
+            verProductoId = $(this).data('id');
+            $.getJSON(rutas.show + '/' + verProductoId)
+                .done(function (resp) {
+                    const p = resp.producto;
+                    $('#ver-producto-nombre').text(p.nombre || '—');
+                    $('#ver-producto-codigo').text(p.codigo ? ('Código: ' + p.codigo) : 'Sin código').toggleClass('d-none', !p.codigo);
+                    $('#ver-producto-estado')
+                        .text(p.activo ? 'Activo' : 'Inactivo')
+                        .removeClass('bg-success bg-secondary')
+                        .addClass(p.activo ? 'bg-success' : 'bg-secondary');
+                    $('#ver-producto-tipo').text(p.tipo === 'servicio' ? 'Servicio' : 'Producto');
+
+                    $('#ver-producto-tipo-producto').text(nombrePorId(cfg.tiposProducto, p.tipo_producto_id) || '—');
+                    $('#ver-producto-proveedor').text(nombrePorId(cfg.proveedores, p.proveedor_id) || '—');
+
+                    const esServicio = p.tipo === 'servicio';
+                    $('#ver-producto-stock-wrap').toggleClass('d-none', esServicio);
+                    $('#ver-producto-stock').text(esServicio ? '—' : Number(p.stock_total || 0).toLocaleString('es-AR'));
+
+                    $('#ver-producto-costo').text(moneda(p.costo));
+                    $('#ver-producto-precio-venta').text(moneda(p.precio_venta));
+                    $('#ver-producto-iva-venta').text(etiquetaIva('iva_venta_pct', p.iva_venta_pct));
+                    $('#ver-producto-iva-compra').text(etiquetaIva('iva_compra_pct', p.iva_compra_pct));
+
+                    const mostrarEn = [];
+                    if (p.mostrar_en_ventas) { mostrarEn.push('Ventas'); }
+                    if (p.mostrar_en_compras) { mostrarEn.push('Compras'); }
+                    $('#ver-producto-mostrar-en').text(mostrarEn.length ? mostrarEn.join(' y ') : 'No se muestra en Ventas ni Compras');
+
+                    const precios = p.precios || [];
+                    $('#ver-producto-listas-wrap').toggleClass('d-none', precios.length === 0);
+                    const $body = $('#ver-producto-listas-body').empty();
+                    precios.forEach(function (precio) {
+                        const nombreLista = nombrePorId(cfg.listasPrecio, precio.lista_precio_id) || ('Lista ' + precio.lista_precio_id);
+                        $body.append(
+                            $('<tr>').append(
+                                $('<td>').text(esc(nombreLista)),
+                                $('<td>').addClass('text-end fw-semibold').text(moneda(precio.precio))
+                            )
+                        );
+                    });
+
+                    $('#ver-producto-descripcion-wrap').toggleClass('d-none', !p.descripcion);
+                    $('#ver-producto-descripcion').text(p.descripcion || '');
+
+                    const $img = $('#ver-producto-imagen');
+                    if (p.imagen_url) {
+                        $img.attr('src', p.imagen_url).removeClass('d-none');
+                    } else {
+                        $img.attr('src', '').addClass('d-none');
+                    }
+
+                    modalVer ? modalVer.show() : $modalVer.show();
+                })
+                .fail(function () {
+                    toast('error', 'No se pudo cargar el producto.');
+                });
+        });
+
+        // Desde "Ver" → botón "Editar": cierra el modal de vista y abre el de edición.
+        $('#btn-ver-editar').on('click', function () {
+            if (!verProductoId) { return; }
+            const id = verProductoId;
+            modalVer ? modalVer.hide() : $modalVer.hide();
+            $tabla.find('.js-producto-editar[data-id="' + id + '"]').trigger('click');
         });
 
         // Crear Copia.
