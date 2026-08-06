@@ -277,11 +277,33 @@
 
         // IVA sin preseleccionar ("Elegir") — research.md §2: sólo se sugiere el
         // costo/IVA de compra del producto, nunca se fuerza un valor por defecto.
+        // Excepción: si el comprobante es tipo A (discrimina IVA), se precarga el
+        // iva_compra_pct del producto para ahorrar el tipeo manual en cada ítem.
         $('#f-producto').on('select2:select', function (e) {
             const producto = e.params.data.producto;
-            items.unshift({ producto_id: producto.id, descripcion: producto.nombre, cantidad: 1, precio_unitario: producto.costo || 0, descuento_pct: null, iva_pct: null });
+            const ivaAuto = $('#f-tipo-comprobante').val() === 'A' ? (producto.iva_compra_pct || null) : null;
+            items.unshift({ producto_id: producto.id, descripcion: producto.nombre, cantidad: 1, precio_unitario: producto.costo || 0, descuento_pct: null, iva_pct: ivaAuto });
             renderItems();
             $(this).val(null).trigger('change');
+        });
+
+        // Si se cambia el comprobante a tipo A, completa el IVA de los ítems que
+        // todavía no tengan uno elegido (no pisa lo que el usuario ya seleccionó).
+        $('#f-tipo-comprobante').on('change', function () {
+            if ($(this).val() !== 'A') { return; }
+            const idsSinIva = items.filter((i) => i.producto_id && !i.iva_pct).map((i) => i.producto_id);
+            if (!idsSinIva.length) { return; }
+            $.get(rutas.productosOpciones, { ids: idsSinIva, incluir_servicios: 1 })
+                .done((resp) => {
+                    const ivas = {};
+                    (resp.data || []).forEach((p) => { ivas[p.id] = p.iva_compra_pct; });
+                    items.forEach((item) => {
+                        if (item.producto_id && !item.iva_pct && ivas[item.producto_id]) {
+                            item.iva_pct = ivas[item.producto_id];
+                        }
+                    });
+                    renderItems();
+                });
         });
 
         function renderItems() {
