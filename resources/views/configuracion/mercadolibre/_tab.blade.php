@@ -164,6 +164,20 @@
                         lo envía de inmediato a la publicación de Mercado Libre correspondiente.
                     </div>
                 </div>
+                <div class="col-md-6">
+                    <label class="form-label">Lista de Precios ML Premium</label>
+                    <select class="form-select" id="ml-lista-precio-id-premium" style="width:100%">
+                        <option value="">Sin diferenciar (usa la Lista de Precios general)</option>
+                        @foreach ($listasPrecio as $lista)
+                            <option value="{{ $lista->id }}">{{ $lista->nombre }}</option>
+                        @endforeach
+                    </select>
+                    <div class="form-text">
+                        Opcional: lista usada para publicaciones Premium (comisión mayor de Mercado
+                        Libre). Sin configurar, o sin precio cargado ahí, las Premium usan la lista
+                        general de arriba.
+                    </div>
+                </div>
                 <div class="col-12">
                     <div class="text-muted small" id="ml-ultima-sync-info"></div>
                     <div class="text-muted small" id="ml-stock-ultima-sync-info"></div>
