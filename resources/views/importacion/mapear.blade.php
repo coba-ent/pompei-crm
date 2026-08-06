@@ -136,6 +136,13 @@
         document.querySelectorAll('.js-select-mapeo').forEach(function (select) {
             select.value = '';
             select.dispatchEvent(new Event('change'));
+            // El template (public/js/custom.js) envuelve todo <select> dentro de
+            // .table-responsive con Bootstrap-select (selectpicker), que dibuja su
+            // propio botón y no escucha el evento 'change' nativo: hay que pedirle
+            // que se redibuje explícitamente o queda mostrando el texto viejo.
+            if (window.jQuery && jQuery.fn.selectpicker) {
+                jQuery(select).selectpicker('refresh');
+            }
         });
     });
 
