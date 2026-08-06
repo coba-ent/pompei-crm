@@ -192,8 +192,7 @@ class ProductoController extends Controller
         }
 
         if ($request->filled('buscar')) {
-            $kw = $request->input('buscar');
-            $query->where(fn ($q) => $q->where('nombre', 'like', "%{$kw}%")->orWhere('codigo', 'like', "%{$kw}%"));
+            $this->aplicarBusquedaFlexible($query, $request->input('buscar'));
         }
 
         // Filtros por stock (menor/mayor que), sobre el agregado de la foto de stock.
@@ -205,6 +204,31 @@ class ProductoController extends Controller
         }
 
         return $query;
+    }
+
+    /**
+     * Búsqueda flexible sobre nombre/código: parte el texto en palabras y exige que
+     * cada una aparezca (en cualquier orden) en nombre o código — así "inox tornillo"
+     * encuentra "Tornillo Inoxidable" aunque el orden no coincida. La collation de la
+     * tabla (utf8mb4_unicode_ci) ya ignora acentos/mayúsculas en el LIKE, así que
+     * "nafta" encuentra "Naftalina" sin tratamiento especial. Como último recurso, si
+     * una palabra de 4+ letras no matchea por LIKE, se prueba por fonética (SOUNDEX)
+     * contra el nombre para tolerar errores de tipeo (ej. "tornllo" -> "tornillo").
+     */
+    private function aplicarBusquedaFlexible(Builder $query, string $texto): void
+    {
+        $palabras = array_filter(preg_split('/\s+/', trim($texto)));
+
+        foreach ($palabras as $palabra) {
+            $query->where(function ($q) use ($palabra) {
+                $q->where('nombre', 'like', "%{$palabra}%")
+                    ->orWhere('codigo', 'like', "%{$palabra}%");
+
+                if (mb_strlen($palabra) >= 4 && $q->getConnection()->getDriverName() === 'mysql') {
+                    $q->orWhereRaw('SOUNDEX(nombre) LIKE CONCAT(SOUNDEX(?), "%")', [$palabra]);
+                }
+            });
+        }
     }
 
     /** Datos server-side para la DataTable. */
@@ -225,10 +249,7 @@ class ProductoController extends Controller
             ->editColumn('stock_total', fn (Producto $p) => $p->esServicio() ? null : (float) ($p->stock_total ?? 0))
             ->filterColumn('nombre', function ($query, $keyword) {
                 // Búsqueda global sobre nombre y código/SKU (FR-025).
-                $query->where(function ($q) use ($keyword) {
-                    $q->where('nombre', 'like', "%{$keyword}%")
-                        ->orWhere('codigo', 'like', "%{$keyword}%");
-                });
+                $this->aplicarBusquedaFlexible($query, $keyword);
             });
 
         // Una columna dinámica por cada lista de precios activa.
