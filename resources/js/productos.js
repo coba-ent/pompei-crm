@@ -791,7 +791,10 @@
         });
 
         // Editar: precargar el formulario por AJAX.
-        $tabla.on('click', '.js-producto-editar', function (e) {
+        // Delegado en document (no en $tabla): dropdown-escape-scroll.js
+        // reparenta el .dropdown-menu a <body> al abrirse, así que al
+        // momento del click el botón ya no es descendiente de $tabla.
+        $(document).on('click', '.js-producto-editar', function (e) {
             e.preventDefault();
             const id = $(this).data('id');
             resetForm();
@@ -859,7 +862,7 @@
             return $opt.length ? $opt.text() : (valor || '—');
         }
 
-        $tabla.on('click', '.js-producto-ver', function (e) {
+        $(document).on('click', '.js-producto-ver', function (e) {
             e.preventDefault();
             verProductoId = $(this).data('id');
             $.getJSON(rutas.show + '/' + verProductoId)
@@ -929,7 +932,7 @@
         });
 
         // Crear Copia.
-        $tabla.on('click', '.js-producto-copia', function (e) {
+        $(document).on('click', '.js-producto-copia', function (e) {
             e.preventDefault();
             const id = $(this).data('id');
             $.ajax({ url: rutas.show + '/' + id + '/copia', method: 'POST', dataType: 'json' })
@@ -942,11 +945,11 @@
         });
 
         // Aumentar / Disminuir stock desde la fila (abre el modal global preseleccionado).
-        $tabla.on('click', '.js-producto-aumentar', function (e) {
+        $(document).on('click', '.js-producto-aumentar', function (e) {
             e.preventDefault();
             if (window.ProductosStockOp) { window.ProductosStockOp('aumento', $(this).data('id')); }
         });
-        $tabla.on('click', '.js-producto-disminuir', function (e) {
+        $(document).on('click', '.js-producto-disminuir', function (e) {
             e.preventDefault();
             if (window.ProductosStockOp) { window.ProductosStockOp('disminucion', $(this).data('id')); }
         });
@@ -1007,7 +1010,7 @@
         });
 
         // ================== ESTADO: inactivar / reactivar (US8) ==================
-        $tabla.on('click', '.js-producto-estado', function (e) {
+        $(document).on('click', '.js-producto-estado', function (e) {
             e.preventDefault();
             const id = $(this).data('id');
             $.ajax({
@@ -1029,7 +1032,7 @@
         const modalEliminar = window.bootstrap ? new window.bootstrap.Modal($modalEliminar[0]) : null;
         let idAEliminar = null;
 
-        $tabla.on('click', '.js-producto-eliminar', function (e) {
+        $(document).on('click', '.js-producto-eliminar', function (e) {
             e.preventDefault();
             idAEliminar = $(this).data('id');
             modalEliminar ? modalEliminar.show() : $modalEliminar.show();

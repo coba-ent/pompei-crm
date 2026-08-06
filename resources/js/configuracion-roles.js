@@ -167,7 +167,10 @@
             modalRol.show();
         });
 
-        $tabla.on('click', '.js-rol-editar', function () {
+        // Delegado en document (no en $tabla): dropdown-escape-scroll.js
+        // reparenta el .dropdown-menu a <body> al abrirse, así que al
+        // momento del click el botón ya no es descendiente de $tabla.
+        $(document).on('click', '.js-rol-editar', function () {
             const id = $(this).data('id');
             resetForm();
 
@@ -184,7 +187,7 @@
             });
         });
 
-        $tabla.on('click', '.js-rol-eliminar', function () {
+        $(document).on('click', '.js-rol-eliminar', function () {
             const id = $(this).data('id');
 
             if (!confirm('¿Eliminar este rol?')) {

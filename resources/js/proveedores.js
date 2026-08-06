@@ -355,10 +355,13 @@
         }
 
         // Ver (sólo lectura) / Editar desde el dropdown de acciones.
-        $tabla.on('click', '.js-proveedor-ver', function () {
+        // Delegado en document (no en $tabla): dropdown-escape-scroll.js
+        // reparenta el .dropdown-menu a <body> al abrirse, así que al
+        // momento del click el botón ya no es descendiente de $tabla.
+        $(document).on('click', '.js-proveedor-ver', function () {
             cargarProveedor($(this).data('id'), true, 'Ver Proveedor');
         });
-        $tabla.on('click', '.js-proveedor-editar', function () {
+        $(document).on('click', '.js-proveedor-editar', function () {
             cargarProveedor($(this).data('id'), false, 'Editar Proveedor');
         });
 
@@ -413,7 +416,7 @@
         }
 
         // --- Estado: inactivar/reactivar ---
-        $tabla.on('click', '.js-proveedor-estado', function () {
+        $(document).on('click', '.js-proveedor-estado', function () {
             const id = $(this).data('id');
             $.ajax({
                 url: rutas.show + '/' + id + '/estado',
@@ -436,7 +439,7 @@
         const modalEliminar = window.bootstrap ? new window.bootstrap.Modal($modalEliminar[0]) : null;
         let idAEliminar = null;
 
-        $tabla.on('click', '.js-proveedor-eliminar', function () {
+        $(document).on('click', '.js-proveedor-eliminar', function () {
             idAEliminar = $(this).data('id');
             if (modalEliminar) {
                 modalEliminar.show();

@@ -486,10 +486,13 @@
         }
 
         // Ver (sólo lectura) / Editar desde el dropdown de acciones.
-        $tabla.on('click', '.js-cliente-ver', function () {
+        // Delegado en document (no en $tabla): dropdown-escape-scroll.js
+        // reparenta el .dropdown-menu a <body> al abrirse, así que al
+        // momento del click el botón ya no es descendiente de $tabla.
+        $(document).on('click', '.js-cliente-ver', function () {
             cargarCliente($(this).data('id'), true, 'Ver Cliente');
         });
-        $tabla.on('click', '.js-cliente-editar', function () {
+        $(document).on('click', '.js-cliente-editar', function () {
             cargarCliente($(this).data('id'), false, 'Editar Cliente');
         });
 
@@ -544,7 +547,7 @@
         }
 
         // --- Estado: inactivar/reactivar (US4) ---
-        $tabla.on('click', '.js-cliente-estado', function () {
+        $(document).on('click', '.js-cliente-estado', function () {
             const id = $(this).data('id');
             $.ajax({
                 url: rutas.show + '/' + id + '/estado',
@@ -567,7 +570,7 @@
         const modalEliminar = window.bootstrap ? new window.bootstrap.Modal($modalEliminar[0]) : null;
         let idAEliminar = null;
 
-        $tabla.on('click', '.js-cliente-eliminar', function () {
+        $(document).on('click', '.js-cliente-eliminar', function () {
             idAEliminar = $(this).data('id');
             if (modalEliminar) {
                 modalEliminar.show();

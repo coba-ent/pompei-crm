@@ -461,9 +461,14 @@
             const modalMovEditar = window.bootstrap && $modalMovEditar.length ? new window.bootstrap.Modal($modalMovEditar[0]) : null;
             const $formMovEditar = $('#form-movimiento-editar');
 
-            $tablaLedger.on('click', '.js-movimiento-editar', function (e) {
+            // Delegado en document (no en $tablaLedger): dropdown-escape-scroll.js
+            // reparenta el .dropdown-menu a <body> al abrirse, así que al
+            // momento del click el botón ya no es descendiente de la tabla
+            // ni de su <tr> — se busca la fila por id en vez de con closest('tr').
+            $(document).on('click', '.js-movimiento-editar', function (e) {
                 e.preventDefault();
-                const fila = tablaLedger.row($(this).closest('tr')).data();
+                const id = $(this).data('id');
+                const fila = tablaLedger.rows().data().toArray().find(function (row) { return row.id == id; });
                 if (!fila) { return; }
                 if (!fila.es_nativo) {
                     toast('error', 'Este movimiento se originó en otro módulo y no se edita desde Tesorería.');
@@ -498,7 +503,7 @@
                     });
             });
 
-            $tablaLedger.on('click', '.js-movimiento-eliminar', function (e) {
+            $(document).on('click', '.js-movimiento-eliminar', function (e) {
                 e.preventDefault();
                 const id = $(this).data('id');
                 if (!window.confirm('¿Eliminar este movimiento?')) { return; }
