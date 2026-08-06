@@ -78,8 +78,7 @@ class ProductoController extends Controller
                 $q->whereIn('id', (array) $request->input('ids'));
             }, function ($q) use ($request) {
                 $q->when($request->filled('q'), function ($q) use ($request) {
-                    $kw = $request->input('q');
-                    $q->where(fn ($s) => $s->where('nombre', 'like', "%{$kw}%")->orWhere('codigo', 'like', "%{$kw}%"));
+                    $this->aplicarBusquedaFlexible($q, $request->input('q'));
                 })->limit(50);
             })
             ->orderBy('nombre');

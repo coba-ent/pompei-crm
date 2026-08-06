@@ -9,6 +9,7 @@ use App\Models\CondicionIva;
 use App\Models\Provincia;
 use App\Models\Proveedor;
 use App\Rules\CuitValido;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -68,8 +69,7 @@ class ProveedorController extends Controller
         $opciones = Proveedor::query()
             ->where('activo', true)
             ->when($request->filled('q'), function ($q) use ($request) {
-                $kw = $request->input('q');
-                $q->where(fn ($s) => $s->where('nombre', 'like', "%{$kw}%")->orWhere('cuit', 'like', "%{$kw}%"));
+                $this->aplicarBusquedaFlexible($q, $request->input('q'));
             })
             ->orderBy('nombre')
             ->limit(50)
@@ -120,13 +120,33 @@ class ProveedorController extends Controller
             ->addColumn('acciones', fn (Proveedor $p) => view('proveedores._row_actions', ['proveedor' => $p])->render())
             ->filterColumn('nombre', function ($query, $keyword) {
                 // Búsqueda global sobre nombre y CUIT (FR-004).
-                $query->where(function ($q) use ($keyword) {
-                    $q->where('nombre', 'like', "%{$keyword}%")
-                        ->orWhere('cuit', 'like', "%{$keyword}%");
-                });
+                $this->aplicarBusquedaFlexible($query, $keyword);
             })
             ->rawColumns(['acciones'])
             ->toJson();
+    }
+
+    /**
+     * Búsqueda flexible sobre nombre/CUIT: parte el texto en palabras y exige que
+     * cada una aparezca (en cualquier orden) en nombre o CUIT — mismo criterio que
+     * en Productos (ver ProductoController::aplicarBusquedaFlexible). Para palabras
+     * de 4+ letras suma un fallback por SOUNDEX que tolera errores de tipeo en el
+     * nombre (no aplica a CUIT, que es numérico).
+     */
+    private function aplicarBusquedaFlexible(Builder $query, string $texto): void
+    {
+        $palabras = array_filter(preg_split('/\s+/', trim($texto)));
+
+        foreach ($palabras as $palabra) {
+            $query->where(function ($q) use ($palabra) {
+                $q->where('nombre', 'like', "%{$palabra}%")
+                    ->orWhere('cuit', 'like', "%{$palabra}%");
+
+                if (mb_strlen($palabra) >= 4 && $q->getConnection()->getDriverName() === 'mysql') {
+                    $q->orWhereRaw('SOUNDEX(nombre) LIKE CONCAT(SOUNDEX(?), "%")', [$palabra]);
+                }
+            });
+        }
     }
 
     /**
@@ -138,11 +158,7 @@ class ProveedorController extends Controller
         $query = $this->queryFiltrada($request);
 
         if ($request->filled('buscar')) {
-            $keyword = $request->input('buscar');
-            $query->where(function ($q) use ($keyword) {
-                $q->where('nombre', 'like', "%{$keyword}%")
-                    ->orWhere('cuit', 'like', "%{$keyword}%");
-            });
+            $this->aplicarBusquedaFlexible($query, $request->input('buscar'));
         }
 
         $nombreArchivo = 'proveedores_'.now()->format('Ymd_His').'.csv';
