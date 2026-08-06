@@ -22,6 +22,7 @@ class MercadoLibrePublicacionProducto extends Model
         'ml_item_id', 'producto_id', 'titulo_ml', 'vinculada_por',
         'stock_pendiente', 'stock_sincronizado_en', 'stock_error', 'stock_error_en',
         'precio_pendiente', 'precio_sincronizado_en', 'precio_error', 'precio_error_en',
+        'listing_type_id', 'listing_type_sincronizado_en',
     ];
 
     protected $casts = [
@@ -31,6 +32,7 @@ class MercadoLibrePublicacionProducto extends Model
         'precio_pendiente' => 'boolean',
         'precio_sincronizado_en' => 'datetime',
         'precio_error_en' => 'datetime',
+        'listing_type_sincronizado_en' => 'datetime',
     ];
 
     public function producto(): BelongsTo
@@ -53,5 +55,15 @@ class MercadoLibrePublicacionProducto extends Model
     public function scopePendientesPrecio(Builder $query): Builder
     {
         return $query->where('precio_pendiente', true);
+    }
+
+    /**
+     * Único lugar de la app que traduce el tipo crudo informado por Mercado
+     * Libre a "es Premium" (spec 050, research.md R2) — `gold_pro` es Premium,
+     * cualquier otro valor (incluido `null`, sin clasificar todavía) no lo es.
+     */
+    public function esPremium(): bool
+    {
+        return $this->listing_type_id === 'gold_pro';
     }
 }

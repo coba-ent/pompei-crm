@@ -20,6 +20,7 @@ class MercadoLibreConfiguracion extends Model
         'creacion_automatica', 'frecuencia_sync_minutos', 'deposito_id', 'categoria_venta_id',
         'dias_primera_sync', 'ultima_sync_en', 'ultima_sync_resultado',
         'stock_ultima_sync_en', 'stock_ultima_sync_resultado', 'lista_precio_id', 'vendedor_id',
+        'lista_precio_id_premium', 'tipo_publicacion_ultima_sync_en',
     ];
 
     protected $hidden = ['client_secret'];
@@ -30,6 +31,7 @@ class MercadoLibreConfiguracion extends Model
         'creacion_automatica' => 'boolean',
         'ultima_sync_en' => 'datetime',
         'stock_ultima_sync_en' => 'datetime',
+        'tipo_publicacion_ultima_sync_en' => 'datetime',
     ];
 
     public function deposito(): BelongsTo
@@ -82,6 +84,12 @@ class MercadoLibreConfiguracion extends Model
     public function listaPrecio(): BelongsTo
     {
         return $this->belongsTo(\App\Models\ListaPrecio::class, 'lista_precio_id');
+    }
+
+    /** Lista de Precios usada para las publicaciones Premium (`gold_pro`) — spec 050, opcional. */
+    public function listaPrecioPremium(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\ListaPrecio::class, 'lista_precio_id_premium');
     }
 
     public static function actual(): self

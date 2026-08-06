@@ -56,6 +56,14 @@ return Application::configure(basePath: dirname(__DIR__))
         // spec 034 (FR-016): revisión diaria del certificado fiscal ARCA.
         $schedule->command('arca:avisar-vencimiento-certificado')
             ->daily();
+
+        // spec 050, research.md §R3: mismo mecanismo de portabilidad que arriba
+        // (se evalúa cada minuto, el propio comando decide si corresponde según
+        // el intervalo fijo de 24hs) — independiente de la corrida de stock, para
+        // no multiplicar llamadas a la API por un dato que casi no cambia.
+        $schedule->command('mercadolibre:sincronizar-tipos-publicacion')
+            ->everyMinute()
+            ->withoutOverlapping();
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

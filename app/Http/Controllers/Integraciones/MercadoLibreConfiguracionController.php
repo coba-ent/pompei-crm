@@ -71,6 +71,7 @@ class MercadoLibreConfiguracionController extends Controller
                 'deposito_id' => $configuracion->deposito_id,
                 'categoria_venta_id' => $configuracion->categoria_venta_id,
                 'lista_precio_id' => $configuracion->lista_precio_id,
+                'lista_precio_id_premium' => $configuracion->lista_precio_id_premium,
                 'vendedor_id' => $configuracion->vendedor_id,
                 'dias_primera_sync' => $configuracion->dias_primera_sync,
                 'ultima_sync_en' => optional($configuracion->ultima_sync_en)->toIso8601String(),
@@ -135,21 +136,28 @@ class MercadoLibreConfiguracionController extends Controller
         $configuracion = MercadoLibreConfiguracion::actual();
         $datos = $request->validated();
         $listaPrecioIdAnterior = $configuracion->lista_precio_id;
+        $listaPrecioIdPremiumAnterior = $configuracion->lista_precio_id_premium;
 
         $configuracion->update($datos);
 
-        // FR-007 (spec 016, US5): si cambió cuál es la Lista de Precios configurada,
-        // empujar de inmediato el precio vigente de la nueva lista a los vínculos
-        // actuales. No se expone en esta misma respuesta (contracts §3) — el
-        // resultado se ve reflejado en el estado por-vínculo de "Vinculaciones".
-        // Comparación por (int): el valor recién guardado llega del request como
-        // string (form-urlencoded), mientras que $listaPrecioIdAnterior es el
+        // FR-007 (spec 016, US5) + FR-010 (spec 050, US2): si cambió cuál es la
+        // Lista de Precios configurada (general o Premium), empujar de inmediato
+        // el precio vigente de la nueva lista a los vínculos actuales. No se
+        // expone en esta misma respuesta (contracts §3) — el resultado se ve
+        // reflejado en el estado por-vínculo de "Vinculaciones". Comparación por
+        // (int): el valor recién guardado llega del request como string
+        // (form-urlencoded), mientras que $listaPrecioIdAnterior/Premium son el
         // entero que ya había devuelto Eloquent — comparar con !== sin castear
         // los consideraba "distintos" en cada guardado, aunque no hubiera cambio.
         $listaPrecioIdNueva = $datos['lista_precio_id'] ?? null;
+        $listaPrecioIdPremiumNueva = $datos['lista_precio_id_premium'] ?? null;
 
         if ($listaPrecioIdNueva !== null && (int) $listaPrecioIdNueva !== (int) $listaPrecioIdAnterior) {
             app(\App\Services\MercadoLibre\SincronizadorPrecios::class)->sincronizarListaCompleta((int) $listaPrecioIdNueva);
+        }
+
+        if ($listaPrecioIdPremiumNueva !== null && (int) $listaPrecioIdPremiumNueva !== (int) $listaPrecioIdPremiumAnterior) {
+            app(\App\Services\MercadoLibre\SincronizadorPrecios::class)->sincronizarListaCompleta((int) $listaPrecioIdPremiumNueva);
         }
 
         return response()->json([

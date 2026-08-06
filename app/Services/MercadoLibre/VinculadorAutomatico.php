@@ -139,13 +139,16 @@ class VinculadorAutomatico
                     'ml_item_id' => $item['id'],
                     'sku' => $sku,
                     'titulo' => $item['title'] ?? null,
+                    // spec 050, FR-003: el multiget ya trae listing_type_id en el
+                    // mismo body — se persiste acá sin una segunda consulta a ML.
+                    'listing_type_id' => $item['listing_type_id'] ?? null,
                 ];
             })
             ->all();
     }
 
     /**
-     * @param  array{ml_item_id: string, sku: ?string, titulo: ?string}  $detalle
+     * @param  array{ml_item_id: string, sku: ?string, titulo: ?string, listing_type_id: ?string}  $detalle
      * @return array{referencia: string, motivo: string, detalle?: string}|null null = vinculado con éxito.
      */
     private function procesar(array $detalle, ?User $usuario): ?array
@@ -172,6 +175,8 @@ class VinculadorAutomatico
             'producto_id' => $producto->id,
             'titulo_ml' => $detalle['titulo'],
             'vinculada_por' => $usuario?->id,
+            'listing_type_id' => $detalle['listing_type_id'],
+            'listing_type_sincronizado_en' => $detalle['listing_type_id'] ? now() : null,
         ]);
 
         return null;

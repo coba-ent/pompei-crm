@@ -5,6 +5,7 @@ namespace Tests\Feature\Integraciones;
 use App\Enums\MercadoLibre\EstadoConexion;
 use App\Models\Integraciones\MercadoLibreConfiguracion;
 use App\Models\Integraciones\MercadoLibreCuenta;
+use App\Models\ListaPrecio;
 use App\Models\Rol;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -155,5 +156,33 @@ class MercadoLibreConfiguracionTest extends TestCase
 
         $response->assertOk()->assertJsonPath('requiere_revinculacion', true);
         $this->assertSame(EstadoConexion::Caida, $cuenta->fresh()->estado);
+    }
+
+    /** T005 (spec 050, US1): persistencia de la Lista de Precios Premium, opcional. */
+    public function test_guarda_y_borra_la_lista_de_precios_premium(): void
+    {
+        $listaPremium = ListaPrecio::create(['nombre' => 'ML Premium', 'activo' => true]);
+
+        $response = $this->patchJson(route('configuracion.mercadolibre.ventas.configurar'), [
+            'creacion_automatica' => false,
+            'frecuencia_sync_minutos' => 15,
+            'dias_primera_sync' => 30,
+            'lista_precio_id_premium' => $listaPremium->id,
+        ]);
+
+        $response->assertOk()->assertJsonPath('ok', true);
+        $this->assertSame($listaPremium->id, MercadoLibreConfiguracion::actual()->lista_precio_id_premium);
+
+        $estado = $this->getJson(route('configuracion.mercadolibre.estado'));
+        $estado->assertOk()->assertJsonPath('configuracion.lista_precio_id_premium', $listaPremium->id);
+
+        $this->patchJson(route('configuracion.mercadolibre.ventas.configurar'), [
+            'creacion_automatica' => false,
+            'frecuencia_sync_minutos' => 15,
+            'dias_primera_sync' => 30,
+            'lista_precio_id_premium' => null,
+        ])->assertOk();
+
+        $this->assertNull(MercadoLibreConfiguracion::actual()->lista_precio_id_premium);
     }
 }

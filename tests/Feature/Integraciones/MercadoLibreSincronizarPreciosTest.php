@@ -159,4 +159,93 @@ class MercadoLibreSincronizarPreciosTest extends TestCase
         $respuesta->assertOk()->assertJson(['ok' => true, 'actualizados' => 1]);
         $this->assertFalse($vinculo->fresh()->precio_pendiente);
     }
+
+    /** T011a (spec 050, US2): publicación Premium con precio en la lista Premium usa esa lista. */
+    public function test_publicacion_premium_con_precio_en_lista_premium_usa_esa_lista(): void
+    {
+        $listaPremium = ListaPrecio::create(['nombre' => 'ML Premium', 'activo' => true]);
+        MercadoLibreConfiguracion::actual()->update(['lista_precio_id_premium' => $listaPremium->id]);
+
+        $producto = Producto::factory()->create();
+        $producto->precios()->create(['lista_precio_id' => $this->lista->id, 'precio' => 100]);
+        $producto->precios()->create(['lista_precio_id' => $listaPremium->id, 'precio' => 150]);
+
+        $vinculo = MercadoLibrePublicacionProducto::create([
+            'ml_item_id' => 'MLA'.$producto->id, 'producto_id' => $producto->id,
+            'precio_pendiente' => true, 'listing_type_id' => 'gold_pro',
+        ]);
+
+        Http::fake(['api.mercadolibre.com/*' => Http::response(['id' => 'MLA1'], 200)]);
+
+        $this->postJson(route('productos.sincronizarPreciosMl'))->assertOk()->assertJson(['ok' => true, 'actualizados' => 1]);
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), $vinculo->ml_item_id) && $request['price'] === 150.0);
+    }
+
+    /** T011b: publicación Premium sin precio en la lista Premium cae a la lista general. */
+    public function test_publicacion_premium_sin_precio_en_lista_premium_cae_a_la_general(): void
+    {
+        $listaPremium = ListaPrecio::create(['nombre' => 'ML Premium', 'activo' => true]);
+        MercadoLibreConfiguracion::actual()->update(['lista_precio_id_premium' => $listaPremium->id]);
+
+        $producto = Producto::factory()->create();
+        $producto->precios()->create(['lista_precio_id' => $this->lista->id, 'precio' => 100]);
+        // Sin precio cargado en la lista Premium.
+
+        $vinculo = MercadoLibrePublicacionProducto::create([
+            'ml_item_id' => 'MLA'.$producto->id, 'producto_id' => $producto->id,
+            'precio_pendiente' => true, 'listing_type_id' => 'gold_pro',
+        ]);
+
+        Http::fake(['api.mercadolibre.com/*' => Http::response(['id' => 'MLA1'], 200)]);
+
+        $this->postJson(route('productos.sincronizarPreciosMl'))->assertOk()->assertJson(['ok' => true, 'actualizados' => 1]);
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), $vinculo->ml_item_id) && $request['price'] === 100.0);
+    }
+
+    /** T011c: sin lista Premium configurada, todas las publicaciones (Premium o no) usan la general. */
+    public function test_sin_lista_premium_configurada_todas_usan_la_general(): void
+    {
+        $producto = Producto::factory()->create();
+        $producto->precios()->create(['lista_precio_id' => $this->lista->id, 'precio' => 100]);
+
+        $vinculo = MercadoLibrePublicacionProducto::create([
+            'ml_item_id' => 'MLA'.$producto->id, 'producto_id' => $producto->id,
+            'precio_pendiente' => true, 'listing_type_id' => 'gold_pro',
+        ]);
+
+        Http::fake(['api.mercadolibre.com/*' => Http::response(['id' => 'MLA1'], 200)]);
+
+        $this->postJson(route('productos.sincronizarPreciosMl'))->assertOk()->assertJson(['ok' => true, 'actualizados' => 1]);
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), $vinculo->ml_item_id) && $request['price'] === 100.0);
+    }
+
+    /** T011d (FR-011): dos publicaciones del mismo producto con distinto tipo reciben cada una la lista que corresponde. */
+    public function test_publicaciones_de_distinto_tipo_del_mismo_producto_reciben_su_propia_lista(): void
+    {
+        $listaPremium = ListaPrecio::create(['nombre' => 'ML Premium', 'activo' => true]);
+        MercadoLibreConfiguracion::actual()->update(['lista_precio_id_premium' => $listaPremium->id]);
+
+        $producto = Producto::factory()->create();
+        $producto->precios()->create(['lista_precio_id' => $this->lista->id, 'precio' => 100]);
+        $producto->precios()->create(['lista_precio_id' => $listaPremium->id, 'precio' => 150]);
+
+        $vinculoPremium = MercadoLibrePublicacionProducto::create([
+            'ml_item_id' => 'MLA'.$producto->id.'P', 'producto_id' => $producto->id,
+            'precio_pendiente' => true, 'listing_type_id' => 'gold_pro',
+        ]);
+        $vinculoClasico = MercadoLibrePublicacionProducto::create([
+            'ml_item_id' => 'MLA'.$producto->id.'C', 'producto_id' => $producto->id,
+            'precio_pendiente' => true, 'listing_type_id' => 'gold_special',
+        ]);
+
+        Http::fake(['api.mercadolibre.com/*' => Http::response(['id' => 'MLA1'], 200)]);
+
+        $this->postJson(route('productos.sincronizarPreciosMl'))->assertOk()->assertJson(['ok' => true, 'actualizados' => 2]);
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), $vinculoPremium->ml_item_id) && $request['price'] === 150.0);
+        Http::assertSent(fn ($request) => str_contains($request->url(), $vinculoClasico->ml_item_id) && $request['price'] === 100.0);
+    }
 }

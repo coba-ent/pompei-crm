@@ -100,7 +100,7 @@ class SincronizadorPrecios
         }
 
         try {
-            return $this->enviarPendientes($configuracion->lista_precio_id);
+            return $this->enviarPendientes($configuracion);
         } finally {
             $lock->release();
         }
@@ -121,11 +121,20 @@ class SincronizadorPrecios
         // válido (US5 escenario 3, contracts §3) — el bloqueo sólo evita el
         // intento de envío real (ver enviarUno()), no el marcado.
         $bloqueo = $this->verificarCortes();
+        $configuracion = MercadoLibreConfiguracion::actual();
         $actualizados = 0;
         $conError = 0;
 
         foreach (MercadoLibrePublicacionProducto::with('producto')->get() as $vinculo) {
             if (! $vinculo->producto) {
+                continue;
+            }
+
+            // T014 (spec 050): sin importar cuál de las dos listas cambió
+            // (general o Premium), sólo se empuja a los vínculos cuya lista
+            // resuelta (por tipo de publicación) sea exactamente la que cambió
+            // — misma regla que enviarPendientes(), sin lógica especial por caso.
+            if ($this->resolverListaPrecio($vinculo, $configuracion) !== $listaPrecioId) {
                 continue;
             }
 
@@ -160,7 +169,7 @@ class SincronizadorPrecios
         ];
     }
 
-    private function enviarPendientes(int $listaPrecioId): array
+    private function enviarPendientes(MercadoLibreConfiguracion $configuracion): array
     {
         $actualizados = 0;
         $conError = 0;
@@ -169,6 +178,12 @@ class SincronizadorPrecios
             if (! $vinculo->producto) {
                 $vinculo->update(['precio_pendiente' => false]);
 
+                continue;
+            }
+
+            $listaPrecioId = $this->resolverListaPrecio($vinculo, $configuracion);
+
+            if ($listaPrecioId === null) {
                 continue;
             }
 
@@ -191,6 +206,28 @@ class SincronizadorPrecios
             'actualizados' => $actualizados,
             'con_error' => $conError,
         ];
+    }
+
+    /**
+     * Resuelve qué Lista de Precios corresponde a un vínculo (spec 050,
+     * FR-006/007/008/009, research.md R5): si es Premium y su producto tiene
+     * precio cargado en la lista Premium configurada, esa; si no —sea porque
+     * no es Premium, no hay lista Premium configurada, o no tiene precio
+     * ahí— la lista general. Evaluado por publicación individual (FR-011).
+     */
+    private function resolverListaPrecio(MercadoLibrePublicacionProducto $vinculo, MercadoLibreConfiguracion $configuracion): ?int
+    {
+        if ($vinculo->esPremium() && $configuracion->lista_precio_id_premium && $vinculo->producto) {
+            $tienePrecioPremium = $vinculo->producto->precios()
+                ->where('lista_precio_id', $configuracion->lista_precio_id_premium)
+                ->exists();
+
+            if ($tienePrecioPremium) {
+                return $configuracion->lista_precio_id_premium;
+            }
+        }
+
+        return $configuracion->lista_precio_id;
     }
 
     /**
