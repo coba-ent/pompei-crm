@@ -32,6 +32,5 @@
         <li><hr class="dropdown-divider"></li>
         <li><a class="dropdown-item js-imprimir" href="#" data-id="{{ $presupuesto->id }}">Ver Presupuesto</a></li>
         <li><a class="dropdown-item js-imprimir" href="#" data-id="{{ $presupuesto->id }}">Imprimir Presupuesto</a></li>
-        <li><a class="dropdown-item disabled" href="#" title="Próximamente">Enviar Presupuesto</a></li>
     </ul>
 </div>
