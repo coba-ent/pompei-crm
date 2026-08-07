@@ -289,7 +289,7 @@
         proveedores: {!! $proveedores->map(fn ($p) => ['id' => $p->id, 'nombre' => $p->nombre])->toJson() !!},
     };
 </script>
-@vite(['resources/js/productos.js'])
+@vite(['resources/js/productos.js', 'resources/js/producto-modales.js'])
 @if (request()->boolean('crear'))
 <script>
     (function () {
