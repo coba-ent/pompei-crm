@@ -556,7 +556,9 @@ td.dt-acciones-caret .dropdown-toggle::after {
  * para que quede consistente en todo el CRM. Regla GLOBAL.
  * ------------------------------------------------------------------------ */
 .table thead th,
-.dataTable thead th {
+.dataTable thead th,
+table.dataTable > thead > tr > th,
+table.dataTable > thead > tr > td {
     background-color: var(--primary);
     color: #fff;
 }
