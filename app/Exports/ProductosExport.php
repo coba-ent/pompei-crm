@@ -6,8 +6,13 @@ use App\Models\Producto;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromQuery;
+use Maatwebsite\Excel\Concerns\WithColumnFormatting;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
+use Maatwebsite\Excel\Concerns\WithStyles;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 /**
  * Export de Productos a XLSX real (no CSV) con celdas numéricas tipadas —
@@ -22,7 +27,7 @@ use Maatwebsite\Excel\Concerns\WithMapping;
  * real (IEEE), sin pasar por texto ni depender de locale en ningún momento
  * del camino ida y vuelta.
  */
-class ProductosExport implements FromQuery, WithHeadings, WithMapping
+class ProductosExport implements FromQuery, WithHeadings, WithMapping, WithStyles, WithColumnFormatting
 {
     /** @param  Collection<int, \App\Models\ListaPrecio>  $listas */
     /** @param  Collection<int, \App\Models\Deposito>  $depositos */
@@ -34,7 +39,40 @@ class ProductosExport implements FromQuery, WithHeadings, WithMapping
 
     public function query()
     {
-        return $this->query->orderBy('nombre');
+        return $this->query->orderBy('id');
+    }
+
+    /** Header con fondo oscuro y letra blanca, pedido explícito del usuario. */
+    public function styles(Worksheet $sheet)
+    {
+        $sheet->getStyle('A1:'.$sheet->getHighestColumn().'1')->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '2B2B2B']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+        ]);
+
+        return [];
+    }
+
+    /**
+     * Formato numérico explícito ('0' en vez de General) para Stock total/por depósito:
+     * evita que un 0 real se vea vacío en Excel si la celda hereda algún formato tipo
+     * contable con la sección de "cero" en blanco.
+     */
+    public function columnFormats(): array
+    {
+        $inicioStock = 7 + $this->listas->count() + 4; // Id..Precio venta(7) + listas + IVA venta/Costo/IVA compra(3) + 1 para aterrizar en Stock total
+        $formatos = [];
+        for ($i = 0; $i < 1 + $this->depositos->count(); $i++) {
+            $formatos[$this->columnLetra($inicioStock + $i)] = '0';
+        }
+
+        return $formatos;
+    }
+
+    private function columnLetra(int $indiceBase1): string
+    {
+        return \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($indiceBase1);
     }
 
     public function headings(): array
