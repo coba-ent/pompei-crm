@@ -163,24 +163,19 @@
 							@endcan
 						</ul>
 					</li>
-					<li><a class="has-arrow " href="javascript:void(0);" aria-expanded="false">
-							<div class="menu-icon">
-								<svg width="24" height="24" viewBox="0 0 16 16" fill="none"
-									xmlns="http://www.w3.org/2000/svg">
-									<path
-										d="M12.136.326A1.5 1.5 0 0 1 14 1.78V3h.5A1.5 1.5 0 0 1 16 4.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 0 13.5v-9a1.5 1.5 0 0 1 1.432-1.499L12.136.326zM5.562 3H13V1.78a.5.5 0 0 0-.621-.484L5.562 3zM1.5 4a.5.5 0 0 0-.5.5v9a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5v-9a.5.5 0 0 0-.5-.5h-13z"
-										fill="#6F767E" />
-								</svg>
-							</div>
-							<span class="nav-text">Tesorería</span>
-						</a>
-						<ul aria-expanded="false">
-							@can('tesoreria.ver')
-								<li><a href="{{ route('tesoreria.saldos') }}">Saldos</a></li>
-								<li><a href="{{ route('tesoreria.movimientos') }}">Movimientos</a></li>
-							@endcan
-						</ul>
-					</li>
+					@can('tesoreria.ver')
+						<li><a href="{{ route('tesoreria.saldos') }}">
+								<div class="menu-icon">
+									<svg width="24" height="24" viewBox="0 0 16 16" fill="none"
+										xmlns="http://www.w3.org/2000/svg">
+										<path
+											d="M12.136.326A1.5 1.5 0 0 1 14 1.78V3h.5A1.5 1.5 0 0 1 16 4.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 0 13.5v-9a1.5 1.5 0 0 1 1.432-1.499L12.136.326zM5.562 3H13V1.78a.5.5 0 0 0-.621-.484L5.562 3zM1.5 4a.5.5 0 0 0-.5.5v9a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5v-9a.5.5 0 0 0-.5-.5h-13z"
+											fill="#6F767E" />
+									</svg>
+								</div>
+								<span class="nav-text">Tesorería</span>
+							</a></li>
+					@endcan
 				</ul>
 				<div class="mode-btn d-none align-items-center justify-content-between">
 					<div class="d-mode">
