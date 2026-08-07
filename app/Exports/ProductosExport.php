@@ -61,7 +61,7 @@ class ProductosExport implements FromQuery, WithHeadings, WithMapping, WithStyle
      */
     public function columnFormats(): array
     {
-        $inicioStock = 7 + $this->listas->count() + 4; // Id..Precio venta(7) + listas + IVA venta/Costo/IVA compra(3) + 1 para aterrizar en Stock total
+        $inicioStock = 7; // Id, Nombre, Código/SKU, Tipo, Tipo de Producto, Proveedor -> Stock total es la 7ma columna.
         $formatos = [];
         for ($i = 0; $i < 1 + $this->depositos->count(); $i++) {
             $formatos[$this->columnLetra($inicioStock + $i)] = '0';
@@ -81,11 +81,12 @@ class ProductosExport implements FromQuery, WithHeadings, WithMapping, WithStyle
             // "Id" primero: permite reimportar este mismo archivo mapeando Id + las
             // columnas editadas para que el importador (ImportadorFilas::resolverModoFila())
             // lo reconozca como actualización de estos productos en vez de crear duplicados.
-            'Id', 'Nombre', 'Código/SKU', 'Tipo', 'Tipo de Producto', 'Proveedor', 'Precio venta',
-            ...$this->listas->map(fn ($l) => $l->nombre)->all(),
-            'IVA venta', 'Costo', 'IVA compra', 'Stock total',
+            'Id', 'Nombre', 'Código/SKU', 'Tipo', 'Tipo de Producto', 'Proveedor',
+            'Stock total',
             ...$this->depositos->map(fn ($d) => 'Stock '.$d->nombre)->all(),
-            'Estado',
+            'Costo', 'Precio venta',
+            ...$this->listas->map(fn ($l) => $l->nombre)->all(),
+            'IVA venta', 'IVA compra', 'Estado',
         ];
     }
 
@@ -99,16 +100,16 @@ class ProductosExport implements FromQuery, WithHeadings, WithMapping, WithStyle
             $p->tipo,
             optional($p->tipoProducto)->nombre,
             optional($p->proveedor)->nombre,
+            $p->esServicio() ? null : (float) ($p->stock_total ?? 0),
+            ...$this->depositos->map(fn ($d) => $p->esServicio() ? null : (float) ($p->{'stock_deposito_'.$d->id} ?? 0))->all(),
             // Casts explícitos a float/int: los atributos `decimal:*` de Eloquent devuelven
             // string (para no perder precisión) — sin este cast, PhpSpreadsheet escribiría la
             // celda como texto igual que el CSV, perdiendo el punto entero de este export.
+            (float) $p->costo,
             (float) $p->precio_venta,
             ...$this->listas->map(fn ($l) => $p->{'precio_lista_'.$l->id} !== null ? (float) $p->{'precio_lista_'.$l->id} : null)->all(),
             Producto::etiquetaIva($p->iva_venta_pct),
-            (float) $p->costo,
             Producto::etiquetaIva($p->iva_compra_pct),
-            $p->esServicio() ? null : (float) ($p->stock_total ?? 0),
-            ...$this->depositos->map(fn ($d) => $p->esServicio() ? null : (float) ($p->{'stock_deposito_'.$d->id} ?? 0))->all(),
             $p->activo ? 'Activo' : 'Inactivo',
         ];
     }
