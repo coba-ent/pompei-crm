@@ -1179,7 +1179,7 @@
                     $('<input type="text" inputmode="decimal" class="form-control form-control-sm" placeholder="Cantidad">')
                         .addClass('ncnd-item-cant')
                         .attr('max', item.pendiente)
-                        .data('producto', item.producto_id)
+                        .attr('data-producto', item.producto_id)
                         .data('max', item.pendiente)
                 ));
                 $box.append($row);
