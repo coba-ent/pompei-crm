@@ -550,6 +550,17 @@ td.dt-acciones-caret .dropdown-toggle::after {
 }
 
 /* --------------------------------------------------------------------------
+ * Tabla de detalle (ítems) en alta/edición de Ventas, Compras y Presupuestos
+ * (`#tabla-items`, ver ventas/compras/presupuestos `form.blade.php`): header
+ * en azul principal de marca con texto blanco, para diferenciarlo del resto
+ * de la tabla y darle más jerarquía visual dentro del form.
+ * ------------------------------------------------------------------------ */
+#tabla-items thead th {
+    background-color: var(--primary);
+    color: #fff;
+}
+
+/* --------------------------------------------------------------------------
  * Toastr — recupera sus colores propios (verde/rojo/celeste/naranja).
  * Bootstrap 5 también define un componente ".toast" (no relacionado) con la
  * misma especificidad; como carga después que toastr.min.css, su
