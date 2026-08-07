@@ -122,5 +122,18 @@
 
     <div>Formas de Pago: {{ $venta->formas_pago ?: '-' }}</div>
     <div>Métodos de Envío: {{ $venta->metodos_envio ?: '-' }}</div>
+
+    @if ($venta->nota_cliente)
+        <div style="margin-top:15px;">
+            <strong>Nota para el Cliente:</strong>
+            <p>{{ $venta->nota_cliente }}</p>
+        </div>
+    @endif
+    @if ($venta->nota_interna)
+        <div style="margin-top:10px;">
+            <strong>Nota interna:</strong>
+            <p>{{ $venta->nota_interna }}</p>
+        </div>
+    @endif
 </body>
 </html>

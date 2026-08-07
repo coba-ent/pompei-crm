@@ -83,5 +83,12 @@
         <tr><td>Descuento</td><td class="text-end">$ {{ number_format((float) $compra->descuento, 2, ',', '.') }}</td></tr>
         <tr><td><strong>Total</strong></td><td class="text-end"><strong>$ {{ number_format((float) $compra->total, 2, ',', '.') }}</strong></td></tr>
     </table>
+
+    @if ($compra->nota_interna)
+        <div style="margin-top:15px;">
+            <strong>Nota interna:</strong>
+            <p>{{ $compra->nota_interna }}</p>
+        </div>
+    @endif
 </body>
 </html>

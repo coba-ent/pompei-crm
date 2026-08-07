@@ -78,5 +78,18 @@
 
     <div>Formas de Pago: {{ $presupuesto->formas_pago ?: '-' }}</div>
     <div>Métodos de Envío: {{ $presupuesto->metodos_envio ?: '-' }}</div>
+
+    @if ($presupuesto->nota_cliente)
+        <div style="margin-top:15px;">
+            <strong>Nota para el Cliente:</strong>
+            <p>{{ $presupuesto->nota_cliente }}</p>
+        </div>
+    @endif
+    @if ($presupuesto->nota_interna)
+        <div style="margin-top:10px;">
+            <strong>Nota interna:</strong>
+            <p>{{ $presupuesto->nota_interna }}</p>
+        </div>
+    @endif
 </body>
 </html>
