@@ -96,7 +96,13 @@
                 { data: 'vencido_31_60', name: 'vencido_31_60', className: 'text-end', render: fmtMoney },
                 { data: 'vencido_61_90', name: 'vencido_61_90', className: 'text-end', render: fmtMoney },
                 { data: 'vencido_mas_90', name: 'vencido_mas_90', className: 'text-end', render: fmtMoney },
-                { data: 'total', name: 'total', className: 'text-end fw-bold', render: fmtMoney },
+                {
+                    data: 'total', name: 'total', className: 'text-end fw-bold',
+                    render: function (val, type, row) {
+                        if (type !== 'display') { return val; }
+                        return '<a href="#" class="link-saldo-total text-reset" data-cliente-id="' + row.cliente_id + '">' + fmtMoney(val) + '</a>';
+                    },
+                },
             ],
             order: [[0, 'asc']],
             stateSave: true,
@@ -111,6 +117,15 @@
 
         $tablaSaldos.one('init.dt', function () {
             tablaSaldos.buttons().container().appendTo('#dt-buttons-saldos-clientes');
+        });
+
+        // Click en el Total de una fila: ir a Movimientos filtrado por ese cliente.
+        $tablaSaldos.on('click', '.link-saldo-total', function (e) {
+            e.preventDefault();
+            const clienteId = $(this).data('cliente-id');
+            if (clienteId) {
+                window.location.href = rutas.index + '?cliente_id=' + clienteId;
+            }
         });
 
         $('#filtro-saldos-cliente').on('select2:select select2:clear change', function () {

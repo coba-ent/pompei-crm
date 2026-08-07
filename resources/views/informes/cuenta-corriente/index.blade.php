@@ -136,6 +136,7 @@
 <script>
     window.InformeCuentaCorrienteConfig = {
         rutas: {
+            index: @json(route('informes.cuenta-corriente.index')),
             saldosData: @json(route('informes.cuenta-corriente.saldos.data')),
             movimientosData: @json(route('informes.cuenta-corriente.movimientos.data')),
             clientesOpciones: @json(route('clientes.opciones')),
