@@ -2,18 +2,29 @@
 
 namespace App\Providers;
 
+use App\Models\Cobro;
 use App\Models\Compra;
+use App\Models\Gasto;
 use App\Models\Integraciones\MercadoLibrePublicacionProducto;
 use App\Models\Integraciones\TiendanubeVarianteProducto;
 use App\Models\MovimientoStock;
+use App\Models\MovimientoTesoreria;
 use App\Models\PrecioProducto;
+use App\Models\Presupuesto;
 use App\Models\User;
 use App\Models\Venta;
+use App\Observers\CobroAuditoriaObserver;
+use App\Observers\CompraAuditoriaObserver;
 use App\Observers\CompraObserver;
+use App\Observers\GastoAuditoriaObserver;
 use App\Observers\MercadoLibrePublicacionProductoObserver;
+use App\Observers\MovimientoStockAuditoriaObserver;
 use App\Observers\MovimientoStockObserver;
+use App\Observers\MovimientoTesoreriaAuditoriaObserver;
 use App\Observers\PrecioProductoObserver;
+use App\Observers\PresupuestoAuditoriaObserver;
 use App\Observers\TiendanubeVarianteProductoObserver;
+use App\Observers\VentaAuditoriaObserver;
 use App\Observers\VentaObserver;
 use App\Services\MercadoLibre\Bot\GeneradorDeSugerencias;
 use App\Services\MercadoLibre\Bot\GeneradorDeSugerenciasOpenAI;
@@ -53,6 +64,14 @@ class AppServiceProvider extends ServiceProvider
         PrecioProducto::observe(PrecioProductoObserver::class);
         MercadoLibrePublicacionProducto::observe(MercadoLibrePublicacionProductoObserver::class);
         TiendanubeVarianteProducto::observe(TiendanubeVarianteProductoObserver::class);
+
+        Venta::observe(VentaAuditoriaObserver::class);
+        Presupuesto::observe(PresupuestoAuditoriaObserver::class);
+        Cobro::observe(CobroAuditoriaObserver::class);
+        Gasto::observe(GastoAuditoriaObserver::class);
+        Compra::observe(CompraAuditoriaObserver::class);
+        MovimientoTesoreria::observe(MovimientoTesoreriaAuditoriaObserver::class);
+        MovimientoStock::observe(MovimientoStockAuditoriaObserver::class);
     }
 
     /** Admin pasa cualquier ability (research D2); el resto se resuelve contra los permisos del rol del usuario. */

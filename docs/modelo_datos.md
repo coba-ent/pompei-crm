@@ -1260,3 +1260,35 @@ fiscal por condición de IVA ya vigente.
 Ventas, Presupuestos y Compras comparten esta misma fila única de configuración (no hay tabla
 `configuracion_compras` separada) — decisión ya tomada en spec 043/044 y confirmada al planificar
 spec 049, que suma los campos de Depósito al mismo patrón en vez de crear infraestructura nueva.
+
+## 18. Auditoría: log transversal de operaciones (spec 054, implementada)
+
+Ver `specs/054-auditoria-operaciones/data-model.md` para el detalle completo. Resumen:
+
+### `logs_auditoria`
+
+Tabla de solo lectura desde la aplicación (nunca se expone UPDATE/DELETE), poblada por Observers de
+Eloquent sobre las entidades transaccionales en alcance (Venta, Presupuesto, Cobro, Gasto, Compra,
+Movimiento de Tesorería, Movimiento de Stock). Sin `updated_at`: es un registro inmutable.
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| `usuario_id` | FK → `usuarios`, nullable | Nulo cuando la acción fue automática (integración ML/TN) |
+| `usuario_nombre` | string(150) | Desnormalizado al momento del evento (protege el historial si el usuario se renombra a futuro); si `usuario_id` es nulo, contiene el label de origen (ej. "Ventas Online") |
+| `origen_sistema` | string(50), nullable | `mercadolibre` / `tiendanube` / null (acción humana) |
+| `tipo_accion` | enum(`creo`,`modifico`,`elimino`,`anulo`) | Columna "Tipo" de la pantalla |
+| `tipo_operacion` | enum(`venta`,`presupuesto`,`cobro`,`gasto`,`compra`,`movimiento_tesoreria`,`movimiento_stock`) | Columna "Operación" |
+| `entidad_tipo` / `entidad_id` | string(100) / bigint | Referencia de sólo lectura (sin FK física) a la entidad de origen — sobrevive al soft delete de esa entidad |
+| `detalle` | string(255) | Texto libre humano-legible generado por el sistema según `tipo_operacion`, fijado en el momento del evento |
+| `total` | decimal(12,2), nullable | Monto de la operación al momento del evento |
+| `created_at` | timestamp | Orden por defecto (desc) |
+
+Índices: `(created_at)`, `(usuario_id)`, `(tipo_operacion)`, `(entidad_tipo, entidad_id)`.
+
+Retención indefinida (a diferencia de `ml_operaciones_log`/`tn_operaciones_log`, que son logs
+técnicos de diagnóstico con depuración a 30 días/5.000 registros — ésta es un registro de negocio de
+largo plazo). Acceso a la pantalla vía permiso nuevo `auditoria.ver` (mismo esquema `permisos`/`roles`
+de §1), asignado por defecto al rol Admin.
+
+Un solo evento de auditoría por acción humana: los Observers filtran los `updated` que sólo tocan
+campos derivados/recalculados internamente (no cada `save()` interno genera una fila nueva).

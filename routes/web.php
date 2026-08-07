@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AuditoriaController;
 use App\Http\Controllers\CategoriaController;
 use App\Http\Controllers\ClienteController;
 use App\Http\Controllers\CompraController;
@@ -304,6 +305,12 @@ Route::middleware('auth')->group(function () {
         Route::post('/', [GastoController::class, 'store'])->name('store');
         Route::put('{gasto}', [GastoController::class, 'update'])->name('update');
         Route::delete('{gasto}', [GastoController::class, 'destroy'])->name('destroy');
+    });
+
+    Route::middleware('permiso:auditoria.ver')->prefix('auditoria')->name('auditoria.')->group(function () {
+        Route::get('/', [AuditoriaController::class, 'index'])->name('index');
+        Route::get('data', [AuditoriaController::class, 'data'])->name('data');
+        Route::get('exportar', [AuditoriaController::class, 'exportar'])->name('exportar');
     });
 
     Route::post('categorias-compra', [CategoriaController::class, 'storeCompra'])->name('categorias.compra.store');

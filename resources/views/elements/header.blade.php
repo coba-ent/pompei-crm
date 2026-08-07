@@ -110,6 +110,15 @@
 													</svg>
 													<span class="ms-2">Configuración &amp; Ajustes</span>
 												</a>
+												@can('auditoria.ver')
+												<a href="{{ route('auditoria.index') }}" class="dropdown-item ai-icon ">
+													<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+														<path d="M9 11L12 14L22 4" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+														<path d="M21 12V17.8C21 18.9201 21 19.4802 20.782 19.908C20.5903 20.2843 20.2843 20.5903 19.908 20.782C19.4802 21 18.9201 21 17.8 21H6.2C5.0799 21 4.51984 21 4.09202 20.782C3.71569 20.5903 3.40973 20.2843 3.21799 19.908C3 19.4802 3 18.9201 3 17.8V6.2C3 5.0799 3 4.51984 3.21799 4.09202C3.40973 3.71569 3.71569 3.40973 4.09202 3.21799C4.51984 3 5.0799 3 6.2 3H15" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+													</svg>
+													<span class="ms-2">Auditoría</span>
+												</a>
+												@endcan
 											@endif
 											</div>
 											<div class="card-footer px-0 py-2">

@@ -94,6 +94,9 @@ class PermisoSeeder extends Seeder
                 'importar' => 'Importar Datos por Excel',
                 'ajustes' => 'Administrar Ajustes',
             ],
+            'auditoria' => [
+                'ver' => 'Ver el registro de Auditoría (log de operaciones)',
+            ],
         ];
 
         foreach ($catalogo as $modulo => $acciones) {

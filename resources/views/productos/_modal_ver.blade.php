@@ -33,6 +33,12 @@
                         <div class="text-muted fs-13">Stock</div>
                         <div class="fw-semibold" id="ver-producto-stock">&mdash;</div>
                     </div>
+                    <div class="col-12 d-none" id="ver-producto-stock-depositos-wrap">
+                        <div class="text-muted fs-13 mb-1">Stock por Depósito</div>
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody id="ver-producto-stock-depositos-body"></tbody>
+                        </table>
+                    </div>
                     <div class="col-md-4">
                         <div class="text-muted fs-13">Costo</div>
                         <div class="fw-semibold" id="ver-producto-costo">&mdash;</div>

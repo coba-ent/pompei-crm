@@ -207,6 +207,12 @@
                                 <th>Tipo</th>
                                 <th>Tipo de Producto</th>
                                 <th>Proveedor</th>
+                                <th>Stock total</th>
+                                {{-- Una columna de stock por depósito activo, dinámica: si se da de
+                                     alta un depósito nuevo, aparece su columna sin tocar código. --}}
+                                @foreach ($depositosColumnas as $deposito)
+                                    <th title="Unidades en el depósito {{ $deposito->nombre }}">{{ $deposito->nombre }}</th>
+                                @endforeach
                                 <th>Costo</th>
                                 <th>Precio venta</th>
                                 @foreach ($listasPrecio as $lista)
@@ -214,12 +220,6 @@
                                 @endforeach
                                 <th>IVA Ventas</th>
                                 <th>IVA Compras</th>
-                                <th>Stock total</th>
-                                {{-- Una columna de stock por depósito activo, dinámica: si se da de
-                                     alta un depósito nuevo, aparece su columna sin tocar código. --}}
-                                @foreach ($depositosColumnas as $deposito)
-                                    <th title="Unidades en el depósito {{ $deposito->nombre }}">{{ $deposito->nombre }}</th>
-                                @endforeach
                                 <th>Descripción</th>
                                 <th>Imagen</th>
                                 <th>Estado</th>

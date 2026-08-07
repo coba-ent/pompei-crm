@@ -1773,8 +1773,12 @@ salieron de esta lista:
   ver §6.3), pero el Ranking de Clientes (por monto vendido) y de Productos (por cantidad vendida)
   quedaron explícitamente fuera de alcance de esa spec — siguen calculándose sobre el monto/cantidad
   bruto de la Venta, sin restar NC ni sumar ND. Pendiente de spec propia si se decide resolverlo.
-- **Auditoría (`Menú de usuario → Auditoría`, pantalla "Operaciones") — spec 054, planificada
-  (07/08/2026), lista para implementar.** Log transversal de todas las operaciones creadas/modificadas en la cuenta, con quién y cuándo
+- **Auditoría (`Menú de usuario → Auditoría`, pantalla "Operaciones") — spec 054, implementada
+  (07/08/2026).** En este CRM el link vive en el dropdown de usuario de la
+  topbar (`resources/views/elements/header.blade.php`), inmediatamente debajo de "Configuración &
+  Ajustes" (mismo bloque visible sólo para Admin) — calca la posición real de Contagram, donde
+  "Auditoría" está en el menú de usuario junto a "Cerrar sesión" (ver
+  `docs/informe_contagram_inicio_informes_ajustes.md` §4.1). Log transversal de todas las operaciones creadas/modificadas en la cuenta, con quién y cuándo
   las hizo. No tiene informe con capturas dedicado (no está documentado en `help.contagram.com`); la
   estructura de pantalla surge de dos capturas reales aportadas por el usuario el 07/08/2026 (una de
   cuenta de prueba vacía, otra de cuenta real con datos) — no se considera necesario un informe

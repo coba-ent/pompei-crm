@@ -162,32 +162,6 @@
                 { data: 'tipo_producto', name: 'tipo_producto', orderable: false, searchable: false, defaultContent: '', render: $.fn.dataTable.render.text() },
                 { data: 'proveedor', name: 'proveedor', orderable: false, searchable: false, defaultContent: '', render: $.fn.dataTable.render.text() },
                 {
-                    data: 'costo', name: 'costo', className: 'text-end',
-                    render: function (val) { return new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2 }).format(val || 0); },
-                },
-                {
-                    data: 'precio_venta', name: 'precio_venta', className: 'text-end',
-                    render: function (val) {
-                        return new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2 }).format(val || 0);
-                    },
-                },
-                // Una columna por cada lista de precios activa (dinámico: si se crean o
-                // borran listas, el listado las refleja sin tocar este archivo).
-                ...(cfg.listasPrecio || []).map(function (lista) {
-                    const campo = 'precio_lista_' + lista.id;
-                    return {
-                        data: campo, name: campo, orderable: false, searchable: false, className: 'text-end',
-                        render: function (val) {
-                            if (val === null || val === undefined) {
-                                return '<span class="text-muted">—</span>';
-                            }
-                            return new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2 }).format(val);
-                        },
-                    };
-                }),
-                { data: 'iva_venta', name: 'iva_venta', orderable: false, searchable: false, className: 'text-end' },
-                { data: 'iva_compra', name: 'iva_compra', orderable: false, searchable: false, className: 'text-end' },
-                {
                     data: 'stock_total', name: 'stock_total', orderable: false, searchable: false, className: 'text-end',
                     render: function (val) {
                         if (val === null || val === undefined) {
@@ -213,6 +187,32 @@
                         },
                     };
                 }),
+                {
+                    data: 'costo', name: 'costo', className: 'text-end',
+                    render: function (val) { return new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2 }).format(val || 0); },
+                },
+                {
+                    data: 'precio_venta', name: 'precio_venta', className: 'text-end',
+                    render: function (val) {
+                        return new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2 }).format(val || 0);
+                    },
+                },
+                // Una columna por cada lista de precios activa (dinámico: si se crean o
+                // borran listas, el listado las refleja sin tocar este archivo).
+                ...(cfg.listasPrecio || []).map(function (lista) {
+                    const campo = 'precio_lista_' + lista.id;
+                    return {
+                        data: campo, name: campo, orderable: false, searchable: false, className: 'text-end',
+                        render: function (val) {
+                            if (val === null || val === undefined) {
+                                return '<span class="text-muted">—</span>';
+                            }
+                            return new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2 }).format(val);
+                        },
+                    };
+                }),
+                { data: 'iva_venta', name: 'iva_venta', orderable: false, searchable: false, className: 'text-end' },
+                { data: 'iva_compra', name: 'iva_compra', orderable: false, searchable: false, className: 'text-end' },
                 {
                     data: 'descripcion_si', name: 'descripcion_si', orderable: false, searchable: false, className: 'text-center',
                     render: function (val) {

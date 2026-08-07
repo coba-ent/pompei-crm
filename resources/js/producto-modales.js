@@ -521,6 +521,21 @@
                     $('#ver-producto-stock-wrap').toggleClass('d-none', esServicio);
                     $('#ver-producto-stock').text(esServicio ? '—' : Number(p.stock_total || 0).toLocaleString('es-AR'));
 
+                    const stockPorDeposito = resp.stock_por_deposito || [];
+                    $('#ver-producto-stock-depositos-wrap').toggleClass('d-none', esServicio || stockPorDeposito.length === 0);
+                    const $stockDepBody = $('#ver-producto-stock-depositos-body').empty();
+                    stockPorDeposito.forEach(function (item) {
+                        const cantidad = Number(item.cantidad || 0);
+                        const $celda = $('<td>').addClass('text-end fw-semibold').text(cantidad.toLocaleString('es-AR'));
+                        if (cantidad < 0) { $celda.addClass('text-danger'); }
+                        $stockDepBody.append(
+                            $('<tr>').append(
+                                $('<td>').text(esc(item.nombre)),
+                                $celda
+                            )
+                        );
+                    });
+
                     $('#ver-producto-costo').text(moneda(p.costo));
                     $('#ver-producto-precio-venta').text(moneda(p.precio_venta));
                     $('#ver-producto-iva-venta').text(etiquetaIva('iva_venta_pct', p.iva_venta_pct));

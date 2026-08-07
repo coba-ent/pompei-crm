@@ -368,7 +368,20 @@ class ProductoController extends Controller
         $producto->load(['variantes', 'precios']);
         $producto->stock_total = $producto->esServicio() ? null : $producto->stockTotal();
 
-        return response()->json(['producto' => $producto]);
+        $stockPorDeposito = [];
+        if (! $producto->esServicio()) {
+            $stockPorDeposito = Deposito::query()
+                ->orderBy('nombre')
+                ->get()
+                ->map(fn (Deposito $deposito) => [
+                    'deposito_id' => $deposito->id,
+                    'nombre' => $deposito->nombre,
+                    'cantidad' => (float) $producto->stocks()->where('deposito_id', $deposito->id)->sum('cantidad'),
+                ])
+                ->values();
+        }
+
+        return response()->json(['producto' => $producto, 'stock_por_deposito' => $stockPorDeposito]);
     }
 
     /** Actualizar producto (desde el modal). */
