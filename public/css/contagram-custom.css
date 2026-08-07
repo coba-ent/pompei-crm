@@ -315,7 +315,7 @@
 .form-control,
 .form-select {
     border-color: #c9ced4;
-    background-color: #fbfcfd;
+    background-color: #eef0f2;
 }
 
 .form-control::placeholder {
@@ -494,7 +494,7 @@ td.dt-acciones-caret .dropdown-toggle::after {
     line-height: 1.4;
     border: 1px solid #c9ced4;
     border-radius: 0.5rem;
-    background-color: #fbfcfd;
+    background-color: #eef0f2;
 }
 .select2-container--default.select2-container--focus .select2-selection--single,
 .select2-container--default.select2-container--open .select2-selection--single {
