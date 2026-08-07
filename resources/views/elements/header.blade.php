@@ -110,7 +110,8 @@
 													</svg>
 													<span class="ms-2">Configuración &amp; Ajustes</span>
 												</a>
-												@can('auditoria.ver')
+											@endif
+											@can('auditoria.ver')
 												<a href="{{ route('auditoria.index') }}" class="dropdown-item ai-icon ">
 													<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 														<path d="M9 11L12 14L22 4" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -118,8 +119,7 @@
 													</svg>
 													<span class="ms-2">Auditoría</span>
 												</a>
-												@endcan
-											@endif
+											@endcan
 											</div>
 											<div class="card-footer px-0 py-2">
 												<form method="POST" action="{{ route('logout') }}">
