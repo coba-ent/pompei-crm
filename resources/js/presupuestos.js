@@ -223,7 +223,7 @@
                 processing: 'Cargando...',
             },
             ajax: { url: rutas.data, data: (d) => $.extend(d, filtrosActuales()) },
-            order: [[2, 'desc']],
+            order: [[1, 'desc']],
             columns: [
                 { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
                 { data: 'id', name: 'id' },
