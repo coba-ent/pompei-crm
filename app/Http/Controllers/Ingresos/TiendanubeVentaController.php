@@ -71,7 +71,7 @@ class TiendanubeVentaController extends Controller
             ->addColumn('cliente_nuevo', fn (TiendanubeOrden $o) => $this->esClienteNuevo($o))
             ->addColumn('productos', fn (TiendanubeOrden $o) => $o->items->pluck('nombre_producto')->implode(', '))
             ->addColumn('venta_nro', fn (TiendanubeOrden $o) => optional($o->venta)->nro_comprobante)
-            ->editColumn('fecha_cerrada', fn (TiendanubeOrden $o) => optional($o->fecha_cerrada)->format('d/m/Y H:i'))
+            ->editColumn('fecha_cerrada', fn (TiendanubeOrden $o) => $o->fecha_cerrada?->local()->format('d/m/Y H:i'))
             ->editColumn('total', fn (TiendanubeOrden $o) => (float) $o->total)
             ->rawColumns(['acciones'])
             ->toJson();

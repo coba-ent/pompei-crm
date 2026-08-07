@@ -69,6 +69,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Timezone de Visualización
+    |--------------------------------------------------------------------------
+    |
+    | 'timezone' (arriba) se mantiene en UTC para el almacenamiento interno.
+    | Este valor es el que se usa para MOSTRAR horas en pantallas/listados
+    | (ver Carbon::macro('local') en AppServiceProvider) sin tocar cómo se
+    | guardan las fechas ni la config PHP de date().
+    |
+    */
+
+    'display_timezone' => 'America/Argentina/Buenos_Aires',
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------
     |

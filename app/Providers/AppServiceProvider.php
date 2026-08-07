@@ -17,6 +17,7 @@ use App\Observers\TiendanubeVarianteProductoObserver;
 use App\Observers\VentaObserver;
 use App\Services\MercadoLibre\Bot\GeneradorDeSugerencias;
 use App\Services\MercadoLibre\Bot\GeneradorDeSugerenciasOpenAI;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use OpenAI;
@@ -38,6 +39,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Fechas se guardan/procesan en UTC (config('app.timezone')); este macro es solo
+        // para mostrar horas en pantalla en la timezone de Argentina, sin tocar el storage.
+        Carbon::macro('local', function () {
+            /** @var Carbon $this */
+            return $this->copy()->setTimezone(config('app.display_timezone'));
+        });
+
         $this->registrarGatesDePermisos();
         Venta::observe(VentaObserver::class);
         Compra::observe(CompraObserver::class);

@@ -116,7 +116,7 @@ class SincronizadorOrdenes
 
         $conexion->update([
             'ultima_sync_en' => $hasta,
-            'ultima_sync_resultado' => "OK: {$nuevas} nuevas, {$actualizadas} actualizadas (".$hasta->format('d/m/Y H:i').').',
+            'ultima_sync_resultado' => "OK: {$nuevas} nuevas, {$actualizadas} actualizadas (".$hasta->local()->format('d/m/Y H:i').').',
         ]);
 
         return [

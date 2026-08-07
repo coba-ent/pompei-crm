@@ -50,10 +50,10 @@ class TiendanubeVinculacionController extends Controller
             ->addColumn('stock_estado', fn (TiendanubeVarianteProducto $v) => $this->stockEstado($v))
             ->addColumn('precio_estado', fn (TiendanubeVarianteProducto $v) => $this->precioEstado($v))
             ->editColumn('created_at', fn (TiendanubeVarianteProducto $v) => $v->created_at->format('d/m/Y'))
-            ->editColumn('stock_sincronizado_en', fn (TiendanubeVarianteProducto $v) => optional($v->stock_sincronizado_en)->format('d/m/Y H:i'))
-            ->editColumn('stock_error_en', fn (TiendanubeVarianteProducto $v) => optional($v->stock_error_en)->format('d/m/Y H:i'))
-            ->editColumn('precio_sincronizado_en', fn (TiendanubeVarianteProducto $v) => optional($v->precio_sincronizado_en)->format('d/m/Y H:i'))
-            ->editColumn('precio_error_en', fn (TiendanubeVarianteProducto $v) => optional($v->precio_error_en)->format('d/m/Y H:i'))
+            ->editColumn('stock_sincronizado_en', fn (TiendanubeVarianteProducto $v) => $v->stock_sincronizado_en?->local()->format('d/m/Y H:i'))
+            ->editColumn('stock_error_en', fn (TiendanubeVarianteProducto $v) => $v->stock_error_en?->local()->format('d/m/Y H:i'))
+            ->editColumn('precio_sincronizado_en', fn (TiendanubeVarianteProducto $v) => $v->precio_sincronizado_en?->local()->format('d/m/Y H:i'))
+            ->editColumn('precio_error_en', fn (TiendanubeVarianteProducto $v) => $v->precio_error_en?->local()->format('d/m/Y H:i'))
             ->rawColumns(['acciones'])
             ->toJson();
     }

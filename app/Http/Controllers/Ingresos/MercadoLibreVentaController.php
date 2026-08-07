@@ -79,7 +79,7 @@ class MercadoLibreVentaController extends Controller
             ->addColumn('cliente_nuevo', fn (MercadoLibreOrden $o) => $this->esClienteNuevo($o))
             ->addColumn('productos', fn (MercadoLibreOrden $o) => $o->items->pluck('titulo')->implode(', '))
             ->addColumn('venta_nro', fn (MercadoLibreOrden $o) => optional($o->venta)->nro_comprobante)
-            ->editColumn('fecha_cerrada', fn (MercadoLibreOrden $o) => optional($o->fecha_cerrada)->format('d/m/Y H:i'))
+            ->editColumn('fecha_cerrada', fn (MercadoLibreOrden $o) => $o->fecha_cerrada?->local()->format('d/m/Y H:i'))
             ->editColumn('total', fn (MercadoLibreOrden $o) => (float) $o->total)
             ->rawColumns(['acciones'])
             ->toJson();

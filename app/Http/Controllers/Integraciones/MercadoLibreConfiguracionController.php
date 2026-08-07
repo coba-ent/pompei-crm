@@ -297,7 +297,7 @@ class MercadoLibreConfiguracionController extends Controller
         }
 
         return DataTables::eloquent($query)
-            ->editColumn('created_at', fn (MercadoLibreOperacionLog $op) => $op->created_at?->format('Y-m-d H:i:s'))
+            ->editColumn('created_at', fn (MercadoLibreOperacionLog $op) => $op->created_at?->local()->format('Y-m-d H:i:s'))
             ->toJson();
     }
 

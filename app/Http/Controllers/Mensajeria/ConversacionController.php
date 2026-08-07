@@ -51,7 +51,7 @@ class ConversacionController extends Controller
 
                 return $ultimo ? \Illuminate\Support\Str::limit($ultimo->texto, 80) : '';
             })
-            ->editColumn('ultimo_mensaje_en', fn (MercadoLibreConversacion $c) => optional($c->ultimo_mensaje_en)->format('d/m/Y H:i'))
+            ->editColumn('ultimo_mensaje_en', fn (MercadoLibreConversacion $c) => $c->ultimo_mensaje_en?->local()->format('d/m/Y H:i'))
             ->filterColumn('comprador', function ($query, $palabra) {
                 $query->where(function ($q) use ($palabra) {
                     $q->where('comprador_nickname', 'like', "%{$palabra}%")
