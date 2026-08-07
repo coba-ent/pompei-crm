@@ -77,6 +77,12 @@
     fill: #fff !important;
 }
 
+/* El template le pone fondo claro (#F3F5F8) al boton hamburguesa cuando el
+ * sidebar esta comprimido (.menu-toggle) - desentona con el header oscuro. */
+[data-sidebar-style="full"][data-layout="vertical"] .menu-toggle .nav-header .nav-control {
+    background-color: transparent;
+}
+
 /* `.btn-info`/`.btn-outline-info`/`.badge-info` de NexaDash hardcodean el hex
  * en vez de leer `--bs-info-rgb` (a diferencia de `.text-info`/`.bg-info`/
  * `.border-info`, que sí lo leen y ya quedan celestes con el override de
