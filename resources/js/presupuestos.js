@@ -603,7 +603,17 @@
         $('#f-descuento-general').on('input', recalcular);
 
         function recalcular() {
+            // Descuento General % se aplica sobre la base imponible de cada linea (subtotal
+            // post-descuento de linea) y por lo tanto tambien reduce el IVA proporcionalmente
+            // -- igual que App\Services\Ingresos\CalculoComprobante (backend, fuente de verdad
+            // real al guardar). Antes este preview calculaba el IVA completo sin descontar y
+            // solo restaba el descuento del subtotal, mostrando un Total mas alto del que
+            // terminaba quedando guardado.
+            const descuentoGeneralPct = Number($('#f-descuento-general').val()) || 0;
+            const factor = 1 - (descuentoGeneralPct / 100);
+
             let subtotalSinDescuento = 0;
+            let subtotalConDescuento = 0;
             let totalConIva = 0;
             items.forEach((item) => {
                 const cant = Number(item.cantidad) || 0;
@@ -612,14 +622,14 @@
                 const ivaPct = { '5': 5, '10.5': 10.5, '21': 21, '27': 27 }[item.iva_pct] || 0;
                 const bruto = cant * precio;
                 const subtotal = bruto - (bruto * descPct / 100);
+                const subtotalConIva = subtotal + (subtotal * ivaPct / 100);
                 subtotalSinDescuento += subtotal;
-                totalConIva += subtotal + (subtotal * ivaPct / 100);
+                subtotalConDescuento += subtotal * factor;
+                totalConIva += subtotalConIva * factor;
             });
-            const descuentoGeneralPct = Number($('#f-descuento-general').val()) || 0;
-            const descuento = subtotalSinDescuento * descuentoGeneralPct / 100;
-            const subtotalConDescuento = subtotalSinDescuento - descuento;
+            const descuento = subtotalSinDescuento - subtotalConDescuento;
             const totalConceptos = conceptos.reduce((acc, c) => acc + (Number(c.monto) || 0), 0);
-            const total = totalConIva - descuento + totalConceptos;
+            const total = totalConIva + totalConceptos;
 
             $('#tot-subtotal-sin-descuento').text(money(subtotalSinDescuento));
             $('#tot-descuento').text(money(descuento));
