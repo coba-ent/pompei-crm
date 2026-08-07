@@ -243,7 +243,7 @@
             ajax: {
                 url: rutas.productosOpciones,
                 data: (params) => ({ q: params.term, incluir_servicios: 1 }),
-                processResults: (resp) => ({ results: resp.data.map((p) => ({ id: p.id, text: p.nombre + (p.codigo ? ' (' + p.codigo + ')' : ''), producto: p })) }),
+                processResults: (resp) => ({ results: resp.data.map((p) => ({ id: p.id, text: '(' + p.id + ') ' + p.nombre + (p.codigo ? ' (' + p.codigo + ')' : ''), producto: p })) }),
             },
         });
 
