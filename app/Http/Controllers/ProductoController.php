@@ -206,12 +206,15 @@ class ProductoController extends Controller
     }
 
     /**
-     * Búsqueda flexible sobre nombre/código: parte el texto en palabras y exige que
-     * cada una aparezca (en cualquier orden) en nombre o código — así "inox tornillo"
-     * encuentra "Tornillo Inoxidable" aunque el orden no coincida. La collation de la
-     * tabla (utf8mb4_unicode_ci) ya ignora acentos/mayúsculas en el LIKE, así que
-     * "nafta" encuentra "Naftalina" sin tratamiento especial. Como último recurso, si
-     * una palabra de 4+ letras no matchea por LIKE, se prueba por fonética (SOUNDEX)
+     * Búsqueda flexible sobre id/nombre/código: parte el texto en palabras y exige
+     * que cada una aparezca (en cualquier orden) en nombre o código — así "inox
+     * tornillo" encuentra "Tornillo Inoxidable" aunque el orden no coincida. La
+     * collation de la tabla (utf8mb4_unicode_ci) ya ignora acentos/mayúsculas en el
+     * LIKE, así que "nafta" encuentra "Naftalina" sin tratamiento especial. Si la
+     * palabra es puramente numérica, también matchea por ID exacto (muchos productos
+     * reales importados no tienen `codigo` cargado, así que buscar por el ID interno
+     * es la única forma de encontrarlos por número). Como último recurso, si una
+     * palabra de 4+ letras no matchea por LIKE, se prueba por fonética (SOUNDEX)
      * contra el nombre para tolerar errores de tipeo (ej. "tornllo" -> "tornillo").
      */
     private function aplicarBusquedaFlexible(Builder $query, string $texto): void
@@ -222,6 +225,10 @@ class ProductoController extends Controller
             $query->where(function ($q) use ($palabra) {
                 $q->where('nombre', 'like', "%{$palabra}%")
                     ->orWhere('codigo', 'like', "%{$palabra}%");
+
+                if (ctype_digit($palabra)) {
+                    $q->orWhere('productos.id', (int) $palabra);
+                }
 
                 if (mb_strlen($palabra) >= 4 && $q->getConnection()->getDriverName() === 'mysql') {
                     $q->orWhereRaw('SOUNDEX(nombre) LIKE CONCAT(SOUNDEX(?), "%")', [$palabra]);
