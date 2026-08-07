@@ -227,10 +227,12 @@ class ProductoController extends Controller
                     ->orWhere('codigo', 'like', "%{$palabra}%");
 
                 if (ctype_digit($palabra)) {
+                    // Palabra puramente numérica: matchea por ID exacto, nada más — ni
+                    // LIKE parcial ni SOUNDEX (que además da falso positivo con TODO:
+                    // SOUNDEX() de una cadena sin letras devuelve '', y "columna LIKE
+                    // CONCAT('', '%')" se reduce a "LIKE '%'", que matchea cualquier fila).
                     $q->orWhere('productos.id', (int) $palabra);
-                }
-
-                if (mb_strlen($palabra) >= 4 && $q->getConnection()->getDriverName() === 'mysql') {
+                } elseif (mb_strlen($palabra) >= 4 && $q->getConnection()->getDriverName() === 'mysql') {
                     $q->orWhereRaw('SOUNDEX(nombre) LIKE CONCAT(SOUNDEX(?), "%")', [$palabra]);
                 }
             });
