@@ -9,6 +9,7 @@ use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\WithColumnFormatting;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
+use Maatwebsite\Excel\Concerns\WithStrictNullComparison;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
@@ -27,7 +28,15 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * real (IEEE), sin pasar por texto ni depender de locale en ningún momento
  * del camino ida y vuelta.
  */
-class ProductosExport implements FromQuery, WithHeadings, WithMapping, WithStyles, WithColumnFormatting
+/**
+ * WithStrictNullComparison: sin esto, PhpSpreadsheet compara cada celda contra null con
+ * `!=` (Worksheet::fromArray(), $strictNullComparison=false por defecto en Laravel Excel)
+ * — y en PHP `0 == null` da true, así que un stock/precio en 0 real queda completamente
+ * sin escribir en la celda (ni siquiera vacía con formato, directamente ausente), aunque
+ * el valor mapeado sea el float 0.0 correcto. Confirmado bajando el XLSX real generado en
+ * producción: la celda de un producto con stock 0 no tenía ni <v> ni tag alguno.
+ */
+class ProductosExport implements FromQuery, WithHeadings, WithMapping, WithStyles, WithColumnFormatting, WithStrictNullComparison
 {
     /** @param  Collection<int, \App\Models\ListaPrecio>  $listas */
     /** @param  Collection<int, \App\Models\Deposito>  $depositos */
