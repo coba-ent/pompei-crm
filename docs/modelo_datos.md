@@ -483,6 +483,7 @@ a Tesorería, `saldos()`, `flujo()`).
 | servicio_desde, servicio_hasta | date, nullable | |
 | mes_imputacion_iva | date, nullable | campo **"Contador"**, exclusivo de Compras (sin equivalente en Ventas) — mes de imputación en el IVA Compras, independiente de `fecha_emision` |
 | subtotal_sin_descuento, descuento, subtotal_con_descuento, total | decimal(14,2) | mismo cálculo que `ventas`/`presupuestos`; `total` es un snapshot congelado |
+| descuento_general_pct | decimal(5,2), nullable | **Columna nueva (07/08/2026, fix de bug)**: el % de descuento general ingresado en el formulario ya se aplicaba correctamente al cálculo de `descuento`/`total`, pero no se persistía (a diferencia de `ventas`/`presupuestos`, que sí tienen esta columna) — por eso el modal "Ver" no podía mostrarlo y el form de edición no lo precargaba. Mismo campo/semántica que `ventas.descuento_general_pct`. |
 | nota_interna | text, nullable | |
 | deposito_id | FK → depositos, nullable, `restrictOnDelete()` | **Columna nueva (spec 049)**: depósito al que suma stock esta Compra. Mismo criterio que `ventas.deposito_id` — obligatorio en el formulario, nullable en DB por retrocompatibilidad, reemplaza a `Deposito::porDefecto()` como fuente para `StockDeCompra`. |
 | deleted_at | timestamp, nullable | SoftDeletes (Principio III) |

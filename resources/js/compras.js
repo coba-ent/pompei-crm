@@ -264,6 +264,9 @@
         } else if (data.tipoComprobanteDefault) {
             $('#f-tipo-comprobante').val(data.tipoComprobanteDefault);
         }
+        if (data.compra && data.compra.descuento_general_pct !== undefined && data.compra.descuento_general_pct !== null) {
+            $('#f-descuento-general').val(data.compra.descuento_general_pct);
+        }
         if (data.notaInterna) { $('#f-nota-interna').val(data.notaInterna); }
         if (data.fechaVtoPago) { $('#f-fecha-vto-pago').val(data.fechaVtoPago); }
         if (data.mesImputacionIva) { $('#f-mes-imputacion-iva').val(data.mesImputacionIva); }

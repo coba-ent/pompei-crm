@@ -180,6 +180,10 @@
                 <div class="row justify-content-end mb-3">
                     <div class="col-md-4">
                         <table class="table table-sm">
+                            @if ($compra->descuento > 0)
+                                <tr><td>Subtotal sin Descuento</td><td class="text-end">$ {{ number_format((float) $compra->subtotal_sin_descuento, 2, ',', '.') }}</td></tr>
+                                <tr><td>Descuento General ({{ rtrim(rtrim(number_format((float) $compra->descuento_general_pct, 2, ',', '.'), '0'), ',') }}%)</td><td class="text-end">-$ {{ number_format((float) $compra->descuento, 2, ',', '.') }}</td></tr>
+                            @endif
                             <tr><td>{{ $compra->items->every(fn ($i) => ! $i->iva_pct) ? 'Importe Neto No Gravado' : 'Importe Neto Gravado' }}</td><td class="text-end">$ {{ number_format((float) $compra->subtotal_con_descuento, 2, ',', '.') }}</td></tr>
                             <tr class="fw-bold"><td>Total</td><td class="text-end">$ {{ number_format((float) $compra->total, 2, ',', '.') }}</td></tr>
                         </table>

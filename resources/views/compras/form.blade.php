@@ -131,7 +131,7 @@
 @endsection
 
 @php
-    $datosCompra = $compra ? $compra->only(['id', 'proveedor_id', 'categoria_id', 'deposito_id', 'nro_comprobante', 'tipo_comprobante', 'nota_interna', 'fecha_vto_pago', 'mes_imputacion_iva']) : null;
+    $datosCompra = $compra ? $compra->only(['id', 'proveedor_id', 'categoria_id', 'deposito_id', 'nro_comprobante', 'tipo_comprobante', 'nota_interna', 'fecha_vto_pago', 'mes_imputacion_iva', 'descuento_general_pct']) : null;
     $datosItems = ($compra?->items ?? collect())->map(fn ($i) => $i->only(['producto_id', 'descripcion', 'cantidad', 'precio_unitario', 'descuento_pct', 'iva_pct']))->values();
     $datosConceptos = ($compra?->conceptos ?? collect())->map(fn ($c) => $c->only(['tipo', 'concepto', 'monto']))->values();
     $datosProveedor = $compra?->proveedor ? ['id' => $compra->proveedor->id, 'nombre' => $compra->proveedor->nombre] : null;

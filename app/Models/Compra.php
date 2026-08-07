@@ -19,7 +19,7 @@ class Compra extends Model
     protected $fillable = [
         'proveedor_id', 'categoria_id', 'deposito_id', 'tipo_comprobante', 'nro_comprobante',
         'fecha_emision', 'fecha_vto_pago', 'servicio_desde', 'servicio_hasta',
-        'mes_imputacion_iva', 'subtotal_sin_descuento', 'descuento',
+        'mes_imputacion_iva', 'subtotal_sin_descuento', 'descuento_general_pct', 'descuento',
         'subtotal_con_descuento', 'total', 'nota_interna', 'submit_token',
     ];
 
@@ -30,6 +30,7 @@ class Compra extends Model
         'servicio_hasta' => 'date',
         'mes_imputacion_iva' => 'date',
         'subtotal_sin_descuento' => 'decimal:2',
+        'descuento_general_pct' => 'decimal:2',
         'descuento' => 'decimal:2',
         'subtotal_con_descuento' => 'decimal:2',
         'total' => 'decimal:2',
