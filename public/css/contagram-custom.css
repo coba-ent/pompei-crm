@@ -640,3 +640,28 @@ table.dataTable > thead > tr > td {
 .deznav {
     background-color: #f3f5f8;
 }
+
+/* ---------------------------------------------------------------------------
+ * Cards de "totales"/KPIs (Ventas, Presupuestos, Productos): el ícono circular
+ * y la tipografía de style.css (NexaDash) vienen pensados para paneles anchos
+ * (3.3125rem/53px de ícono, 2rem/32px de font-size, número en 1.5rem/24px) --
+ * en paneles de 5 tarjetas por fila (20% de ancho c/u) eso no entra en el
+ * card-body y se rompe/desborda. Se reduce a la mitad, global (única vista
+ * que usa .widget-stat en toda la app son estas 3 pantallas).
+ * ------------------------------------------------------------------------ */
+.widget-stat .media > span {
+    height: 1.75rem;
+    width: 1.75rem;
+    min-width: 1.75rem;
+    padding: 0.35rem;
+    font-size: 1rem;
+}
+.widget-stat .media .media-body h3,
+.widget-stat .media .media-body .h3,
+.widget-stat .media .media-body h4,
+.widget-stat .media .media-body .h4 {
+    font-size: 1.05rem;
+}
+.widget-stat .media .media-body p {
+    font-size: 0.75rem;
+}
