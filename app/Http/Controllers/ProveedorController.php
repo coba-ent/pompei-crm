@@ -142,10 +142,10 @@ class ProveedorController extends Controller
                 $q->where('nombre', 'like', "%{$palabra}%")
                     ->orWhere('cuit', 'like', "%{$palabra}%");
 
-                // SOUNDEX de una cadena sin letras (ej. el CUIT) devuelve '', y eso hace
-                // que "columna LIKE CONCAT('', '%')" matchee cualquier fila — por eso se
-                // excluyen las palabras puramente numéricas de este fallback.
-                if (! ctype_digit($palabra) && mb_strlen($palabra) >= 4 && $q->getConnection()->getDriverName() === 'mysql') {
+                // SOUNDEX de una cadena SIN letras (CUIT, códigos con guiones/barras)
+                // devuelve '', y eso hace que "columna LIKE CONCAT('', '%')" matchee
+                // cualquier fila — por eso se exige al menos una letra en la palabra.
+                if (preg_match('/\p{L}/u', $palabra) === 1 && mb_strlen($palabra) >= 4 && $q->getConnection()->getDriverName() === 'mysql') {
                     $q->orWhereRaw('SOUNDEX(nombre) LIKE CONCAT(SOUNDEX(?), "%")', [$palabra]);
                 }
             });
