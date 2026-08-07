@@ -189,14 +189,6 @@
                         </table>
                     </div>
                 </div>
-                @if ($compra->nota_interna)
-                    <div class="row">
-                        <div class="col-12">
-                            <strong>Nota interna:</strong>
-                            <p class="mb-0">{{ $compra->nota_interna }}</p>
-                        </div>
-                    </div>
-                @endif
             </div>
             <div class="card-footer text-end" style="position:relative; z-index:2;">
                 <button type="button" class="btn btn-outline-primary js-imprimir" data-id="{{ $compra->id }}">Imprimir Detalle</button>

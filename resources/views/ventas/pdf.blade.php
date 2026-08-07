@@ -129,11 +129,5 @@
             <p>{{ $venta->nota_cliente }}</p>
         </div>
     @endif
-    @if ($venta->nota_interna)
-        <div style="margin-top:10px;">
-            <strong>Nota interna:</strong>
-            <p>{{ $venta->nota_interna }}</p>
-        </div>
-    @endif
 </body>
 </html>

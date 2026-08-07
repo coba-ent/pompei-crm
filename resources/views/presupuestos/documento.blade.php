@@ -132,14 +132,6 @@
                         </div>
                     </div>
                 @endif
-                @if ($presupuesto->nota_interna)
-                    <div class="row mt-2">
-                        <div class="col-12">
-                            <strong>Nota interna:</strong>
-                            <p class="mb-0">{{ $presupuesto->nota_interna }}</p>
-                        </div>
-                    </div>
-                @endif
             </div>
             <div class="card-footer text-end">
                 <button type="button" class="btn btn-outline-secondary disabled" title="Próximamente">Enviar Presupuesto</button>
