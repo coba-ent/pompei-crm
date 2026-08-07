@@ -315,6 +315,7 @@
 .form-control,
 .form-select {
     border-color: #c9ced4;
+    background-color: #fbfcfd;
 }
 
 .form-control::placeholder {
@@ -325,7 +326,33 @@
 .form-control:focus,
 .form-select:focus {
     border-color: #28ACE3;
-    box-shadow: 0 0 0 0.2rem rgba(40, 172, 227, 0.15);
+    background-color: #fff;
+    box-shadow: 0 0 0 0.2rem rgba(40, 172, 227, 0.25);
+}
+
+/* Deshabilitados/readonly: diferenciarlos claramente de un campo editable
+ * vacío (si no, un input vacío y uno bloqueado se confunden a simple vista). */
+.form-control:disabled,
+.form-control[readonly],
+.form-select:disabled {
+    background-color: #e9ecef;
+    color: #6c757d;
+    border-color: #dbdfe3;
+}
+
+/* Labels con más peso para separar visualmente "etiqueta" de "valor". */
+.form-label {
+    font-weight: 600;
+}
+
+/* Flecha nativa del <select>: la del navegador es gris clarito y pasa
+ * desapercibida. La reemplazamos por un chevron propio en el celeste de
+ * marca, así el control se lee como interactivo. */
+.form-select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%2328ACE3' stroke-linecap='round' stroke-linewidth='2' d='M2 5l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 14px 14px;
 }
 
 /* Textareas: alto acorde al nuevo tamaño. */
@@ -467,11 +494,18 @@ td.dt-acciones-caret .dropdown-toggle::after {
     line-height: 1.4;
     border: 1px solid #c9ced4;
     border-radius: 0.5rem;
+    background-color: #fbfcfd;
 }
 .select2-container--default.select2-container--focus .select2-selection--single,
 .select2-container--default.select2-container--open .select2-selection--single {
     border-color: #28ACE3;
-    box-shadow: 0 0 0 0.2rem rgba(40, 172, 227, 0.15);
+    background-color: #fff;
+    box-shadow: 0 0 0 0.2rem rgba(40, 172, 227, 0.25);
+}
+.select2-container--default.select2-container--disabled .select2-selection--single {
+    background-color: #e9ecef;
+    color: #6c757d;
+    border-color: #dbdfe3;
 }
 .select2-container--default .select2-selection--single .select2-selection__rendered {
     min-height: 0;
