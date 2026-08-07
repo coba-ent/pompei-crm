@@ -38,10 +38,7 @@
 @endphp
                             
 
-	{{-- "menu-toggle" = sidebar comprimida por defecto (pedido explícito del usuario). El botón
-	     hamburguesa (public/js/custom.js handleNavigation) sigue togglando esta misma clase para
-	     expandir/comprimir manualmente durante la sesión; no hay persistencia entre cargas. --}}
-	<div id="main-wrapper" class="menu-toggle {{ $classConfig ?? '' }}">
+	<div id="main-wrapper" @if(isset($classConfig)) class="{{$classConfig}}" @endif>
 		<!--**********************************
             Nav header start
         ***********************************-->
