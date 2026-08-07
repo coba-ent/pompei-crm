@@ -211,6 +211,20 @@
                 $(this).val('');
                 tabla.ajax.reload();
             });
+            // Borrar el texto a mano (o dejarlo en blanco) no dispara ningún evento del
+            // daterangepicker -- sin este listener el filtro seguía aplicado con las fechas
+            // viejas aunque el input se viera vacío.
+            $('#filtro-rango-emision').on('blur keyup', function () {
+                if ($(this).val() === '' && emisionDesde !== '') {
+                    emisionDesde = ''; emisionHasta = '';
+                    tabla.ajax.reload();
+                }
+            });
+            $('#btn-limpiar-rango-emision').on('click', function () {
+                emisionDesde = ''; emisionHasta = '';
+                $('#filtro-rango-emision').val('');
+                tabla.ajax.reload();
+            });
 
             $('#filtro-rango-vencimiento').daterangepicker(opcionesRango());
             $('#filtro-rango-vencimiento').on('apply.daterangepicker', function (e, picker) {
@@ -222,6 +236,17 @@
             $('#filtro-rango-vencimiento').on('cancel.daterangepicker', function () {
                 vencimientoDesde = ''; vencimientoHasta = '';
                 $(this).val('');
+                tabla.ajax.reload();
+            });
+            $('#filtro-rango-vencimiento').on('blur keyup', function () {
+                if ($(this).val() === '' && vencimientoDesde !== '') {
+                    vencimientoDesde = ''; vencimientoHasta = '';
+                    tabla.ajax.reload();
+                }
+            });
+            $('#btn-limpiar-rango-vencimiento').on('click', function () {
+                vencimientoDesde = ''; vencimientoHasta = '';
+                $('#filtro-rango-vencimiento').val('');
                 tabla.ajax.reload();
             });
         }
