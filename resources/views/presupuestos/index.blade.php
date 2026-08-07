@@ -19,41 +19,76 @@
         <div class="row mb-3 g-2" id="panel-kpis">
             <div class="col-6 col-md-2-4" style="flex:1 1 20%; max-width:20%;">
                 <div class="widget-stat card mb-0 h-100">
-                    <div class="card-body p-3 text-center">
-                        <p class="mb-1">Ventas</p>
-                        <h4 class="mb-0" id="kpi-ventas">{{ $kpis['ventas'] }}</h4>
+                    <div class="card-body p-3">
+                        <div class="media ai-icon">
+                            <span class="me-3 bgl-primary text-primary">
+                                <i class="fas fa-check-double"></i>
+                            </span>
+                            <div class="media-body">
+                                <p class="mb-1">Ventas</p>
+                                <h4 class="mb-0" id="kpi-ventas">{{ $kpis['ventas'] }}</h4>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
             <div class="col-6" style="flex:1 1 20%; max-width:20%;">
                 <div class="widget-stat card mb-0 h-100">
-                    <div class="card-body p-3 text-center">
-                        <p class="mb-1">Vencidos/Rechazados</p>
-                        <h4 class="mb-0 text-danger" id="kpi-vencidos">{{ $kpis['vencidos_rechazados'] }}</h4>
+                    <div class="card-body p-3">
+                        <div class="media ai-icon">
+                            <span class="me-3 bgl-danger text-danger">
+                                <i class="fas fa-triangle-exclamation"></i>
+                            </span>
+                            <div class="media-body">
+                                <p class="mb-1">Vencidos/Rechazados</p>
+                                <h4 class="mb-0 text-danger" id="kpi-vencidos">{{ $kpis['vencidos_rechazados'] }}</h4>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
             <div class="col-6" style="flex:1 1 20%; max-width:20%;">
                 <div class="widget-stat card mb-0 h-100">
-                    <div class="card-body p-3 text-center">
-                        <p class="mb-1">Pendientes</p>
-                        <h4 class="mb-0 text-warning" id="kpi-pendientes">{{ $kpis['pendientes'] }}</h4>
+                    <div class="card-body p-3">
+                        <div class="media ai-icon">
+                            <span class="me-3 bgl-warning text-warning">
+                                <i class="fas fa-clock"></i>
+                            </span>
+                            <div class="media-body">
+                                <p class="mb-1">Pendientes</p>
+                                <h4 class="mb-0 text-warning" id="kpi-pendientes">{{ $kpis['pendientes'] }}</h4>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
             <div class="col-6" style="flex:1 1 20%; max-width:20%;">
                 <div class="widget-stat card mb-0 h-100">
-                    <div class="card-body p-3 text-center">
-                        <p class="mb-1">Aceptados</p>
-                        <h4 class="mb-0 text-success" id="kpi-aceptados">{{ $kpis['aceptados'] }}</h4>
+                    <div class="card-body p-3">
+                        <div class="media ai-icon">
+                            <span class="me-3 bgl-success text-success">
+                                <i class="fas fa-thumbs-up"></i>
+                            </span>
+                            <div class="media-body">
+                                <p class="mb-1">Aceptados</p>
+                                <h4 class="mb-0 text-success" id="kpi-aceptados">{{ $kpis['aceptados'] }}</h4>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
             <div class="col-6" style="flex:1 1 20%; max-width:20%;">
                 <div class="widget-stat card mb-0 h-100">
-                    <div class="card-body p-3 text-center">
-                        <p class="mb-1">Total Posibles</p>
-                        <h4 class="mb-0" id="kpi-total-posibles">$ {{ number_format($kpis['total_posibles'], 2, ',', '.') }}</h4>
+                    <div class="card-body p-3">
+                        <div class="media ai-icon">
+                            <span class="me-3 bgl-primary text-primary">
+                                <i class="fas fa-coins"></i>
+                            </span>
+                            <div class="media-body">
+                                <p class="mb-1">Total Posibles</p>
+                                <h4 class="mb-0" id="kpi-total-posibles">$ {{ number_format($kpis['total_posibles'], 2, ',', '.') }}</h4>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

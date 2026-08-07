@@ -20,6 +20,7 @@ use App\Models\Remito;
 use App\Models\TipoProducto;
 use App\Models\Vendedor;
 use App\Models\Venta;
+use App\Models\VentaItem;
 use App\Services\Arca\EmisorComprobante;
 use App\Services\Arca\Excepciones\ArcaNoDisponibleException;
 use App\Services\Arca\Excepciones\ArcaRechazoException;
@@ -85,7 +86,7 @@ class VentaController extends Controller
      */
     private function queryFiltrada(Request $request): Builder
     {
-        $query = Venta::query()->with(['cliente:id,nombre', 'categoria:id,nombre', 'presupuesto:id', 'listaPrecio:id,nombre', 'vendedor:id,nombre', 'etiquetas:id,nombre', 'cobros.cuentaTesoreria:id,nombre', 'comprobanteFiscal:id,comprobantable_type,comprobantable_id,estado']);
+        $query = Venta::query()->with(['cliente:id,nombre', 'categoria:id,nombre', 'presupuesto:id', 'listaPrecio:id,nombre', 'vendedor:id,nombre', 'etiquetas:id,nombre', 'cobros.cuentaTesoreria:id,nombre', 'comprobanteFiscal:id,comprobantable_type,comprobantable_id,estado', 'items.producto:id,nombre']);
 
         if ($request->filled('id')) {
             $query->where('id', (int) $request->input('id'));
@@ -194,6 +195,7 @@ class VentaController extends Controller
                 default => 'Venta',
             })
             ->addColumn('cliente', fn (Venta $v) => optional($v->cliente)->nombre)
+            ->addColumn('productos', fn (Venta $v) => $v->items->map(fn (VentaItem $i) => $i->producto?->nombre ?? $i->descripcion)->filter()->implode(', '))
             ->addColumn('categoria', fn (Venta $v) => optional($v->categoria)->nombre)
             ->addColumn('cobrado', fn (Venta $v) => $v->cobrado())
             ->addColumn('a_cobrar', fn (Venta $v) => $v->aCobrar())

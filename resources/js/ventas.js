@@ -272,6 +272,7 @@
                 { data: 'fecha_emision', name: 'fecha_emision' },
                 { data: 'fecha_validez', name: 'fecha_validez' },
                 { data: 'cliente', name: 'cliente.nombre' },
+                { data: 'productos', name: 'productos', orderable: false, searchable: false },
                 { data: 'categoria', name: 'categoria.nombre' },
                 { data: 'subtotal_sin_descuento', name: 'subtotal_sin_descuento', render: money },
                 { data: 'descuento', name: 'descuento', render: money },
