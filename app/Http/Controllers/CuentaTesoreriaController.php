@@ -164,6 +164,7 @@ class CuentaTesoreriaController extends Controller
             ->addColumn('operacion', fn ($row) => self::ETIQUETAS_OPERACION[$row->tipo] ?? $row->tipo)
             ->addColumn('es_nativo', fn ($row) => in_array($row->tipo, self::TIPOS_NATIVOS, true))
             ->addColumn('acciones', fn ($row) => view('tesoreria._row_actions', ['id' => $row->id])->render())
+            ->rawColumns(['acciones'])
             ->order(function ($query) {
                 $query->orderBy('mov.fecha')->orderBy('mov.id');
             })
