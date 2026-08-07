@@ -149,7 +149,7 @@ recalculan sólo con operaciones de hoy, sin afectar gráfico mensual ni aging.
 - [X] T030 [P] Test Feature de regresión en `tests/Feature/DashboardNeteoNotasTest.php`: SC-005 — con datos sin ninguna NC/ND, los 4 endpoints devuelven valores idénticos a antes del cambio (comparar contra fixture/snapshot del comportamiento previo)
 - [X] T031 Correr la suite completa `php artisan test` para descartar regresiones fuera del alcance directo de esta feature
 - [X] T032 Ejecutar manualmente los 8 escenarios de `specs/046-dashboard-neteo-nc-nd/quickstart.md` contra el ambiente local, incluyendo el Escenario 5 (venta real del VPS) contra el VPS de producción
-- [ ] T033 [P] Deploy al VPS (`bash deploy_vps.sh`, ver `.claude/skills/deploy/SKILL.md`) una vez validados local y quickstart
+- [X] T033 [P] Deploy al VPS (`bash deploy_vps.sh`, ver `.claude/skills/deploy/SKILL.md`) una vez validados local y quickstart
 
 ---
 

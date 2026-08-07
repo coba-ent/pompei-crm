@@ -49,6 +49,14 @@ CREDENCIALES_ACCESO.txt
 # Permisos locales de Claude Code (por maquina, no se versiona)
 /.claude/settings.local.json
 
+# Certificados/claves SSL sueltos en la raiz y backups de DB (nunca al repo)
+/*.key
+/*.crt
+/*.csr
+/.rnd
+/backups
+/*.pdf
+
 # Bytecode de Python (deploy.py)
 __pycache__/
 
