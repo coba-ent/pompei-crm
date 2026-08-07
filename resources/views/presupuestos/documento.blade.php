@@ -124,6 +124,22 @@
                     <div class="col-md-6"><strong>Formas de Pago:</strong> {{ $presupuesto->formas_pago ?: '-' }}</div>
                     <div class="col-md-6"><strong>Métodos de Envío:</strong> {{ $presupuesto->metodos_envio ?: '-' }}</div>
                 </div>
+                @if ($presupuesto->nota_cliente)
+                    <div class="row mt-2">
+                        <div class="col-12">
+                            <strong>Nota para el Cliente:</strong>
+                            <p class="mb-0">{{ $presupuesto->nota_cliente }}</p>
+                        </div>
+                    </div>
+                @endif
+                @if ($presupuesto->nota_interna)
+                    <div class="row mt-2">
+                        <div class="col-12">
+                            <strong>Nota interna:</strong>
+                            <p class="mb-0">{{ $presupuesto->nota_interna }}</p>
+                        </div>
+                    </div>
+                @endif
             </div>
             <div class="card-footer text-end">
                 <button type="button" class="btn btn-outline-secondary disabled" title="Próximamente">Enviar Presupuesto</button>
