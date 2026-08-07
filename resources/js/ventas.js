@@ -1036,9 +1036,15 @@
                 .done((resp) => {
                     toast('success', resp.mensaje || 'Venta actualizada con éxito.');
                     bootstrap.Modal.getInstance(document.getElementById('modal-cobranza'))?.hide();
-                    window.location.reload();
+                    recargarSinAutoAbrirCobranza();
                 })
                 .fail((xhr) => toast('error', xhr.responseJSON?.message || xhr.responseJSON?.errors?.monto?.[0] || 'No se pudo registrar la cobranza.'));
+        }
+
+        function recargarSinAutoAbrirCobranza() {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('cobrar');
+            window.location.href = url.toString();
         }
 
         function guardarEdicionCobranza() {
