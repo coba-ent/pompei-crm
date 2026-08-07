@@ -550,14 +550,27 @@ td.dt-acciones-caret .dropdown-toggle::after {
 }
 
 /* --------------------------------------------------------------------------
- * Tabla de detalle (ítems) en alta/edición de Ventas, Compras y Presupuestos
- * (`#tabla-items`, ver ventas/compras/presupuestos `form.blade.php`): header
- * en azul principal de marca con texto blanco, para diferenciarlo del resto
- * de la tabla y darle más jerarquía visual dentro del form.
+ * Headers de tabla — fondo azul principal de marca con texto blanco.
+ * Nació en la tabla de ítems de Ventas/Compras/Presupuestos (`#tabla-items`)
+ * y gustó; se generaliza a TODAS las tablas de la app (DataTables incluidas)
+ * para que quede consistente en todo el CRM. Regla GLOBAL.
  * ------------------------------------------------------------------------ */
-#tabla-items thead th {
+.table thead th,
+.dataTable thead th {
     background-color: var(--primary);
     color: #fff;
+}
+
+/* El sort arrow/ícono de DataTables hereda `color: inherit` en la mayoría de
+ * los temas, pero por las dudas forzamos blanco para que no se pierda sobre
+ * el fondo azul oscuro. */
+.dataTable thead th.sorting:before,
+.dataTable thead th.sorting:after,
+.dataTable thead th.sorting_asc:before,
+.dataTable thead th.sorting_asc:after,
+.dataTable thead th.sorting_desc:before,
+.dataTable thead th.sorting_desc:after {
+    color: #fff !important;
 }
 
 /* --------------------------------------------------------------------------
