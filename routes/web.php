@@ -200,6 +200,7 @@ Route::middleware('auth')->group(function () {
         Route::get('{venta}/ticket', [VentaController::class, 'ticket'])->name('ticket');
         Route::post('{venta}/enviar-arca', [VentaController::class, 'enviarArca'])->name('enviarArca');
         Route::post('{venta}/cobranzas', [VentaController::class, 'cobranzaStore'])->name('cobranzas.store');
+        Route::put('{venta}/cobranzas/{cobro}', [VentaController::class, 'cobranzaUpdate'])->name('cobranzas.update');
         Route::delete('{venta}/cobranzas/{cobro}', [VentaController::class, 'cobranzaDestroy'])->name('cobranzas.destroy');
         Route::get('{venta}/cobranzas/{cobro}/recibo', [VentaController::class, 'reciboCobranza'])->name('cobranzas.recibo');
         Route::post('{venta}/notas', [NotaCreditoDebitoController::class, 'store'])->name('notas.store');

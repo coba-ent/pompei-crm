@@ -492,6 +492,12 @@ Otros Ingresos y Abonos son independientes.
   N° y fecha de depósito en observaciones), y al depositarlo se hace una **transferencia entre cuentas**
   ("cheques de terceros" → "banco"). Simétrico para "cheques propios" emitidos en Pagos a Proveedores.
   Ambos se siguen desde Tesorería.
+- **Editar Cobranza** *(extensión propia de este CRM, spec 053 — no relevada en Contagram real, ver
+  `docs/informe_contagram_ingresos.md`)*: en la tabla de Cobranzas del Detalle de Venta se puede editar
+  monto/fecha/cuenta/nota de una cobranza ya cargada (reutilizando el modal de "Agregar Cobranza" en modo
+  edición), sin anular y recrear el `MovimientoTesoreria` asociado — se actualiza in-place. No cambia el
+  flujo de alta/anulación existente ni está presente en Contagram real; se agrega porque corregir un dato
+  mal cargado sin dejar rastro de un movimiento "fantasma" es una necesidad operativa del negocio.
 
 ### 3.2.bis Mercado Libre (`/ingresos/mercadolibre`) — spec 012
 
@@ -1767,6 +1773,30 @@ salieron de esta lista:
   ver §6.3), pero el Ranking de Clientes (por monto vendido) y de Productos (por cantidad vendida)
   quedaron explícitamente fuera de alcance de esa spec — siguen calculándose sobre el monto/cantidad
   bruto de la Venta, sin restar NC ni sumar ND. Pendiente de spec propia si se decide resolverlo.
+- **Auditoría (`Menú de usuario → Auditoría`, pantalla "Operaciones") — spec 054, planificada
+  (07/08/2026), lista para implementar.** Log transversal de todas las operaciones creadas/modificadas en la cuenta, con quién y cuándo
+  las hizo. No tiene informe con capturas dedicado (no está documentado en `help.contagram.com`); la
+  estructura de pantalla surge de dos capturas reales aportadas por el usuario el 07/08/2026 (una de
+  cuenta de prueba vacía, otra de cuenta real con datos) — no se considera necesario un informe
+  `docs/informe_contagram_*` aparte dado lo simple y autocontenido de la pantalla, pero si al especificar
+  aparecen ambigüedades (ej. lista cerrada de valores de "Operación" o "Tipo") conviene volver a la app
+  real a confirmarlas antes de cerrar la spec.
+  - **Filtros** (accesible vía botón "Filtros"): Id (número de operación), Operación (dropdown,
+    "Todos" + valores — se observaron Cobro, Venta, Gasto, Movimiento), Usuario (dropdown, "Todos" +
+    usuarios de la cuenta). Selector de fecha aparte arriba a la derecha (ej. "7 Agosto").
+  - **Columnas de la tabla**: Id, Fecha y Hora (ordenable), Usuario (nombre de persona o canal de
+    integración, ej. "Ventas Online"), Tipo (verbo de la acción — sólo se observó "Creó"; probablemente
+    también "Modificó"/"Eliminó"/"Anuló"), Operación (entidad afectada: Cobro, Venta, Gasto,
+    Movimiento — coincide con las entidades de negocio ya mapeadas en Ingresos/Egresos/Tesorería),
+    Detalle (texto libre resumen humano-legible de la operación: cliente + nº comprobante, proveedor +
+    concepto de gasto, etc. — no parece ser un campo estructurado fijo sino una descripción generada por
+    tipo de operación), Total (columna final, no se llegó a ver el contenido en las capturas).
+  - DataTable estándar: paginación con selector "Registros por página", contador de resultados, botón
+    "Exportar", fecha de "Actualizado el [fecha] a las [hora]" al pie.
+  - Mapeo de dominio en este CRM: sería una nueva tabla `logs_auditoria` (o similar) poblada por
+    observers/eventos de Eloquent en las entidades transaccionales existentes (Venta, Cobro, Gasto,
+    Movimiento de stock/caja, etc.), con `usuario_id` nullable (para acciones de sistema/integración
+    como Mercado Libre/Tiendanube), `tipo_accion`, `entidad`, `entidad_id`, `detalle`, `fecha`.
 
 ---
 

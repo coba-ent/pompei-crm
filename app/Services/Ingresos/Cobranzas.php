@@ -43,6 +43,39 @@ class Cobranzas
         });
     }
 
+    /**
+     * Edita un cobro ya cargado (monto/cuenta/fecha/nota), actualizando in-place su
+     * MovimientoTesoreria asociado en vez de anular+recrear (research.md §1). No editable si el
+     * cobro está anulado (soft-deleted) o si no tiene movimiento asociado (FR-006, FR-006a).
+     */
+    public function actualizarCobro(Cobro $cobro, float $monto, CuentaTesoreria $cuenta, Carbon $fecha, ?string $nota = null): Cobro
+    {
+        return DB::transaction(function () use ($cobro, $monto, $cuenta, $fecha, $nota) {
+            if ($cobro->trashed()) {
+                throw new \RuntimeException('La cobranza está anulada y no puede editarse.');
+            }
+
+            if (! $cobro->movimientoTesoreria) {
+                throw new \RuntimeException('La cobranza no tiene un movimiento de tesorería asociado.');
+            }
+
+            $cobro->update([
+                'fecha' => $fecha,
+                'cuenta_tesoreria_id' => $cuenta->id,
+                'monto' => $monto,
+                'nota' => $nota,
+            ]);
+
+            $cobro->movimientoTesoreria->update([
+                'monto' => $monto,
+                'cuenta_tesoreria_id' => $cuenta->id,
+                'fecha' => $fecha,
+            ]);
+
+            return $cobro;
+        });
+    }
+
     /** Anula un cobro: soft-delete del cobro + de su movimiento de tesorería (0 saldo fantasma — SC-005). */
     public function anularCobro(Cobro $cobro): void
     {

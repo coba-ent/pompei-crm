@@ -991,17 +991,36 @@
         const data = window.VentaDetalleData;
         if (!data) { return; }
 
-        function abrirCobranza() {
+        let cuentaSeleccionadaEdicion = null;
+
+        function abrirCobranza(cobro) {
+            const editando = !!cobro;
+            $('#cobranza-id').val(editando ? cobro.id : '');
+            $('#cobranza-modal-titulo').text(editando ? 'Editar cobranza' : 'Cobranza');
+            $('#cobranza-modal-footer-edicion').toggle(editando);
             $('#cobranza-total').text(money(data.total));
             $('#cobranza-a-cobrar').text(money(data.aCobrar));
-            $('#cobranza-monto').val(data.aCobrar);
-            $('#cobranza-fecha').val(new Date().toISOString().slice(0, 10));
+            $('#cobranza-monto').val(editando ? cobro.monto : data.aCobrar);
+            $('#cobranza-fecha').val(editando ? cobro.fecha : new Date().toISOString().slice(0, 10));
+            $('#cobranza-nota').val(editando ? (cobro.nota || '') : '');
+            cuentaSeleccionadaEdicion = editando ? cobro.cuentaId : null;
 
             const $cuentas = $('#cobranza-cuentas').empty();
             data.cuentas.forEach((cuenta) => {
                 const $col = $('<div class="col-6">');
-                const $btn = $('<button type="button" class="btn btn-outline-primary w-100">').text(cuenta.nombre)
-                    .on('click', () => cobrar(cuenta.id));
+                const activa = editando && Number(cuenta.id) === Number(cuentaSeleccionadaEdicion);
+                const $btn = $('<button type="button" class="btn w-100">')
+                    .addClass(activa ? 'btn-primary' : 'btn-outline-primary')
+                    .text(cuenta.nombre)
+                    .on('click', function () {
+                        if (editando) {
+                            cuentaSeleccionadaEdicion = cuenta.id;
+                            $cuentas.find('button').removeClass('btn-primary').addClass('btn-outline-primary');
+                            $(this).removeClass('btn-outline-primary').addClass('btn-primary');
+                        } else {
+                            cobrar(cuenta.id);
+                        }
+                    });
                 $col.append($btn);
                 $cuentas.append($col);
             });
@@ -1022,9 +1041,62 @@
                 .fail((xhr) => toast('error', xhr.responseJSON?.message || xhr.responseJSON?.errors?.monto?.[0] || 'No se pudo registrar la cobranza.'));
         }
 
+        function guardarEdicionCobranza() {
+            const id = $('#cobranza-id').val();
+            if (!id) { return; }
+            if (!cuentaSeleccionadaEdicion) { toast('error', 'Seleccioná un medio de cobro.'); return; }
+
+            $.ajax({
+                url: rutas.cobranzaUpdateBase + '/' + id,
+                method: 'PUT',
+                data: {
+                    cuenta_tesoreria_id: cuentaSeleccionadaEdicion,
+                    monto: $('#cobranza-monto').val(),
+                    fecha: $('#cobranza-fecha').val(),
+                    nota: $('#cobranza-nota').val(),
+                },
+            })
+                .done((resp) => {
+                    toast('success', resp.mensaje || 'Cobranza actualizada.');
+                    bootstrap.Modal.getInstance(document.getElementById('modal-cobranza'))?.hide();
+
+                    const fechaIso = String(resp.cobro.fecha).slice(0, 10);
+                    const $fila = $('tr[data-cobro-id="' + id + '"]');
+                    $fila.attr('data-cobro-monto', resp.cobro.monto);
+                    $fila.attr('data-cobro-fecha', fechaIso);
+                    $fila.attr('data-cobro-cuenta-id', resp.cobro.cuenta_tesoreria?.id ?? '');
+                    $fila.attr('data-cobro-nota', resp.cobro.nota ?? '');
+                    $fila.find('td').eq(2).text(new Date(fechaIso + 'T00:00:00Z').toLocaleDateString('es-AR', { timeZone: 'UTC' }));
+                    $fila.find('td').eq(3).text(resp.cobro.cuenta_tesoreria?.nombre ?? '');
+                    $fila.find('td').eq(4).text(resp.cobro.nota ?? '');
+                    $fila.find('td').eq(5).text(money(resp.cobro.monto));
+
+                    data.aCobrar = resp.a_cobrar;
+                    $('#detalle-a-cobrar').text(money(resp.a_cobrar));
+                    $('#detalle-cobrado').text(money(resp.cobrado));
+                })
+                .fail((xhr) => {
+                    toast('error', xhr.responseJSON?.errors?.monto?.[0] || xhr.responseJSON?.mensaje || 'No se pudo actualizar la cobranza.');
+                });
+        }
+
+        $('#btn-guardar-cobranza').on('click', guardarEdicionCobranza);
+
         $('#btn-agregar-cobranza, .js-agregar-cobranza').on('click', function (e) {
             e.preventDefault();
             abrirCobranza();
+        });
+
+        $(document).on('click', '.js-editar-cobro', function (e) {
+            e.preventDefault();
+            const $fila = $(this).closest('tr[data-cobro-id]');
+            abrirCobranza({
+                id: $fila.data('cobro-id'),
+                monto: $fila.data('cobro-monto'),
+                fecha: $fila.data('cobro-fecha'),
+                cuentaId: $fila.data('cobro-cuenta-id'),
+                nota: $fila.data('cobro-nota'),
+            });
         });
 
         $(document).on('click', '.js-eliminar-cobro', function (e) {

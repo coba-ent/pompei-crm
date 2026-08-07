@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreCobroRequest;
+use App\Http\Requests\UpdateCobroRequest;
 use App\Http\Requests\StoreVentaRequest;
 use App\Http\Requests\UpdateVentaRequest;
 use App\Models\Categoria;
@@ -574,6 +575,34 @@ class VentaController extends Controller
         ]);
 
         return $pdf->stream('recibo-REC-'.$cobro->id.'.pdf', ['Content-Disposition' => 'inline']);
+    }
+
+    /** Editar cobranza (spec 053): monto/fecha/cuenta/nota, sin anular+recrear el movimiento. */
+    public function cobranzaUpdate(UpdateCobroRequest $request, Venta $venta, Cobro $cobro): JsonResponse
+    {
+        if ($cobro->venta_id !== $venta->id || $cobro->trashed()) {
+            abort(404);
+        }
+
+        $datos = $request->validated();
+        $cuenta = CuentaTesoreria::findOrFail($datos['cuenta_tesoreria_id']);
+
+        try {
+            $cobro = $this->cobranzas->actualizarCobro($cobro, (float) $datos['monto'], $cuenta, Carbon::parse($datos['fecha']), $datos['nota'] ?? null);
+        } catch (\RuntimeException $e) {
+            return response()->json(['ok' => false, 'errors' => ['monto' => [$e->getMessage()]]], 422);
+        }
+
+        $cobro->load('cuentaTesoreria');
+
+        return response()->json([
+            'ok' => true,
+            'mensaje' => 'Cobranza actualizada.',
+            'cobro' => $cobro,
+            'cobrado' => $venta->cobrado(),
+            'a_cobrar' => $venta->aCobrar(),
+            'estado_cobro' => $venta->estadoCobro(),
+        ]);
     }
 
     public function cobranzaDestroy(Venta $venta, Cobro $cobro): JsonResponse

@@ -73,23 +73,25 @@
                 <div class="table-responsive">
                     <table class="table table-sm" id="tabla-cobranzas">
                         <thead>
-                            <tr><th>Id</th><th>Fecha</th><th>Medio de cobro</th><th>Nota</th><th>Total</th><th>Comprobante</th></tr>
+                            <tr><th></th><th>Id</th><th>Fecha</th><th>Medio de cobro</th><th>Nota</th><th>Total</th><th>Comprobante</th></tr>
                         </thead>
                         <tbody>
                             @forelse ($venta->cobros as $cobro)
-                                <tr data-cobro-id="{{ $cobro->id }}">
+                                <tr data-cobro-id="{{ $cobro->id }}"
+                                    data-cobro-monto="{{ $cobro->monto }}"
+                                    data-cobro-fecha="{{ $cobro->fecha->format('Y-m-d') }}"
+                                    data-cobro-cuenta-id="{{ $cobro->cuenta_tesoreria_id }}"
+                                    data-cobro-nota="{{ $cobro->nota }}">
+                                    <td>@include('ventas._row_actions_cobranza', ['venta' => $venta, 'cobro' => $cobro])</td>
                                     <td>{{ $cobro->id }}</td>
                                     <td>{{ $cobro->fecha->format('d/m/Y') }}</td>
                                     <td>{{ optional($cobro->cuentaTesoreria)->nombre }}</td>
                                     <td>{{ $cobro->nota }}</td>
                                     <td>$ {{ number_format((float) $cobro->monto, 2, ',', '.') }}</td>
-                                    <td>{{ $venta->nro_comprobante }}
-                                        <a href="#" class="js-ver-recibo-cobranza ms-2" data-url="{{ route('ventas.cobranzas.recibo', [$venta, $cobro]) }}">Ver Recibo</a>
-                                        <a href="#" class="js-eliminar-cobro text-danger ms-2" data-id="{{ $cobro->id }}"><i class="fas fa-trash"></i></a>
-                                    </td>
+                                    <td>{{ $venta->nro_comprobante }}</td>
                                 </tr>
                             @empty
-                                <tr><td colspan="6" class="text-center text-muted">Sin cobranzas</td></tr>
+                                <tr><td colspan="7" class="text-center text-muted">Sin cobranzas</td></tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -234,6 +236,7 @@
     window.VentasConfig.rutas = Object.assign(window.VentasConfig.rutas || {}, {
         cobranzaStore: "{{ route('ventas.cobranzas.store', $venta) }}",
         cobranzaDestroyBase: "{{ url('ventas/'.$venta->id.'/cobranzas') }}",
+        cobranzaUpdateBase: "{{ url('ventas/'.$venta->id.'/cobranzas') }}",
         remitoStore: "{{ route('ventas.remitos.store', $venta) }}",
         notasStore: "{{ route('ventas.notas.store', $venta) }}",
         notasItemsDisponibles: "{{ route('ventas.notas.itemsDisponibles', $venta) }}",
