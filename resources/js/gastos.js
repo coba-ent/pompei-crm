@@ -55,28 +55,65 @@
             }));
         }
 
-        function actualizarBotonesCategoriaGasto() {
-            const val = $('#gasto-categoria').val();
-            const cat = (cfg.categorias || []).find((c) => String(c.id) === String(val));
-            const real = !!val && !(cat && cat.es_sistema);
-            $('#btn-renombrar-categoria-gasto, #btn-eliminar-categoria-gasto').toggleClass('d-none', !real);
+        // Catálogo editable inline (mismo patrón de resources/js/ventas.js, spec 028): opción fija
+        // "Crear Categoría de Gasto" siempre primera, lápiz por fila para editar sin seleccionar, y
+        // una fila "Crear Subcategoría" debajo de cada categoría.
+        const ID_CREAR_CATEGORIA = '__crear_categoria__';
+        const PREFIJO_CREAR_SUB = '__crear_sub__:';
+
+        function catalogoCategoriasGasto() {
+            const out = [{ id: ID_CREAR_CATEGORIA, tipo: 'crear', text: 'Crear Categoría de Gasto' }];
+            categoriasJerarquia().forEach(({ raiz, hijos }) => {
+                out.push({ id: raiz.id, tipo: 'categoria', text: raiz.nombre, esSistema: !!raiz.es_sistema });
+                out.push({ id: PREFIJO_CREAR_SUB + raiz.id, tipo: 'crear_sub', text: 'Crear Subcategoría', categoriaId: raiz.id });
+                hijos.forEach((h) => out.push({ id: h.id, tipo: 'subcategoria', text: h.nombre, esSistema: !!h.es_sistema }));
+            });
+            return out;
+        }
+
+        function templateResultCategoriaGasto(data) {
+            if (!data.id || data.loading) { return data.text; }
+            if (data.tipo === 'crear') {
+                const $fila = $('<span class="d-flex align-items-center justify-content-between w-100 text-primary fw-semibold select2-resultado-crear"></span>');
+                $fila.append($('<span></span>').text(data.text));
+                $fila.append('<i class="fas fa-plus-circle ms-2"></i>');
+                return $fila;
+            }
+            if (data.tipo === 'crear_sub') {
+                const $fila = $('<span class="d-flex align-items-center justify-content-between w-100 text-primary ps-3 select2-resultado-crear"></span>');
+                $fila.append($('<span></span>').text(data.text));
+                $fila.append('<i class="fas fa-plus-circle ms-2"></i>');
+                return $fila;
+            }
+            const esSub = data.tipo === 'subcategoria';
+            const $fila = $('<span class="d-flex align-items-center justify-content-between w-100"></span>').toggleClass('ps-3', esSub).toggleClass('fw-semibold', !esSub);
+            $fila.append($('<span></span>').text(data.text));
+            if (!data.esSistema) {
+                const $lapiz = $('<a href="#" class="js-editar-categoria-gasto text-muted ms-2" title="Editar"><i class="fas fa-pencil-alt"></i></a>');
+                $lapiz.on('mousedown mouseup', (e) => e.stopPropagation());
+                $lapiz.on('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    $('#gasto-categoria').select2('close');
+                    abrirEdicionCategoriaGasto(data.id, data.text);
+                });
+                $fila.append($lapiz);
+            }
+            return $fila;
         }
 
         function llenarCategorias(seleccion) {
             const sel = seleccion ? String(seleccion) : '';
-            const $sel = $('#gasto-categoria').empty();
-            $sel.append(new Option('', ''));
-            categoriasJerarquia().forEach(({ raiz, hijos }) => {
-                if (!hijos.length) {
-                    $sel.append(new Option(raiz.nombre, raiz.id, false, String(raiz.id) === sel));
-                    return;
-                }
-                const $grupo = $('<optgroup>').attr('label', raiz.nombre);
-                hijos.forEach((h) => $grupo.append(new Option(h.nombre, h.id, false, String(h.id) === sel)));
-                $sel.append($grupo);
+            const $sel = $('#gasto-categoria');
+            if (hasSelect2 && $sel.hasClass('select2-hidden-accessible')) { $sel.select2('destroy'); }
+            $sel.empty().append('<option></option>');
+            initSelect2($sel, {
+                placeholder: 'Seleccionar Categoría',
+                data: catalogoCategoriasGasto(),
+                templateResult: templateResultCategoriaGasto,
             });
+            if (sel) { $sel.val(sel); }
             $sel.trigger('change.select2');
-            actualizarBotonesCategoriaGasto();
         }
         function llenarCuentas(seleccion) {
             const $sel = $('#gasto-cuenta').empty();
@@ -85,11 +122,14 @@
             $sel.trigger('change.select2');
         }
 
-        initSelect2($('#gasto-categoria'), { placeholder: 'Seleccionar Categoría' });
         initSelect2($('#gasto-cuenta'), { placeholder: 'Seleccioná un Medio de Pago', allowClear: true });
         llenarCategorias(null);
         llenarCuentas(null);
-        $('#gasto-categoria').on('change', actualizarBotonesCategoriaGasto);
+        $('#gasto-categoria').on('select2:selecting', function (e) {
+            const d = e.params.args.data;
+            if (d.tipo === 'crear') { e.preventDefault(); abrirCrearCategoriaGasto(null); }
+            else if (d.tipo === 'crear_sub') { e.preventDefault(); abrirCrearCategoriaGasto(d.categoriaId); }
+        });
 
         function filtrosActuales() {
             return { buscar: $('#filtro-buscar').val() };
@@ -165,42 +205,29 @@
         let subcategoriaDe = null;
         let modoCategoriaGasto = 'crear';
         let idCategoriaGastoEditar = null;
+        let seleccionAlAbrirEdicion = null;
 
-        $('#btn-nueva-categoria-gasto').on('click', function (e) {
-            e.preventDefault();
-            subcategoriaDe = null;
+        function abrirCrearCategoriaGasto(categoriaPadreId) {
+            subcategoriaDe = categoriaPadreId;
             modoCategoriaGasto = 'crear';
-            $('#modal-nueva-categoria-gasto-titulo').text('Crear Categoría de Gasto');
+            $('#modal-nueva-categoria-gasto-titulo').text(categoriaPadreId ? 'Crear Subcategoría' : 'Crear Categoría de Gasto');
             $('#btn-crear-categoria-gasto').text('Crear');
             $('#nueva-categoria-gasto-nombre').val('').removeClass('is-invalid');
             $('#nueva-categoria-gasto-error').text('');
             bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-nueva-categoria-gasto')).show();
-        });
-        $('#btn-nueva-subcategoria-gasto').on('click', function (e) {
-            e.preventDefault();
-            subcategoriaDe = $('#gasto-categoria').val();
-            if (!subcategoriaDe) { toast('error', 'Elegí primero una Categoría para agregarle una Subcategoría.'); return; }
-            modoCategoriaGasto = 'crear';
-            $('#modal-nueva-categoria-gasto-titulo').text('Crear Subcategoría');
-            $('#btn-crear-categoria-gasto').text('Crear');
-            $('#nueva-categoria-gasto-nombre').val('').removeClass('is-invalid');
-            $('#nueva-categoria-gasto-error').text('');
-            bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-nueva-categoria-gasto')).show();
-        });
-        $('#btn-renombrar-categoria-gasto').on('click', function (e) {
-            e.preventDefault();
-            const id = $('#gasto-categoria').val();
-            if (!id) { return; }
-            const c = (cfg.categorias || []).find((x) => String(x.id) === String(id));
-            if (!c || c.es_sistema) { return; }
+        }
+
+        function abrirEdicionCategoriaGasto(id, nombreActual) {
             modoCategoriaGasto = 'renombrar';
             idCategoriaGastoEditar = id;
+            seleccionAlAbrirEdicion = $('#gasto-categoria').val();
             $('#modal-nueva-categoria-gasto-titulo').text('Renombrar Categoría');
             $('#btn-crear-categoria-gasto').text('Guardar');
-            $('#nueva-categoria-gasto-nombre').val(c.nombre).removeClass('is-invalid');
+            $('#nueva-categoria-gasto-nombre').val(nombreActual).removeClass('is-invalid');
             $('#nueva-categoria-gasto-error').text('');
             bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-nueva-categoria-gasto')).show();
-        });
+        }
+
         $('#btn-crear-categoria-gasto').on('click', function () {
             const nombre = $('#nueva-categoria-gasto-nombre').val().trim();
             $('#nueva-categoria-gasto-nombre').removeClass('is-invalid');
@@ -216,7 +243,7 @@
                     .done((resp) => {
                         const c = (cfg.categorias || []).find((x) => String(x.id) === String(idCategoriaGastoEditar));
                         if (c) { c.nombre = resp.categoria.nombre; }
-                        llenarCategorias(idCategoriaGastoEditar);
+                        llenarCategorias(seleccionAlAbrirEdicion);
                         bootstrap.Modal.getInstance(document.getElementById('modal-nueva-categoria-gasto'))?.hide();
                         toast('success', resp.mensaje || 'Categoría renombrada.');
                     })
@@ -244,34 +271,6 @@
                     const msg = xhr.responseJSON?.mensaje || xhr.responseJSON?.errors?.nombre?.[0] || 'No se pudo crear la categoría.';
                     $('#nueva-categoria-gasto-nombre').addClass('is-invalid');
                     $('#nueva-categoria-gasto-error').text(msg);
-                });
-        });
-
-        // Eliminar Categoría/Subcategoría de Gasto (modal de confirmación).
-        let idCategoriaGastoAEliminar = null;
-        $('#btn-eliminar-categoria-gasto').on('click', function (e) {
-            e.preventDefault();
-            const id = $('#gasto-categoria').val();
-            if (!id) { return; }
-            const c = (cfg.categorias || []).find((x) => String(x.id) === String(id));
-            if (!c || c.es_sistema) { return; }
-            idCategoriaGastoAEliminar = id;
-            $('#categoria-gasto-eliminar-nombre').text(c.nombre);
-            bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-categoria-gasto-eliminar')).show();
-        });
-        $('#btn-confirmar-eliminar-categoria-gasto').on('click', function () {
-            if (!idCategoriaGastoAEliminar) { return; }
-            const id = idCategoriaGastoAEliminar;
-            $.post(rutas.categoriaDestroyBase + '/' + id, { _method: 'DELETE' })
-                .done((resp) => {
-                    cfg.categorias = (cfg.categorias || []).filter((x) => String(x.id) !== String(id));
-                    llenarCategorias(null);
-                    toast('success', resp.mensaje || 'Categoría eliminada.');
-                })
-                .fail((xhr) => toast('error', xhr.responseJSON?.mensaje || 'No se pudo eliminar la categoría.'))
-                .always(() => {
-                    bootstrap.Modal.getInstance(document.getElementById('modal-categoria-gasto-eliminar'))?.hide();
-                    idCategoriaGastoAEliminar = null;
                 });
         });
 

@@ -16,15 +16,7 @@
                     <input type="number" step="0.01" class="form-control" id="gasto-monto">
                 </div>
                 <div class="mb-3">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <label class="form-label mb-0">Seleccionar Categoría</label>
-                        <div class="d-flex align-items-center gap-2">
-                            <a href="#" id="btn-nueva-categoria-gasto" class="small">Crear Categoría de Gasto</a>
-                            <a href="#" id="btn-nueva-subcategoria-gasto" class="small">Crear Subcategoría</a>
-                            <a href="#" id="btn-renombrar-categoria-gasto" class="text-primary d-none" title="Renombrar"><i class="fas fa-pencil-alt"></i></a>
-                            <a href="#" id="btn-eliminar-categoria-gasto" class="text-danger d-none" title="Eliminar"><i class="fas fa-trash-alt"></i></a>
-                        </div>
-                    </div>
+                    <label class="form-label">Seleccionar Categoría</label>
                     <select id="gasto-categoria" class="form-select" style="width:100%"></select>
                 </div>
                 <div class="mb-3" id="gasto-cuenta-wrapper">

@@ -99,7 +99,6 @@
             categoriaGastoStore: "{{ route('categorias.gasto.store') }}",
             categoriaGastoSubcategoriaStoreBase: "{{ url('categorias-gasto') }}",
             categoriaUpdateBase: "{{ url('categorias') }}",
-            categoriaDestroyBase: "{{ url('categorias') }}",
         },
         categorias: @json($datosCategorias),
         cuentas: @json($datosCuentas),
