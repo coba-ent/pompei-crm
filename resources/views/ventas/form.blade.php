@@ -28,7 +28,7 @@
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Emisión</label>
-                        <input type="date" id="f-fecha-emision" class="form-control" value="{{ old('fecha_emision', now()->format('Y-m-d')) }}">
+                        <input type="date" id="f-fecha-emision" class="form-control" value="{{ old('fecha_emision', now()->local()->format('Y-m-d')) }}">
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Vto. del Cobro <i class="fas fa-question-circle text-info" data-bs-toggle="tooltip" title="Fecha estimada de cobro"></i></label>

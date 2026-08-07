@@ -15,7 +15,7 @@
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label">Fecha</label>
-                            <input type="date" class="form-control" name="fecha" value="{{ now()->toDateString() }}">
+                            <input type="date" class="form-control" name="fecha" value="{{ now()->local()->toDateString() }}">
                             <div class="invalid-feedback" data-field="fecha"></div>
                         </div>
                         <div class="col-md-6">

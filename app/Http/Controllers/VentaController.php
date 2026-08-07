@@ -599,7 +599,7 @@ class VentaController extends Controller
         $datos = $request->validate(['fecha' => 'nullable|date']);
 
         $remito = $venta->remitos()->create([
-            'fecha' => $datos['fecha'] ?? now()->toDateString(),
+            'fecha' => $datos['fecha'] ?? now()->local()->toDateString(),
             'nro_remito' => Remito::siguienteNumero(),
         ]);
 

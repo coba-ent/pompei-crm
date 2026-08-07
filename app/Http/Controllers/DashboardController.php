@@ -119,7 +119,7 @@ class DashboardController extends Controller
         $labels = [];
         $series = ['ventas' => [], 'otros_ingresos' => [], 'compras' => [], 'gastos' => []];
 
-        $inicioPrimerMes = Carbon::today()->startOfMonth()->subMonths(11);
+        $inicioPrimerMes = Carbon::now()->local()->startOfDay()->startOfMonth()->subMonths(11);
 
         for ($i = 0; $i < 12; $i++) {
             $desde = $inicioPrimerMes->copy()->addMonths($i);
@@ -368,7 +368,7 @@ class DashboardController extends Controller
             $periodo = 'mes_actual';
         }
 
-        $hoy = Carbon::today();
+        $hoy = Carbon::now()->local()->startOfDay();
 
         switch ($periodo) {
             case 'hoy':

@@ -45,7 +45,7 @@
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Emisión</label>
-                        <input type="date" id="f-fecha-emision" class="form-control" value="{{ old('fecha_emision', now()->format('Y-m-d')) }}">
+                        <input type="date" id="f-fecha-emision" class="form-control" value="{{ old('fecha_emision', now()->local()->format('Y-m-d')) }}">
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Vto. del Pago</label>

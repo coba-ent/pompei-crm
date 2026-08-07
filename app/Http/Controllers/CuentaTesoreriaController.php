@@ -110,8 +110,8 @@ class CuentaTesoreriaController extends Controller
     public function show(Request $request, CuentaTesoreria $cuenta)
     {
         $CurrentPage = 'tesoreria';
-        $desde = $request->filled('desde') ? Carbon::parse($request->input('desde')) : Carbon::today()->subMonth();
-        $hasta = $request->filled('hasta') ? Carbon::parse($request->input('hasta')) : Carbon::today();
+        $desde = $request->filled('desde') ? Carbon::parse($request->input('desde')) : Carbon::now()->local()->startOfDay()->subMonth();
+        $hasta = $request->filled('hasta') ? Carbon::parse($request->input('hasta')) : Carbon::now()->local()->startOfDay();
 
         return view('tesoreria.cuenta', compact('CurrentPage', 'cuenta', 'desde', 'hasta'));
     }

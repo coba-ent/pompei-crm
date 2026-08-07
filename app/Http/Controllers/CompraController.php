@@ -385,7 +385,7 @@ class CompraController extends Controller
         $datos = $request->validate(['fecha' => 'nullable|date']);
 
         $remito = $compra->remitos()->create([
-            'fecha' => $datos['fecha'] ?? now()->toDateString(),
+            'fecha' => $datos['fecha'] ?? now()->local()->toDateString(),
             'nro_remito' => Remito::siguienteNumero(),
         ]);
 

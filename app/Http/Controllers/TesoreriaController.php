@@ -39,7 +39,7 @@ class TesoreriaController extends Controller
 
     private function fechaCorte(Request $request): Carbon
     {
-        return $request->filled('fecha') ? Carbon::parse($request->input('fecha')) : Carbon::today();
+        return $request->filled('fecha') ? Carbon::parse($request->input('fecha')) : Carbon::now()->local()->startOfDay();
     }
 
     /** Configuración de cuentas (icono de ajustes), agrupada por tipo (FR-009). */
@@ -158,8 +158,8 @@ class TesoreriaController extends Controller
     /** @return array{0: Carbon, 1: Carbon} */
     private function rangoMovimientos(Request $request): array
     {
-        $desde = $request->filled('desde') ? Carbon::parse($request->input('desde')) : Carbon::today()->startOfMonth();
-        $hasta = $request->filled('hasta') ? Carbon::parse($request->input('hasta')) : Carbon::today();
+        $desde = $request->filled('desde') ? Carbon::parse($request->input('desde')) : Carbon::now()->local()->startOfDay()->startOfMonth();
+        $hasta = $request->filled('hasta') ? Carbon::parse($request->input('hasta')) : Carbon::now()->local()->startOfDay();
 
         return [$desde, $hasta];
     }

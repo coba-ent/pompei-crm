@@ -25,7 +25,7 @@
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Emisión</label>
-                        <input type="date" id="f-fecha-emision" class="form-control" value="{{ old('fecha_emision', optional($presupuesto?->fecha_emision)->format('Y-m-d') ?? now()->format('Y-m-d')) }}">
+                        <input type="date" id="f-fecha-emision" class="form-control" value="{{ old('fecha_emision', optional($presupuesto?->fecha_emision)->format('Y-m-d') ?? now()->local()->format('Y-m-d')) }}">
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Validez</label>
