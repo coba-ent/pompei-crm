@@ -51,6 +51,7 @@ class VentaController extends Controller
 
         return view('ventas.index', [
             'CurrentPage' => $CurrentPage,
+            'kpis' => $this->kpis(),
             'categoriasVenta' => Categoria::venta()->activas()->orderBy('nombre')->get(['id', 'nombre']),
             'vendedores' => Vendedor::orderBy('nombre')->get(['id', 'nombre']),
             'etiquetas' => Etiqueta::orderBy('nombre')->get(['id', 'nombre']),
@@ -58,6 +59,23 @@ class VentaController extends Controller
             'depositos' => Deposito::activos()->orderBy('nombre')->get(['id', 'nombre']),
             'usuarios' => \App\Models\User::orderBy('name')->get(['id', 'name']),
         ]);
+    }
+
+    /** Barra de 5 KPIs del listado, espejo de Compras (documentacion_principal_crm.md §4.1): Cantidad, Cobrado, A Cobrar, Vencido, Total. */
+    private function kpis(): array
+    {
+        $ventas = Venta::query()->get();
+
+        $vencido = $ventas->filter(fn (Venta $v) => $v->fecha_vto_cobro && $v->fecha_vto_cobro->isPast() && $v->aCobrar() > 0.005)
+            ->sum(fn (Venta $v) => $v->aCobrar());
+
+        return [
+            'cantidad' => $ventas->count(),
+            'cobrado' => $ventas->sum(fn (Venta $v) => $v->cobrado()),
+            'a_cobrar' => $ventas->sum(fn (Venta $v) => $v->aCobrar()),
+            'vencido' => $vencido,
+            'total' => $ventas->sum(fn (Venta $v) => (float) $v->total),
+        ];
     }
 
     /**

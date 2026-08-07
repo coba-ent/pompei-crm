@@ -15,6 +15,49 @@
             </div>
         </div>
 
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Cantidad de Ventas</div>
+                        <div class="h5 mb-0">{{ $kpis['cantidad'] }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Cobrado</div>
+                        <div class="h5 mb-0">$ {{ number_format($kpis['cobrado'], 2, ',', '.') }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">A Cobrar</div>
+                        <div class="h5 mb-0">$ {{ number_format($kpis['a_cobrar'], 2, ',', '.') }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Vencido</div>
+                        <div class="h5 mb-0 text-danger">$ {{ number_format($kpis['vencido'], 2, ',', '.') }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Total Ventas</div>
+                        <div class="h5 mb-0">$ {{ number_format($kpis['total'], 2, ',', '.') }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="card">
             <div class="card-body">
                 <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
