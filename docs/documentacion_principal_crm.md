@@ -400,6 +400,16 @@ Otros Ingresos y Abonos son independientes.
   (texto libre) · Etiquetas (catálogo con buscador + "Nueva Etiqueta") · Descuento General (%) · Total
   · **+ Percepciones / + Impuestos Internos / + Intereses** (cada uno agrega N filas de
   selector+monto+tacho). Botones Cancelar/Guardar/Guardar y Enviar.
+- **Descuento General — toggle %/monto fijo (spec 060, pendiente de implementar)**: el campo
+  "Descuento General" de Presupuestos, Ventas, Compras y Notas de Crédito/Débito (alta y edición de
+  los 4) tiene un botón inline junto al valor que alterna entre cargarlo como porcentaje (%, modo por
+  defecto) o como monto fijo en pesos ($) — confirmado contra captura real de Contagram ("Editar Nota
+  de Crédito"). Al alternar el modo se limpia el valor cargado (no se convierte automáticamente entre
+  unidades). El modo y valor elegidos se persisten y se muestran igual al reabrir para editar. En modo
+  monto fijo, el descuento se prorratea entre ítems/alícuotas de IVA con el mismo criterio ya vigente
+  para porcentaje (ver más abajo "Descuento general aplicado proporcionalmente a neto e IVA"); se
+  rechaza el guardado si el monto supera el subtotal de ítems. Ver
+  `specs/060-toggle-descuento-general/`.
 - **Fila de Percepciones — desplegable estático, no campo de texto libre (30/07/2026)**: el selector de
   la fila "+ Percepciones" es un `<select>` con el catálogo fijo de 27 percepciones vigentes en
   Argentina (IVA, Ganancias, Sellos e IIBB de las 24 jurisdicciones), no un input de texto libre. Es una

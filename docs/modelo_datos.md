@@ -306,6 +306,7 @@ nota en `presupuestos`/`ventas` más abajo); la migración a esta tabla preserva
 | venta_id | FK → ventas, nullable | seteado cuando se usa "Crear Venta" (evita reconvertir el mismo presupuesto) |
 | subtotal_sin_descuento, descuento, subtotal_con_descuento, total | decimal(14,2) | descuento = `descuento_general_pct` aplicado sobre el subtotal de ítems |
 | descuento_general_pct | decimal, nullable | 0–100 |
+| descuento_general_tipo, descuento_general_monto | enum(`porcentaje`,`monto`) NOT NULL default `porcentaje`; decimal(12,2) nullable | **Columnas nuevas (spec 060, pendiente de implementar)** — mismo patrón que `ventas.descuento_general_tipo` (ver esa fila para el detalle). |
 | nota_cliente, nota_interna | text, nullable | |
 | vendedor_id | FK → vendedores, nullable | **Corregido spec 020**: hasta la spec 020 apuntaba a `usuarios` y se autocompletaba en silencio con el usuario logueado; desde la spec 020 es un catálogo propio (tabla `vendedores`, ver §Vendedores) elegido explícitamente en el formulario — "Vendedor" (quién vendió) y "Usuario" (quién está logueado) son conceptos independientes, confirmado por el informe de relevamiento real (Vendedor y Usuario son dos filtros distintos). |
 | formas_pago, metodos_envio | string, nullable | texto libre, sin autocompletado detectado |
@@ -335,6 +336,8 @@ Etiquetas/Notas/Formas de Pago/Métodos de Envío/Vendedor), con estos agregados
 | cobrado | decimal(14,2), default 0 | suma de `cobros.monto` asociados |
 | creado_por_id | FK → users, nullable | **Columna nueva**: "Usuario" (quién cargó la Venta), distinto de `vendedor_id` (quién vendió) — dos filtros independientes confirmados por el informe real. Se setea con `auth()->id()` sólo en altas nuevas; Ventas anteriores a esta columna quedan con `null` (no reconstruible retroactivamente). |
 | deposito_id | FK → depositos, nullable, `restrictOnDelete()` | **Columna nueva (spec 049)**: depósito del que descuenta stock esta Venta. Obligatorio a nivel de formulario para altas nuevas (Select2, catálogo de depósitos activos); nullable en DB porque Ventas previas a spec 049 quedan sin backfill (`deposito_id = null`, cambio sólo hacia adelante). Reemplaza a `Deposito::porDefecto()` como fuente del depósito para el movimiento de stock en Ventas de origen manual — Ventas de Mercado Libre/Tiendanube siguen resolviendo su depósito por `ml_configuracion`/`tn_configuracion` (sin cambios, spec 049 no las toca). Divergencia deliberada sin confirmación contra capturas reales de Contagram — ver `specs/049-deposito-ventas-compras/spec.md` § Assumptions. |
+| descuento_general_tipo | enum(`porcentaje`,`monto`), NOT NULL default `porcentaje` | **Columnas nuevas (spec 060, pendiente de implementar)**: junto con `descuento_general_monto` (decimal(12,2), nullable), permiten cargar el descuento general del comprobante como monto fijo en pesos en vez de sólo porcentaje, vía un botón inline %/$ en el formulario. Cuando el tipo es `monto`, `descuento_general_pct` queda `null` y viceversa. `CalculoComprobante::calcular()` convierte internamente el monto a un porcentaje efectivo (`valor / subtotal_sin_descuento * 100`) antes de aplicar el mismo prorrateo proporcional a neto e IVA ya vigente (spec 044) — mismo criterio para `presupuestos` y `compras`, que comparten el servicio. Ver `specs/060-toggle-descuento-general/`. |
+| descuento_general_monto | decimal(12,2), nullable | Ver fila anterior. |
 
 `ventas.venta_items` y `ventas.conceptos` son análogos a `presupuesto_items`/`presupuesto_conceptos`
 (mismas columnas, FK `venta_id`) — no se listan de nuevo.
@@ -357,6 +360,16 @@ mes/año de `fecha_emision` al crear la nota, editable), fecha_emision (date), m
 nullable — obligatoria si no afecta stock), impuestos (json, nullable — conceptos de impuesto
 aplicados, mismo patrón que `presupuesto_conceptos`). `nota_credito_debito_items` (pivot `producto_id`
 + `cantidad` + `precio`, con flag `origen` = `venta_original`/`nuevo`) sólo si `afecta_stock = true`.
+
+> **Columnas nuevas (spec 060, pendiente de implementar)**: `descuento_general_tipo`
+> (enum(`porcentaje`,`monto`) NOT NULL default `porcentaje`), `descuento_general_pct` (decimal(5,2),
+> nullable — no existía en esta tabla hasta ahora) y `descuento_general_monto` (decimal(12,2),
+> nullable). A diferencia de `ventas`/`presupuestos`/`compras`, NC/ND no pasa por
+> `CalculoComprobante` — el `monto` final sigue calculándose client-side
+> (`resources/js/notas-credito-debito.js::recalcular()`) y se persiste tal cual; estas columnas nuevas
+> sólo agregan la persistencia del desglose (tipo + valor) para poder reabrir el formulario mostrando
+> el mismo modo/valor con el que se cargó, algo que hoy no ocurre (el descuento general de NC/ND es
+> hoy sólo un input visual sin persistencia). Ver `specs/060-toggle-descuento-general/research.md` R4.
 
 > **Ampliación spec 057 (11/08/2026, Edición/Eliminación de NC/ND)**: agrega `nro_comprobante`
 > (string, nullable — número propio de la nota; `tipo_comprobante` ya existía y pasa a ser
@@ -499,6 +512,7 @@ a Tesorería, `saldos()`, `flujo()`).
 | mes_imputacion_iva | date, nullable | campo **"Contador"**, exclusivo de Compras (sin equivalente en Ventas) — mes de imputación en el IVA Compras, independiente de `fecha_emision` |
 | subtotal_sin_descuento, descuento, subtotal_con_descuento, total | decimal(14,2) | mismo cálculo que `ventas`/`presupuestos`; `total` es un snapshot congelado |
 | descuento_general_pct | decimal(5,2), nullable | **Columna nueva (07/08/2026, fix de bug)**: el % de descuento general ingresado en el formulario ya se aplicaba correctamente al cálculo de `descuento`/`total`, pero no se persistía (a diferencia de `ventas`/`presupuestos`, que sí tienen esta columna) — por eso el modal "Ver" no podía mostrarlo y el form de edición no lo precargaba. Mismo campo/semántica que `ventas.descuento_general_pct`. |
+| descuento_general_tipo, descuento_general_monto | enum(`porcentaje`,`monto`) NOT NULL default `porcentaje`; decimal(12,2) nullable | **Columnas nuevas (spec 060, pendiente de implementar)** — mismo patrón que `ventas.descuento_general_tipo` (ver esa fila para el detalle). |
 | nota_interna | text, nullable | |
 | deposito_id | FK → depositos, nullable, `restrictOnDelete()` | **Columna nueva (spec 049)**: depósito al que suma stock esta Compra. Mismo criterio que `ventas.deposito_id` — obligatorio en el formulario, nullable en DB por retrocompatibilidad, reemplaza a `Deposito::porDefecto()` como fuente para `StockDeCompra`. |
 | creado_por_id | FK → users, nullable, `nullOnDelete()` | **Columna nueva (spec 056)**: usuario que creó la Compra, seteada únicamente en `store()` (`auth()->id()`); sin backfill — Compras existentes quedan con `NULL`. Habilita el filtro "Usuario" del listado. Mismo criterio que `ventas.creado_por_id`. |

@@ -51,9 +51,12 @@ class NotaCreditoDebitoPaginaTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('window.NotaFormData', false);
-        $response->assertSee('"tipo": "debito"', false);
-        $response->assertSee('"afectaStock": "1"', false);
-        $response->assertSee('"mesImputacion": "2026-08"', false);
+        // queryString se vuelca como objeto JS literal (claves sin comillas, sólo los
+        // valores pasan por @json()) — a diferencia de notaCreditoDebito/items más abajo,
+        // que sí son @json() del array completo con claves entre comillas.
+        $response->assertSee('tipo: "debito"', false);
+        $response->assertSee('afectaStock: "1"', false);
+        $response->assertSee('mesImputacion: "2026-08"', false);
     }
 
     /** T014: GET ventas/{venta}/notas/{nota}/editar devuelve 200 con los datos de la nota precargados. */
@@ -78,8 +81,8 @@ class NotaCreditoDebitoPaginaTest extends TestCase
         $response->assertOk();
         $response->assertViewIs('notas-credito-debito.form');
         $response->assertViewHas('notaCreditoDebito', fn ($n) => $n->is($nota));
-        $response->assertSee('"id": '.$nota->id, false);
-        $response->assertSee('"tipo": "credito"', false);
+        $response->assertSee('"id":'.$nota->id, false);
+        $response->assertSee('"tipo":"credito"', false);
     }
 
     /** Simetría (FR-011): las mismas rutas existen para Compras. */
@@ -135,6 +138,6 @@ class NotaCreditoDebitoPaginaTest extends TestCase
         $response = $this->get(route('ventas.notas.edit', [$venta, $nota]));
 
         $response->assertOk();
-        $response->assertSee('"producto_id": '.$producto->id, false);
+        $response->assertSee('"producto_id":'.$producto->id, false);
     }
 }
