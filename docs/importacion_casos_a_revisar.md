@@ -24,6 +24,8 @@ resolver la base**. Con 138 ventas de prueba no se notaba; con 23.521 sí.
 | Ninguna tabla transaccional tenía índice en `created_at`, que es por donde ordenan todos los listados | migración `..._indices_para_listados_con_historico` | `type=ALL + filesort` → `type=index` |
 | Las filas de cobro mostraban los importes en blanco | `CuentaCorrienteController` | el monto no se veía en la cuenta corriente **de ningún cobro**, migrado o no |
 | `notas_credito_debito.venta_id` era NOT NULL aunque el código lo declara nullable | migración `..._hacer_venta_id_nullable...` | **emitir una NC/ND de una compra fallaba**; nunca se había probado |
+| El input de Emisión arrancaba siempre en `now()` y no se recargaba al editar | `ventas/form.blade.php`, `ventas.js`, `compras/form.blade.php` | **toda venta o compra vieja que se abriera y guardara quedaba refechada al día de hoy** (§8b) |
+| La fecha de emisión de ML salía de `toDateString()` sobre un instante en UTC | `ConversorOrdenAVenta` | toda orden posterior a las 21:00 argentinas caía en el día siguiente (§8b) |
 
 ### Pendientes
 
@@ -33,6 +35,13 @@ resolver la base**. Con 138 ventas de prueba no se notaba; con 23.521 sí.
    mueve. El enum ya acepta `ingreso`, así que el arreglo es directo.
 3. **Sin auditar con volumen real**: Dashboard, Informes, y las fichas de cliente y de producto, que
    ahora tienen miles de movimientos asociados.
+4. **`Mastercard` cierra en -$442.152,98** con 719 cobros y 0 pagos. Una cuenta de tarjeta por
+   cobrar no debería deber plata: el negativo sale de acreditaciones que superan lo migrado. Sin
+   analizar — es el tipo de número que hay que entender antes de confiar en el panel (§8c).
+5. **Barrido de ventas y compras refechadas al editarlas.** El bug de la fecha (§8b) estuvo activo
+   hasta el 11/08/2026. Se encontraron sólo dos, buscando fechas posteriores al corte del 05/08,
+   pero **ese criterio no detecta una venta de 2023 refechada a 2026-08-10**: se ve como una venta
+   de 2026 cualquiera. Queda pendiente barrer por `updated_at` reciente y contrastar contra el Excel.
 
 ---
 
