@@ -90,6 +90,14 @@ class CompraController extends Controller
         ];
     }
 
+    /** Número que el comprobante tenía en Contagram: de `2021-FC-2140` devuelve `2140`. */
+    private function numeroContagram(string $legacyId): string
+    {
+        $partes = explode('-', $legacyId);
+
+        return end($partes);
+    }
+
     private function queryFiltrada(Request $request): Builder
     {
         $query = Compra::query()->with(['proveedor:id,nombre,cuit,telefono,email', 'categoria:id,nombre', 'pagos.cuentaTesoreria:id,nombre']);
@@ -101,7 +109,14 @@ class CompraController extends Controller
     private function aplicarFiltros(Builder $query, Request $request): Builder
     {
         if ($request->filled('id')) {
-            $query->where('id', (int) $request->input('id'));
+            // Busca por el id del CRM **y** por el número que la compra tenía en Contagram: el
+            // `legacy_id` es `{año}-{familia}-{Id}`, así que se ancla al final para que "2140"
+            // encuentre `2021-FC-2140` y no cualquier cosa que contenga esos dígitos.
+            $id = trim((string) $request->input('id'));
+            $query->where(fn (Builder $q) => $q
+                ->where('id', (int) $id)
+                ->orWhere('legacy_id', 'like', '%-'.$id)
+            );
         }
         if ($request->filled('proveedor_id')) {
             $query->whereIn('proveedor_id', (array) $request->input('proveedor_id'));
@@ -191,13 +206,19 @@ class CompraController extends Controller
             ->addColumn('cuit', fn (Compra $c) => optional($c->proveedor)->cuit)
             ->addColumn('telefono', fn (Compra $c) => optional($c->proveedor)->telefono)
             ->addColumn('mail', fn (Compra $c) => optional($c->proveedor)->email)
+            // Las migradas muestran el número que tenían en Contagram junto al id del CRM: es el
+            // dato por el que se las busca cuando llega un comprobante viejo en papel.
+            ->editColumn('id', fn (Compra $c) => $c->legacy_id === null
+                ? (string) $c->id
+                : $c->id.' <span class="badge bg-light text-muted" title="Número en Contagram">'
+                    .e($this->numeroContagram($c->legacy_id)).'</span>')
             ->editColumn('fecha_emision', fn (Compra $c) => optional($c->fecha_emision)->format('d/m/Y'))
             ->editColumn('fecha_vto_pago', fn (Compra $c) => optional($c->fecha_vto_pago)->format('d/m/Y'))
             ->editColumn('subtotal_sin_descuento', fn (Compra $c) => (float) $c->subtotal_sin_descuento)
             ->editColumn('descuento', fn (Compra $c) => (float) $c->descuento)
             ->editColumn('subtotal_con_descuento', fn (Compra $c) => (float) $c->subtotal_con_descuento)
             ->editColumn('total', fn (Compra $c) => (float) $c->total)
-            ->rawColumns(['acciones'])
+            ->rawColumns(['acciones', 'id'])
             ->toJson();
     }
 
