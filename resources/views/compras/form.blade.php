@@ -45,7 +45,9 @@
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Emisión</label>
-                        <input type="date" id="f-fecha-emision" class="form-control" value="{{ old('fecha_emision', now()->local()->format('Y-m-d')) }}">
+                        {{-- En edición tiene que arrancar en la fecha que la compra YA tiene; `now()`
+                             es sólo el default del alta. Sin esto el submit la pisaba con la de hoy. --}}
+                        <input type="date" id="f-fecha-emision" class="form-control" value="{{ old('fecha_emision', optional($compra?->fecha_emision)->format('Y-m-d') ?? now()->local()->format('Y-m-d')) }}">
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Vto. del Pago</label>

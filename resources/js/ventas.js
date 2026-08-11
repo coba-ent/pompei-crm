@@ -563,6 +563,8 @@
         const defaults = data.defaults || {};
         if (data.categoriaId) { renderCategorias(data.categoriaId); } else if (defaults.categoriaId) { renderCategorias(defaults.categoriaId); }
         if (data.listaPrecioId) { $('#f-lista-precio').val(data.listaPrecioId); } else if (defaults.listaPrecioId) { $('#f-lista-precio').val(defaults.listaPrecioId); }
+        if (data.fechaEmision) { $('#f-fecha-emision').val(data.fechaEmision); }
+        if (data.fechaVtoCobro) { $('#f-fecha-vto-cobro').val(data.fechaVtoCobro); }
         if (data.servicioDesde) { $('#f-servicio-desde').val(data.servicioDesde); }
         if (data.servicioHasta) { $('#f-servicio-hasta').val(data.servicioHasta); }
         refreshSelect2($('#f-lista-precio'));
@@ -571,7 +573,7 @@
         } else if (defaults.tipoComprobante) {
             $('#f-tipo-comprobante').val(defaults.tipoComprobante);
         }
-        if (defaults.fechaVtoCobro) { $('#f-fecha-vto-cobro').val(defaults.fechaVtoCobro); }
+        if (defaults.fechaVtoCobro && !$('#f-fecha-vto-cobro').val()) { $('#f-fecha-vto-cobro').val(defaults.fechaVtoCobro); }
         if (data.depositoId) { $('#f-deposito').val(data.depositoId).trigger('change.select2'); } else if (defaults.depositoId) { $('#f-deposito').val(defaults.depositoId).trigger('change.select2'); }
         if (!$('#f-deposito option').length) {
             $('#f-deposito').prop('disabled', true);

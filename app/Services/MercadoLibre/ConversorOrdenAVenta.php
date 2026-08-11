@@ -214,7 +214,11 @@ class ConversorOrdenAVenta
             $venta = DB::transaction(function () use ($orden, $clienteFinal, $tipoComprobante, $cuentaMercadoPago, $usuarioId, $automatica) {
                 $lineas = $this->armarLineas($orden);
 
-                $fechaEmision = ($orden->fecha_cerrada ?? $orden->fecha_creada ?? now())->toDateString();
+                // Las fechas de la orden se guardan en UTC. El día hay que sacarlo en hora local,
+                // si no toda venta hecha después de las 21:00 argentinas cae en el día siguiente.
+                $fechaEmision = ($orden->fecha_cerrada ?? $orden->fecha_creada ?? now())
+                    ->setTimezone(config('app.display_timezone'))
+                    ->toDateString();
 
                 $venta = Venta::create([
                     'origen' => 'mercadolibre',

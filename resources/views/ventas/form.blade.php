@@ -195,6 +195,10 @@
         listaPrecioId: @json($venta?->lista_precio_id ?? $presupuestoOrigen?->lista_precio_id),
         vendedorId: @json($venta?->vendedor_id),
         depositoId: @json($venta?->deposito_id),
+        {{-- En edición hay que devolver la fecha que la venta YA tiene: el input arranca en hoy
+             (es lo correcto para un alta), así que sin esto el submit la pisaba con la de hoy. --}}
+        fechaEmision: @json(optional($venta?->fecha_emision)->format('Y-m-d')),
+        fechaVtoCobro: @json(optional($venta?->fecha_vto_cobro ?? $presupuestoOrigen?->fecha_vto_cobro)->format('Y-m-d')),
         servicioDesde: @json(optional($venta?->servicio_desde ?? $presupuestoOrigen?->servicio_desde)->format('Y-m-d')),
         servicioHasta: @json(optional($venta?->servicio_hasta ?? $presupuestoOrigen?->servicio_hasta)->format('Y-m-d')),
         notaCliente: @json($venta?->nota_cliente ?? $presupuestoOrigen?->nota_cliente),
