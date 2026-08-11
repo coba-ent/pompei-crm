@@ -139,7 +139,9 @@ class Tesoreria
     }
 
     /**
-     * Informe de flujo de caja (FR-026/FR-027/FR-028): Cobros = tipo `cobro`,
+     * Informe de flujo de caja (FR-026/FR-027/FR-028): Cobros = tipo `cobro` **e `ingreso`**
+     * (spec 055 — los Otros Ingresos suman dentro de "Cobros", como ya declaraba el banner de
+     * la pantalla; el `tipo` los sigue distinguiendo para cualquier análisis posterior),
      * Pagos = tipo `pago`/`gasto` (los gastos pendientes no generan movimiento
      * de tesorería hasta pagarse, así que ya quedan excluidos por construcción
      * — data-model.md §Cálculos clave). Desglose por cuenta siempre completo;
@@ -168,15 +170,17 @@ class Tesoreria
                 ->all();
         };
 
-        $cobros = $desglose(['cobro'], absoluto: false);
+        $cobros = $desglose(['cobro', 'ingreso'], absoluto: false);
         $pagos = $desglose(['pago', 'gasto'], absoluto: true);
 
         $filtrar = fn (array $filas) => $cuentasActivas === null
             ? $filas
             : array_values(array_filter($filas, fn ($f) => in_array($f['cuenta_id'], $cuentasActivas, true)));
 
-        $totalCobros = array_sum(array_column($filtrar($cobros), 'monto'));
-        $totalPagos = array_sum(array_column($filtrar($pagos), 'monto'));
+        // El cast no es cosmético: sobre un desglose vacío `array_sum()` devuelve `int 0`,
+        // y el contrato de este método declara floats.
+        $totalCobros = (float) array_sum(array_column($filtrar($cobros), 'monto'));
+        $totalPagos = (float) array_sum(array_column($filtrar($pagos), 'monto'));
 
         return [
             'total_cobros' => $totalCobros,

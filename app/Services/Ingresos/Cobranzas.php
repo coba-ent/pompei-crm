@@ -93,7 +93,7 @@ class Cobranzas
         }
 
         $this->tesoreria->registrarMovimiento(
-            $otroIngreso->cuentaTesoreria, (float) $otroIngreso->monto, 'cobro', $otroIngreso, $otroIngreso->fecha,
+            $otroIngreso->cuentaTesoreria, (float) $otroIngreso->monto, 'ingreso', $otroIngreso, $otroIngreso->fecha,
             detalle: $otroIngreso->categoria?->nombre,
         );
     }

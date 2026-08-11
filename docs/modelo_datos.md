@@ -1328,8 +1328,16 @@ Se agregó **`ingreso`** a `('saldo_inicial','movimiento_entre_cuentas','cobro',
 Corresponde a los "Otros Ingresos" (aportes de socios, préstamos financieros). Mapearlos a `cobro`
 los habría mezclado con los cobros de ventas.
 
-> Pendiente relacionado: hoy el módulo Otros Ingresos **no genera** movimiento de tesorería, así que
-> el saldo de la cuenta no se mueve al cargar uno. Es un cambio de regla de negocio y necesita spec.
+> **Corrección (spec 055, 2026-08-11):** la nota original de este párrafo estaba desactualizada — el
+> circuito Otros Ingresos→Tesorería **ya existe** desde la spec 008 (`Cobranzas::registrarOtroIngreso()`
+> /`conciliar()`/`anularOtroIngreso()`) y el saldo de cuenta sí se mueve al cargar uno, porque
+> `CuentaTesoreria::saldoA()` suma todos los tipos de movimiento sin filtrar. El bug real detectado
+> era otro: (a) `Cobranzas::registrarOtroIngreso()` generaba el movimiento con `tipo='cobro'` en vez de
+> `'ingreso'`, y (b) el informe de flujo de caja (`Tesoreria::flujo()`, pestaña Movimientos) sólo sumaba
+> `tipo IN ('cobro')` a la sección "Cobros", dejando afuera `'ingreso'` — invisibilizando ahí los 61
+> movimientos históricos migrados ($34.570.442,27). Corregido en spec 055: `registrarOtroIngreso()` ya
+> usa `tipo='ingreso'`, y `flujo()` ya incluye `'ingreso'` junto con `'cobro'` en "Cobros" (criterio ya
+> declarado en el banner de esa pantalla). Sin cambios de esquema ni migración de datos.
 
 ### `notas_credito_debito.venta_id` — corrección de esquema
 

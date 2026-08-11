@@ -175,6 +175,7 @@ class CuentaTesoreriaController extends Controller
         'saldo_inicial' => 'Saldo Inicial',
         'movimiento_entre_cuentas' => 'Movimiento entre Cuenta',
         'cobro' => 'Cobro',
+        'ingreso' => 'Ingreso',
         'pago' => 'Pago',
         'gasto' => 'Gasto',
     ];

@@ -26,8 +26,14 @@ return new class extends Migration
             $table->string('legacy_id', 64)->nullable()->unique()->after('id');
         });
 
-        DB::statement("ALTER TABLE movimientos_tesoreria MODIFY tipo
-            ENUM('saldo_inicial','movimiento_entre_cuentas','cobro','pago','gasto','ingreso') NOT NULL");
+        // `change()` en vez de un ALTER ... MODIFY crudo: SQLite (tests) no entiende esa
+        // sintaxis y además sí valida el enum con un CHECK, así que el valor 'ingreso'
+        // tiene que quedar declarado en los dos motores, no sólo en MySQL.
+        Schema::table('movimientos_tesoreria', function (Blueprint $table) {
+            $table->enum('tipo', [
+                'saldo_inicial', 'movimiento_entre_cuentas', 'cobro', 'pago', 'gasto', 'ingreso',
+            ])->change();
+        });
     }
 
     public function down(): void
@@ -38,8 +44,11 @@ return new class extends Migration
             );
         }
 
-        DB::statement("ALTER TABLE movimientos_tesoreria MODIFY tipo
-            ENUM('saldo_inicial','movimiento_entre_cuentas','cobro','pago','gasto') NOT NULL");
+        Schema::table('movimientos_tesoreria', function (Blueprint $table) {
+            $table->enum('tipo', [
+                'saldo_inicial', 'movimiento_entre_cuentas', 'cobro', 'pago', 'gasto',
+            ])->change();
+        });
 
         Schema::table('movimientos_tesoreria', function (Blueprint $table) {
             $table->dropUnique(['legacy_id']);

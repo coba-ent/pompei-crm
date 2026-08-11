@@ -24,7 +24,11 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::statement('ALTER TABLE notas_credito_debito MODIFY venta_id BIGINT UNSIGNED NULL');
+        // SQLite (tests) no soporta MODIFY COLUMN, y allá la columna ya nace nullable
+        // desde la migración de creación — mismo criterio que el resto del proyecto.
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement('ALTER TABLE notas_credito_debito MODIFY venta_id BIGINT UNSIGNED NULL');
+        }
     }
 
     public function down(): void
@@ -37,6 +41,8 @@ return new class extends Migration
             );
         }
 
-        DB::statement('ALTER TABLE notas_credito_debito MODIFY venta_id BIGINT UNSIGNED NOT NULL');
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement('ALTER TABLE notas_credito_debito MODIFY venta_id BIGINT UNSIGNED NOT NULL');
+        }
     }
 };

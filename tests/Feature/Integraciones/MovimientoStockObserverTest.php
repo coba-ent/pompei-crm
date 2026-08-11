@@ -197,6 +197,28 @@ class MovimientoStockObserverTest extends TestCase
         $this->assertFalse($vinculo->stock_pendiente);
     }
 
+    /**
+     * Mercado Libre descuenta el stock sólo de la publicación vendida. Si el producto tiene
+     * otras publicaciones, siguen ofreciendo el stock viejo y hay que empujarles el cambio:
+     * saltear el producto entero las dejaba desfasadas para siempre.
+     */
+    public function test_orden_de_ml_marca_pendientes_las_otras_publicaciones_del_producto(): void
+    {
+        Deposito::create(['nombre' => 'Principal', 'activo' => true]);
+        $producto = Producto::factory()->create(['tipo' => 'producto', 'iva_venta_pct' => '21', 'activo' => true]);
+
+        $otra = MercadoLibrePublicacionProducto::create([
+            'ml_item_id' => 'MLA2-OTRA-PUBLICACION',
+            'producto_id' => $producto->id,
+        ]);
+
+        $this->convertirOrdenMercadoLibre($producto, 2);
+
+        $vendida = MercadoLibrePublicacionProducto::where('ml_item_id', 'MLA1')->firstOrFail();
+        $this->assertFalse($vendida->fresh()->stock_pendiente, 'La publicación vendida ya la descontó ML.');
+        $this->assertTrue($otra->fresh()->stock_pendiente, 'La otra publicación quedó con el stock viejo.');
+    }
+
     public function test_venta_manual_sobre_mismo_producto_si_marca_pendiente_tras_una_orden_ml(): void
     {
         Deposito::create(['nombre' => 'Principal', 'activo' => true]);
