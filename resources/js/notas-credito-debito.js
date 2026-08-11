@@ -262,7 +262,7 @@
                 items[idx].cantidad = v;
                 renderItems();
             })));
-            $tr.append($('<td style="width:110px">').append($('<input type="text" inputmode="decimal" class="form-control form-control-sm" placeholder="Precio">').attr('data-idx', idx).attr('data-field', 'precio').val(precio ? precio : '').on('input', function () { items[idx].precio = normalizarDecimal($(this).val()); renderItems(); })));
+            $tr.append($('<td style="width:110px">').append($('<input type="text" inputmode="decimal" class="form-control form-control-sm" placeholder="Precio">').attr('data-idx', idx).attr('data-field', 'precio').val(item.precio ? item.precio : '').on('input', function () { items[idx].precio = normalizarDecimal($(this).val()); renderItems(); })));
             $tr.append($('<td style="width:90px">').append($('<input type="text" inputmode="decimal" class="form-control form-control-sm">').attr('data-idx', idx).attr('data-field', 'descuento_pct').val(item.descuento_pct || '').on('input', function () { items[idx].descuento_pct = normalizarDecimal($(this).val()); renderItems(); })));
             $tr.append($('<td>').text(money(subtotal)));
             $tr.append($('<td style="width:110px">').append($(selectHtml).attr('data-idx', idx).attr('data-field', 'iva_pct').on('change', function () { items[idx].iva_pct = $(this).val() || null; renderItems(); })));
