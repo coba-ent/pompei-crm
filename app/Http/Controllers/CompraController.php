@@ -428,7 +428,7 @@ class CompraController extends Controller
     public function show(Compra $compra)
     {
         $CurrentPage = 'compras';
-        $compra->load(['items', 'conceptos', 'proveedor.condicionIva', 'categoria', 'pagos.cuentaTesoreria', 'pagos.retenciones', 'notasCreditoDebito', 'remitos']);
+        $compra->load(['items', 'conceptos', 'proveedor.condicionIva', 'categoria', 'pagos.cuentaTesoreria', 'pagos.retenciones', 'comprobanteFiscal', 'notasCreditoDebito.comprobanteFiscal', 'notasCreditoDebito.notaAjustada.comprobanteFiscal', 'remitos']);
         $cuentas = CuentaTesoreria::visibles()->orderBy('orden')->orderBy('nombre')->get();
         $depositos = Deposito::where('activo', true)->orderBy('nombre')->get();
 

@@ -198,7 +198,7 @@
                 </div>
                 <div class="table-responsive">
                     <table class="table table-sm">
-                        <thead><tr><th>Id</th><th>Tipo</th><th>Fecha</th><th>Afecta Stock</th><th>Mes de Imputación</th><th>Monto</th><th></th></tr></thead>
+                        <thead><tr><th>Id</th><th>Tipo</th><th>Fecha</th><th>Afecta Stock</th><th>Mes de Imputación</th><th>N° Comprobante</th><th>Documento que Ajusta</th><th>Monto</th><th>Nota Interna</th><th></th></tr></thead>
                         <tbody>
                             @forelse ($venta->notasCreditoDebito as $nota)
                                 <tr>
@@ -207,7 +207,10 @@
                                     <td>{{ $nota->fecha_emision->format('d/m/Y') }}</td>
                                     <td>{{ $nota->afecta_stock ? 'Sí' : 'No' }}</td>
                                     <td>{{ $nota->mes_imputacion->format('m/Y') }}</td>
+                                    <td>{{ $nota->comprobanteFiscal?->numero ?? $nota->nro_comprobante ?? '-' }}</td>
+                                    <td>{{ $nota->documentoQueAjusta($venta) ?? '-' }}</td>
                                     <td>$ {{ number_format((float) $nota->monto, 2, ',', '.') }}</td>
+                                    <td>{{ $nota->nota_interna ?: '-' }}</td>
                                     <td class="dropdown">
                                         <a href="#" class="dropdown-toggle" data-bs-toggle="dropdown">Estado</a>
                                         <ul class="dropdown-menu">
@@ -218,7 +221,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="7" class="text-center text-muted">Sin notas</td></tr>
+                                <tr><td colspan="10" class="text-center text-muted">Sin notas</td></tr>
                             @endforelse
                         </tbody>
                     </table>

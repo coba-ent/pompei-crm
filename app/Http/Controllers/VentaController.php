@@ -539,7 +539,7 @@ class VentaController extends Controller
     public function show(Venta $venta)
     {
         $CurrentPage = 'ventas';
-        $venta->load(['items', 'conceptos', 'cliente.condicionIva', 'categoria', 'listaPrecio', 'vendedor', 'etiquetas', 'cobros.cuentaTesoreria', 'notasCreditoDebito', 'remitos', 'mlOrden']);
+        $venta->load(['items', 'conceptos', 'cliente.condicionIva', 'categoria', 'listaPrecio', 'vendedor', 'etiquetas', 'cobros.cuentaTesoreria', 'comprobanteFiscal', 'notasCreditoDebito.comprobanteFiscal', 'notasCreditoDebito.notaAjustada.comprobanteFiscal', 'remitos', 'mlOrden']);
         $cuentas = CuentaTesoreria::visibles()->paraCobrar()->orderBy('orden')->orderBy('nombre')->get();
         $depositos = Deposito::activos()->orderBy('nombre')->get();
 

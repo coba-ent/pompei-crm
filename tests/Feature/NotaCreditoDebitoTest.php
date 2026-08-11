@@ -54,6 +54,34 @@ class NotaCreditoDebitoTest extends TestCase
         $this->assertDatabaseHas('movimientos_stock', ['producto_id' => $producto->id, 'cantidad' => 3]);
     }
 
+    /** Spec 062 (T019/T021): alta de NC/ND con nota_interna persiste el valor; vacío no bloquea el alta. */
+    public function test_alta_de_nota_con_nota_interna_persiste_el_valor(): void
+    {
+        $cliente = Cliente::factory()->create();
+        $venta = Venta::factory()->create(['cliente_id' => $cliente->id, 'total' => 1000]);
+
+        $response = $this->postJson(route('ventas.notas.store', $venta), [
+            'tipo' => 'credito', 'afecta_stock' => false, 'descripcion' => 'Ajuste', 'nota_interna' => 'Uso interno',
+            'mes_imputacion' => now()->toDateString(), 'fecha_emision' => now()->toDateString(), 'monto' => 100,
+        ]);
+
+        $response->assertCreated()->assertJsonPath('ok', true);
+        $this->assertDatabaseHas('notas_credito_debito', ['venta_id' => $venta->id, 'nota_interna' => 'Uso interno']);
+    }
+
+    public function test_alta_de_nota_sin_nota_interna_no_bloquea_el_alta(): void
+    {
+        $cliente = Cliente::factory()->create();
+        $venta = Venta::factory()->create(['cliente_id' => $cliente->id, 'total' => 1000]);
+
+        $response = $this->postJson(route('ventas.notas.store', $venta), [
+            'tipo' => 'credito', 'afecta_stock' => false, 'descripcion' => 'Ajuste',
+            'mes_imputacion' => now()->toDateString(), 'fecha_emision' => now()->toDateString(), 'monto' => 100,
+        ]);
+
+        $response->assertCreated()->assertJsonPath('ok', true);
+    }
+
     public function test_nc_resta_y_nd_suma_en_la_barra_de_ecuacion_de_la_venta(): void
     {
         $cliente = Cliente::factory()->create();

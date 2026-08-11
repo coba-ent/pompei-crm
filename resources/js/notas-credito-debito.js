@@ -133,6 +133,7 @@
         $('#f-fecha-emision').val(notaExistente.fecha_emision);
         $('#f-tipo-comprobante').val(notaExistente.tipo_comprobante);
         $('#f-nro-comprobante').val(notaExistente.nro_comprobante);
+        $('#f-nota-interna').val(notaExistente.nota_interna);
     } else {
         const qs = data.queryString || {};
         $('#f-tipo').val(qs.tipo || 'credito').prop('disabled', false);
@@ -426,6 +427,7 @@
             monto: totalActual(),
             tipo_comprobante: $('#f-tipo-comprobante').val(),
             nro_comprobante: $('#f-nro-comprobante').val(),
+            nota_interna: $('#f-nota-interna').val(),
             descuento_general_tipo: $('#f-descuento-general-toggle').data('modo') || 'porcentaje',
             descuento_general_pct: ($('#f-descuento-general-toggle').data('modo') || 'porcentaje') === 'porcentaje' ? ($('#f-descuento-general').val() || null) : null,
             descuento_general_monto: ($('#f-descuento-general-toggle').data('modo') || 'porcentaje') === 'monto' ? ($('#f-descuento-general').val() || null) : null,

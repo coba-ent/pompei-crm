@@ -387,6 +387,15 @@ eran decorativos). `nota_credito_debito_items` (pivot `producto_id`
 > Alícuota IVA/Subtotal c/IVA del PDF real de Contagram. Detalle completo en
 > `specs/057-editar-eliminar-ncnd/data-model.md`.
 
+> **Ampliación spec 062 (fidelidad estructural de la tabla NC/ND)**: agrega `nota_interna` (text,
+> nullable — texto libre, mismo patrón que `nota_interna` en `ventas`/`compras`; no participa en el
+> cálculo de montos ni en la lógica fiscal). Además, la tabla "Notas de Crédito y Débito" del detalle
+> de Venta/Compra pasa a mostrar columnas derivadas de datos ya existentes (sin cambio de esquema):
+> Estado real (de `comprobanteFiscal` de la propia nota, no un menú), Comprobante/N° Comprobante (de
+> `tipo_comprobante`/`nro_comprobante`/`comprobanteFiscal`) y Documento que Ajusta (prioridad:
+> `nota_ajustada_id` si existe, si no el `comprobanteFiscal` de la Venta/Compra original, si no
+> vacío). Ver `specs/062-tabla-ncnd-fidelidad/data-model.md`.
+
 ### `retenciones` (Cobros y Pagos — **implementado en spec 009**)
 Confirmado contra `help.contagram.com/es/articles/1319082` (24/07/2026): el campo vive dentro de la
 sección de Cobranzas del Detalle de Venta (no en el modal simple de cobro), vía botón "Agregar

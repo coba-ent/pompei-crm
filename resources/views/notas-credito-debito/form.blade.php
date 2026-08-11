@@ -188,7 +188,7 @@
     $qs = request();
     $datosNota = $notaCreditoDebito ? $notaCreditoDebito->only([
         'id', 'tipo', 'afecta_stock', 'mes_imputacion', 'fecha_emision', 'monto',
-        'tipo_comprobante', 'nro_comprobante', 'descripcion',
+        'tipo_comprobante', 'nro_comprobante', 'descripcion', 'nota_interna',
         'descuento_general_tipo', 'descuento_general_pct', 'descuento_general_monto',
     ]) : null;
     if ($datosNota) {

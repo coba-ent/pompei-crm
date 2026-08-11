@@ -54,6 +54,32 @@ class NotaCreditoDebitoEditarTest extends TestCase
         $this->assertSame(-500.0, $venta->fresh()->aCobrar());
     }
 
+    /** Spec 062 (T020/T021): editar nota_interna persiste el valor; vacío no bloquea la edición. */
+    public function test_editar_nota_actualiza_nota_interna(): void
+    {
+        $venta = $this->crearVenta();
+
+        $this->postJson(route('ventas.notas.store', $venta), [
+            'tipo' => 'credito', 'afecta_stock' => false, 'descripcion' => 'Original',
+            'mes_imputacion' => now()->toDateString(), 'fecha_emision' => now()->toDateString(), 'monto' => 1000,
+        ])->assertCreated();
+
+        $nota = $venta->fresh()->notasCreditoDebito()->firstOrFail();
+        $this->assertNull($nota->nota_interna);
+
+        $this->putJson(route('ventas.notas.update', [$venta, $nota]), [
+            'tipo' => 'credito', 'afecta_stock' => false, 'descripcion' => 'Original', 'nota_interna' => 'Comentario interno',
+            'mes_imputacion' => now()->toDateString(), 'fecha_emision' => now()->toDateString(), 'monto' => 1000,
+        ])->assertOk();
+
+        $this->assertSame('Comentario interno', $nota->fresh()->nota_interna);
+
+        $this->putJson(route('ventas.notas.update', [$venta, $nota]), [
+            'tipo' => 'credito', 'afecta_stock' => false, 'descripcion' => 'Original', 'nota_interna' => '',
+            'mes_imputacion' => now()->toDateString(), 'fecha_emision' => now()->toDateString(), 'monto' => 1000,
+        ])->assertOk();
+    }
+
     /** T009 */
     public function test_editar_nota_que_afecta_stock_revierte_y_reaplica(): void
     {

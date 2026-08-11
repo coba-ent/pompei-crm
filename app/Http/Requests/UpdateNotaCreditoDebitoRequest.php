@@ -52,6 +52,7 @@ class UpdateNotaCreditoDebitoRequest extends FormRequest
             'items.*.descuento_pct' => 'nullable|numeric|between:0,100',
             'items.*.iva_pct' => 'nullable|numeric|gte:0',
             'descripcion' => 'required_unless:afecta_stock,1,true|nullable|string',
+            'nota_interna' => 'nullable|string',
             'fecha_emision' => 'required|date',
             'tipo_comprobante' => 'nullable|string',
             'nro_comprobante' => 'nullable|string',

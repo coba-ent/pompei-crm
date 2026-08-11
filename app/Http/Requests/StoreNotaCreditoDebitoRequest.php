@@ -48,6 +48,7 @@ class StoreNotaCreditoDebitoRequest extends FormRequest
             'items.*.cantidad' => 'required_with:items|numeric|gt:0',
             'items.*.precio' => 'nullable|numeric|gte:0',
             'descripcion' => 'required_unless:afecta_stock,1,true|nullable|string',
+            'nota_interna' => 'nullable|string',
             'fecha_emision' => 'required|date',
             'monto' => 'required|numeric|gt:0',
             'descuento_general_tipo' => 'nullable|in:porcentaje,monto',

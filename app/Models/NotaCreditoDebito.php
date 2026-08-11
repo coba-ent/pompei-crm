@@ -19,7 +19,8 @@ class NotaCreditoDebito extends Model
     protected $fillable = [
         'legacy_id',
         'venta_id', 'compra_id', 'nota_ajustada_id', 'tipo', 'afecta_stock', 'mes_imputacion',
-        'fecha_emision', 'monto', 'tipo_comprobante', 'nro_comprobante', 'descripcion', 'impuestos',
+        'fecha_emision', 'monto', 'tipo_comprobante', 'nro_comprobante', 'descripcion',
+        'nota_interna', 'impuestos',
         'descuento_general_tipo', 'descuento_general_pct', 'descuento_general_monto',
     ];
 
@@ -69,5 +70,37 @@ class NotaCreditoDebito extends Model
     public function tieneCaeAprobado(): bool
     {
         return $this->comprobanteFiscal?->aprobado() === true;
+    }
+
+    /**
+     * "Documento que Ajusta" a mostrar en la tabla (research.md R4): prioridad
+     * `notaAjustada` (encadenamiento, FR-013) sobre el comprobante fiscal de la
+     * Venta/Compra original. Null si no hay nada que mostrar.
+     */
+    public function documentoQueAjusta(Venta|Compra|null $comprobanteOriginal): ?string
+    {
+        if ($this->nota_ajustada_id) {
+            $notaAjustada = $this->notaAjustada;
+
+            if (! $notaAjustada) {
+                return null;
+            }
+
+            if ($notaAjustada->comprobanteFiscal?->aprobado()) {
+                return $notaAjustada->comprobanteFiscal->numero;
+            }
+
+            if ($notaAjustada->tipo_comprobante && $notaAjustada->nro_comprobante) {
+                return $notaAjustada->tipo_comprobante.' '.$notaAjustada->nro_comprobante;
+            }
+
+            return null;
+        }
+
+        if ($comprobanteOriginal?->comprobanteFiscal?->aprobado()) {
+            return $comprobanteOriginal->comprobanteFiscal->numero;
+        }
+
+        return null;
     }
 }
