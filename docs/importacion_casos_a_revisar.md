@@ -174,20 +174,21 @@ Lo que sí estaba mal, y se corrigió:
 - **Venta de ML `id 23746`** fechada 11/08 siendo del 10/08 23:52. Causa: el día se sacaba con
   `toDateString()` sobre un instante en UTC. Corregido en `b33ac9b`.
 
-### Pendiente: 5 ventas de ML y 86 órdenes con la fecha ambigua
+### Resuelto contra la API de Mercado Libre
 
-Ventas `17`, `47`, `57`, `64` y `66`: su `fecha_emision` no coincide con la fecha de su orden, pero
-**no se pudo determinar cuál de las dos es la correcta**. Todas son de alrededor de medianoche, y
-`ml_ordenes.fecha_creada` tiene hoy dos criterios mezclados:
+`ml_ordenes.fecha_creada` tenía dos criterios conviviendo (unas en UTC real, otras 4 horas atrás),
+y sobre órdenes de medianoche esa diferencia decide el día de la venta. No se podía inferir desde
+la base, así que **se le preguntó la fecha real a la API** orden por orden, usando el token que ya
+tiene el CRM: las 115 respondieron, 0 fallos.
 
-- las 29 órdenes que el cron volvió a tocar después del deploy del 10/08 21:19 están en UTC real;
-- las 86 restantes están 4 horas atrás — salvo cuatro del 06/08 que ya estaban bien.
+- **49 órdenes** estaban desfasadas, todas exactamente **+240 minutos**. Normalizadas a UTC.
+- **4 ventas** tenían la emisión un día antes: `64` → 01/08, `57` → 03/08, `47` → 04/08,
+  `17` → 06/08. La `66` ya estaba bien.
+- Re-verificado después de aplicar: **0 diferencias contra la API**.
 
-Sobre un horario cercano a las 00:00, esa ambigüedad de 3–4 horas decide el día. **Resolverlo
-requiere consultar la fecha real en la API de Mercado Libre**; no se puede inferir desde la base.
-No se hizo un `UPDATE +4h` masivo justamente porque habría roto esas cuatro.
-
-Las 86 se van corrigiendo solas a medida que el cron las vuelve a tocar.
+No se hizo un `UPDATE +4h` masivo, que era la salida "obvia": cuatro órdenes del 06/08 ya estaban
+correctas y habrían quedado rotas. Ante dos criterios mezclados, la corrección tiene que salir de
+la fuente, no de un patrón promedio.
 
 ## 9. Cosméticos
 
