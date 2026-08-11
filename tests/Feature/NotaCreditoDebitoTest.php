@@ -82,6 +82,30 @@ class NotaCreditoDebitoTest extends TestCase
         $response->assertCreated()->assertJsonPath('ok', true);
     }
 
+    /**
+     * Regresión: el alta descartaba silenciosamente tipo_comprobante/nro_comprobante tipeados
+     * en el form de creación (el campo existe en la UI desde spec 059, pero store()/storeCompra()
+     * nunca los leían de $datos — sólo aplicarEdicion() los persistía). Detectado en QA manual
+     * sobre una Compra real (11/08/2026): el usuario cargaba N° de Comprobante al crear la nota
+     * y la tabla lo mostraba en "-".
+     */
+    public function test_alta_de_nota_con_tipo_y_nro_comprobante_manuales_persiste_ambos(): void
+    {
+        $cliente = Cliente::factory()->create();
+        $venta = Venta::factory()->create(['cliente_id' => $cliente->id, 'total' => 1000]);
+
+        $response = $this->postJson(route('ventas.notas.store', $venta), [
+            'tipo' => 'credito', 'afecta_stock' => false, 'descripcion' => 'Ajuste',
+            'mes_imputacion' => now()->toDateString(), 'fecha_emision' => now()->toDateString(), 'monto' => 100,
+            'tipo_comprobante' => 'A', 'nro_comprobante' => '0002-88888888',
+        ]);
+
+        $response->assertCreated()->assertJsonPath('ok', true);
+        $this->assertDatabaseHas('notas_credito_debito', [
+            'venta_id' => $venta->id, 'tipo_comprobante' => 'A', 'nro_comprobante' => '0002-88888888',
+        ]);
+    }
+
     public function test_nc_resta_y_nd_suma_en_la_barra_de_ecuacion_de_la_venta(): void
     {
         $cliente = Cliente::factory()->create();

@@ -92,6 +92,27 @@ class NotaCreditoDebitoCompraTest extends TestCase
         $this->assertNull($nota->venta_id);
     }
 
+    /** Regresión: storeCompra() descartaba tipo_comprobante/nro_comprobante tipeados al crear. */
+    public function test_alta_de_nota_sobre_compra_con_nro_comprobante_manual_lo_persiste(): void
+    {
+        $compra = $this->crearCompra();
+
+        $this->postJson(route('compras.notas.store', $compra), [
+            'tipo' => 'credito',
+            'afecta_stock' => false,
+            'fecha_emision' => now()->toDateString(),
+            'monto' => 100,
+            'mes_imputacion' => now()->toDateString(),
+            'descripcion' => 'Ajuste',
+            'tipo_comprobante' => 'B',
+            'nro_comprobante' => '0002-88888888',
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('notas_credito_debito', [
+            'compra_id' => $compra->id, 'tipo_comprobante' => 'B', 'nro_comprobante' => '0002-88888888',
+        ]);
+    }
+
     private function crearCompraConProducto(\App\Models\Producto $producto, float $cantidad): Compra
     {
         $proveedor = Proveedor::factory()->create();
