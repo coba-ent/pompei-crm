@@ -118,13 +118,15 @@ class Compra extends Model
     /** Estado de pago derivado: a_pagar / parcial / pagado. Nunca forzable (Clarifications). */
     public function estadoPago(): string
     {
-        $pagado = $this->pagado();
-
-        if ($pagado <= 0) {
-            return 'a_pagar';
+        if ($this->aPagar() <= 0) {
+            return 'pagado';
         }
 
-        return $this->aPagar() > 0.005 ? 'parcial' : 'pagado';
+        if ($this->fecha_vto_pago && $this->fecha_vto_pago->isPast() && $this->aPagar() > 0.005) {
+            return 'vencido';
+        }
+
+        return $this->pagado() > 0 ? 'parcial' : 'a_pagar';
     }
 
     /** N° de comprobante correlativo simple por tipo (dato sin emisión fiscal — research.md §9). */

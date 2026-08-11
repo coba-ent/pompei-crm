@@ -43,7 +43,7 @@ class UpdateCompraRequest extends FormRequest
             'items' => 'required|array|min:1',
             'items.*.producto_id' => 'nullable|exists:productos,id',
             'items.*.descripcion' => 'required|string|max:255',
-            'items.*.cantidad' => 'required|numeric|gt:0',
+            'items.*.cantidad' => 'required|numeric|not_in:0',
             'items.*.precio_unitario' => 'required|numeric|gte:0',
             'items.*.descuento_pct' => 'nullable|numeric|between:0,100',
             'items.*.iva_pct' => 'nullable|string',

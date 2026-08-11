@@ -31,7 +31,13 @@ class StockDeCompra
         $deposito = $compra->deposito ?? $this->depositoPorDefecto();
 
         foreach ($items as $item) {
-            $this->stock->registrarEntrada($item->producto, null, $deposito, (float) $item->cantidad, $compra, fecha: $compra->fecha_emision->toDateString());
+            $cantidad = (float) $item->cantidad;
+
+            if ($cantidad > 0) {
+                $this->stock->registrarEntrada($item->producto, null, $deposito, $cantidad, $compra, fecha: $compra->fecha_emision->toDateString());
+            } else {
+                $this->stock->registrarSalida($item->producto, null, $deposito, abs($cantidad), $compra, fecha: $compra->fecha_emision->toDateString());
+            }
         }
     }
 
@@ -47,7 +53,13 @@ class StockDeCompra
         $deposito = $compra->deposito ?? $this->depositoPorDefecto();
 
         foreach ($items as $item) {
-            $this->stock->registrarSalida($item->producto, null, $deposito, (float) $item->cantidad, $compra);
+            $cantidad = (float) $item->cantidad;
+
+            if ($cantidad > 0) {
+                $this->stock->registrarSalida($item->producto, null, $deposito, $cantidad, $compra);
+            } else {
+                $this->stock->registrarEntrada($item->producto, null, $deposito, abs($cantidad), $compra);
+            }
         }
     }
 
@@ -65,7 +77,13 @@ class StockDeCompra
             $deposito = $depositoAnterior ?? $compra->deposito ?? $this->depositoPorDefecto();
 
             foreach ($anteriores as $item) {
-                $this->stock->registrarSalida($item->producto, null, $deposito, (float) $item->cantidad, $compra);
+                $cantidad = (float) $item->cantidad;
+
+                if ($cantidad > 0) {
+                    $this->stock->registrarSalida($item->producto, null, $deposito, $cantidad, $compra);
+                } else {
+                    $this->stock->registrarEntrada($item->producto, null, $deposito, abs($cantidad), $compra);
+                }
             }
         }
 

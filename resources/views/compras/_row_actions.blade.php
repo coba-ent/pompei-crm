@@ -2,11 +2,13 @@
     $badge = match ($compra->estadoPago()) {
         'pagado' => 'success',
         'parcial' => 'warning',
+        'vencido' => 'danger',
         default => 'danger',
     };
     $label = match ($compra->estadoPago()) {
         'pagado' => 'Pagado',
         'parcial' => 'Parcial',
+        'vencido' => 'Vencido',
         default => 'A Pagar',
     };
 @endphp

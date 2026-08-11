@@ -1070,6 +1070,15 @@ Subtotal con Descuento, Total Compra, Pagado, A Pagar, Etiquetas, Medio de Pago 
 Selector de columnas agrega CUIT, Servicio Desde/Hasta, Teléfono, Mail y otras. Estado editable inline
 ("Pagado"/"A Pagar", flecha desplegable).
 
+> **Ampliación spec 058 (11/08/2026, feedback directo de cliente)**: el badge de Estado y el filtro
+> "Estado del Pago" ganan un cuarto valor, "Vencido" (`fecha_vto_pago` pasada y saldo A Pagar > 0,
+> misma regla que el KPI "Vencido" ya existente) — antes sólo distinguían A Pagar/Parcial/Pagado. Una
+> compra 100% pagada nunca es "Vencida" aunque su vencimiento haya pasado. Además, los ítems del
+> formulario de Compra admiten **cantidad negativa** (el precio unitario sigue sin poder ser
+> negativo) para representar bonificaciones del proveedor dentro de la misma factura — confirmado
+> contra una captura real de Contagram aportada por el cliente. Un ítem negativo resta stock (en vez
+> de sumarlo) si el producto controla stock.
+
 **Filtros (12 campos, implementados 11/08/2026, spec 056)**: Id, Proveedor (multi-selección), Categoría
 de Compra (multi), Estado del Pago (A Pagar/Parcial/Pagado/**Vencido**, agregado 11/08/2026 — mismo
 criterio que la card KPI "Vencido"), Tipo y N° de Factura, Etiqueta (multi),
