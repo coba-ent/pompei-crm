@@ -137,6 +137,8 @@ class NotaCreditoDebitoController extends Controller
                         'producto_id' => $producto->id,
                         'cantidad' => $item['cantidad'],
                         'precio' => $item['precio'] ?? 0,
+                        'descuento_pct' => $item['descuento_pct'] ?? 0,
+                        'iva_pct' => $item['iva_pct'] ?? null,
                         'origen' => 'venta_original',
                     ]);
 
@@ -150,6 +152,21 @@ class NotaCreditoDebitoController extends Controller
                         null,
                         $nota,
                     );
+                }
+            } elseif (! empty($datos['items'])) {
+                // Sin stock: no hay StockService de por medio, pero igual se persiste el ítem
+                // (precio/IVA/desc.) para que la edición pueda reconstruirlo — antes se perdía
+                // en silencio y el form de editar quedaba con el IVA en "Elegir" (detectado en
+                // QA manual 11/08/2026).
+                foreach ($datos['items'] as $item) {
+                    $nota->items()->create([
+                        'producto_id' => $item['producto_id'] ?? null,
+                        'cantidad' => $item['cantidad'] ?? 1,
+                        'precio' => $item['precio'] ?? 0,
+                        'descuento_pct' => $item['descuento_pct'] ?? 0,
+                        'iva_pct' => $item['iva_pct'] ?? null,
+                        'origen' => 'nuevo',
+                    ]);
                 }
             }
 
@@ -270,6 +287,8 @@ class NotaCreditoDebitoController extends Controller
                         'producto_id' => $producto->id,
                         'cantidad' => $item['cantidad'],
                         'precio' => $item['precio'] ?? 0,
+                        'descuento_pct' => $item['descuento_pct'] ?? 0,
+                        'iva_pct' => $item['iva_pct'] ?? null,
                         'origen' => 'venta_original',
                     ]);
 
@@ -283,6 +302,18 @@ class NotaCreditoDebitoController extends Controller
                         null,
                         $nota,
                     );
+                }
+            } elseif (! empty($datos['items'])) {
+                // Sin stock: idem store() — persistir el ítem para que la edición lo reconstruya.
+                foreach ($datos['items'] as $item) {
+                    $nota->items()->create([
+                        'producto_id' => $item['producto_id'] ?? null,
+                        'cantidad' => $item['cantidad'] ?? 1,
+                        'precio' => $item['precio'] ?? 0,
+                        'descuento_pct' => $item['descuento_pct'] ?? 0,
+                        'iva_pct' => $item['iva_pct'] ?? null,
+                        'origen' => 'nuevo',
+                    ]);
                 }
             }
 

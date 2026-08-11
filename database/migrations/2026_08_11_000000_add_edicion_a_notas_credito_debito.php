@@ -2,7 +2,6 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /** Spec 057: campos de edición (comprobante propio, encadenamiento, ítems con IVA). */
@@ -21,17 +20,17 @@ return new class extends Migration
             $table->decimal('iva_pct', 5, 2)->nullable()->after('descuento_pct');
         });
 
-        // producto_id pasa a ser nullable — sin doctrine/dbal, SQL crudo (MySQL en prod, no-op en SQLite de tests).
-        if (DB::connection()->getDriverName() === 'mysql') {
-            DB::statement('ALTER TABLE nota_credito_debito_items MODIFY producto_id BIGINT UNSIGNED NULL');
-        }
+        // producto_id pasa a ser nullable (items sin stock, sin producto asociado — sólo desc. libre).
+        Schema::table('nota_credito_debito_items', function (Blueprint $table) {
+            $table->unsignedBigInteger('producto_id')->nullable()->change();
+        });
     }
 
     public function down(): void
     {
-        if (DB::connection()->getDriverName() === 'mysql') {
-            DB::statement('ALTER TABLE nota_credito_debito_items MODIFY producto_id BIGINT UNSIGNED NOT NULL');
-        }
+        Schema::table('nota_credito_debito_items', function (Blueprint $table) {
+            $table->unsignedBigInteger('producto_id')->nullable(false)->change();
+        });
 
         Schema::table('nota_credito_debito_items', function (Blueprint $table) {
             $table->dropColumn(['descuento_pct', 'iva_pct']);

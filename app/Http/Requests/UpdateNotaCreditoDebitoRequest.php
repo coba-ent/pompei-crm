@@ -46,7 +46,7 @@ class UpdateNotaCreditoDebitoRequest extends FormRequest
             'mes_imputacion' => 'required|date',
             'deposito_id' => 'required_if:afecta_stock,1,true|nullable|exists:depositos,id',
             'items' => 'required_if:afecta_stock,1,true|array',
-            'items.*.producto_id' => 'required_with:items|exists:productos,id',
+            'items.*.producto_id' => 'required_if:afecta_stock,1,true|nullable|exists:productos,id',
             'items.*.cantidad' => 'required_with:items|numeric|gt:0',
             'items.*.precio' => 'nullable|numeric|gte:0',
             'items.*.descuento_pct' => 'nullable|numeric|between:0,100',

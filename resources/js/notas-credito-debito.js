@@ -247,7 +247,15 @@
 
             const opcionesIva = ['', '5', '10.5', '21', '27', 'exento', 'no_gravado'];
             const etiquetas = { '': 'Elegir', '5': '5', '10.5': '10,5', '21': '21', '27': '27', exento: 'Exento', no_gravado: 'No Gravado' };
-            const selectHtml = '<select class="form-select form-select-sm">' + opcionesIva.map((v) => '<option value="' + v + '"' + (v === (item.iva_pct || '') ? ' selected' : '') + '>' + etiquetas[v] + '</option>').join('') + '</select>';
+            // item.iva_pct puede venir del backend como number (21) o string con dos decimales
+            // ("21.00", cast decimal:2 de NotaCreditoDebitoItem) — comparar como float en vez de
+            // string estricta, si no la precarga en edición nunca marcaba ninguna opción.
+            const ivaSeleccionado = (v) => {
+                if (v === '') { return item.iva_pct === null || item.iva_pct === undefined || item.iva_pct === ''; }
+                if (v === 'exento' || v === 'no_gravado') { return v === item.iva_pct; }
+                return item.iva_pct !== null && item.iva_pct !== undefined && item.iva_pct !== '' && parseFloat(v) === parseFloat(item.iva_pct);
+            };
+            const selectHtml = '<select class="form-select form-select-sm">' + opcionesIva.map((v) => '<option value="' + v + '"' + (ivaSeleccionado(v) ? ' selected' : '') + '>' + etiquetas[v] + '</option>').join('') + '</select>';
 
             const $tr = $('<tr>');
             if (afectaStock) {
@@ -444,6 +452,15 @@
             }));
         } else {
             p.descripcion = items[0]?.descripcion || '';
+            // Se persiste igual como ítem (precio/IVA/desc.) aunque no afecte stock, para que
+            // la edición pueda reconstruir el IVA seleccionado — antes se perdía en silencio.
+            p.items = [{
+                producto_id: null,
+                cantidad: items[0]?.cantidad || 1,
+                precio: items[0]?.precio || 0,
+                descuento_pct: items[0]?.descuento_pct || 0,
+                iva_pct: items[0]?.iva_pct || null,
+            }];
         }
         return p;
     }

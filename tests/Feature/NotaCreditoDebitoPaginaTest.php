@@ -140,4 +140,43 @@ class NotaCreditoDebitoPaginaTest extends TestCase
         $response->assertOk();
         $response->assertSee('"producto_id":'.$producto->id, false);
     }
+
+    /**
+     * Regresión: una nota sin stock (afecta_stock=false) no persistía el ítem (precio/IVA/desc.)
+     * en absoluto — sólo el monto agregado y la descripción libre. Al editar, el form no tenía de
+     * dónde reconstruir el IVA seleccionado (quedaba en "Elegir") ni el precio real de la línea
+     * (caía al monto total con IVA incluido). Detectado en QA manual (11/08/2026).
+     */
+    public function test_pagina_editar_nota_sin_stock_precarga_precio_e_iva_del_item(): void
+    {
+        $proveedor = Proveedor::factory()->create();
+        $deposito = Deposito::create(['nombre' => 'Principal', 'activo' => true]);
+        $compra = Compra::factory()->create(['proveedor_id' => $proveedor->id, 'deposito_id' => $deposito->id, 'total' => 1000]);
+
+        $this->postJson(route('compras.notas.store', $compra), [
+            'tipo' => 'credito',
+            'afecta_stock' => false,
+            'descripcion' => 'Item con IVA 21',
+            'mes_imputacion' => now()->toDateString(),
+            'fecha_emision' => now()->toDateString(),
+            'monto' => 1210,
+            'tipo_comprobante' => 'A',
+            'nro_comprobante' => '0003-11112222',
+            'items' => [
+                ['producto_id' => null, 'cantidad' => 1, 'precio' => 1000, 'iva_pct' => '21', 'descuento_pct' => 0],
+            ],
+        ])->assertCreated();
+
+        $nota = $compra->fresh()->notasCreditoDebito()->firstOrFail();
+        $this->assertSame(1, $nota->items()->count());
+        $item = $nota->items()->first();
+        $this->assertSame(1000.0, (float) $item->precio);
+        $this->assertSame(21.0, (float) $item->iva_pct);
+
+        $response = $this->get(route('compras.notas.edit', [$compra, $nota]));
+
+        $response->assertOk();
+        $response->assertSee('"precio":1000', false);
+        $response->assertSee('"iva_pct":21', false);
+    }
 }
