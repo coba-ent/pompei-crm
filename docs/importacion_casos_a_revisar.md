@@ -190,6 +190,38 @@ No se hizo un `UPDATE +4h` masivo, que era la salida "obvia": cuatro órdenes de
 correctas y habrían quedado rotas. Ante dos criterios mezclados, la corrección tiene que salir de
 la fuente, no de un patrón promedio.
 
+## 8c. Tipificación de cuentas de tesorería — corregido el 11/08/2026
+
+El `tipo` de cada cuenta decide en qué bloque del panel cae su saldo (Disponible Cajas/Bancos,
+A Cobrar, A Pagar). No afecta ningún movimiento ni importe, sólo dónde se muestra y cómo se suma.
+Venía mal desde el alta y la migración lo dejó a la vista:
+
+| Cuenta | Antes | Ahora | Por qué |
+|---|---|---|---|
+| Banco Credicoop | `a_cobrar` | `banco` | 575 pagos y 2.187 gastos: es la segunda cuenta de gastos del negocio |
+| Maestro, Cabal, Cabal Acreditaciones, Cabal Credicoop, Visa Credicoop | `banco` | `a_cobrar` | Se acreditan a plazo, igual que VISA/Mastercard/AMEX/PAYWAY, que ya eran `a_cobrar` |
+| Juan USD Personal | `a_cobrar` | `efectivo` | Es una caja, no un saldo a cobrar |
+
+Efecto en el panel: Disponible pasó de $30.646.344,48 a **$30.912.813,99** y A Cobrar de
+$4.164.415,63 a **$3.897.946,11**. El total general quedó idéntico ($34.394.009,33), como debía.
+
+Las 7 cuentas sin movimientos (VISA Corporativa, Visa Credicoop, Caja chica gastos, Caja General,
+Cabal Credicoop A Pagar, Cabal Acreditaciones, Cabal Credicoop) se dejaron visibles por decisión
+del usuario.
+
+### Las cuentas "USD" están en pesos
+
+`USD Online` ($3.991.824,57) y `USD Local` ($235.600) registran operaciones en dólares pero
+**valuadas en pesos**, así que sumarlas al Disponible es correcto y no hace falta un campo de
+moneda. La prueba: hay `movimiento_entre_cuentas` entre `USD Local` y `Caja del Local` (una caja en
+pesos) **sin conversión alguna** — imposible si fueran monedas distintas.
+
+### Pendiente: Mastercard con saldo negativo
+
+`Mastercard` cierra en **-$442.152,98** con 719 cobros y 0 pagos. Una cuenta de tarjeta por cobrar
+no debería deber plata; el negativo sale de acreditaciones que superan lo migrado. No es un problema
+de tipificación y quedó sin analizar.
+
 ## 9. Cosméticos
 
 - **~1.446 clientes con `created_at` con día y mes invertidos**, del import anterior.

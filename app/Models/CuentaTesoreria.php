@@ -52,13 +52,13 @@ class CuentaTesoreria extends Model
      * NO existe un `paraPagar()` simétrico, y es a propósito.
      *
      * La regla espejo —excluir `a_cobrar` de pagos y gastos— parecía obvia pero **los datos la
-     * desmienten**: sobre seis años de histórico, `Banco Credicoop` está tipificada `a_cobrar` y
-     * tiene 456 pagos y 2.158 gastos (es la segunda cuenta de gastos del negocio), y
-     * `Juan USD Personal` y `Cheque de Terceros` también se usan en los dos sentidos. Filtrar por
-     * tipo del lado de los egresos les sacaría del selector cuentas que se usan todos los días.
+     * desmienten**: hay cuentas `a_cobrar` con egresos reales (`Cheque de Terceros` tiene 10 pagos
+     * y 2 gastos, `PAYWAY QR` un pago, `Mastercard` un gasto). Un cheque de tercero se recibe para
+     * cobrar y se endosa para pagar: las dos direcciones son legítimas sobre la misma cuenta.
      *
-     * Verificado el 10/08/2026. Si alguna vez se corrige la tipificación de esas cuentas, recién
-     * ahí tiene sentido volver a plantearlo.
+     * El caso que originalmente motivó esta nota —`Banco Credicoop` tipificada `a_cobrar` con 575
+     * pagos y 2.187 gastos— ya no aplica: el 11/08/2026 se corrigió a `banco`, junto con las cinco
+     * tarjetas que estaban como `banco` y `Juan USD Personal` que pasó a `efectivo`.
      */
 
     public function esCaja(): bool
