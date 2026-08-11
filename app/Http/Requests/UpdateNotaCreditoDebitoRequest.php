@@ -62,6 +62,10 @@ class UpdateNotaCreditoDebitoRequest extends FormRequest
             'descuento_general_tipo' => 'nullable|in:porcentaje,monto',
             'descuento_general_pct' => 'nullable|numeric|between:0,100',
             'descuento_general_monto' => 'nullable|numeric|min:0',
+            'conceptos' => 'nullable|array',
+            'conceptos.*.tipo' => 'required_with:conceptos|in:percepcion,impuesto_interno,interes',
+            'conceptos.*.concepto' => 'required_with:conceptos|string|max:255',
+            'conceptos.*.monto' => 'required_with:conceptos|numeric',
         ];
     }
 

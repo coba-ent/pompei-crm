@@ -85,6 +85,7 @@
     const notaExistente = data.notaCreditoDebito || null;
     const editando = !!notaExistente;
     let itemsDisponibles = [];
+    let conceptos = Array.isArray(data.conceptos) && data.conceptos.length ? data.conceptos.slice() : [];
 
     let afectaStock = editando
         ? !!notaExistente.afecta_stock
@@ -341,11 +342,12 @@
             totalConIva += subtotalConIva * factor;
         });
         const descuento = subtotalSinDescuento - subtotalConDescuento;
+        const totalConceptos = conceptos.reduce((acc, c) => acc + (Number(c.monto) || 0), 0);
 
         $('#tot-subtotal-sin-descuento').text(money(subtotalSinDescuento));
         $('#tot-descuento').text(money(descuento));
         $('#tot-subtotal-con-descuento').text(money(subtotalConDescuento));
-        $('#tot-total').text(money(totalConIva));
+        $('#tot-total').text(money(totalConIva + totalConceptos));
     }
     $('#f-descuento-general').on('input', recalcular);
 
@@ -359,8 +361,31 @@
         $('#f-descuento-general').val(notaExistente.descuento_general_pct);
     }
 
-    // Los bloques +Percepciones/+Impuestos Internos/+Intereses quedan fuera de alcance (FR-003).
-    $('.js-concepto-noop').on('click', function (e) { e.preventDefault(); });
+    // Percepciones/Impuestos Internos/Intereses (spec 061) — mismo patrón que compras.js/ventas.js.
+    const PERCEPCIONES = ['IVA (Percepción)', 'Ganancias', 'Sellos', 'IIBB Buenos Aires', 'IIBB CABA', 'IIBB Catamarca', 'IIBB Chaco', 'IIBB Chubut', 'IIBB Córdoba', 'IIBB Corrientes', 'IIBB Entre Ríos', 'IIBB Formosa', 'IIBB Jujuy', 'IIBB La Pampa', 'IIBB La Rioja', 'IIBB Mendoza', 'IIBB Misiones', 'IIBB Neuquén', 'IIBB Río Negro', 'IIBB Salta', 'IIBB San Juan', 'IIBB San Luis', 'IIBB Santa Cruz', 'IIBB Santa Fe', 'IIBB Santiago del Estero', 'IIBB Tierra del Fuego', 'IIBB Tucumán'];
+
+    function renderConceptos() {
+        const $body = $('#conceptos-body').empty();
+        const etiquetas = { percepcion: 'Percepción', impuesto_interno: 'Impuesto Interno', interes: 'Interés' };
+        conceptos.forEach((c, idx) => {
+            const $row = $('<div class="input-group input-group-sm mb-2">');
+            $row.append($('<span class="input-group-text">').text(etiquetas[c.tipo] || c.tipo));
+            if (c.tipo === 'percepcion') {
+                const $select = $('<select class="form-select"><option value="">Seleccionar...</option></select>');
+                PERCEPCIONES.forEach((p) => { $select.append($('<option>').val(p).text(p)); });
+                $select.val(c.concepto || '').on('change', function () { conceptos[idx].concepto = $(this).val(); });
+                $row.append($select);
+            } else {
+                $row.append($('<input type="text" class="form-control" placeholder="Concepto">').val(c.concepto || '').on('input', function () { conceptos[idx].concepto = $(this).val(); }));
+            }
+            $row.append($('<input type="text" inputmode="decimal" class="form-control" placeholder="Monto">').val(c.monto || '').on('input', function () { conceptos[idx].monto = normalizarDecimal($(this).val()); recalcular(); }));
+            $row.append($('<button type="button" class="btn btn-outline-danger"><i class="fas fa-trash"></i></button>').on('click', () => { conceptos.splice(idx, 1); renderConceptos(); recalcular(); }));
+            $body.append($row);
+        });
+    }
+
+    $('.js-add-concepto').on('click', function (e) { e.preventDefault(); conceptos.push({ tipo: $(this).data('tipo'), concepto: '', monto: 0 }); renderConceptos(); });
+    renderConceptos();
 
     toggleStock();
 
@@ -388,7 +413,8 @@
             const subtotalConIva = subtotal + (subtotal * ivaPct / 100);
             total += subtotalConIva * factor;
         });
-        return Math.round(total * 100) / 100;
+        const totalConceptos = conceptos.reduce((acc, c) => acc + (Number(c.monto) || 0), 0);
+        return Math.round((total + totalConceptos) * 100) / 100;
     }
 
     function payload() {
@@ -403,6 +429,7 @@
             descuento_general_tipo: $('#f-descuento-general-toggle').data('modo') || 'porcentaje',
             descuento_general_pct: ($('#f-descuento-general-toggle').data('modo') || 'porcentaje') === 'porcentaje' ? ($('#f-descuento-general').val() || null) : null,
             descuento_general_monto: ($('#f-descuento-general-toggle').data('modo') || 'porcentaje') === 'monto' ? ($('#f-descuento-general').val() || null) : null,
+            conceptos: conceptos.filter((c) => c.concepto),
         };
         if (afectaStock) {
             p.deposito_id = $('#f-deposito').val();

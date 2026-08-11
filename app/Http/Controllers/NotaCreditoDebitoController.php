@@ -120,6 +120,7 @@ class NotaCreditoDebitoController extends Controller
                 'descuento_general_tipo' => $datos['descuento_general_tipo'] ?? 'porcentaje',
                 'descuento_general_pct' => ($datos['descuento_general_tipo'] ?? 'porcentaje') === 'monto' ? null : ($datos['descuento_general_pct'] ?? null),
                 'descuento_general_monto' => ($datos['descuento_general_tipo'] ?? 'porcentaje') === 'monto' ? ($datos['descuento_general_monto'] ?? null) : null,
+                'impuestos' => $datos['conceptos'] ?? [],
             ]);
 
             if ($afectaStock) {
@@ -250,6 +251,7 @@ class NotaCreditoDebitoController extends Controller
                 'descuento_general_tipo' => $datos['descuento_general_tipo'] ?? 'porcentaje',
                 'descuento_general_pct' => ($datos['descuento_general_tipo'] ?? 'porcentaje') === 'monto' ? null : ($datos['descuento_general_pct'] ?? null),
                 'descuento_general_monto' => ($datos['descuento_general_tipo'] ?? 'porcentaje') === 'monto' ? ($datos['descuento_general_monto'] ?? null) : null,
+                'impuestos' => $datos['conceptos'] ?? [],
             ]);
 
             if ($afectaStock) {
@@ -334,6 +336,7 @@ class NotaCreditoDebitoController extends Controller
                 'descuento_general_tipo' => $datos['descuento_general_tipo'] ?? 'porcentaje',
                 'descuento_general_pct' => ($datos['descuento_general_tipo'] ?? 'porcentaje') === 'monto' ? null : ($datos['descuento_general_pct'] ?? null),
                 'descuento_general_monto' => ($datos['descuento_general_tipo'] ?? 'porcentaje') === 'monto' ? ($datos['descuento_general_monto'] ?? null) : null,
+                'impuestos' => $datos['conceptos'] ?? [],
             ]);
 
             $nota->items()->delete();

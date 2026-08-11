@@ -357,8 +357,11 @@ NULL, agregado en spec 045 — se persiste con día fijado a `01`, representa "m
 para el informe al Contador, independiente de `fecha_emision`; precargado por defecto con el
 mes/año de `fecha_emision` al crear la nota, editable), fecha_emision (date), monto
 (decimal(14,2)), tipo_comprobante (string, igual al del comprobante original), descripcion (text,
-nullable — obligatoria si no afecta stock), impuestos (json, nullable — conceptos de impuesto
-aplicados, mismo patrón que `presupuesto_conceptos`). `nota_credito_debito_items` (pivot `producto_id`
+nullable — obligatoria si no afecta stock), impuestos (json, nullable — array de `{tipo, concepto,
+monto}`, mismo patrón que `presupuesto_conceptos`/`venta_conceptos`/`compra_conceptos` pero embebido
+en JSON en vez de tabla propia; **conectado a la UI en spec 061** — hasta esa spec la columna existía
+sin usarse, los bloques "+Percepciones/+Impuestos Internos/+Intereses" de la página completa de NC/ND
+eran decorativos). `nota_credito_debito_items` (pivot `producto_id`
 + `cantidad` + `precio`, con flag `origen` = `venta_original`/`nuevo`) sólo si `afecta_stock = true`.
 
 > **Columnas nuevas (spec 060, pendiente de implementar)**: `descuento_general_tipo`

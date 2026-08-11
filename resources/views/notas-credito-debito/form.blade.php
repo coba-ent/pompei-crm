@@ -141,10 +141,11 @@
                                 </div>
                             </div>
 
+                            <div id="conceptos-body" class="mb-2"></div>
                             <div class="d-flex gap-3 mb-3">
-                                <a href="#" class="js-concepto-noop" data-tipo="percepcion">+ Percepciones</a>
-                                <a href="#" class="js-concepto-noop" data-tipo="impuesto_interno">+ Impuestos Internos</a>
-                                <a href="#" class="js-concepto-noop" data-tipo="interes">+ Intereses</a>
+                                <a href="#" class="js-add-concepto" data-tipo="percepcion">+ Percepciones</a>
+                                <a href="#" class="js-add-concepto" data-tipo="impuesto_interno">+ Impuestos Internos</a>
+                                <a href="#" class="js-add-concepto" data-tipo="interes">+ Intereses</a>
                             </div>
 
                             <table class="table table-sm mb-0" id="tabla-totales">
@@ -211,6 +212,7 @@
         esVenta: @json($esVenta),
         notaCreditoDebito: @json($datosNota),
         items: @json($datosItems),
+        conceptos: @json($notaCreditoDebito->impuestos ?? []),
         descripcionLibre: @json($notaCreditoDebito?->descripcion),
         queryString: {
             tipo: @json($qs->query('tipo')),

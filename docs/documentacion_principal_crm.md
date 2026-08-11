@@ -515,6 +515,11 @@ Otros Ingresos y Abonos son independientes.
   > 2do paso de modal) tanto al crear como al editar. Spec 059 corrige la UI para que coincida con lo
   > ya documentado acá, sin tocar el backend de spec 057. Además: en el modal de Editar, "¿Afecta
   > Stock?" queda deshabilitado junto con el Tipo (spec 057 sólo bloqueaba el Tipo).
+  > **Corrección spec 061 (11/08/2026)**: los bloques +Percepciones/+Impuestos Internos/+Intereses
+  > que spec 059 dejó sin funcionalidad (FR-003 de esa spec) pasan a ser funcionales — mismo
+  > comportamiento que ya tenían en Ventas/Compras/Presupuestos (selector de percepción del catálogo
+  > fijo de 27, o texto libre para impuesto interno/interés, + monto, sumados al Total), persistidos
+  > en la columna `notas_credito_debito.impuestos` (json) que ya existía sin usarse.
 - **Agregar Retención** *(corroborado, ver §3.6 — resuelve la duda abierta en
   `informe_contagram_funciones_avanzadas.md`)*: no está en el modal simple "Nuevo Cobro"; el botón vive
   **dentro de la sección de Cobranzas del Detalle de Venta**. Campos: Fecha, Monto, Tipo de Retención,
