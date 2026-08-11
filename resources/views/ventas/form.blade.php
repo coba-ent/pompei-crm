@@ -13,9 +13,11 @@
                 <button type="button" class="btn btn-outline-primary" id="btn-guardar-venta">
                     <i class="fas fa-save me-1"></i> Guardar
                 </button>
-                <button type="button" class="btn btn-success" id="btn-cobrar-venta">
-                    <i class="fas fa-dollar-sign me-1"></i> Cobrar
-                </button>
+                @unless ($venta)
+                    <button type="button" class="btn btn-success" id="btn-cobrar-venta">
+                        <i class="fas fa-dollar-sign me-1"></i> Cobrar
+                    </button>
+                @endunless
             </div>
         </div>
 

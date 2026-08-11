@@ -734,7 +734,7 @@
 
         $('#btn-agregar-nota').on('click', function () {
             const $doc = $('#ncnd-documento').empty();
-            $doc.append(new Option(data.nroComprobante, data.compraId, true, true));
+            $doc.append(new Option(data.nroComprobante || 'Sin comprobante', data.compraId, true, true));
             const hoy = new Date();
             $('#ncnd-fecha').val(hoy.toISOString().slice(0, 10));
             $('#ncnd-mes-imputacion').val(hoy.toISOString().slice(0, 7));

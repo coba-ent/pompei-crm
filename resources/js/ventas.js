@@ -1213,7 +1213,7 @@
 
         $('#btn-agregar-nota').on('click', function () {
             const $doc = $('#ncnd-documento').empty();
-            $doc.append(new Option(data.nroComprobante, data.ventaId, true, true));
+            $doc.append(new Option(data.nroComprobante || 'Sin comprobante', data.ventaId, true, true));
             const hoy = new Date();
             $('#ncnd-fecha').val(hoy.toISOString().slice(0, 10));
             $('#ncnd-mes-imputacion').val(hoy.toISOString().slice(0, 7));
