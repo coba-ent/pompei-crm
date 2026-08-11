@@ -24,7 +24,8 @@ class OtroIngresoController extends Controller
     {
         $CurrentPage = 'otros-ingresos';
         $categorias = Categoria::deIngreso()->activas()->orderBy('nombre')->get();
-        $cuentas = CuentaTesoreria::visibles()->orderBy('orden')->orderBy('nombre')->get();
+        // Un ingreso entra a una caja, un banco o una cuenta a cobrar.
+        $cuentas = CuentaTesoreria::visibles()->paraCobrar()->orderBy('orden')->orderBy('nombre')->get();
 
         return view('otros-ingresos.index', compact('CurrentPage', 'categorias', 'cuentas'));
     }

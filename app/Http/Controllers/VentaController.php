@@ -57,7 +57,8 @@ class VentaController extends Controller
             'categoriasVenta' => Categoria::venta()->activas()->orderBy('nombre')->get(['id', 'nombre']),
             'vendedores' => Vendedor::orderBy('nombre')->get(['id', 'nombre']),
             'etiquetas' => Etiqueta::orderBy('nombre')->get(['id', 'nombre']),
-            'cuentasTesoreria' => CuentaTesoreria::visibles()->orderBy('orden')->orderBy('nombre')->get(['id', 'nombre']),
+            // paraCobrar(): en una cobranza sólo tienen sentido las cuentas donde entra plata.
+            'cuentasTesoreria' => CuentaTesoreria::visibles()->paraCobrar()->orderBy('orden')->orderBy('nombre')->get(['id', 'nombre']),
             'depositos' => Deposito::activos()->orderBy('nombre')->get(['id', 'nombre']),
             'usuarios' => \App\Models\User::orderBy('name')->get(['id', 'name']),
         ]);
@@ -497,7 +498,7 @@ class VentaController extends Controller
     {
         $CurrentPage = 'ventas';
         $venta->load(['items', 'conceptos', 'cliente.condicionIva', 'categoria', 'listaPrecio', 'vendedor', 'etiquetas', 'cobros.cuentaTesoreria', 'notasCreditoDebito', 'remitos', 'mlOrden']);
-        $cuentas = CuentaTesoreria::visibles()->orderBy('orden')->orderBy('nombre')->get();
+        $cuentas = CuentaTesoreria::visibles()->paraCobrar()->orderBy('orden')->orderBy('nombre')->get();
         $depositos = Deposito::activos()->orderBy('nombre')->get();
 
         return view('ventas.detalle', compact('CurrentPage', 'venta', 'cuentas', 'depositos'));

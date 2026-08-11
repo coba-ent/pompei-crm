@@ -36,6 +36,31 @@ class CuentaTesoreria extends Model
         return $query->where('tipo', $tipo);
     }
 
+    /**
+     * Cuentas donde puede **entrar** plata: cobranzas y otros ingresos.
+     *
+     * Excluye las de tipo `a_pagar` — tarjeta corporativa, cheques propios, resúmenes a pagar —
+     * que son pasivos y no reciben cobros. No es una restricción teórica: en los seis años de
+     * histórico de Contagram no hay **ni un solo cobro** en una cuenta `a_pagar`, sobre 23.173.
+     */
+    public function scopeParaCobrar(Builder $query): Builder
+    {
+        return $query->whereIn('tipo', ['efectivo', 'banco', 'a_cobrar']);
+    }
+
+    /**
+     * NO existe un `paraPagar()` simétrico, y es a propósito.
+     *
+     * La regla espejo —excluir `a_cobrar` de pagos y gastos— parecía obvia pero **los datos la
+     * desmienten**: sobre seis años de histórico, `Banco Credicoop` está tipificada `a_cobrar` y
+     * tiene 456 pagos y 2.158 gastos (es la segunda cuenta de gastos del negocio), y
+     * `Juan USD Personal` y `Cheque de Terceros` también se usan en los dos sentidos. Filtrar por
+     * tipo del lado de los egresos les sacaría del selector cuentas que se usan todos los días.
+     *
+     * Verificado el 10/08/2026. Si alguna vez se corrige la tipificación de esas cuentas, recién
+     * ahí tiene sentido volver a plantearlo.
+     */
+
     public function esCaja(): bool
     {
         return $this->tipo === 'efectivo';
