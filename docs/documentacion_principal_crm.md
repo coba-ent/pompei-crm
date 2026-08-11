@@ -495,7 +495,16 @@ Otros Ingresos y Abonos son independientes.
   Internos/+Intereses, panel de totales con IVA discriminado, y botón **Eliminar** disponible
   también ahí (además del menú de fila). Brecha estructural respecto a `NotaCreditoDebito`/
   `NotaCreditoDebitoItem` (spec 039/045), que hoy sólo persiste `monto` + `descripcion` sin ítems
-  con IVA propio ni comprobante propio — pendiente de spec dedicado.
+  con IVA propio ni comprobante propio — cerrada por spec 057 (backend: comprobante propio, ítems
+  con IVA, encadenamiento).
+  > **Corrección spec 059 (11/08/2026, capturas reales del cliente)**: spec 057 implementó
+  > Editar/Eliminar sobre el wizard de 2 pasos existente (todo dentro del mismo modal), sin notar que
+  > el "paso 2" descripto en este mismo párrafo (página de edición completa) **también aplica a
+  > Crear**, no sólo a Editar — Contagram real usa el mismo patrón para ambos: el modal es sólo el
+  > paso 1 (Tipo/Documento que Ajusta/Stock/Mes), y "Siguiente" navega a una página propia (no un
+  > 2do paso de modal) tanto al crear como al editar. Spec 059 corrige la UI para que coincida con lo
+  > ya documentado acá, sin tocar el backend de spec 057. Además: en el modal de Editar, "¿Afecta
+  > Stock?" queda deshabilitado junto con el Tipo (spec 057 sólo bloqueaba el Tipo).
 - **Agregar Retención** *(corroborado, ver §3.6 — resuelve la duda abierta en
   `informe_contagram_funciones_avanzadas.md`)*: no está en el modal simple "Nuevo Cobro"; el botón vive
   **dentro de la sección de Cobranzas del Detalle de Venta**. Campos: Fecha, Monto, Tipo de Retención,

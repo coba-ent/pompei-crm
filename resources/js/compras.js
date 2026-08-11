@@ -805,7 +805,8 @@
     }
 
     // ---------------------------------------------------------------------
-    // Wizard NC/ND (US4, 2 pasos) — mismo patrón que ventas.js
+    // Modal NC/ND paso 1 (spec 059) — mismo patrón que ventas.js: sólo Tipo/
+    // Documento que Ajusta/Stock/Mes; "Siguiente" navega a la página completa.
     // ---------------------------------------------------------------------
     function inicializarNcNd(data) {
         const $modal = $('#modal-ncnd');
@@ -815,13 +816,6 @@
         let itemsDisponibles = [];
         let notaEnEdicion = null;
         let notaAEliminarId = null;
-
-        function irAPaso(n) {
-            $('#ncnd-paso-1').toggleClass('d-none', n !== 1);
-            $('#ncnd-paso-2').toggleClass('d-none', n !== 2);
-            $('#btn-ncnd-siguiente').toggleClass('d-none', n !== 1);
-            $('#btn-ncnd-volver, #btn-ncnd-guardar').toggleClass('d-none', n !== 2);
-        }
 
         function renderItemsStock() {
             const $box = $('#ncnd-items').empty();
@@ -848,7 +842,6 @@
         function toggleStockBloque() {
             const afecta = $('input[name="ncnd-afecta-stock"]:checked').val() === '1';
             $('#ncnd-stock-bloque').toggleClass('d-none', !afecta);
-            $('#ncnd-descripcion-wrapper').toggleClass('d-none', afecta);
             if (!afecta) {
                 $('.ncnd-item-chk').prop('checked', false);
                 $('.ncnd-item-cant').val('');
@@ -866,19 +859,13 @@
             notaEnEdicion = null;
             $('#ncnd-titulo').text('Crear NC/ND');
             $('#ncnd-tipo').val('credito').prop('disabled', false);
-            $('#ncnd-tipo-comprobante').val('');
-            $('#ncnd-nro-comprobante').val('');
-            $('#btn-ncnd-eliminar').addClass('d-none');
-            $('#btn-ncnd-guardar').text('Guardar');
             const $doc = $('#ncnd-documento').empty();
             $doc.append(new Option(data.nroComprobante || 'Sin comprobante', data.compraId, true, true));
             const hoy = new Date();
-            $('#ncnd-fecha').val(hoy.toISOString().slice(0, 10));
             $('#ncnd-mes-imputacion').val(hoy.toISOString().slice(0, 7));
             mesImputacionTocado = false;
-            $('#ncnd-monto').val('');
-            $('#ncnd-descripcion').val('');
-            $('input[name="ncnd-afecta-stock"][value="0"]').prop('checked', true);
+            $('input[name="ncnd-afecta-stock"][value="0"]').prop('checked', true).prop('disabled', false);
+            $('#ncnd-afecta-si').prop('disabled', false);
             const $dep = $('#ncnd-deposito').empty();
             (data.depositos || []).forEach((d) => $dep.append(new Option(d.nombre, d.id)));
 
@@ -893,7 +880,6 @@
                 .fail(() => { itemsDisponibles = []; renderItemsStock(); });
 
             toggleStockBloque();
-            irAPaso(1);
             bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-ncnd')).show();
         });
 
@@ -904,7 +890,7 @@
         });
 
         // ---------------------------------------------------------------------
-        // Editar / Eliminar NC/ND (spec 057)
+        // Editar NC/ND (spec 057) — Tipo Y Stock quedan deshabilitados (spec 059, FR-008)
         // ---------------------------------------------------------------------
         function abrirEdicionNota(id) {
             const nota = (data.notas || []).find((n) => String(n.id) === String(id));
@@ -916,13 +902,9 @@
             const $doc = $('#ncnd-documento').empty();
             $doc.append(new Option(data.nroComprobante || 'Sin comprobante', data.compraId, true, true));
             $('input[name="ncnd-afecta-stock"][value="' + (nota.afecta_stock ? '1' : '0') + '"]').prop('checked', true);
+            $('#ncnd-afecta-si, #ncnd-afecta-no').prop('disabled', true);
             $('#ncnd-mes-imputacion').val(nota.mes_imputacion);
             mesImputacionTocado = true;
-            $('#ncnd-fecha').val(nota.fecha_emision);
-            $('#ncnd-monto').val(nota.monto);
-            $('#ncnd-tipo-comprobante').val(nota.tipo_comprobante);
-            $('#ncnd-nro-comprobante').val(nota.nro_comprobante);
-            $('#ncnd-descripcion').val(nota.descripcion);
             const $dep = $('#ncnd-deposito').empty();
             (data.depositos || []).forEach((d) => $dep.append(new Option(d.nombre, d.id)));
 
@@ -949,11 +931,6 @@
                     .fail(() => { itemsDisponibles = []; renderItemsStock(); });
             }
 
-            $('#ncnd-paso-1').removeClass('d-none');
-            $('#ncnd-paso-2').removeClass('d-none');
-            $('#btn-ncnd-siguiente, #btn-ncnd-volver').addClass('d-none');
-            $('#btn-ncnd-guardar').removeClass('d-none').text('Guardar cambios');
-            $('#btn-ncnd-eliminar').removeClass('d-none').data('id', nota.id);
             bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-ncnd')).show();
         }
 
@@ -968,76 +945,37 @@
             bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-eliminar-nota')).show();
         });
 
-        $('#btn-ncnd-eliminar').on('click', function () {
-            notaAEliminarId = $(this).data('id');
-            bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-eliminar-nota')).show();
-        });
-
         $('#btn-confirmar-eliminar-nota').on('click', function () {
             if (!notaAEliminarId) { return; }
             $.ajax({ url: window.ComprasConfig.rutas.notasDestroyBase + '/' + notaAEliminarId, method: 'DELETE' })
                 .done((resp) => {
                     toast('success', resp.mensaje || 'Nota eliminada.');
                     bootstrap.Modal.getInstance(document.getElementById('modal-eliminar-nota'))?.hide();
-                    bootstrap.Modal.getInstance(document.getElementById('modal-ncnd'))?.hide();
                     window.location.reload();
                 })
                 .fail((xhr) => toast('error', xhr.responseJSON?.mensaje || 'No se pudo eliminar la nota.'));
         });
 
-        $('#ncnd-mes-imputacion').on('input', () => { mesImputacionTocado = true; });
-        $('#ncnd-fecha').on('change', function () {
-            if (mesImputacionTocado) { return; }
-            const v = $(this).val();
-            if (v) { $('#ncnd-mes-imputacion').val(v.slice(0, 7)); }
-        });
-
-        $('#btn-ncnd-siguiente').on('click', () => irAPaso(2));
-        $('#btn-ncnd-volver').on('click', () => irAPaso(1));
-
-        $('#btn-ncnd-guardar').on('click', function () {
+        // ---------------------------------------------------------------------
+        // Siguiente (spec 059): ya no muestra un 2do paso — navega a la página
+        // completa (compras.notas.create/edit) pasando el paso 1 por query string.
+        // ---------------------------------------------------------------------
+        $('#btn-ncnd-siguiente').on('click', function () {
             const afectaStock = $('input[name="ncnd-afecta-stock"]:checked').val() === '1';
-            const payload = {
-                tipo: $('#ncnd-tipo').val(),
-                afecta_stock: afectaStock ? 1 : 0,
-                mes_imputacion: $('#ncnd-mes-imputacion').val(),
-                fecha_emision: $('#ncnd-fecha').val(),
-                monto: normalizarDecimal($('#ncnd-monto').val()),
-                descripcion: $('#ncnd-descripcion').val(),
-                tipo_comprobante: $('#ncnd-tipo-comprobante').val(),
-                nro_comprobante: $('#ncnd-nro-comprobante').val(),
-            };
-            if (afectaStock) {
-                payload.deposito_id = $('#ncnd-deposito').val();
-                payload.items = [];
-                $('.ncnd-item-chk:checked').each(function () {
-                    const productoId = $(this).data('producto');
-                    const cantidad = normalizarDecimal($('.ncnd-item-cant[data-producto="' + productoId + '"]').val());
-                    if (cantidad) { payload.items.push({ producto_id: productoId, cantidad }); }
-                });
+            const qs = new URLSearchParams({
+                tipo: $('#ncnd-tipo').val() || 'credito',
+                afecta_stock: afectaStock ? '1' : '0',
+                mes_imputacion: $('#ncnd-mes-imputacion').val() || '',
+            });
+            if (afectaStock && $('#ncnd-deposito').val()) {
+                qs.set('deposito_id', $('#ncnd-deposito').val());
             }
 
-            if (notaEnEdicion) {
-                $.ajax({ url: window.ComprasConfig.rutas.notasUpdateBase + '/' + notaEnEdicion.id, method: 'PUT', data: payload })
-                    .done((resp) => {
-                        toast('success', resp.mensaje || 'Nota actualizada.');
-                        bootstrap.Modal.getInstance(document.getElementById('modal-ncnd'))?.hide();
-                        window.location.reload();
-                    })
-                    .fail((xhr) => {
-                        if (xhr.status === 409) { toast('error', xhr.responseJSON?.mensaje || 'No se puede editar esta nota.'); return; }
-                        toast('error', xhr.responseJSON?.errors ? Object.values(xhr.responseJSON.errors)[0][0] : 'No se pudo actualizar la nota.');
-                    });
-                return;
-            }
+            const url = notaEnEdicion
+                ? window.ComprasConfig.rutas.notasEditPaginaBase + '/' + notaEnEdicion.id + '/editar'
+                : window.ComprasConfig.rutas.notasCreatePagina;
 
-            $.post(window.ComprasConfig.rutas.notasStore, payload)
-                .done((resp) => {
-                    toast('success', resp.mensaje || 'Nota creada.');
-                    bootstrap.Modal.getInstance(document.getElementById('modal-ncnd'))?.hide();
-                    window.location.reload();
-                })
-                .fail((xhr) => toast('error', xhr.responseJSON?.errors ? Object.values(xhr.responseJSON.errors)[0][0] : 'No se pudo crear la nota.'));
+            window.location.href = url + '?' + qs.toString();
         });
     }
 })();

@@ -23,6 +23,7 @@
     <div class="header">
         <div class="datos">
             <h2>PRESUPUESTO {{ $presupuesto->nro_presupuesto }}</h2>
+            <div>Detalle de Presupuesto: {{ $presupuesto->id }}</div>
             <div>Fecha de Emisión: {{ optional($presupuesto->fecha_emision)->format('d/m/Y') }}</div>
         </div>
     </div>

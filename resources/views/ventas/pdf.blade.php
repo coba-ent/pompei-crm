@@ -31,6 +31,7 @@
             </h2>
         </div>
         <div class="datos">
+            <div>Detalle de Venta: {{ $venta->id_legacy ?: $venta->id }}</div>
             <div>Fecha de Emisión: {{ optional($venta->fecha_emision)->format('d/m/Y') }}</div>
             @if ($venta->fecha_vto_cobro)
                 <div>Vto. del Cobro: {{ $venta->fecha_vto_cobro->format('d/m/Y') }}</div>

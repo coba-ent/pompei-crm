@@ -25,6 +25,7 @@
     <div class="header">
         <div class="titulo"><h2>Comprobante {{ $compra->tipo_comprobante }} N° {{ $compra->nro_comprobante }}</h2></div>
         <div class="datos">
+            <div>Detalle de Compra: {{ $compra->id_legacy ?: $compra->id }}</div>
             <div>Fecha de Emisión: {{ optional($compra->fecha_emision)->format('d/m/Y') }}</div>
             @if ($compra->fecha_vto_pago)
                 <div>Vto. del Pago: {{ $compra->fecha_vto_pago->format('d/m/Y') }}</div>

@@ -41,6 +41,68 @@ class NotaCreditoDebitoController extends Controller
         return response()->json(['data' => $this->ajustesPendientes->itemsDisponibles($compra)]);
     }
 
+    /** Spec 059 (T005): página completa de creación (Ventas) — GET, sólo navegación. */
+    public function create(Venta $venta)
+    {
+        $CurrentPage = 'ventas';
+        $depositos = Deposito::orderBy('nombre')->get();
+
+        return view('notas-credito-debito.form', [
+            'CurrentPage' => $CurrentPage,
+            'venta' => $venta,
+            'compra' => null,
+            'notaCreditoDebito' => null,
+            'depositos' => $depositos,
+        ]);
+    }
+
+    /** Spec 059 (T005): página completa de edición (Ventas) — GET, precarga desde la nota existente. */
+    public function edit(Venta $venta, NotaCreditoDebito $notaCreditoDebito)
+    {
+        $CurrentPage = 'ventas';
+        $notaCreditoDebito->load('items.producto');
+        $depositos = Deposito::orderBy('nombre')->get();
+
+        return view('notas-credito-debito.form', [
+            'CurrentPage' => $CurrentPage,
+            'venta' => $venta,
+            'compra' => null,
+            'notaCreditoDebito' => $notaCreditoDebito,
+            'depositos' => $depositos,
+        ]);
+    }
+
+    /** Spec 059 (T005): página completa de creación (Compras) — GET, sólo navegación. */
+    public function createCompra(Compra $compra)
+    {
+        $CurrentPage = 'compras';
+        $depositos = Deposito::orderBy('nombre')->get();
+
+        return view('notas-credito-debito.form', [
+            'CurrentPage' => $CurrentPage,
+            'venta' => null,
+            'compra' => $compra,
+            'notaCreditoDebito' => null,
+            'depositos' => $depositos,
+        ]);
+    }
+
+    /** Spec 059 (T005): página completa de edición (Compras) — GET, precarga desde la nota existente. */
+    public function editCompra(Compra $compra, NotaCreditoDebito $notaCreditoDebito)
+    {
+        $CurrentPage = 'compras';
+        $notaCreditoDebito->load('items.producto');
+        $depositos = Deposito::orderBy('nombre')->get();
+
+        return view('notas-credito-debito.form', [
+            'CurrentPage' => $CurrentPage,
+            'venta' => null,
+            'compra' => $compra,
+            'notaCreditoDebito' => $notaCreditoDebito,
+            'depositos' => $depositos,
+        ]);
+    }
+
     public function store(StoreNotaCreditoDebitoRequest $request, Venta $venta): JsonResponse
     {
         $datos = $request->validated();

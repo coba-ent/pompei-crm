@@ -279,6 +279,8 @@
         notasItemsDisponibles: "{{ route('ventas.notas.itemsDisponibles', $venta) }}",
         notasUpdateBase: "{{ url('ventas/'.$venta->id.'/notas') }}",
         notasDestroyBase: "{{ url('ventas/'.$venta->id.'/notas') }}",
+        notasCreatePagina: "{{ route('ventas.notas.create', $venta) }}",
+        notasEditPaginaBase: "{{ url('ventas/'.$venta->id.'/notas') }}",
         pdf: "{{ route('ventas.pdf', $venta) }}",
         ticket: "{{ route('ventas.ticket', $venta) }}",
     });

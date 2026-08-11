@@ -206,6 +206,8 @@ Route::middleware('auth')->group(function () {
         Route::put('{venta}/cobranzas/{cobro}', [VentaController::class, 'cobranzaUpdate'])->name('cobranzas.update');
         Route::delete('{venta}/cobranzas/{cobro}', [VentaController::class, 'cobranzaDestroy'])->name('cobranzas.destroy');
         Route::get('{venta}/cobranzas/{cobro}/recibo', [VentaController::class, 'reciboCobranza'])->name('cobranzas.recibo');
+        Route::get('{venta}/notas/nueva', [NotaCreditoDebitoController::class, 'create'])->name('notas.create');
+        Route::get('{venta}/notas/{notaCreditoDebito}/editar', [NotaCreditoDebitoController::class, 'edit'])->name('notas.edit');
         Route::post('{venta}/notas', [NotaCreditoDebitoController::class, 'store'])->name('notas.store');
         Route::put('{venta}/notas/{notaCreditoDebito}', [NotaCreditoDebitoController::class, 'update'])->name('notas.update');
         Route::delete('{venta}/notas/{notaCreditoDebito}', [NotaCreditoDebitoController::class, 'destroy'])->name('notas.destroy');
@@ -298,6 +300,8 @@ Route::middleware('auth')->group(function () {
         Route::delete('{compra}/pagos/{pago}', [CompraController::class, 'pagoDestroy'])->name('pagos.destroy');
         Route::get('{compra}/pagos/{pago}/recibo', [CompraController::class, 'reciboPago'])->name('pagos.recibo');
         Route::post('{compra}/retenciones', [CompraController::class, 'retencionStore'])->name('retenciones.store');
+        Route::get('{compra}/notas/nueva', [NotaCreditoDebitoController::class, 'createCompra'])->name('notas.create');
+        Route::get('{compra}/notas/{notaCreditoDebito}/editar', [NotaCreditoDebitoController::class, 'editCompra'])->name('notas.edit');
         Route::post('{compra}/notas', [NotaCreditoDebitoController::class, 'storeCompra'])->name('notas.store');
         Route::put('{compra}/notas/{notaCreditoDebito}', [NotaCreditoDebitoController::class, 'updateCompra'])->name('notas.update');
         Route::delete('{compra}/notas/{notaCreditoDebito}', [NotaCreditoDebitoController::class, 'destroyCompra'])->name('notas.destroy');

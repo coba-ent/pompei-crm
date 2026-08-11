@@ -46,44 +46,18 @@
                         <input type="month" class="form-control" id="ncnd-mes-imputacion">
                     </div>
                 </div>
-
-                {{-- Paso 2 --}}
-                <div id="ncnd-paso-2" class="d-none">
-                    <div class="row g-2">
-                        <div class="col-6 mb-3">
-                            <label class="form-label">Tipo Comprobante</label>
-                            <input type="text" class="form-control" id="ncnd-tipo-comprobante" placeholder="A/B/C">
-                        </div>
-                        <div class="col-6 mb-3">
-                            <label class="form-label">N° Comprobante</label>
-                            <input type="text" class="form-control" id="ncnd-nro-comprobante" placeholder="0001-00000123">
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Fecha</label>
-                        <input type="date" class="form-control" id="ncnd-fecha">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Monto</label>
-                        <input type="text" inputmode="decimal" class="form-control" id="ncnd-monto">
-                    </div>
-                    <div class="mb-3" id="ncnd-descripcion-wrapper">
-                        <label class="form-label">Descripción</label>
-                        <textarea class="form-control" id="ncnd-descripcion" rows="2"></textarea>
-                    </div>
-                </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-danger me-auto d-none" id="btn-ncnd-eliminar">Eliminar</button>
                 <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-outline-secondary d-none" id="btn-ncnd-volver">Volver</button>
                 <button type="button" class="btn btn-primary" id="btn-ncnd-siguiente">Siguiente</button>
-                <button type="button" class="btn btn-primary d-none" id="btn-ncnd-guardar">Guardar</button>
             </div>
         </div>
     </div>
 </div>
 
+{{-- Spec 059: la confirmación de eliminar directo desde la tabla de notas vive en el propio
+     detalle (ventas/detalle.blade.php) — este modal ya no navega a un paso 2 ni guarda nada,
+     sólo arma la query string y navega a la página completa (ventas.notas.create/edit). --}}
 <div class="modal fade" id="modal-eliminar-nota" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">

@@ -281,6 +281,8 @@
         notasItemsDisponibles: "{{ route('compras.notas.itemsDisponibles', $compra) }}",
         notasUpdateBase: "{{ url('compras/'.$compra->id.'/notas') }}",
         notasDestroyBase: "{{ url('compras/'.$compra->id.'/notas') }}",
+        notasCreatePagina: "{{ route('compras.notas.create', $compra) }}",
+        notasEditPaginaBase: "{{ url('compras/'.$compra->id.'/notas') }}",
         pdf: "{{ route('compras.pdf', $compra) }}",
     });
 </script>
