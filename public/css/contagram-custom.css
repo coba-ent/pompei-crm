@@ -543,6 +543,42 @@ td.dt-acciones-caret .dropdown-toggle::after {
 .select2-container--default .select2-selection--single .select2-selection__clear:hover {
     color: #495057;
 }
+/* Select2 multi-selección (Proveedor/Categoría/Etiqueta/Usuario, etc. en los paneles de
+ * Filtros de Compras/Ventas/Presupuestos): el template NexaDash sólo pinta el fondo gris de
+ * `--single` (arriba); `--multiple` queda blanco por default (`style.css` no le define
+ * `background-color` fuera del tema oscuro) y desentona con el resto de los filtros de la misma
+ * fila. Mismo gris/borde que `--single` para que ambos se vean como parte del mismo panel. */
+.select2-container--default .select2-selection--multiple {
+    min-height: 0;
+    padding: 0.235rem 0.5rem;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    border: 1px solid #c9ced4;
+    border-radius: 0.5rem;
+    background-color: #eef0f2;
+}
+.select2-container--default.select2-container--focus .select2-selection--multiple,
+.select2-container--default.select2-container--open .select2-selection--multiple {
+    border-color: #28ACE3;
+    background-color: #fff;
+    box-shadow: 0 0 0 0.2rem rgba(40, 172, 227, 0.25);
+}
+.select2-container--default .select2-selection--multiple .select2-selection__rendered {
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+.select2-container--default .select2-selection--multiple .select2-selection__choice {
+    margin: 0.15rem 0;
+    font-size: 0.75rem;
+}
+.select2-container--default .select2-selection--multiple .select2-search--inline .select2-search__field {
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    margin: 0.1rem 0;
+}
+
 .select2-container .select2-search--dropdown .select2-search__field {
     font-size: 0.8125rem;
     padding: 0.35rem 0.5rem;
