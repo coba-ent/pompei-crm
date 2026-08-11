@@ -57,6 +57,31 @@
         return String(v == null ? '' : v).replace(',', '.');
     }
 
+    // Mismo patrón que compras.js/ventas.js/presupuestos.js: `renderItems()` reconstruye
+    // toda la tabla en cada tecla (para recalcular subtotales en vivo), lo que le hacía
+    // perder el foco al input activo — capturarFoco/restaurarFoco lo re-enfocan después
+    // de re-renderizar, usando `data-idx`/`data-field` para ubicar el mismo input.
+    function capturarFoco(contenedorSelector) {
+        const activo = document.activeElement;
+        if (!activo || !$.contains(document.querySelector(contenedorSelector), activo)) { return null; }
+        const $activo = $(activo);
+        return {
+            idx: $activo.attr('data-idx'),
+            field: $activo.attr('data-field'),
+            selectionStart: activo.selectionStart,
+            selectionEnd: activo.selectionEnd,
+        };
+    }
+    function restaurarFoco(contenedorSelector, foco) {
+        if (!foco || foco.idx === undefined || !foco.field) { return; }
+        const $input = $(contenedorSelector).find('[data-idx="' + foco.idx + '"][data-field="' + foco.field + '"]');
+        if (!$input.length) { return; }
+        $input.trigger('focus');
+        if (typeof foco.selectionStart === 'number' && $input[0].setSelectionRange) {
+            try { $input[0].setSelectionRange(foco.selectionStart, foco.selectionEnd); } catch (e) { /* input type=number en algunos navegadores no soporta selectionRange */ }
+        }
+    }
+
     const notaExistente = data.notaCreditoDebito || null;
     const editando = !!notaExistente;
     let itemsDisponibles = [];
@@ -207,6 +232,7 @@
     // Render de la tabla de ítems (mismo patrón que compras.js)
     // ---------------------------------------------------------------------
     function renderItems() {
+        const foco = capturarFoco('#items-body');
         const $body = $('#items-body').empty();
         items.forEach((item, idx) => {
             const cant = Number(item.cantidad) || 0;
@@ -226,20 +252,20 @@
                 $tr.append($('<td>').text(item.descripcion));
             } else {
                 $tr.append($('<td>').append(
-                    $('<textarea class="form-control form-control-sm" rows="1">').val(item.descripcion || '')
+                    $('<textarea class="form-control form-control-sm" rows="1">').attr('data-idx', idx).attr('data-field', 'descripcion').val(item.descripcion || '')
                         .on('input', function () { items[idx].descripcion = $(this).val(); })
                 ));
             }
-            $tr.append($('<td style="width:90px">').append($('<input type="text" inputmode="decimal" class="form-control form-control-sm">').val(item.cantidad === undefined ? cant : item.cantidad).on('input', function () {
+            $tr.append($('<td style="width:90px">').append($('<input type="text" inputmode="decimal" class="form-control form-control-sm">').attr('data-idx', idx).attr('data-field', 'cantidad').val(item.cantidad === undefined ? cant : item.cantidad).on('input', function () {
                 let v = normalizarDecimal($(this).val());
                 if (item._max != null && parseFloat(v) > item._max) { v = String(item._max); toast('error', 'La cantidad máxima disponible para ajustar es ' + item._max + '.'); }
                 items[idx].cantidad = v;
                 renderItems();
             })));
-            $tr.append($('<td style="width:110px">').append($('<input type="text" inputmode="decimal" class="form-control form-control-sm" placeholder="Precio">').val(precio ? precio : '').on('input', function () { items[idx].precio = normalizarDecimal($(this).val()); renderItems(); })));
-            $tr.append($('<td style="width:90px">').append($('<input type="text" inputmode="decimal" class="form-control form-control-sm">').val(item.descuento_pct || '').on('input', function () { items[idx].descuento_pct = normalizarDecimal($(this).val()); renderItems(); })));
+            $tr.append($('<td style="width:110px">').append($('<input type="text" inputmode="decimal" class="form-control form-control-sm" placeholder="Precio">').attr('data-idx', idx).attr('data-field', 'precio').val(precio ? precio : '').on('input', function () { items[idx].precio = normalizarDecimal($(this).val()); renderItems(); })));
+            $tr.append($('<td style="width:90px">').append($('<input type="text" inputmode="decimal" class="form-control form-control-sm">').attr('data-idx', idx).attr('data-field', 'descuento_pct').val(item.descuento_pct || '').on('input', function () { items[idx].descuento_pct = normalizarDecimal($(this).val()); renderItems(); })));
             $tr.append($('<td>').text(money(subtotal)));
-            $tr.append($('<td style="width:110px">').append($(selectHtml).on('change', function () { items[idx].iva_pct = $(this).val() || null; renderItems(); })));
+            $tr.append($('<td style="width:110px">').append($(selectHtml).attr('data-idx', idx).attr('data-field', 'iva_pct').on('change', function () { items[idx].iva_pct = $(this).val() || null; renderItems(); })));
             $tr.append($('<td>').text(money(subtotalConIva)));
             if (afectaStock) {
                 $tr.append($('<td>').append($('<button type="button" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>').on('click', () => { items.splice(idx, 1); renderItems(); })));
@@ -248,6 +274,7 @@
             }
             $body.append($tr);
         });
+        restaurarFoco('#items-body', foco);
         recalcular();
     }
 
@@ -397,6 +424,14 @@
             if (!$('#f-deposito').val()) { toast('error', 'Seleccioná un Depósito.'); return false; }
             const itemsProducto = items.filter((i) => i.producto_id);
             if (!itemsProducto.length) { toast('error', 'Agregá al menos un producto.'); return false; }
+            // Cantidad en 0/vacía: si no querés ajustar un producto, se borra la fila
+            // (botón papelera) — no se deja en 0. Sin este chequeo, el backend lo rechaza
+            // igual pero con el mensaje crudo sin traducir ("items.0.cantidad field must
+            // be greater than 0").
+            if (itemsProducto.some((i) => !(Number(i.cantidad) > 0))) {
+                toast('error', 'La cantidad de cada producto tiene que ser mayor a 0 — si no lo querés ajustar, borrá la fila.');
+                return false;
+            }
             // La precarga sólo trae la cantidad pendiente (el endpoint de disponibles no
             // expone precio) — el Precio arranca en $0 y hay que completarlo a mano. Sin
             // este chequeo puntual, "El total tiene que ser mayor a 0" no deja claro qué
