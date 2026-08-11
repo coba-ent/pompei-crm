@@ -116,6 +116,25 @@ class FiltrosCompraTest extends TestCase
         $this->assertSame([$pagado->id], $ids->all());
     }
 
+    public function test_filtra_por_estado_pago_vencido(): void
+    {
+        $vencida = $this->compra(['total' => 1000, 'fecha_vto_pago' => now()->subDays(5)]);
+        $noVencidaAun = $this->compra(['total' => 1000, 'fecha_vto_pago' => now()->addDays(5)]);
+        $sinVencimiento = $this->compra(['total' => 1000, 'fecha_vto_pago' => null]);
+
+        $cuenta = CuentaTesoreria::factory()->create();
+        $vencidaPeroPagada = $this->compra(['total' => 1000, 'fecha_vto_pago' => now()->subDays(5)]);
+        Pago::create(['compra_id' => $vencidaPeroPagada->id, 'fecha' => now(), 'cuenta_tesoreria_id' => $cuenta->id, 'monto' => 1000]);
+
+        $resp = $this->getJson(route('compras.data', ['estado_pago' => 'vencido']));
+
+        $ids = collect($resp->json('data'))->pluck('id');
+        $this->assertSame([$vencida->id], $ids->all());
+        $this->assertFalse($ids->contains($noVencidaAun->id));
+        $this->assertFalse($ids->contains($sinVencimiento->id));
+        $this->assertFalse($ids->contains($vencidaPeroPagada->id));
+    }
+
     public function test_filtra_por_tipo_y_numero_de_factura(): void
     {
         $c1 = $this->compra(['tipo_comprobante' => 'A']);

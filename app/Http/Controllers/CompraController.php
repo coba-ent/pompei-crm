@@ -117,6 +117,8 @@ class CompraController extends Controller
             match ($request->input('estado_pago')) {
                 'pagado' => $query->whereRaw("{$pagado} > 0")->whereRaw("{$aPagar} <= 0.005"),
                 'parcial' => $query->whereRaw("{$pagado} > 0")->whereRaw("{$aPagar} > 0.005"),
+                // Mismo criterio que la card KPI "Vencido": vto. pasado y todavía queda saldo.
+                'vencido' => $query->whereNotNull('fecha_vto_pago')->whereDate('fecha_vto_pago', '<', now())->whereRaw("{$aPagar} > 0.005"),
                 default => $query->whereRaw("{$pagado} <= 0"),
             };
         }

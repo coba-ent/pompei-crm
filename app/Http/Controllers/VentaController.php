@@ -181,6 +181,13 @@ class VentaController extends Controller
                 'sin_cobrar' => $query->whereDoesntHave('cobros'),
                 'cobrada' => $query->whereHas('cobros')->whereRaw('(select coalesce(sum(monto),0) from cobros where cobros.venta_id = ventas.id) >= ventas.total'),
                 'parcial' => $query->whereHas('cobros')->whereRaw('(select coalesce(sum(monto),0) from cobros where cobros.venta_id = ventas.id) < ventas.total'),
+                // Mismo criterio que la card KPI "Vencido": vto. pasado y todavía queda saldo
+                // (A Cobrar real, con NC/ND — no sólo cobros vs. total como los casos de arriba).
+                'vencido' => $query->whereNotNull('fecha_vto_cobro')->whereDate('fecha_vto_cobro', '<', now())->whereRaw("(ventas.total
+                        + COALESCE((SELECT SUM(monto) FROM notas_credito_debito WHERE venta_id = ventas.id AND tipo = 'debito' AND deleted_at IS NULL), 0)
+                        - COALESCE((SELECT SUM(monto) FROM notas_credito_debito WHERE venta_id = ventas.id AND tipo = 'credito' AND deleted_at IS NULL), 0)
+                        - COALESCE((SELECT SUM(monto) FROM cobros WHERE venta_id = ventas.id AND deleted_at IS NULL), 0)
+                    ) > 0.005"),
                 default => null,
             };
         }

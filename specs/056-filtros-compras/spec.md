@@ -13,6 +13,7 @@
 ### Session 2026-08-11
 
 - Q: El filtro "Estado del Pago" de Compras: ¿qué opciones debe tener? → A: Pagado / A Pagar / Parcial (los 3 estados ya calculados por `Compra::estadoPago()`, sin agregar un valor "Vencido" separado como opción de filtro).
+- **Revisión post-implementación (11/08/2026)**: decisión revertida a pedido del usuario — el filtro "Estado del Pago" SÍ agrega un cuarto valor **Vencido** (compras con `fecha_vto_pago` pasada y saldo pendiente > 0, mismo criterio que ya usa la card KPI "Vencido"). Mismo cambio aplicado en el filtro "Estado del Cobro" de Ventas (gap estructural idéntico, fuera del alcance original de esta spec pero corregido en el mismo commit por consistencia).
 - Q: Los filtros de rango de fecha (Desde/Hasta Servicio, y el rango de Vencimiento) sobre compras sin esa fecha cargada (nullable): ¿se incluyen o se excluyen? → A: Se excluyen del resultado cuando el filtro correspondiente está activo.
 - (Corrección post-revisión de patrón en Ventas) El control superior "Vencimiento" de la captura NO es un selector que cambia el tipo de fecha del rango de Emisión: es un **segundo rango de fechas independiente**, igual al ya existente en Ventas (`filtro-rango-emision` + `filtro-rango-vencimiento`, dos date-pickers separados que se combinan con AND si ambos están activos). Se corrige FR-009 en consecuencia.
 
@@ -92,7 +93,7 @@ Como usuario que revisa compras periódicamente, quiero poder acotar el listado 
 - **FR-007**: El filtro Nota Interna DEBE buscar coincidencias parciales de texto dentro del campo de nota interna de la compra.
 - **FR-008**: Los filtros Desde Servicio / Hasta Servicio DEBEN acotar el listado a compras cuyo rango de servicio (servicio_desde/servicio_hasta) se solape con el rango indicado por el usuario; las compras sin servicio_desde/servicio_hasta cargado quedan excluidas cuando cualquiera de estos filtros está activo.
 - **FR-009**: El listado DEBE seguir contando con el control superior de rango de fechas por Emisión ya existente y, además, DEBE sumar un segundo control independiente de rango de fechas por Vencimiento (Vto. del Pago) — mismo patrón de dos rangos ya implementado en Ventas. Ambos rangos se combinan con AND cuando los dos están activos. Las compras sin fecha_vto_pago cargada quedan excluidas del resultado mientras el rango de Vencimiento esté activo.
-- **FR-009a**: El filtro "Estado del Pago" DEBE ofrecer exactamente los 3 valores derivados por `Compra::estadoPago()`: Pagado, A Pagar y Parcial (sin un valor "Vencido" separado).
+- **FR-009a**: El filtro "Estado del Pago" DEBE ofrecer los 3 valores derivados por `Compra::estadoPago()` (Pagado, A Pagar, Parcial) **más** un cuarto valor **Vencido** (revisión 11/08/2026): `fecha_vto_pago` pasada y saldo pendiente (A Pagar real, con NC/ND) > 0 — mismo criterio que la card KPI "Vencido".
 - **FR-010**: El listado DEBE contar con un selector de columnas visibles que permita mostrar u ocultar columnas adicionales (como mínimo: CUIT, Servicio Desde, Servicio Hasta, Teléfono, Mail) sin recargar la página.
 - **FR-011**: Todos los filtros aplicados simultáneamente DEBEN combinarse con criterio AND entre campos distintos (cada filtro reduce el resultado de los demás).
 - **FR-012**: El botón "Nueva Compra" DEBE seguir disponible y funcionando igual que hoy (sin cambios de comportamiento).

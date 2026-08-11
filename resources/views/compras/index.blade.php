@@ -103,6 +103,7 @@
                                     <option value="a_pagar">A Pagar</option>
                                     <option value="parcial">Parcial</option>
                                     <option value="pagado">Pagado</option>
+                                    <option value="vencido">Vencido</option>
                                 </select>
                             </div>
 

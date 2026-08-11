@@ -444,7 +444,8 @@ Otros Ingresos y Abonos son independientes.
   Cobrar, Cobrado, Medio de Cobro (con link a la cuenta de Tesorería); columnas ocultas opcionales:
   Envío de Mail, CUIT, Servicio Desde/Hasta.
 - Filtros — **implementados (06/08/2026, fix directo sin spec)** contra captura real: Id, Cliente,
-  Estado del Cobro, Categoría de Venta, Estado de Factura, Tipo y N° de Factura, Etiqueta, Vendedor,
+  Estado del Cobro (Sin Cobrar/Parcial/Cobrada/**Vencido**, agregado 11/08/2026 — mismo criterio que
+  la card KPI "Vencido"), Categoría de Venta, Estado de Factura, Tipo y N° de Factura, Etiqueta, Vendedor,
   Remitos, Tipo y N° de Remito, Depósito, Medio de Cobro, Usuario, Nota Cliente, Nota Interna, Creada
   Desde, Servicio Desde/Hasta, y dos selectores de rango de fecha en el header (Emisión/Vencimiento,
   con presets Hoy/Ayer/Última Semana/Mes actual/Mes anterior/Últimos 30 días/Año actual/Desde-Hasta).
@@ -1070,7 +1071,8 @@ Selector de columnas agrega CUIT, Servicio Desde/Hasta, Teléfono, Mail y otras.
 ("Pagado"/"A Pagar", flecha desplegable).
 
 **Filtros (12 campos, implementados 11/08/2026, spec 056)**: Id, Proveedor (multi-selección), Categoría
-de Compra (multi), Estado del Pago (A Pagar/Parcial/Pagado), Tipo y N° de Factura, Etiqueta (multi),
+de Compra (multi), Estado del Pago (A Pagar/Parcial/Pagado/**Vencido**, agregado 11/08/2026 — mismo
+criterio que la card KPI "Vencido"), Tipo y N° de Factura, Etiqueta (multi),
 Facturado (Sí/No), Medio de pago, Usuario (multi), Nota Interna, Depósito, Desde/Hasta Servicio. Todos
 combinables con AND entre campos; los de selección múltiple usan OR dentro del propio campo. Más los dos
 selectores de rango de fecha (Emisión/Vencimiento) del toolbar. Mismo patrón que Ventas (§3.2).

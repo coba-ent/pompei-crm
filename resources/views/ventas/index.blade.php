@@ -130,6 +130,7 @@
                                     <option value="sin_cobrar">Sin Cobrar</option>
                                     <option value="parcial">Parcial</option>
                                     <option value="cobrada">Cobrada</option>
+                                    <option value="vencido">Vencido</option>
                                 </select>
                             </div>
                             <div class="col-md-3">
