@@ -154,6 +154,41 @@ Vale la pena dejarlas escritas porque se pagaron caro:
 
 ---
 
+## 8b. Fechas de emisión — revisado el 11/08/2026
+
+Se sospechó que la migración había traído fechas mal. **No es así**: las 23.521 ventas migradas
+tienen en `fecha_emision` exactamente lo que dice la columna `Emisión` del Excel, verificado una
+por una (0 diferencias). Se descartó también la inversión día/mes: el 61,1 % tiene día > 12, que es
+lo que da una distribución real de fechas (si se estuviera leyendo mes/día sería 0 %).
+
+Nota sobre el alcance de esa verificación: se hizo con el mismo lector que usó el importador, así
+que prueba que la base **transcribe** fielmente el Excel, no que el Excel se interprete bien. El
+test del día > 12 es el único control independiente del parser.
+
+Lo que sí estaba mal, y se corrigió:
+
+- **Dos ventas legacy refechadas al editarlas** (`2026-FC-23512` → 01/07, `2026-FC-24300` → 05/08).
+  Causa: el input de Emisión arrancaba en `now()` y no se recargaba con la fecha del registro, así
+  que el update la pisaba. Afectaba a Ventas y Compras; Presupuestos ya lo hacía bien. Corregido en
+  `b33ac9b`. **Si se editaron otras ventas viejas entre el 10 y el 11/08/2026, hay que revisarlas.**
+- **Venta de ML `id 23746`** fechada 11/08 siendo del 10/08 23:52. Causa: el día se sacaba con
+  `toDateString()` sobre un instante en UTC. Corregido en `b33ac9b`.
+
+### Pendiente: 5 ventas de ML y 86 órdenes con la fecha ambigua
+
+Ventas `17`, `47`, `57`, `64` y `66`: su `fecha_emision` no coincide con la fecha de su orden, pero
+**no se pudo determinar cuál de las dos es la correcta**. Todas son de alrededor de medianoche, y
+`ml_ordenes.fecha_creada` tiene hoy dos criterios mezclados:
+
+- las 29 órdenes que el cron volvió a tocar después del deploy del 10/08 21:19 están en UTC real;
+- las 86 restantes están 4 horas atrás — salvo cuatro del 06/08 que ya estaban bien.
+
+Sobre un horario cercano a las 00:00, esa ambigüedad de 3–4 horas decide el día. **Resolverlo
+requiere consultar la fecha real en la API de Mercado Libre**; no se puede inferir desde la base.
+No se hizo un `UPDATE +4h` masivo justamente porque habría roto esas cuatro.
+
+Las 86 se van corrigiendo solas a medida que el cron las vuelve a tocar.
+
 ## 9. Cosméticos
 
 - **~1.446 clientes con `created_at` con día y mes invertidos**, del import anterior.
