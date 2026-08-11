@@ -46,7 +46,9 @@ class StoreCompraRequest extends FormRequest
             'cae_proveedor' => 'nullable|string|max:20',
             'cae_vencimiento_proveedor' => 'nullable|date',
             'nota_interna' => 'nullable|string',
+            'descuento_general_tipo' => 'nullable|in:porcentaje,monto',
             'descuento_general_pct' => 'nullable|numeric|between:0,100',
+            'descuento_general_monto' => 'nullable|numeric|min:0',
             'items' => 'required|array|min:1',
             'items.*.producto_id' => 'nullable|exists:productos,id',
             'items.*.descripcion' => 'required|string|max:255',
@@ -59,5 +61,28 @@ class StoreCompraRequest extends FormRequest
             'conceptos.*.concepto' => 'required_with:conceptos|string|max:255',
             'conceptos.*.monto' => 'required_with:conceptos|numeric',
         ];
+    }
+
+    /** FR-007: el descuento general en modo monto fijo no puede superar el subtotal bruto de los ítems. */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator) {
+            if ($this->input('descuento_general_tipo') !== 'monto') {
+                return;
+            }
+
+            $montoDescuento = (float) $this->input('descuento_general_monto', 0);
+            $subtotalBruto = 0.0;
+
+            foreach ($this->input('items', []) as $item) {
+                $bruto = (float) ($item['cantidad'] ?? 0) * (float) ($item['precio_unitario'] ?? 0);
+                $descuentoPct = (float) ($item['descuento_pct'] ?? 0);
+                $subtotalBruto += $bruto - ($bruto * $descuentoPct / 100);
+            }
+
+            if ($montoDescuento > $subtotalBruto) {
+                $validator->errors()->add('descuento_general_monto', 'El descuento general no puede ser mayor al subtotal del comprobante.');
+            }
+        });
     }
 }

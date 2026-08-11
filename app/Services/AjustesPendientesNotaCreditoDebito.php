@@ -32,7 +32,7 @@ class AjustesPendientesNotaCreditoDebito
     }
 
     /**
-     * @return array<int, array{producto_id:int, descripcion:string, pendiente:float}>
+     * @return array<int, array{producto_id:int, descripcion:string, pendiente:float, precio:float, descuento_pct:float, iva_pct:?string}>
      */
     public function itemsDisponibles(Venta|Compra $comprobante): array
     {
@@ -41,10 +41,18 @@ class AjustesPendientesNotaCreditoDebito
             ->get()
             ->groupBy('producto_id')
             ->map(function ($items, $productoId) use ($comprobante) {
+                $primero = $items->first();
+
                 return [
                     'producto_id' => (int) $productoId,
-                    'descripcion' => $items->first()->descripcion,
+                    'descripcion' => $primero->descripcion,
                     'pendiente' => $this->pendiente($comprobante, (int) $productoId),
+                    // Precarga la página completa de NC/ND (spec 059) con el precio/descuento/IVA
+                    // que ya tenía el comprobante de origen para ese producto — el usuario puede
+                    // editarlos igual si la nota corresponde a un monto distinto.
+                    'precio' => (float) $primero->precio_unitario,
+                    'descuento_pct' => (float) ($primero->descuento_pct ?? 0),
+                    'iva_pct' => $primero->iva_pct,
                 ];
             })
             ->filter(fn ($item) => $item['pendiente'] > 0)

@@ -304,7 +304,7 @@ class ConversorOrdenAVenta
             ];
         })->values()->all();
 
-        $resultado = $this->calculo->calcular($itemsCalculo, 0, []);
+        $resultado = $this->calculo->calcular($itemsCalculo, 'porcentaje', 0, []);
         $diferencia = round((float) $orden->total - $resultado['total'], 2);
 
         if (abs($diferencia) >= 0.01 && count($itemsCalculo) > 0) {
@@ -314,7 +314,7 @@ class ConversorOrdenAVenta
                 (float) $itemsCalculo[$ultimoIndice]['precio_unitario'] + ($diferencia / $cantidadUltimo),
                 2
             );
-            $resultado = $this->calculo->calcular($itemsCalculo, 0, []);
+            $resultado = $this->calculo->calcular($itemsCalculo, 'porcentaje', 0, []);
         }
 
         // Conciliación exacta (FR-030): el total de la Venta iguala el de la orden al centavo.

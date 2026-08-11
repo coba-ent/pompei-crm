@@ -50,12 +50,32 @@ class StoreNotaCreditoDebitoRequest extends FormRequest
             'descripcion' => 'required_unless:afecta_stock,1,true|nullable|string',
             'fecha_emision' => 'required|date',
             'monto' => 'required|numeric|gt:0',
+            'descuento_general_tipo' => 'nullable|in:porcentaje,monto',
+            'descuento_general_pct' => 'nullable|numeric|between:0,100',
+            'descuento_general_monto' => 'nullable|numeric|min:0',
         ];
     }
 
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator) {
+            // FR-007: el descuento general en modo monto fijo no puede superar el subtotal
+            // bruto de los ítems (NC/ND no recalcula server-side — research.md §R4 — así que
+            // sólo se valida el tope cuando hay items con los que armar ese subtotal).
+            if ($this->input('descuento_general_tipo') === 'monto' && is_array($this->input('items'))) {
+                $montoDescuento = (float) $this->input('descuento_general_monto', 0);
+                $subtotalBruto = 0.0;
+
+                foreach ($this->input('items') as $item) {
+                    $bruto = (float) ($item['cantidad'] ?? 0) * (float) ($item['precio'] ?? 0);
+                    $subtotalBruto += $bruto;
+                }
+
+                if ($montoDescuento > $subtotalBruto) {
+                    $validator->errors()->add('descuento_general_monto', 'El descuento general no puede ser mayor al subtotal del comprobante.');
+                }
+            }
+
             if (! $this->boolean('afecta_stock') || ! is_array($this->input('items'))) {
                 return;
             }

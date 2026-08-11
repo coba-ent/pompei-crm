@@ -59,6 +59,9 @@ class UpdateNotaCreditoDebitoRequest extends FormRequest
             'documento_ajusta' => 'nullable|array',
             'documento_ajusta.tipo' => 'nullable|in:comprobante_original,nota',
             'documento_ajusta.nota_ajustada_id' => 'nullable|integer|exists:notas_credito_debito,id',
+            'descuento_general_tipo' => 'nullable|in:porcentaje,monto',
+            'descuento_general_pct' => 'nullable|numeric|between:0,100',
+            'descuento_general_monto' => 'nullable|numeric|min:0',
         ];
     }
 
@@ -68,6 +71,21 @@ class UpdateNotaCreditoDebitoRequest extends FormRequest
         $nota = $this->route('notaCreditoDebito');
 
         $validator->after(function (Validator $validator) use ($nota) {
+            // FR-007: idem StoreNotaCreditoDebitoRequest.
+            if ($this->input('descuento_general_tipo') === 'monto' && is_array($this->input('items'))) {
+                $montoDescuento = (float) $this->input('descuento_general_monto', 0);
+                $subtotalBruto = 0.0;
+
+                foreach ($this->input('items') as $item) {
+                    $bruto = (float) ($item['cantidad'] ?? 0) * (float) ($item['precio'] ?? 0);
+                    $subtotalBruto += $bruto;
+                }
+
+                if ($montoDescuento > $subtotalBruto) {
+                    $validator->errors()->add('descuento_general_monto', 'El descuento general no puede ser mayor al subtotal del comprobante.');
+                }
+            }
+
             // FR-002: el tipo (Crédito/Débito) no es editable una vez creada la nota.
             if ($this->filled('tipo') && $this->input('tipo') !== $nota->tipo) {
                 $validator->errors()->add('tipo', 'El tipo de la nota (Crédito/Débito) no se puede modificar.');

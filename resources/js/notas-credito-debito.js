@@ -59,6 +59,7 @@
 
     const notaExistente = data.notaCreditoDebito || null;
     const editando = !!notaExistente;
+    let itemsDisponibles = [];
 
     let afectaStock = editando
         ? !!notaExistente.afecta_stock
@@ -81,6 +82,12 @@
             descuento_pct: primero.descuento_pct || 0,
             iva_pct: primero.iva_pct || null,
         }];
+    } else if (afectaStock) {
+        // Crear + Stock=Sí: arranca vacío, `cargarItemsDisponibles()` (más abajo) lo
+        // completa con TODOS los ítems pendientes de la Venta/Compra apenas resuelve —
+        // no hay selector manual de producto (ver nota más abajo, era la fuente de los
+        // bugs de "no se agrega al hacer click" y de la validación de cantidad máxima).
+        items = [];
     } else {
         items = [{ producto_id: null, descripcion: '', cantidad: 1, precio: 0, descuento_pct: 0, iva_pct: null }];
     }
@@ -122,46 +129,79 @@
     if (depInicial) { $('#f-deposito').val(depInicial).trigger('change.select2'); }
 
     // ---------------------------------------------------------------------
-    // Toggle Stock: producto vs. descripción libre (FR-004/FR-005)
+    // Toggle Stock: productos de la Venta/Compra vs. descripción libre (FR-004/FR-005)
     // ---------------------------------------------------------------------
     function toggleStock() {
         afectaStock = $('input[name="f-afecta-stock"]:checked').val() === '1';
-        $('#f-deposito-wrapper, #f-producto-wrapper').toggleClass('d-none', !afectaStock);
+        $('#f-deposito-wrapper').toggleClass('d-none', !afectaStock);
         $('#th-producto').text(afectaStock ? 'Producto' : 'Descripción');
         if (!afectaStock) {
-            // Colapsa a una única fila fija.
+            // Colapsa a una única fila fija. Si el usuario venía de Stock=Sí, no hay
+            // descripción libre previa que conservar (esos ítems eran de productos).
             items = [{
                 producto_id: null,
-                descripcion: items[0]?.descripcion || '',
-                cantidad: items[0]?.cantidad || 1,
-                precio: items[0]?.precio || 0,
-                descuento_pct: items[0]?.descuento_pct || 0,
-                iva_pct: items[0]?.iva_pct || null,
+                descripcion: items[0]?.producto_id ? '' : (items[0]?.descripcion || ''),
+                cantidad: items[0]?.producto_id ? 1 : (items[0]?.cantidad || 1),
+                precio: items[0]?.producto_id ? 0 : (items[0]?.precio || 0),
+                descuento_pct: items[0]?.producto_id ? 0 : (items[0]?.descuento_pct || 0),
+                iva_pct: items[0]?.producto_id ? null : (items[0]?.iva_pct || null),
             }];
-        } else if (items.length === 1 && !items[0].producto_id && !items[0].descripcion) {
-            items = [];
+            renderItems();
+        } else {
+            // Precarga (o recalcula _max sobre) los ítems pendientes de la Venta/Compra.
+            cargarItemsDisponibles();
         }
-        renderItems();
     }
     $('input[name="f-afecta-stock"]').on('change', toggleStock);
 
     // ---------------------------------------------------------------------
-    // Selector de Producto (sólo Stock=Sí)
+    // Ítems pendientes de ajuste (sólo Stock=Sí) — se precargan TODOS de una,
+    // sin selector manual: el usuario ajusta cantidades o borra la fila del
+    // producto que no quiere tocar (research.md §4 + AjustesPendientesNotaCreditoDebito).
+    // Un selector manual (catálogo libre o restringido) era la fuente de dos bugs:
+    // el backend rechazaba productos fuera de la Venta/Compra con "cantidad máxima
+    // disponible... es 0", y el <select> nativo auto-seleccionaba el primer producto
+    // (o el único, cuando sólo había uno) sin disparar el evento de selección de select2.
     // ---------------------------------------------------------------------
-    initSelect2($('#f-producto'), {
-        placeholder: 'Buscar producto...',
-        ajax: {
-            url: rutas.productosOpciones,
-            data: (params) => ({ q: params.term, incluir_servicios: 1 }),
-            processResults: (resp) => ({ results: resp.data.map((p) => ({ id: p.id, text: '(' + p.id + ') ' + p.nombre + (p.codigo ? ' (' + p.codigo + ')' : ''), producto: p })) }),
-        },
-    });
-    $('#f-producto').on('select2:select', function (e) {
-        const producto = e.params.data.producto;
-        items.unshift({ producto_id: producto.id, descripcion: producto.nombre, cantidad: 1, precio: producto.precio || producto.costo || 0, descuento_pct: null, iva_pct: null });
-        renderItems();
-        $(this).val(null).trigger('change');
-    });
+    function actualizarMaximosItems() {
+        items.forEach((it) => {
+            if (!it.producto_id) { return; }
+            const encontrado = itemsDisponibles.find((d) => d.producto_id === it.producto_id);
+            if (encontrado) { it._max = encontrado.pendiente; }
+        });
+    }
+
+    function cargarItemsDisponibles() {
+        if (!rutas.itemsDisponibles) { return; }
+        $.getJSON(rutas.itemsDisponibles)
+            .done((resp) => {
+                itemsDisponibles = resp.data || [];
+                if (editando) {
+                    // La ruta de disponibles no excluye esta misma nota de "ya ajustado" —
+                    // se le devuelve acá lo que ella misma consume (mismo ajuste que ya
+                    // hacía `abrirEdicionNota` en el modal viejo, ventas.js/compras.js).
+                    (data.items || []).forEach((it) => {
+                        const existente = itemsDisponibles.find((d) => d.producto_id === it.producto_id);
+                        if (existente) {
+                            existente.pendiente = Math.round((existente.pendiente + it.cantidad) * 1000) / 1000;
+                        } else {
+                            itemsDisponibles.push({ producto_id: it.producto_id, descripcion: it.descripcion || ('Producto #' + it.producto_id), pendiente: it.cantidad });
+                        }
+                    });
+                    actualizarMaximosItems();
+                } else if (afectaStock) {
+                    // Precarga precio/descuento/IVA con los que ya tenía el comprobante de
+                    // origen para ese producto — el usuario los puede editar igual si la
+                    // nota corresponde a un monto distinto.
+                    items = itemsDisponibles.map((d) => ({
+                        producto_id: d.producto_id, descripcion: d.descripcion, cantidad: d.pendiente,
+                        precio: d.precio || 0, descuento_pct: d.descuento_pct || 0, iva_pct: d.iva_pct || null, _max: d.pendiente,
+                    }));
+                }
+                renderItems();
+            })
+            .fail(() => { itemsDisponibles = []; });
+    }
 
     // ---------------------------------------------------------------------
     // Render de la tabla de ítems (mismo patrón que compras.js)
@@ -190,8 +230,13 @@
                         .on('input', function () { items[idx].descripcion = $(this).val(); })
                 ));
             }
-            $tr.append($('<td style="width:90px">').append($('<input type="text" inputmode="decimal" class="form-control form-control-sm">').val(item.cantidad === undefined ? cant : item.cantidad).on('input', function () { items[idx].cantidad = normalizarDecimal($(this).val()); renderItems(); })));
-            $tr.append($('<td style="width:110px">').append($('<input type="text" inputmode="decimal" class="form-control form-control-sm">').val(item.precio === undefined ? precio : item.precio).on('input', function () { items[idx].precio = normalizarDecimal($(this).val()); renderItems(); })));
+            $tr.append($('<td style="width:90px">').append($('<input type="text" inputmode="decimal" class="form-control form-control-sm">').val(item.cantidad === undefined ? cant : item.cantidad).on('input', function () {
+                let v = normalizarDecimal($(this).val());
+                if (item._max != null && parseFloat(v) > item._max) { v = String(item._max); toast('error', 'La cantidad máxima disponible para ajustar es ' + item._max + '.'); }
+                items[idx].cantidad = v;
+                renderItems();
+            })));
+            $tr.append($('<td style="width:110px">').append($('<input type="text" inputmode="decimal" class="form-control form-control-sm" placeholder="Precio">').val(precio ? precio : '').on('input', function () { items[idx].precio = normalizarDecimal($(this).val()); renderItems(); })));
             $tr.append($('<td style="width:90px">').append($('<input type="text" inputmode="decimal" class="form-control form-control-sm">').val(item.descuento_pct || '').on('input', function () { items[idx].descuento_pct = normalizarDecimal($(this).val()); renderItems(); })));
             $tr.append($('<td>').text(money(subtotal)));
             $tr.append($('<td style="width:110px">').append($(selectHtml).on('change', function () { items[idx].iva_pct = $(this).val() || null; renderItems(); })));
@@ -206,11 +251,55 @@
         recalcular();
     }
 
-    function recalcular() {
-        const descuentoGeneralPct = Number($('#f-descuento-general').val()) || 0;
-        const factor = 1 - (descuentoGeneralPct / 100);
+    // Toggle %/$ inline del Descuento General (spec 060). NC/ND calcula el monto final
+    // client-side (research.md §R4) — no hay CalculoComprobante acá, así que en modo `monto`
+    // el valor ingresado se usa directamente como importe a restar, sin pasar por un % efectivo.
+    function setModoDescuentoGeneral(modo, limpiarValor) {
+        const $btn = $('#f-descuento-general-toggle');
+        const $label = $('#f-descuento-general-label');
+        const $input = $('#f-descuento-general');
+        $btn.data('modo', modo);
+        if (modo === 'monto') {
+            $btn.text('$');
+            $label.text('Descuento General ($)');
+            $input.attr('max', null);
+        } else {
+            $btn.text('%');
+            $label.text('Descuento General (%)');
+            $input.attr('max', 100);
+        }
+        if (limpiarValor) { $input.val(''); }
+        recalcular();
+    }
+    $('#f-descuento-general-toggle').on('click', function () {
+        const modoActual = $(this).data('modo') || 'porcentaje';
+        setModoDescuentoGeneral(modoActual === 'porcentaje' ? 'monto' : 'porcentaje', true);
+    });
 
-        let subtotalSinDescuento = 0;
+    function subtotalSinDescuentoActual() {
+        let subtotal = 0;
+        items.forEach((item) => {
+            const cant = Number(item.cantidad) || 0;
+            const precio = Number(item.precio) || 0;
+            const descPct = Number(item.descuento_pct) || 0;
+            const bruto = cant * precio;
+            subtotal += bruto - (bruto * descPct / 100);
+        });
+        return subtotal;
+    }
+
+    function recalcular() {
+        const modoDescuentoGeneral = $('#f-descuento-general-toggle').data('modo') || 'porcentaje';
+        const valorDescuentoGeneral = Number($('#f-descuento-general').val()) || 0;
+        const subtotalSinDescuento = subtotalSinDescuentoActual();
+
+        let factor = 1;
+        if (modoDescuentoGeneral === 'monto') {
+            factor = subtotalSinDescuento > 0 ? Math.max(0, 1 - (valorDescuentoGeneral / subtotalSinDescuento)) : 1;
+        } else {
+            factor = 1 - (valorDescuentoGeneral / 100);
+        }
+
         let subtotalConDescuento = 0;
         let totalConIva = 0;
         items.forEach((item) => {
@@ -221,7 +310,6 @@
             const bruto = cant * precio;
             const subtotal = bruto - (bruto * descPct / 100);
             const subtotalConIva = subtotal + (subtotal * ivaPct / 100);
-            subtotalSinDescuento += subtotal;
             subtotalConDescuento += subtotal * factor;
             totalConIva += subtotalConIva * factor;
         });
@@ -234,6 +322,16 @@
     }
     $('#f-descuento-general').on('input', recalcular);
 
+    // Precarga del modo/valor en edición (US2): no dispara la limpieza de setModoDescuentoGeneral.
+    setModoDescuentoGeneral((notaExistente && notaExistente.descuento_general_tipo) || 'porcentaje', false);
+    if (notaExistente && notaExistente.descuento_general_tipo === 'monto') {
+        if (notaExistente.descuento_general_monto !== undefined && notaExistente.descuento_general_monto !== null) {
+            $('#f-descuento-general').val(notaExistente.descuento_general_monto);
+        }
+    } else if (notaExistente && notaExistente.descuento_general_pct !== undefined && notaExistente.descuento_general_pct !== null) {
+        $('#f-descuento-general').val(notaExistente.descuento_general_pct);
+    }
+
     // Los bloques +Percepciones/+Impuestos Internos/+Intereses quedan fuera de alcance (FR-003).
     $('.js-concepto-noop').on('click', function (e) { e.preventDefault(); });
 
@@ -243,8 +341,15 @@
     // Guardar
     // ---------------------------------------------------------------------
     function totalActual() {
-        const descuentoGeneralPct = Number($('#f-descuento-general').val()) || 0;
-        const factor = 1 - (descuentoGeneralPct / 100);
+        const modoDescuentoGeneral = $('#f-descuento-general-toggle').data('modo') || 'porcentaje';
+        const valorDescuentoGeneral = Number($('#f-descuento-general').val()) || 0;
+        const subtotalSinDescuento = subtotalSinDescuentoActual();
+        let factor;
+        if (modoDescuentoGeneral === 'monto') {
+            factor = subtotalSinDescuento > 0 ? Math.max(0, 1 - (valorDescuentoGeneral / subtotalSinDescuento)) : 1;
+        } else {
+            factor = 1 - (valorDescuentoGeneral / 100);
+        }
         let total = 0;
         items.forEach((item) => {
             const cant = Number(item.cantidad) || 0;
@@ -268,6 +373,9 @@
             monto: totalActual(),
             tipo_comprobante: $('#f-tipo-comprobante').val(),
             nro_comprobante: $('#f-nro-comprobante').val(),
+            descuento_general_tipo: $('#f-descuento-general-toggle').data('modo') || 'porcentaje',
+            descuento_general_pct: ($('#f-descuento-general-toggle').data('modo') || 'porcentaje') === 'porcentaje' ? ($('#f-descuento-general').val() || null) : null,
+            descuento_general_monto: ($('#f-descuento-general-toggle').data('modo') || 'porcentaje') === 'monto' ? ($('#f-descuento-general').val() || null) : null,
         };
         if (afectaStock) {
             p.deposito_id = $('#f-deposito').val();
@@ -287,7 +395,16 @@
     function validar() {
         if (afectaStock) {
             if (!$('#f-deposito').val()) { toast('error', 'Seleccioná un Depósito.'); return false; }
-            if (!items.filter((i) => i.producto_id).length) { toast('error', 'Agregá al menos un producto.'); return false; }
+            const itemsProducto = items.filter((i) => i.producto_id);
+            if (!itemsProducto.length) { toast('error', 'Agregá al menos un producto.'); return false; }
+            // La precarga sólo trae la cantidad pendiente (el endpoint de disponibles no
+            // expone precio) — el Precio arranca en $0 y hay que completarlo a mano. Sin
+            // este chequeo puntual, "El total tiene que ser mayor a 0" no deja claro qué
+            // campo falta.
+            if (itemsProducto.some((i) => !(Number(i.precio) > 0))) {
+                toast('error', 'Ingresá un Precio mayor a 0 para cada producto.');
+                return false;
+            }
         } else if (!items[0]?.descripcion) {
             toast('error', 'Ingresá una Descripción.');
             return false;

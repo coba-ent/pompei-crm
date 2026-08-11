@@ -12,6 +12,7 @@
     $rutaDestroy = $notaCreditoDebito
         ? ($venta ? route('ventas.notas.destroy', [$venta, $notaCreditoDebito]) : route('compras.notas.destroy', [$compra, $notaCreditoDebito]))
         : null;
+    $rutaItemsDisponibles = $venta ? route('ventas.notas.itemsDisponibles', $venta) : route('compras.notas.itemsDisponibles', $compra);
 @endphp
 
 @section('content')
@@ -106,13 +107,10 @@
 
                 <hr>
 
-                <div class="row g-3 align-items-end mb-3" id="f-producto-wrapper">
-                    <div class="col-md-12">
-                        <label class="form-label">Seleccionar Producto/Servicio</label>
-                        <select id="f-producto" class="form-select" style="width:100%"></select>
-                    </div>
-                </div>
-
+                {{-- Sin selector manual de producto: cuando Stock=Sí, la tabla de abajo se
+                     precarga automáticamente con todos los ítems pendientes de la Venta/Compra
+                     (JS `cargarItemsDisponibles`). El usuario ajusta cantidades o borra la fila
+                     del producto que no quiere tocar. --}}
                 <div class="table-responsive mb-3">
                     <table class="table table-sm align-middle" id="tabla-items">
                         <thead>
@@ -136,8 +134,11 @@
                     <div class="col-lg-6">
                         <div class="bg-light rounded p-3">
                             <div class="mb-3">
-                                <label class="form-label">Descuento General (%)</label>
-                                <input type="number" id="f-descuento-general" class="form-control" min="0" max="100" step="0.01">
+                                <label class="form-label" id="f-descuento-general-label">Descuento General (%)</label>
+                                <div class="input-group">
+                                    <input type="number" id="f-descuento-general" class="form-control" min="0" max="100" step="0.01">
+                                    <button type="button" id="f-descuento-general-toggle" class="btn btn-outline-secondary" data-modo="porcentaje">%</button>
+                                </div>
                             </div>
 
                             <div class="d-flex gap-3 mb-3">
@@ -187,6 +188,7 @@
     $datosNota = $notaCreditoDebito ? $notaCreditoDebito->only([
         'id', 'tipo', 'afecta_stock', 'mes_imputacion', 'fecha_emision', 'monto',
         'tipo_comprobante', 'nro_comprobante', 'descripcion',
+        'descuento_general_tipo', 'descuento_general_pct', 'descuento_general_monto',
     ]) : null;
     if ($datosNota) {
         $datosNota['mes_imputacion'] = optional($notaCreditoDebito->mes_imputacion)->format('Y-m');
@@ -228,7 +230,7 @@
             update: @json($rutaUpdate),
             destroy: @json($rutaDestroy),
             volver: "{{ $rutaVolver }}",
-            productosOpciones: "{{ route('productos.opciones') }}",
+            itemsDisponibles: "{{ $rutaItemsDisponibles }}",
         },
     };
 </script>

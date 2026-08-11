@@ -99,8 +99,11 @@
                     <div class="col-lg-6">
                         <div class="bg-light rounded p-3">
                             <div class="mb-3">
-                                <label class="form-label">Descuento General (%)</label>
-                                <input type="number" id="f-descuento-general" class="form-control" min="0" max="100" step="0.01">
+                                <label class="form-label" id="f-descuento-general-label">Descuento General (%)</label>
+                                <div class="input-group">
+                                    <input type="number" id="f-descuento-general" class="form-control" min="0" max="100" step="0.01">
+                                    <button type="button" id="f-descuento-general-toggle" class="btn btn-outline-secondary" data-modo="porcentaje">%</button>
+                                </div>
                             </div>
 
                             <div id="conceptos-body" class="mb-2"></div>
@@ -133,7 +136,7 @@
 @endsection
 
 @php
-    $datosCompra = $compra ? $compra->only(['id', 'proveedor_id', 'categoria_id', 'deposito_id', 'nro_comprobante', 'tipo_comprobante', 'nota_interna', 'fecha_vto_pago', 'mes_imputacion_iva', 'descuento_general_pct']) : null;
+    $datosCompra = $compra ? $compra->only(['id', 'proveedor_id', 'categoria_id', 'deposito_id', 'nro_comprobante', 'tipo_comprobante', 'nota_interna', 'fecha_vto_pago', 'mes_imputacion_iva', 'descuento_general_pct', 'descuento_general_tipo', 'descuento_general_monto']) : null;
     $datosItems = ($compra?->items ?? collect())->map(fn ($i) => $i->only(['producto_id', 'descripcion', 'cantidad', 'precio_unitario', 'descuento_pct', 'iva_pct']))->values();
     $datosConceptos = ($compra?->conceptos ?? collect())->map(fn ($c) => $c->only(['tipo', 'concepto', 'monto']))->values();
     $datosProveedor = $compra?->proveedor ? ['id' => $compra->proveedor->id, 'nombre' => $compra->proveedor->nombre] : null;
@@ -152,6 +155,9 @@
         fechaVtoPago: @json(optional($compra?->fecha_vto_pago)->format('Y-m-d') ?: (($defaults ?? null)['fechaVtoPago'] ?? null)),
         mesImputacionIva: @json(optional($compra?->mes_imputacion_iva)->format('Y-m')),
         tipoComprobanteDefault: @json($compra ? null : (($defaults ?? null)['tipoComprobante'] ?? null)),
+        descuentoGeneralPct: @json($compra?->descuento_general_pct),
+        descuentoGeneralTipo: @json($compra?->descuento_general_tipo ?? 'porcentaje'),
+        descuentoGeneralMonto: @json($compra?->descuento_general_monto),
     };
     window.ComprasConfig = {
         submitToken: "{{ $submitToken ?? '' }}",

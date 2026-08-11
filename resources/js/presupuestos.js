@@ -432,7 +432,12 @@
         if (data.presupuesto) {
             renderCategorias(data.presupuesto.categoria_id || '');
             $('#f-lista-precio').val(data.presupuesto.lista_precio_id || '');
-            $('#f-descuento-general').val(data.presupuesto.descuento_general_pct || '');
+            setModoDescuentoGeneral(data.presupuesto.descuento_general_tipo || 'porcentaje', false);
+            if (data.presupuesto.descuento_general_tipo === 'monto') {
+                if (data.presupuesto.descuento_general_monto !== undefined && data.presupuesto.descuento_general_monto !== null) { $('#f-descuento-general').val(data.presupuesto.descuento_general_monto); }
+            } else if (data.presupuesto.descuento_general_pct !== undefined && data.presupuesto.descuento_general_pct !== null) {
+                $('#f-descuento-general').val(data.presupuesto.descuento_general_pct);
+            }
         } else {
             // Defaults de Configuración & Ajustes → Ventas (spec 043), sólo alta nueva.
             const defaults = data.defaults || {};
@@ -455,6 +460,7 @@
             if (!cliente) { return; }
             if (cliente.categoria_id) { $('#f-categoria').val(cliente.categoria_id).trigger('change'); }
             if (cliente.descuento_general_pct !== null && cliente.descuento_general_pct !== undefined) {
+                setModoDescuentoGeneral('porcentaje', false);
                 $('#f-descuento-general').val(cliente.descuento_general_pct);
                 recalcular();
             }
@@ -618,6 +624,33 @@
 
         $('#f-descuento-general').on('input', recalcular);
 
+        // Toggle %/$ inline del Descuento General (spec 060). El backend recalcula siempre —
+        // este preview client-side sólo replica el mismo criterio de conversión monto→% efectivo.
+        function setModoDescuentoGeneral(modo, limpiarValor) {
+            const $btn = $('#f-descuento-general-toggle');
+            const $label = $('#f-descuento-general-label');
+            const $input = $('#f-descuento-general');
+            $btn.data('modo', modo);
+            if (modo === 'monto') {
+                $btn.text('$');
+                $label.text('Descuento General ($)');
+                $input.removeAttr('max').attr('step', '0.01');
+            } else {
+                $btn.text('%');
+                $label.text('Descuento General (%)');
+                $input.attr('max', '100').attr('step', '0.01');
+            }
+            if (limpiarValor) {
+                $input.val('');
+                recalcular();
+            }
+        }
+
+        $('#f-descuento-general-toggle').on('click', function () {
+            const modoActual = $(this).data('modo') || 'porcentaje';
+            setModoDescuentoGeneral(modoActual === 'porcentaje' ? 'monto' : 'porcentaje', true);
+        });
+
         function recalcular() {
             // Descuento General % se aplica sobre la base imponible de cada linea (subtotal
             // post-descuento de linea) y por lo tanto tambien reduce el IVA proporcionalmente
@@ -625,7 +658,21 @@
             // real al guardar). Antes este preview calculaba el IVA completo sin descontar y
             // solo restaba el descuento del subtotal, mostrando un Total mas alto del que
             // terminaba quedando guardado.
-            const descuentoGeneralPct = Number($('#f-descuento-general').val()) || 0;
+            const modoDescuentoGeneral = $('#f-descuento-general-toggle').data('modo') || 'porcentaje';
+            const valorDescuentoGeneral = Number($('#f-descuento-general').val()) || 0;
+
+            let subtotalBruto = 0;
+            items.forEach((item) => {
+                const cant = Number(item.cantidad) || 0;
+                const precio = Number(item.precio_unitario) || 0;
+                const descPct = Number(item.descuento_pct) || 0;
+                const bruto = cant * precio;
+                subtotalBruto += bruto - (bruto * descPct / 100);
+            });
+
+            const descuentoGeneralPct = modoDescuentoGeneral === 'monto'
+                ? (subtotalBruto > 0 ? Math.min(100, (valorDescuentoGeneral / subtotalBruto) * 100) : 0)
+                : valorDescuentoGeneral;
             const factor = 1 - (descuentoGeneralPct / 100);
 
             let subtotalSinDescuento = 0;
@@ -777,7 +824,9 @@
                 fecha_validez: $('#f-fecha-validez').val() || null,
                 servicio_desde: $('#f-servicio-desde').val() || null,
                 servicio_hasta: $('#f-servicio-hasta').val() || null,
-                descuento_general_pct: $('#f-descuento-general').val() || null,
+                descuento_general_tipo: $('#f-descuento-general-toggle').data('modo') || 'porcentaje',
+                descuento_general_pct: ($('#f-descuento-general-toggle').data('modo') || 'porcentaje') === 'porcentaje' ? ($('#f-descuento-general').val() || null) : null,
+                descuento_general_monto: ($('#f-descuento-general-toggle').data('modo') || 'porcentaje') === 'monto' ? ($('#f-descuento-general').val() || null) : null,
                 nota_cliente: $('#f-nota-cliente').val(),
                 nota_interna: $('#f-nota-interna').val(),
                 formas_pago: $('#f-formas-pago').val(),

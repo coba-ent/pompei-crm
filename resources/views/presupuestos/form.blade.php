@@ -114,8 +114,11 @@
                     <div class="col-lg-6">
                         <div class="bg-light rounded p-3">
                             <div class="mb-3">
-                                <label class="form-label">Descuento General (%)</label>
-                                <input type="number" id="f-descuento-general" class="form-control" min="0" max="100" step="0.01" value="{{ $presupuesto?->descuento_general_pct }}">
+                                <label class="form-label" id="f-descuento-general-label">Descuento General (%)</label>
+                                <div class="input-group">
+                                    <input type="number" id="f-descuento-general" class="form-control" min="0" max="100" step="0.01" value="{{ $presupuesto?->descuento_general_pct }}">
+                                    <button type="button" id="f-descuento-general-toggle" class="btn btn-outline-secondary" data-modo="porcentaje">%</button>
+                                </div>
                             </div>
 
                             <div id="conceptos-body" class="mb-2"></div>
@@ -150,7 +153,7 @@
 @endsection
 
 @php
-    $datosPresupuesto = $presupuesto ? $presupuesto->only(['id', 'cliente_id', 'categoria_id', 'lista_precio_id', 'vendedor_id', 'descuento_general_pct']) : null;
+    $datosPresupuesto = $presupuesto ? $presupuesto->only(['id', 'cliente_id', 'categoria_id', 'lista_precio_id', 'vendedor_id', 'descuento_general_pct', 'descuento_general_tipo', 'descuento_general_monto']) : null;
     $datosItems = $presupuesto ? $presupuesto->items->map(fn ($i) => $i->only(['producto_id', 'descripcion', 'cantidad', 'precio_unitario', 'descuento_pct', 'iva_pct']))->values() : [];
     $datosConceptos = $presupuesto ? $presupuesto->conceptos->map(fn ($c) => $c->only(['tipo', 'concepto', 'monto']))->values() : [];
     $datosEtiquetas = $presupuesto ? $presupuesto->etiquetas->pluck('nombre') : [];

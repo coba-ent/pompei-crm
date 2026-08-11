@@ -117,6 +117,9 @@ class NotaCreditoDebitoController extends Controller
                 'monto' => $datos['monto'],
                 'tipo_comprobante' => $venta->tipo_comprobante,
                 'descripcion' => $datos['descripcion'] ?? null,
+                'descuento_general_tipo' => $datos['descuento_general_tipo'] ?? 'porcentaje',
+                'descuento_general_pct' => ($datos['descuento_general_tipo'] ?? 'porcentaje') === 'monto' ? null : ($datos['descuento_general_pct'] ?? null),
+                'descuento_general_monto' => ($datos['descuento_general_tipo'] ?? 'porcentaje') === 'monto' ? ($datos['descuento_general_monto'] ?? null) : null,
             ]);
 
             if ($afectaStock) {
@@ -244,6 +247,9 @@ class NotaCreditoDebitoController extends Controller
                 'monto' => $datos['monto'],
                 'tipo_comprobante' => $compra->tipo_comprobante,
                 'descripcion' => $datos['descripcion'] ?? null,
+                'descuento_general_tipo' => $datos['descuento_general_tipo'] ?? 'porcentaje',
+                'descuento_general_pct' => ($datos['descuento_general_tipo'] ?? 'porcentaje') === 'monto' ? null : ($datos['descuento_general_pct'] ?? null),
+                'descuento_general_monto' => ($datos['descuento_general_tipo'] ?? 'porcentaje') === 'monto' ? ($datos['descuento_general_monto'] ?? null) : null,
             ]);
 
             if ($afectaStock) {
@@ -325,6 +331,9 @@ class NotaCreditoDebitoController extends Controller
                 'nro_comprobante' => $datos['nro_comprobante'] ?? null,
                 'nota_ajustada_id' => $notaAjustadaId,
                 'descripcion' => $datos['descripcion'] ?? null,
+                'descuento_general_tipo' => $datos['descuento_general_tipo'] ?? 'porcentaje',
+                'descuento_general_pct' => ($datos['descuento_general_tipo'] ?? 'porcentaje') === 'monto' ? null : ($datos['descuento_general_pct'] ?? null),
+                'descuento_general_monto' => ($datos['descuento_general_tipo'] ?? 'porcentaje') === 'monto' ? ($datos['descuento_general_monto'] ?? null) : null,
             ]);
 
             $nota->items()->delete();

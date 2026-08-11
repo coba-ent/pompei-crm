@@ -392,8 +392,11 @@
         } else if (data.tipoComprobanteDefault) {
             $('#f-tipo-comprobante').val(data.tipoComprobanteDefault);
         }
-        if (data.compra && data.compra.descuento_general_pct !== undefined && data.compra.descuento_general_pct !== null) {
-            $('#f-descuento-general').val(data.compra.descuento_general_pct);
+        setModoDescuentoGeneral(data.descuentoGeneralTipo || 'porcentaje', false);
+        if (data.descuentoGeneralTipo === 'monto') {
+            if (data.descuentoGeneralMonto !== undefined && data.descuentoGeneralMonto !== null) { $('#f-descuento-general').val(data.descuentoGeneralMonto); }
+        } else if (data.descuentoGeneralPct !== undefined && data.descuentoGeneralPct !== null) {
+            $('#f-descuento-general').val(data.descuentoGeneralPct);
         }
         if (data.notaInterna) { $('#f-nota-interna').val(data.notaInterna); }
         if (data.fechaVtoPago) { $('#f-fecha-vto-pago').val(data.fechaVtoPago); }
@@ -527,6 +530,33 @@
         $('.js-add-concepto').on('click', function (e) { e.preventDefault(); conceptos.push({ tipo: $(this).data('tipo'), concepto: '', monto: 0 }); renderConceptos(); });
         $('#f-descuento-general').on('input', recalcular);
 
+        // Toggle %/$ inline del Descuento General (spec 060). El backend recalcula siempre —
+        // este preview client-side sólo replica el mismo criterio de conversión monto→% efectivo.
+        function setModoDescuentoGeneral(modo, limpiarValor) {
+            const $btn = $('#f-descuento-general-toggle');
+            const $label = $('#f-descuento-general-label');
+            const $input = $('#f-descuento-general');
+            $btn.data('modo', modo);
+            if (modo === 'monto') {
+                $btn.text('$');
+                $label.text('Descuento General ($)');
+                $input.removeAttr('max').attr('step', '0.01');
+            } else {
+                $btn.text('%');
+                $label.text('Descuento General (%)');
+                $input.attr('max', '100').attr('step', '0.01');
+            }
+            if (limpiarValor) {
+                $input.val('');
+                recalcular();
+            }
+        }
+
+        $('#f-descuento-general-toggle').on('click', function () {
+            const modoActual = $(this).data('modo') || 'porcentaje';
+            setModoDescuentoGeneral(modoActual === 'porcentaje' ? 'monto' : 'porcentaje', true);
+        });
+
         function recalcular() {
             // Descuento General % se aplica sobre la base imponible de cada linea (subtotal
             // post-descuento de linea) y por lo tanto tambien reduce el IVA proporcionalmente
@@ -534,7 +564,21 @@
             // real al guardar). Antes este preview calculaba el IVA completo sin descontar y
             // solo restaba el descuento del subtotal, mostrando un Total mas alto del que
             // terminaba quedando guardado.
-            const descuentoGeneralPct = Number($('#f-descuento-general').val()) || 0;
+            const modoDescuentoGeneral = $('#f-descuento-general-toggle').data('modo') || 'porcentaje';
+            const valorDescuentoGeneral = Number($('#f-descuento-general').val()) || 0;
+
+            let subtotalBruto = 0;
+            items.forEach((item) => {
+                const cant = Number(item.cantidad) || 0;
+                const precio = Number(item.precio_unitario) || 0;
+                const descPct = Number(item.descuento_pct) || 0;
+                const bruto = cant * precio;
+                subtotalBruto += bruto - (bruto * descPct / 100);
+            });
+
+            const descuentoGeneralPct = modoDescuentoGeneral === 'monto'
+                ? (subtotalBruto > 0 ? Math.min(100, (valorDescuentoGeneral / subtotalBruto) * 100) : 0)
+                : valorDescuentoGeneral;
             const factor = 1 - (descuentoGeneralPct / 100);
 
             let subtotalSinDescuento = 0;
@@ -665,7 +709,9 @@
                 tipo_comprobante: $('#f-tipo-comprobante').val(),
                 fecha_vto_pago: $('#f-fecha-vto-pago').val() || null,
                 mes_imputacion_iva: $('#f-mes-imputacion-iva').val() ? $('#f-mes-imputacion-iva').val() + '-01' : null,
-                descuento_general_pct: $('#f-descuento-general').val() || null,
+                descuento_general_tipo: $('#f-descuento-general-toggle').data('modo') || 'porcentaje',
+                descuento_general_pct: ($('#f-descuento-general-toggle').data('modo') || 'porcentaje') === 'porcentaje' ? ($('#f-descuento-general').val() || null) : null,
+                descuento_general_monto: ($('#f-descuento-general-toggle').data('modo') || 'porcentaje') === 'monto' ? ($('#f-descuento-general').val() || null) : null,
                 nota_interna: $('#f-nota-interna').val(),
                 items: items,
                 conceptos: conceptos.filter((c) => c.concepto),
@@ -813,47 +859,22 @@
         if (!$modal.length) { return; }
 
         let mesImputacionTocado = false;
-        let itemsDisponibles = [];
         let notaEnEdicion = null;
         let notaAEliminarId = null;
 
-        function renderItemsStock() {
-            const $box = $('#ncnd-items').empty();
-            itemsDisponibles.forEach((item) => {
-                const id = 'ncnd-item-' + item.producto_id;
-                const $row = $('<div class="row g-2 align-items-center mb-1">');
-                $row.append($('<div class="col-6">').append(
-                    $('<div class="form-check">').append(
-                        $('<input type="checkbox" class="form-check-input ncnd-item-chk">').attr('id', id).data('producto', item.producto_id),
-                        $('<label class="form-check-label">').attr('for', id).text(item.descripcion + ' (máx. ' + item.pendiente + ')')
-                    )
-                ));
-                $row.append($('<div class="col-6">').append(
-                    $('<input type="text" inputmode="decimal" class="form-control form-control-sm" placeholder="Cantidad">')
-                        .addClass('ncnd-item-cant')
-                        .attr('max', item.pendiente)
-                        .attr('data-producto', item.producto_id)
-                        .data('max', item.pendiente)
-                ));
-                $box.append($row);
-            });
+        // La página completa (notas-credito-debito.js) precarga TODOS los ítems
+        // pendientes del comprobante cuando Stock=Sí — el modal ya no necesita
+        // elegir productos/depósito, sólo saber si el comprobante tiene productos
+        // (para deshabilitar "Sí" si no los tiene).
+        function chequearSinProductos() {
+            $.getJSON(window.ComprasConfig.rutas.notasItemsDisponibles)
+                .done((resp) => {
+                    const sinProductos = (resp.data || []).length === 0;
+                    $('#ncnd-afecta-si').prop('disabled', sinProductos);
+                    $('#ncnd-sin-productos').toggleClass('d-none', !sinProductos);
+                })
+                .fail(() => {});
         }
-
-        function toggleStockBloque() {
-            const afecta = $('input[name="ncnd-afecta-stock"]:checked').val() === '1';
-            $('#ncnd-stock-bloque').toggleClass('d-none', !afecta);
-            if (!afecta) {
-                $('.ncnd-item-chk').prop('checked', false);
-                $('.ncnd-item-cant').val('');
-                $('#ncnd-deposito').val(null);
-            }
-        }
-        $('input[name="ncnd-afecta-stock"]').on('change', toggleStockBloque);
-
-        $(document).on('input', '.ncnd-item-cant', function () {
-            const max = parseFloat($(this).data('max'));
-            if (max && parseFloat(normalizarDecimal($(this).val())) > max) { $(this).val(String(max)); }
-        });
 
         $('#btn-agregar-nota').on('click', function () {
             notaEnEdicion = null;
@@ -866,20 +887,9 @@
             mesImputacionTocado = false;
             $('input[name="ncnd-afecta-stock"][value="0"]').prop('checked', true).prop('disabled', false);
             $('#ncnd-afecta-si').prop('disabled', false);
-            const $dep = $('#ncnd-deposito').empty();
-            (data.depositos || []).forEach((d) => $dep.append(new Option(d.nombre, d.id)));
 
-            $.getJSON(window.ComprasConfig.rutas.notasItemsDisponibles)
-                .done((resp) => {
-                    itemsDisponibles = resp.data || [];
-                    renderItemsStock();
-                    const sinProductos = itemsDisponibles.length === 0;
-                    $('#ncnd-afecta-si').prop('disabled', sinProductos);
-                    $('#ncnd-sin-productos').toggleClass('d-none', !sinProductos);
-                })
-                .fail(() => { itemsDisponibles = []; renderItemsStock(); });
+            chequearSinProductos();
 
-            toggleStockBloque();
             bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-ncnd')).show();
         });
 
@@ -905,31 +915,6 @@
             $('#ncnd-afecta-si, #ncnd-afecta-no').prop('disabled', true);
             $('#ncnd-mes-imputacion').val(nota.mes_imputacion);
             mesImputacionTocado = true;
-            const $dep = $('#ncnd-deposito').empty();
-            (data.depositos || []).forEach((d) => $dep.append(new Option(d.nombre, d.id)));
-
-            toggleStockBloque();
-
-            if (nota.afecta_stock) {
-                $.getJSON(window.ComprasConfig.rutas.notasItemsDisponibles)
-                    .done((resp) => {
-                        itemsDisponibles = resp.data || [];
-                        (nota.items || []).forEach((it) => {
-                            const existente = itemsDisponibles.find((d) => d.producto_id === it.producto_id);
-                            if (existente) {
-                                existente.pendiente = Math.round((existente.pendiente + it.cantidad) * 1000) / 1000;
-                            } else {
-                                itemsDisponibles.push({ producto_id: it.producto_id, descripcion: 'Producto #' + it.producto_id, pendiente: it.cantidad });
-                            }
-                        });
-                        renderItemsStock();
-                        (nota.items || []).forEach((it) => {
-                            $('#ncnd-item-' + it.producto_id).prop('checked', true);
-                            $('.ncnd-item-cant[data-producto="' + it.producto_id + '"]').val(it.cantidad);
-                        });
-                    })
-                    .fail(() => { itemsDisponibles = []; renderItemsStock(); });
-            }
 
             bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-ncnd')).show();
         }
@@ -967,9 +952,6 @@
                 afecta_stock: afectaStock ? '1' : '0',
                 mes_imputacion: $('#ncnd-mes-imputacion').val() || '',
             });
-            if (afectaStock && $('#ncnd-deposito').val()) {
-                qs.set('deposito_id', $('#ncnd-deposito').val());
-            }
 
             const url = notaEnEdicion
                 ? window.ComprasConfig.rutas.notasEditPaginaBase + '/' + notaEnEdicion.id + '/editar'

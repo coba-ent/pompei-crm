@@ -14,7 +14,7 @@ class PresupuestoCalculoTest extends TestCase
     {
         $resultado = (new CalculoComprobante())->calcular([
             ['descripcion' => 'Camisa', 'cantidad' => 2, 'precio_unitario' => 100, 'iva_pct' => '21'],
-        ], null);
+        ], 'porcentaje', null);
 
         $this->assertSame(200.0, $resultado['subtotal_sin_descuento']);
         $this->assertSame(0.0, $resultado['descuento']);
@@ -27,7 +27,7 @@ class PresupuestoCalculoTest extends TestCase
     {
         $resultado = (new CalculoComprobante())->calcular([
             ['descripcion' => 'Producto A', 'cantidad' => 1, 'precio_unitario' => 1000, 'descuento_pct' => 10, 'iva_pct' => '21'],
-        ], 10); // 10% general sobre el subtotal ya neto del descuento de ítem
+        ], 'porcentaje', 10); // 10% general sobre el subtotal ya neto del descuento de ítem
 
         // Subtotal del ítem tras 10% de descuento propio: 900.
         $this->assertSame(900.0, $resultado['subtotal_sin_descuento']);
@@ -41,7 +41,7 @@ class PresupuestoCalculoTest extends TestCase
     {
         $resultado = (new CalculoComprobante())->calcular([
             ['descripcion' => 'Servicio', 'cantidad' => 1, 'precio_unitario' => 100, 'iva_pct' => 'exento'],
-        ], null, [
+        ], 'porcentaje', null, [
             ['tipo' => 'percepcion', 'concepto' => 'IIBB', 'monto' => 15],
             ['tipo' => 'interes', 'concepto' => 'Financiación', 'monto' => 5],
         ]);

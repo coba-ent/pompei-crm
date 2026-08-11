@@ -140,8 +140,11 @@
                     <div class="col-lg-6">
                         <div class="bg-light rounded p-3">
                             <div class="mb-3">
-                                <label class="form-label">Descuento General (%)</label>
-                                <input type="number" id="f-descuento-general" class="form-control" min="0" max="100" step="0.01">
+                                <label class="form-label" id="f-descuento-general-label">Descuento General (%)</label>
+                                <div class="input-group">
+                                    <input type="number" id="f-descuento-general" class="form-control" min="0" max="100" step="0.01">
+                                    <button type="button" id="f-descuento-general-toggle" class="btn btn-outline-secondary" data-modo="porcentaje">%</button>
+                                </div>
                             </div>
 
                             <div id="conceptos-body" class="mb-2"></div>
@@ -177,7 +180,7 @@
 
 @php
     $clienteOrigen = $venta?->cliente ?? $presupuestoOrigen?->cliente;
-    $datosVenta = $venta ? $venta->only(['id', 'cliente_id', 'categoria_id', 'lista_precio_id', 'vendedor_id', 'deposito_id', 'descuento_general_pct', 'tipo_comprobante', 'nota_cliente', 'nota_interna', 'formas_pago', 'metodos_envio']) : null;
+    $datosVenta = $venta ? $venta->only(['id', 'cliente_id', 'categoria_id', 'lista_precio_id', 'vendedor_id', 'deposito_id', 'descuento_general_pct', 'descuento_general_tipo', 'descuento_general_monto', 'tipo_comprobante', 'nota_cliente', 'nota_interna', 'formas_pago', 'metodos_envio']) : null;
     $datosItems = ($venta?->items ?? $presupuestoOrigen?->items ?? collect())->map(fn ($i) => $i->only(['producto_id', 'descripcion', 'cantidad', 'precio_unitario', 'descuento_pct', 'iva_pct']))->values();
     $datosConceptos = ($venta?->conceptos ?? $presupuestoOrigen?->conceptos ?? collect())->map(fn ($c) => $c->only(['tipo', 'concepto', 'monto']))->values();
     $datosEtiquetas = ($venta?->etiquetas ?? $presupuestoOrigen?->etiquetas ?? collect())->pluck('nombre');
@@ -193,6 +196,8 @@
         cliente: @json($datosCliente),
         presupuestoId: @json($presupuestoOrigen?->id),
         descuentoGeneralPct: @json($venta?->descuento_general_pct ?? $presupuestoOrigen?->descuento_general_pct),
+        descuentoGeneralTipo: @json($venta?->descuento_general_tipo ?? $presupuestoOrigen?->descuento_general_tipo ?? 'porcentaje'),
+        descuentoGeneralMonto: @json($venta?->descuento_general_monto ?? $presupuestoOrigen?->descuento_general_monto),
         categoriaId: @json($venta?->categoria_id ?? $presupuestoOrigen?->categoria_id),
         listaPrecioId: @json($venta?->lista_precio_id ?? $presupuestoOrigen?->lista_precio_id),
         vendedorId: @json($venta?->vendedor_id),

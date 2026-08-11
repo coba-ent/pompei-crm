@@ -33,14 +33,6 @@
                             Este comprobante no tiene productos (sólo conceptos/servicios) — no se puede afectar stock.
                         </div>
                     </div>
-                    <div id="ncnd-stock-bloque" class="d-none">
-                        <div class="mb-3">
-                            <label class="form-label">Depósito</label>
-                            <select id="ncnd-deposito" class="form-select" style="width:100%"></select>
-                        </div>
-                        <label class="form-label">Agregar Productos de la Compra</label>
-                        <div id="ncnd-items"></div>
-                    </div>
                     <div class="mb-3">
                         <label class="form-label">Mes de Imputación</label>
                         <input type="month" class="form-control" id="ncnd-mes-imputacion">

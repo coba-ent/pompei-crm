@@ -19,9 +19,31 @@ class CalculoComprobante
      * @param  array<int, array{tipo: string, concepto: string, monto: float|string}>  $conceptos
      * @return array{items: array, subtotal_sin_descuento: float, descuento: float, subtotal_con_descuento: float, total: float}
      */
-    public function calcular(array $items, float|string|null $descuentoGeneralPct, array $conceptos = []): array
-    {
-        $descuentoGeneralPct = (float) ($descuentoGeneralPct ?? 0);
+    public function calcular(
+        array $items,
+        string $descuentoGeneralTipo,
+        float|string|null $descuentoGeneralValor,
+        array $conceptos = []
+    ): array {
+        $descuentoGeneralValor = (float) ($descuentoGeneralValor ?? 0);
+
+        if ($descuentoGeneralTipo === 'monto') {
+            $subtotalBruto = 0.0;
+            foreach ($items as $item) {
+                $cantidad = (float) $item['cantidad'];
+                $precioUnitario = (float) $item['precio_unitario'];
+                $descuentoPct = (float) ($item['descuento_pct'] ?? 0);
+                $bruto = $cantidad * $precioUnitario;
+                $subtotalBruto += round($bruto - ($bruto * $descuentoPct / 100), 2);
+            }
+
+            $descuentoGeneralPct = $subtotalBruto > 0
+                ? min(100, ($descuentoGeneralValor / $subtotalBruto) * 100)
+                : 0;
+        } else {
+            $descuentoGeneralPct = $descuentoGeneralValor;
+        }
+
         $factor = 1 - ($descuentoGeneralPct / 100);
 
         $itemsCalculados = [];

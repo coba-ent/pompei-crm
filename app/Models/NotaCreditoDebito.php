@@ -20,6 +20,7 @@ class NotaCreditoDebito extends Model
         'legacy_id',
         'venta_id', 'compra_id', 'nota_ajustada_id', 'tipo', 'afecta_stock', 'mes_imputacion',
         'fecha_emision', 'monto', 'tipo_comprobante', 'nro_comprobante', 'descripcion', 'impuestos',
+        'descuento_general_tipo', 'descuento_general_pct', 'descuento_general_monto',
     ];
 
     protected $casts = [
@@ -28,6 +29,8 @@ class NotaCreditoDebito extends Model
         'fecha_emision' => 'date',
         'monto' => 'decimal:2',
         'impuestos' => 'array',
+        'descuento_general_pct' => 'decimal:2',
+        'descuento_general_monto' => 'decimal:2',
     ];
 
     public function venta(): BelongsTo

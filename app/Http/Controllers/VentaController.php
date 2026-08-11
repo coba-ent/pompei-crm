@@ -384,7 +384,11 @@ class VentaController extends Controller
         }
 
         $venta = DB::transaction(function () use ($datos, $request) {
-            $resultado = $this->calculo->calcular($datos['items'], $datos['descuento_general_pct'] ?? null, $datos['conceptos'] ?? []);
+            $descuentoGeneralTipo = $datos['descuento_general_tipo'] ?? 'porcentaje';
+            $descuentoGeneralValor = $descuentoGeneralTipo === 'monto'
+                ? ($datos['descuento_general_monto'] ?? null)
+                : ($datos['descuento_general_pct'] ?? null);
+            $resultado = $this->calculo->calcular($datos['items'], $descuentoGeneralTipo, $descuentoGeneralValor, $datos['conceptos'] ?? []);
 
             $venta = Venta::create([
                 'presupuesto_id' => $datos['presupuesto_id'] ?? null,
@@ -399,7 +403,9 @@ class VentaController extends Controller
                 'tipo_comprobante' => $datos['tipo_comprobante'],
                 'nro_comprobante' => Venta::siguienteNroComprobante($datos['tipo_comprobante']),
                 'fecha_vto_cobro' => $datos['fecha_vto_cobro'] ?? null,
-                'descuento_general_pct' => $datos['descuento_general_pct'] ?? null,
+                'descuento_general_tipo' => $descuentoGeneralTipo,
+                'descuento_general_pct' => $descuentoGeneralTipo === 'porcentaje' ? ($datos['descuento_general_pct'] ?? null) : null,
+                'descuento_general_monto' => $descuentoGeneralTipo === 'monto' ? ($datos['descuento_general_monto'] ?? null) : null,
                 'subtotal_sin_descuento' => $resultado['subtotal_sin_descuento'],
                 'descuento' => $resultado['descuento'],
                 'subtotal_con_descuento' => $resultado['subtotal_con_descuento'],
@@ -472,7 +478,11 @@ class VentaController extends Controller
         $datos = $request->validated();
 
         DB::transaction(function () use ($datos, $venta) {
-            $resultado = $this->calculo->calcular($datos['items'], $datos['descuento_general_pct'] ?? null, $datos['conceptos'] ?? []);
+            $descuentoGeneralTipo = $datos['descuento_general_tipo'] ?? 'porcentaje';
+            $descuentoGeneralValor = $descuentoGeneralTipo === 'monto'
+                ? ($datos['descuento_general_monto'] ?? null)
+                : ($datos['descuento_general_pct'] ?? null);
+            $resultado = $this->calculo->calcular($datos['items'], $descuentoGeneralTipo, $descuentoGeneralValor, $datos['conceptos'] ?? []);
             $itemsAnteriores = $venta->items()->with('producto')->get();
             $depositoAnteriorId = $venta->deposito_id;
 
@@ -487,7 +497,9 @@ class VentaController extends Controller
                 'servicio_hasta' => $datos['servicio_hasta'] ?? null,
                 'tipo_comprobante' => $datos['tipo_comprobante'],
                 'fecha_vto_cobro' => $datos['fecha_vto_cobro'] ?? null,
-                'descuento_general_pct' => $datos['descuento_general_pct'] ?? null,
+                'descuento_general_tipo' => $descuentoGeneralTipo,
+                'descuento_general_pct' => $descuentoGeneralTipo === 'porcentaje' ? ($datos['descuento_general_pct'] ?? null) : null,
+                'descuento_general_monto' => $descuentoGeneralTipo === 'monto' ? ($datos['descuento_general_monto'] ?? null) : null,
                 'subtotal_sin_descuento' => $resultado['subtotal_sin_descuento'],
                 'descuento' => $resultado['descuento'],
                 'subtotal_con_descuento' => $resultado['subtotal_con_descuento'],
