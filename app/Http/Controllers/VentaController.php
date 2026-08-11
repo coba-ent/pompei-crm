@@ -422,7 +422,7 @@ class VentaController extends Controller
             if (! empty($datos['presupuesto_id'])) {
                 $presupuesto = Presupuesto::find($datos['presupuesto_id']);
                 if ($presupuesto && ! $presupuesto->convertido()) {
-                    $presupuesto->update(['venta_id' => $venta->id]);
+                    $presupuesto->update(['venta_id' => $venta->id, 'estado' => 'aceptado']);
                 }
             }
 
