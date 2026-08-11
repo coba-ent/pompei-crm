@@ -256,6 +256,21 @@
             tabla.buttons().container().appendTo('#dt-buttons-presupuestos');
         });
 
+        // Las Cards de KPIs arriba del listado tienen que reflejar los mismos filtros que la
+        // tabla — se recalculan en el server (misma query filtrada) cada vez que la tabla
+        // vuelve a pedir datos: reload por Buscar/Limpiar, eliminar, paginado.
+        function actualizarKpis() {
+            if (!rutas.kpis) { return; }
+            $.getJSON(rutas.kpis, filtrosActuales()).done((kpis) => {
+                $('#kpi-ventas').text(kpis.ventas);
+                $('#kpi-vencidos').text(kpis.vencidos_rechazados);
+                $('#kpi-pendientes').text(kpis.pendientes);
+                $('#kpi-aceptados').text(kpis.aceptados);
+                $('#kpi-total-posibles').text(money(kpis.total_posibles));
+            });
+        }
+        tabla.on('xhr.dt', actualizarKpis);
+
         $('#btn-aplicar-filtros').on('click', () => tabla.ajax.reload());
         $('#btn-limpiar-filtros').on('click', () => {
             $('#filtro-id, #filtro-buscar, #filtro-formas-pago, #filtro-metodos-envio, #filtro-nota-cliente, #filtro-nota-interna, #filtro-servicio-desde, #filtro-servicio-hasta').val('');

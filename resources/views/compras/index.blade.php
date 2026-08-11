@@ -20,7 +20,7 @@
                 <div class="card text-center h-100">
                     <div class="card-body">
                         <div class="text-muted small">Cantidad de Compras</div>
-                        <div class="h5 mb-0">{{ $kpis['cantidad'] }}</div>
+                        <div class="h5 mb-0" id="kpi-cantidad">{{ $kpis['cantidad'] }}</div>
                     </div>
                 </div>
             </div>
@@ -28,7 +28,7 @@
                 <div class="card text-center h-100">
                     <div class="card-body">
                         <div class="text-muted small">Pagado</div>
-                        <div class="h5 mb-0">$ {{ number_format($kpis['pagado'], 2, ',', '.') }}</div>
+                        <div class="h5 mb-0" id="kpi-pagado">$ {{ number_format($kpis['pagado'], 2, ',', '.') }}</div>
                     </div>
                 </div>
             </div>
@@ -36,7 +36,7 @@
                 <div class="card text-center h-100">
                     <div class="card-body">
                         <div class="text-muted small">A Pagar</div>
-                        <div class="h5 mb-0">$ {{ number_format($kpis['a_pagar'], 2, ',', '.') }}</div>
+                        <div class="h5 mb-0" id="kpi-a-pagar">$ {{ number_format($kpis['a_pagar'], 2, ',', '.') }}</div>
                     </div>
                 </div>
             </div>
@@ -44,7 +44,7 @@
                 <div class="card text-center h-100">
                     <div class="card-body">
                         <div class="text-muted small">Vencido</div>
-                        <div class="h5 mb-0 text-danger">$ {{ number_format($kpis['vencido'], 2, ',', '.') }}</div>
+                        <div class="h5 mb-0 text-danger" id="kpi-vencido">$ {{ number_format($kpis['vencido'], 2, ',', '.') }}</div>
                     </div>
                 </div>
             </div>
@@ -52,7 +52,7 @@
                 <div class="card text-center h-100">
                     <div class="card-body">
                         <div class="text-muted small">Total Compras</div>
-                        <div class="h5 mb-0">$ {{ number_format($kpis['total'], 2, ',', '.') }}</div>
+                        <div class="h5 mb-0" id="kpi-total">$ {{ number_format($kpis['total'], 2, ',', '.') }}</div>
                     </div>
                 </div>
             </div>
@@ -233,6 +233,7 @@
     window.ComprasConfig = {
         rutas: {
             data: "{{ route('compras.data') }}",
+            kpis: "{{ route('compras.kpis') }}",
             show: "{{ url('compras') }}",
             pdf: "{{ url('compras') }}",
             proveedoresOpciones: "{{ route('proveedores.opciones') }}",

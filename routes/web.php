@@ -178,6 +178,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permiso:presupuestos.ver')->prefix('presupuestos')->name('presupuestos.')->group(function () {
         Route::get('/', [PresupuestoController::class, 'index'])->name('index');
         Route::get('data', [PresupuestoController::class, 'data'])->name('data');
+        Route::get('kpis', [PresupuestoController::class, 'kpisData'])->name('kpis');
         Route::get('nuevo', [PresupuestoController::class, 'create'])->name('create');
         Route::post('/', [PresupuestoController::class, 'store'])->name('store');
         Route::get('{presupuesto}/editar', [PresupuestoController::class, 'edit'])->name('edit');
@@ -192,6 +193,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permiso:ventas.ver')->prefix('ventas')->name('ventas.')->group(function () {
         Route::get('/', [VentaController::class, 'index'])->name('index');
         Route::get('data', [VentaController::class, 'data'])->name('data');
+        Route::get('kpis', [VentaController::class, 'kpisData'])->name('kpis');
         Route::get('nueva', [VentaController::class, 'create'])->name('create');
         Route::post('/', [VentaController::class, 'store'])->name('store');
         Route::get('{venta}/editar', [VentaController::class, 'edit'])->name('edit');
@@ -205,6 +207,8 @@ Route::middleware('auth')->group(function () {
         Route::delete('{venta}/cobranzas/{cobro}', [VentaController::class, 'cobranzaDestroy'])->name('cobranzas.destroy');
         Route::get('{venta}/cobranzas/{cobro}/recibo', [VentaController::class, 'reciboCobranza'])->name('cobranzas.recibo');
         Route::post('{venta}/notas', [NotaCreditoDebitoController::class, 'store'])->name('notas.store');
+        Route::put('{venta}/notas/{notaCreditoDebito}', [NotaCreditoDebitoController::class, 'update'])->name('notas.update');
+        Route::delete('{venta}/notas/{notaCreditoDebito}', [NotaCreditoDebitoController::class, 'destroy'])->name('notas.destroy');
         Route::get('notas/{notaCreditoDebito}/pdf', [NotaCreditoDebitoController::class, 'pdf'])->name('notas.pdf');
         Route::get('{venta}/notas-credito-debito/items-disponibles', [NotaCreditoDebitoController::class, 'itemsDisponiblesVenta'])->name('notas.itemsDisponibles');
         Route::post('{venta}/remitos', [VentaController::class, 'remitoStore'])->name('remitos.store');
@@ -283,6 +287,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permiso:compras.ver')->prefix('compras')->name('compras.')->group(function () {
         Route::get('/', [CompraController::class, 'index'])->name('index');
         Route::get('data', [CompraController::class, 'data'])->name('data');
+        Route::get('kpis', [CompraController::class, 'kpisData'])->name('kpis');
         Route::get('nueva', [CompraController::class, 'create'])->name('create');
         Route::post('/', [CompraController::class, 'store'])->name('store');
         Route::get('{compra}/editar', [CompraController::class, 'edit'])->name('edit');
@@ -294,6 +299,9 @@ Route::middleware('auth')->group(function () {
         Route::get('{compra}/pagos/{pago}/recibo', [CompraController::class, 'reciboPago'])->name('pagos.recibo');
         Route::post('{compra}/retenciones', [CompraController::class, 'retencionStore'])->name('retenciones.store');
         Route::post('{compra}/notas', [NotaCreditoDebitoController::class, 'storeCompra'])->name('notas.store');
+        Route::put('{compra}/notas/{notaCreditoDebito}', [NotaCreditoDebitoController::class, 'updateCompra'])->name('notas.update');
+        Route::delete('{compra}/notas/{notaCreditoDebito}', [NotaCreditoDebitoController::class, 'destroyCompra'])->name('notas.destroy');
+        Route::get('notas/{notaCreditoDebito}/pdf', [NotaCreditoDebitoController::class, 'pdf'])->name('notas.pdf');
         Route::get('{compra}/notas-credito-debito/items-disponibles', [NotaCreditoDebitoController::class, 'itemsDisponiblesCompra'])->name('notas.itemsDisponibles');
         Route::post('{compra}/remitos', [CompraController::class, 'remitoStore'])->name('remitos.store');
         Route::get('{compra}', [CompraController::class, 'show'])->name('show');

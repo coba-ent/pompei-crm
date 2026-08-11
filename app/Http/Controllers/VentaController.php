@@ -47,13 +47,13 @@ class VentaController extends Controller
     ) {
     }
 
-    public function index()
+    public function index(Request $request)
     {
         $CurrentPage = 'ventas';
 
         return view('ventas.index', [
             'CurrentPage' => $CurrentPage,
-            'kpis' => $this->kpis(),
+            'kpis' => $this->kpis($request),
             'categoriasVenta' => Categoria::venta()->activas()->orderBy('nombre')->get(['id', 'nombre']),
             'vendedores' => Vendedor::orderBy('nombre')->get(['id', 'nombre']),
             'etiquetas' => Etiqueta::orderBy('nombre')->get(['id', 'nombre']),
@@ -78,7 +78,7 @@ class VentaController extends Controller
      * `A Cobrar = Total + Σ ND − Σ NC − Cobrado`, y "vencido" es el A Cobrar > 0 de las ventas con
      * `fecha_vto_cobro` pasada. Si cambia esa fórmula en Venta, hay que reflejarla acá.
      */
-    private function kpis(): array
+    private function kpis(Request $request): array
     {
         // JOIN contra subconsultas ya agrupadas, no subselects correlacionados: éstos se evalúan
         // una vez por fila (1,5s con 23.659 ventas), mientras que así cada tabla se recorre una
@@ -88,7 +88,7 @@ class VentaController extends Controller
         $nd = 'COALESCE(n.debito, 0)';
         $aCobrar = "(ventas.total + {$nd} - {$nc} - {$cobrado})";
 
-        $r = Venta::query()
+        $r = $this->aplicarFiltros(Venta::query(), $request)
             ->leftJoinSub(
                 DB::table('cobros')->selectRaw('venta_id, SUM(monto) AS monto')
                     ->whereNull('deleted_at')->groupBy('venta_id'),
@@ -141,6 +141,12 @@ class VentaController extends Controller
     {
         $query = Venta::query()->with(['cliente:id,nombre', 'categoria:id,nombre', 'presupuesto:id', 'listaPrecio:id,nombre', 'vendedor:id,nombre', 'etiquetas:id,nombre', 'cobros.cuentaTesoreria:id,nombre', 'comprobanteFiscal:id,comprobantable_type,comprobantable_id,estado', 'items.producto:id,nombre']);
 
+        return $this->aplicarFiltros($query, $request);
+    }
+
+    /** Filtros del listado, aplicados tanto sobre el listado (data()) como sobre los KPIs (kpis()). */
+    private function aplicarFiltros(Builder $query, Request $request): Builder
+    {
         if ($request->filled('id')) {
             // Busca por el id del CRM **y** por el número que la venta tenía en Contagram: los
             // comprobantes en papel y los reclamos de clientes traen el número viejo, que es el
@@ -241,6 +247,12 @@ class VentaController extends Controller
         }
 
         return $query;
+    }
+
+    /** KPIs recalculados contra los mismos filtros del listado (AJAX, panel de Filtros). */
+    public function kpisData(Request $request): JsonResponse
+    {
+        return response()->json($this->kpis($request));
     }
 
     public function data(Request $request): JsonResponse

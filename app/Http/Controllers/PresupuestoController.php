@@ -31,10 +31,10 @@ class PresupuestoController extends Controller
     {
     }
 
-    public function index()
+    public function index(Request $request)
     {
         $CurrentPage = 'presupuestos';
-        $kpis = $this->kpis();
+        $kpis = $this->kpis($request);
 
         return view('presupuestos.index', [
             'CurrentPage' => $CurrentPage,
@@ -54,6 +54,12 @@ class PresupuestoController extends Controller
     {
         $query = Presupuesto::query()->with(['cliente:id,nombre', 'categoria:id,nombre']);
 
+        return $this->aplicarFiltros($query, $request);
+    }
+
+    /** Filtros del listado, aplicados tanto sobre el listado (data()) como sobre los KPIs (kpis()). */
+    private function aplicarFiltros(Builder $query, Request $request): Builder
+    {
         if ($request->filled('id')) {
             $query->where('id', (int) $request->input('id'));
         }
@@ -107,6 +113,12 @@ class PresupuestoController extends Controller
         return $query;
     }
 
+    /** KPIs recalculados contra los mismos filtros del listado (AJAX, panel de Filtros). */
+    public function kpisData(Request $request): JsonResponse
+    {
+        return response()->json($this->kpis($request));
+    }
+
     public function data(Request $request): JsonResponse
     {
         $query = $this->queryFiltrada($request);
@@ -127,17 +139,19 @@ class PresupuestoController extends Controller
             ->toJson();
     }
 
-    /** Barra de 5 KPIs sobre el listado (informe §2.1). */
-    private function kpis(): array
+    /** Barra de 5 KPIs sobre el listado (informe §2.1), recalculada contra los mismos filtros. */
+    private function kpis(Request $request): array
     {
+        $base = fn () => $this->aplicarFiltros(Presupuesto::query(), $request);
+
         return [
-            'ventas' => Presupuesto::whereNotNull('venta_id')->count(),
-            'vencidos_rechazados' => Presupuesto::where('estado', 'rechazado')
+            'ventas' => $base()->whereNotNull('venta_id')->count(),
+            'vencidos_rechazados' => $base()->where('estado', 'rechazado')
                 ->orWhere(fn ($q) => $q->where('estado', 'pendiente')->whereDate('fecha_validez', '<', now()))
                 ->count(),
-            'pendientes' => Presupuesto::where('estado', 'pendiente')->count(),
-            'aceptados' => Presupuesto::where('estado', 'aceptado')->count(),
-            'total_posibles' => (float) Presupuesto::where('estado', 'pendiente')->sum('total'),
+            'pendientes' => $base()->where('estado', 'pendiente')->count(),
+            'aceptados' => $base()->where('estado', 'aceptado')->count(),
+            'total_posibles' => (float) $base()->where('estado', 'pendiente')->sum('total'),
         ];
     }
 

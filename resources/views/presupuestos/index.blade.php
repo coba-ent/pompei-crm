@@ -254,6 +254,7 @@
     window.PresupuestosConfig = {
         rutas: {
             data: "{{ route('presupuestos.data') }}",
+            kpis: "{{ route('presupuestos.kpis') }}",
             show: "{{ url('presupuestos') }}",
             estado: "{{ url('presupuestos') }}",
             crearVenta: "{{ url('presupuestos') }}",

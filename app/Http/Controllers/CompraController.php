@@ -36,10 +36,10 @@ class CompraController extends Controller
     ) {
     }
 
-    public function index()
+    public function index(Request $request)
     {
         $CurrentPage = 'compras';
-        $kpis = $this->kpis();
+        $kpis = $this->kpis($request);
         $categoriasCompra = Categoria::compra()->activas()->orderBy('nombre')->get(['id', 'nombre']);
         $etiquetas = \App\Models\Etiqueta::orderBy('nombre')->get(['id', 'nombre']);
         $cuentasTesoreria = CuentaTesoreria::orderBy('nombre')->get(['id', 'nombre']);
@@ -60,14 +60,14 @@ class CompraController extends Controller
      *
      * Mantiene la definición del modelo: `A Pagar = Total + Σ ND − Σ NC − Pagado`.
      */
-    private function kpis(): array
+    private function kpis(Request $request): array
     {
         $pagado = 'COALESCE((SELECT SUM(p.monto) FROM pagos p WHERE p.compra_id = compras.id AND p.deleted_at IS NULL), 0)';
         $nc = "COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.compra_id = compras.id AND n.tipo = 'credito' AND n.deleted_at IS NULL), 0)";
         $nd = "COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.compra_id = compras.id AND n.tipo = 'debito' AND n.deleted_at IS NULL), 0)";
         $aPagar = "(compras.total + {$nd} - {$nc} - {$pagado})";
 
-        $r = Compra::query()
+        $r = $this->aplicarFiltros(Compra::query(), $request)
             ->selectRaw("
                 COUNT(*) AS cantidad,
                 COALESCE(SUM(compras.total), 0) AS total,
@@ -94,6 +94,12 @@ class CompraController extends Controller
     {
         $query = Compra::query()->with(['proveedor:id,nombre,cuit,telefono,email', 'categoria:id,nombre', 'pagos.cuentaTesoreria:id,nombre']);
 
+        return $this->aplicarFiltros($query, $request);
+    }
+
+    /** Filtros del listado, aplicados tanto sobre el listado (data()) como sobre los KPIs (kpis()). */
+    private function aplicarFiltros(Builder $query, Request $request): Builder
+    {
         if ($request->filled('id')) {
             $query->where('id', (int) $request->input('id'));
         }
@@ -159,6 +165,12 @@ class CompraController extends Controller
         }
 
         return $query;
+    }
+
+    /** KPIs recalculados contra los mismos filtros del listado (AJAX, panel de Filtros). */
+    public function kpisData(Request $request): JsonResponse
+    {
+        return response()->json($this->kpis($request));
     }
 
     public function data(Request $request): JsonResponse

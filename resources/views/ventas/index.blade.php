@@ -25,7 +25,7 @@
                             </span>
                             <div class="media-body">
                                 <p class="mb-1">Cantidad de Ventas</p>
-                                <h4 class="mb-0">{{ $kpis['cantidad'] }}</h4>
+                                <h4 class="mb-0" id="kpi-cantidad">{{ $kpis['cantidad'] }}</h4>
                             </div>
                         </div>
                     </div>
@@ -40,7 +40,7 @@
                             </span>
                             <div class="media-body">
                                 <p class="mb-1">Cobrado</p>
-                                <h4 class="mb-0 text-success">$ {{ number_format($kpis['cobrado'], 2, ',', '.') }}</h4>
+                                <h4 class="mb-0 text-success" id="kpi-cobrado">$ {{ number_format($kpis['cobrado'], 2, ',', '.') }}</h4>
                             </div>
                         </div>
                     </div>
@@ -55,7 +55,7 @@
                             </span>
                             <div class="media-body">
                                 <p class="mb-1">A Cobrar</p>
-                                <h4 class="mb-0 text-warning">$ {{ number_format($kpis['a_cobrar'], 2, ',', '.') }}</h4>
+                                <h4 class="mb-0 text-warning" id="kpi-a-cobrar">$ {{ number_format($kpis['a_cobrar'], 2, ',', '.') }}</h4>
                             </div>
                         </div>
                     </div>
@@ -70,7 +70,7 @@
                             </span>
                             <div class="media-body">
                                 <p class="mb-1">Vencido</p>
-                                <h4 class="mb-0 text-danger">$ {{ number_format($kpis['vencido'], 2, ',', '.') }}</h4>
+                                <h4 class="mb-0 text-danger" id="kpi-vencido">$ {{ number_format($kpis['vencido'], 2, ',', '.') }}</h4>
                             </div>
                         </div>
                     </div>
@@ -85,7 +85,7 @@
                             </span>
                             <div class="media-body">
                                 <p class="mb-1">Total Ventas</p>
-                                <h4 class="mb-0">$ {{ number_format($kpis['total'], 2, ',', '.') }}</h4>
+                                <h4 class="mb-0" id="kpi-total">$ {{ number_format($kpis['total'], 2, ',', '.') }}</h4>
                             </div>
                         </div>
                     </div>
@@ -349,6 +349,7 @@
     window.VentasConfig = {
         rutas: {
             data: "{{ route('ventas.data') }}",
+            kpis: "{{ route('ventas.kpis') }}",
             show: "{{ url('ventas') }}",
             pdf: "{{ url('ventas') }}",
             ticket: "{{ url('ventas') }}",
