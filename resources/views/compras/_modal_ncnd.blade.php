@@ -2,7 +2,7 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Crear NC/ND</h5>
+                <h5 class="modal-title" id="ncnd-titulo">Crear NC/ND</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body">
@@ -49,6 +49,16 @@
 
                 {{-- Paso 2 --}}
                 <div id="ncnd-paso-2" class="d-none">
+                    <div class="row g-2">
+                        <div class="col-6 mb-3">
+                            <label class="form-label">Tipo Comprobante</label>
+                            <input type="text" class="form-control" id="ncnd-tipo-comprobante" placeholder="A/B/C">
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label">N° Comprobante</label>
+                            <input type="text" class="form-control" id="ncnd-nro-comprobante" placeholder="0001-00000123">
+                        </div>
+                    </div>
                     <div class="mb-3">
                         <label class="form-label">Fecha</label>
                         <input type="date" class="form-control" id="ncnd-fecha">
@@ -64,10 +74,30 @@
                 </div>
             </div>
             <div class="modal-footer">
+                <button type="button" class="btn btn-danger me-auto d-none" id="btn-ncnd-eliminar">Eliminar</button>
                 <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
                 <button type="button" class="btn btn-outline-secondary d-none" id="btn-ncnd-volver">Volver</button>
                 <button type="button" class="btn btn-primary" id="btn-ncnd-siguiente">Siguiente</button>
                 <button type="button" class="btn btn-primary d-none" id="btn-ncnd-guardar">Guardar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modal-eliminar-nota" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Eliminar Nota</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                ¿Seguro que querés eliminar esta Nota de Crédito/Débito? Si afecta stock, se revierte
+                el movimiento. Esta acción no se puede deshacer.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="btn-confirmar-eliminar-nota">Eliminar</button>
             </div>
         </div>
     </div>

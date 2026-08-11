@@ -126,7 +126,31 @@ Al guardar, redirige a `/purchases/{id}` con mensaje de éxito ("Compra N creada
 
 **Botones de acción bajo el detalle:** Imprimir Detalle, Exportar Detalle, Editar Compra.
 
-**Sección "Notas de Crédito y Débito"**: tabla vacía por defecto (Estado, ID, Emisión, Comprobante, N° Comprobante, Documento que Ajusta, Total, Nota Interna) con enlace **+ Agregar**.
+**Sección "Notas de Crédito y Débito"**: tabla (Estado, ID, Emisión, Comprobante, N° Comprobante, Documento que Ajusta, Total, Nota Interna) con enlace **+ Agregar**. Relevada originalmente vacía (24/07/2026); revisitada el 11/08/2026 con datos reales cargados — ver §2.5.1 para el detalle completo de la fila, el menú de acciones y el flujo de edición, que la vista vacía no permitía observar.
+
+#### 2.5.1 Notas de Crédito y Débito — detalle de fila, acciones y edición (revisitado 11/08/2026)
+
+Con notas cargadas, la columna **"Estado"** funciona como trigger de un menú desplegable por fila (mismo patrón que el badge de estado en los listados de Ventas/Compras), con 3 opciones:
+
+1. **Editar**
+2. **Eliminar**
+3. **Ver Detalle**
+
+**"Ver Detalle"** abre un PDF propio de la nota (no el de la Compra/Venta que ajusta): marca de agua/sello **"X"** (comprobante interno, sin CAE — coincide con notas que no llegan a emitirse a ARCA), encabezado "NOTA DE CRÉDITO {id}" o "NOTA DE DÉBITO {id}", datos fiscales de la empresa emisora (CUIT, Ingresos Brutos, Fecha de Inicio de Actividades, Condición IVA), Fecha de Emisión y Fecha de Vto. para el pago, datos del proveedor/cliente ajustado (Razón Social, CUIT, Condición IVA, Categoría), y su **propia tabla de conceptos** (Código, Descripción, Cant., Precio Unit., % Bonif., Subtotal, Alícuota IVA, Subtotal c/IVA) — es decir, la nota es un documento con ítems y desglose de IVA propios, no un simple registro de "monto global".
+
+**"Editar"** abre un wizard de 2 pasos:
+
+- **Paso 1** (modal "Editar Nota de Crédito/Débito"): Seleccionar Tipo (deshabilitado una vez creada — no se puede convertir NC↔ND), **Documento que Ajusta** (select — ver hallazgo abajo), ¿Querés que afecte Stock? (No / Sí, con selector de descripción de motivo cuando es No), Mes de Imputación. Botones Cancelar / Siguiente.
+  - **Hallazgo clave**: el select "Documento que Ajusta" no lista solo el comprobante original de la Compra/Venta (ej. `A-0011-05104095`) — **también lista las demás NC/ND ya creadas sobre ese mismo comprobante** (ej. `NDA-0057-00099890`, `NCA-0058-00365767`, `NCA-0058-00367931`). O sea, una NC/ND puede declararse como corrección de **otra NC/ND**, no solo del comprobante original — permite correcciones encadenadas.
+- **Paso 2**: no es un simple "Fecha/Monto/Descripción" — es una página de edición completa, con la misma estructura que un formulario de Compra/Venta:
+  - Proveedor/Cliente heredado del comprobante original (bloqueado, no editable)
+  - Emisión, Vto. del Pago, Servicio Desde/Hasta
+  - **Tipo y N° de comprobante propios de la nota, editables** (ej. tipo "A", número "0057-00099890")
+  - Línea(s) de ítem con Descripción, Cant., Precio, Desc. (%), Subtotal, **IVA** por renglón (igual que un renglón de Compra/Venta común)
+  - Nota interna (campo de texto libre)
+  - Bloques repetibles **+ Percepciones / + Impuestos Internos / + Intereses** (mismos que en Compra/Venta)
+  - Panel de totales: Descuento General, Importe Neto Gravado, IVA, Total
+  - Botones: **Eliminar** (rojo, disponible también desde acá, no solo desde el menú de fila) / Cancelar / Guardar
 
 **Botón "Crear Remito"** visible en la parte superior de la ficha de detalle (junto a "Ver mis Compras").
 
@@ -189,6 +213,7 @@ Al guardar, el modal se cierra y el listado se actualiza inmediatamente con el n
 - **Gastos usa categorías propias**, independientes del árbol de Categorías de Compras usado en la Base de Datos de Proveedores — son dos taxonomías distintas dentro de la misma aplicación (Categoría de Compras del Proveedor vs. Categoría de Gasto).
 - El **selector de cuenta de tesorería** (medio de pago) es idéntico entre Compras y Gastos, confirmando que ambos módulos descargan en el mismo pool de cuentas configurado en Tesorería.
 - El **contador de prueba** ("Tu período de prueba finaliza en 6 días") avanzó respecto a informes anteriores de la sesión (era 7 días), reflejando el paso del tiempo real durante el relevamiento.
+- **Revisita 11/08/2026 — Notas de Crédito y Débito con datos cargados (§2.5.1)**: la NC/ND en Contagram real **no es un registro de monto global** — es un documento con estructura casi idéntica a una Compra/Venta propia: tipo y número de comprobante editables, ítems con Cant./Precio/Desc./IVA por renglón, bloques de Percepciones/Impuestos Internos/Intereses, nota interna y panel de totales con IVA discriminado. Tiene menú de fila con **Editar / Eliminar / Ver Detalle** (ausente en la v1 del CRM propio, que hoy solo permite Crear). El campo "Documento que Ajusta" admite referenciar tanto el comprobante original como **otra NC/ND ya existente sobre ese comprobante**, habilitando correcciones encadenadas. Esto es una brecha estructural respecto a lo implementado en `NotaCreditoDebito`/`NotaCreditoDebitoItem` (spec 039/045), que sólo persiste `monto` + `descripcion` sin ítems con IVA propio ni comprobante propio — a resolver en un spec dedicado de edición/eliminación de NC/ND.
 
 ---
 

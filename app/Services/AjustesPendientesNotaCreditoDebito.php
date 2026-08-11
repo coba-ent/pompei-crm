@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Compra;
+use App\Models\NotaCreditoDebito;
 use App\Models\Venta;
 
 /**
@@ -12,7 +13,8 @@ use App\Models\Venta;
  */
 class AjustesPendientesNotaCreditoDebito
 {
-    public function pendiente(Venta|Compra $comprobante, int $productoId): float
+    /** @param NotaCreditoDebito|null $excluir Nota en edición (FR-005): se excluye del "ya ajustado". */
+    public function pendiente(Venta|Compra $comprobante, int $productoId, ?NotaCreditoDebito $excluir = null): float
     {
         $facturada = (float) $comprobante->items()
             ->where('producto_id', $productoId)
@@ -21,6 +23,7 @@ class AjustesPendientesNotaCreditoDebito
         $yaAjustada = (float) $comprobante->notasCreditoDebito()
             ->with('items')
             ->get()
+            ->reject(fn ($nota) => $excluir && $nota->id === $excluir->id)
             ->flatMap(fn ($nota) => $nota->items)
             ->where('producto_id', $productoId)
             ->sum('cantidad');

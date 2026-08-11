@@ -358,6 +358,19 @@ nullable — obligatoria si no afecta stock), impuestos (json, nullable — conc
 aplicados, mismo patrón que `presupuesto_conceptos`). `nota_credito_debito_items` (pivot `producto_id`
 + `cantidad` + `precio`, con flag `origen` = `venta_original`/`nuevo`) sólo si `afecta_stock = true`.
 
+> **Ampliación spec 057 (11/08/2026, Edición/Eliminación de NC/ND)**: agrega `nro_comprobante`
+> (string, nullable — número propio de la nota; `tipo_comprobante` ya existía y pasa a ser
+> editable junto con éste) y `nota_ajustada_id` (FK auto-referencial nullable →
+> `notas_credito_debito.id` — "Documento que Ajusta" cuando apunta a otra NC/ND en vez de al
+> comprobante original; regla de negocio, no constraint de DB: exactamente uno de `venta_id`/
+> `compra_id`/`nota_ajustada_id` seteado, y sólo puede apuntar a una nota de "nivel 0", sin su
+> propio `nota_ajustada_id` — limita el encadenamiento a 1 nivel). `nota_credito_debito_items`
+> gana `descuento_pct` (decimal 5,2, nullable, default 0) e `iva_pct` (decimal 5,2, nullable) y
+> deja de estar condicionada a `afecta_stock = true`: se llena siempre que el usuario cargue
+> ítems en el paso 2 del wizard, reproduciendo el desglose Cant./Precio Unit./%Bonif./Subtotal/
+> Alícuota IVA/Subtotal c/IVA del PDF real de Contagram. Detalle completo en
+> `specs/057-editar-eliminar-ncnd/data-model.md`.
+
 ### `retenciones` (Cobros y Pagos — **implementado en spec 009**)
 Confirmado contra `help.contagram.com/es/articles/1319082` (24/07/2026): el campo vive dentro de la
 sección de Cobranzas del Detalle de Venta (no en el modal simple de cobro), vía botón "Agregar

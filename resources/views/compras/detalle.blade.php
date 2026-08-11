@@ -121,12 +121,8 @@
             </div>
         </div>
 
-        {{-- Documento imprimible con watermark --}}
+        {{-- Documento imprimible (las Compras no emiten comprobante fiscal propio — sin watermark de CAE) --}}
         <div class="card mb-3 position-relative overflow-hidden">
-            <div class="position-absolute top-50 start-50 translate-middle text-danger opacity-25 fw-bold"
-                 style="font-size:3rem; transform: translate(-50%, -50%) rotate(-20deg); pointer-events:none; z-index:1;">
-                NO VÁLIDO COMO FACTURA
-            </div>
             <div class="card-body" style="position:relative; z-index:2;">
                 <div class="d-flex justify-content-between mb-3">
                     <h5 class="mb-0">Comprobante {{ $compra->tipo_comprobante }} N° {{ $compra->nro_comprobante }}</h5>
@@ -206,7 +202,7 @@
                 </div>
                 <div class="table-responsive">
                     <table class="table table-sm">
-                        <thead><tr><th>Id</th><th>Tipo</th><th>Fecha</th><th>Afecta Stock</th><th>Mes de Imputación</th><th>Monto</th></tr></thead>
+                        <thead><tr><th>Id</th><th>Tipo</th><th>Fecha</th><th>Afecta Stock</th><th>Mes de Imputación</th><th>Monto</th><th></th></tr></thead>
                         <tbody>
                             @forelse ($compra->notasCreditoDebito as $nota)
                                 <tr>
@@ -216,9 +212,17 @@
                                     <td>{{ $nota->afecta_stock ? 'Sí' : 'No' }}</td>
                                     <td>{{ $nota->mes_imputacion->format('m/Y') }}</td>
                                     <td>$ {{ number_format((float) $nota->monto, 2, ',', '.') }}</td>
+                                    <td class="dropdown">
+                                        <a href="#" class="dropdown-toggle" data-bs-toggle="dropdown">Estado</a>
+                                        <ul class="dropdown-menu">
+                                            <li><a class="dropdown-item js-ver-detalle-nota" href="#" data-url="{{ route('compras.notas.pdf', $nota) }}">Ver Detalle</a></li>
+                                            <li><a class="dropdown-item js-editar-nota" href="#" data-id="{{ $nota->id }}">Editar</a></li>
+                                            <li><a class="dropdown-item text-danger js-eliminar-nota" href="#" data-id="{{ $nota->id }}">Eliminar</a></li>
+                                        </ul>
+                                    </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="6" class="text-center text-muted">Sin notas</td></tr>
+                                <tr><td colspan="7" class="text-center text-muted">Sin notas</td></tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -236,6 +240,25 @@
 @php
     $datosCuentas = $cuentas->map(fn ($c) => ['id' => $c->id, 'nombre' => $c->nombre]);
     $datosDepositos = $depositos->map(fn ($d) => ['id' => $d->id, 'nombre' => $d->nombre]);
+    $datosNotasCompra = $compra->notasCreditoDebito->map(fn ($n) => [
+        'id' => $n->id,
+        'tipo' => $n->tipo,
+        'afecta_stock' => $n->afecta_stock,
+        'mes_imputacion' => optional($n->mes_imputacion)->format('Y-m'),
+        'fecha_emision' => optional($n->fecha_emision)->format('Y-m-d'),
+        'monto' => (float) $n->monto,
+        'tipo_comprobante' => $n->tipo_comprobante,
+        'nro_comprobante' => $n->nro_comprobante,
+        'descripcion' => $n->descripcion,
+        'nota_ajustada_id' => $n->nota_ajustada_id,
+        'items' => $n->items->map(fn ($i) => [
+            'producto_id' => $i->producto_id,
+            'cantidad' => (float) $i->cantidad,
+            'precio' => (float) $i->precio,
+            'descuento_pct' => (float) ($i->descuento_pct ?? 0),
+            'iva_pct' => $i->iva_pct !== null ? (float) $i->iva_pct : null,
+        ]),
+    ]);
 @endphp
 @section('local-js')
 <script>
@@ -246,6 +269,7 @@
         nroComprobante: @json($compra->nro_comprobante),
         cuentas: @json($datosCuentas),
         depositos: @json($datosDepositos),
+        notas: @json($datosNotasCompra),
     };
     window.ComprasConfig = window.ComprasConfig || {};
     window.ComprasConfig.rutas = Object.assign(window.ComprasConfig.rutas || {}, {
@@ -255,6 +279,8 @@
         remitoStore: "{{ route('compras.remitos.store', $compra) }}",
         notasStore: "{{ route('compras.notas.store', $compra) }}",
         notasItemsDisponibles: "{{ route('compras.notas.itemsDisponibles', $compra) }}",
+        notasUpdateBase: "{{ url('compras/'.$compra->id.'/notas') }}",
+        notasDestroyBase: "{{ url('compras/'.$compra->id.'/notas') }}",
         pdf: "{{ route('compras.pdf', $compra) }}",
     });
 </script>

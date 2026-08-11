@@ -21,9 +21,6 @@
 </head>
 <body>
     @php $comprobanteFiscal = $compra->comprobanteFiscal; @endphp
-    @unless ($comprobanteFiscal && $comprobanteFiscal->aprobado())
-        <div class="watermark">NO VÁLIDO COMO FACTURA</div>
-    @endunless
 
     <div class="header">
         <div class="titulo"><h2>Comprobante {{ $compra->tipo_comprobante }} N° {{ $compra->nro_comprobante }}</h2></div>

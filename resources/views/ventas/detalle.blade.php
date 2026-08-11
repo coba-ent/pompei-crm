@@ -208,8 +208,13 @@
                                     <td>{{ $nota->afecta_stock ? 'Sí' : 'No' }}</td>
                                     <td>{{ $nota->mes_imputacion->format('m/Y') }}</td>
                                     <td>$ {{ number_format((float) $nota->monto, 2, ',', '.') }}</td>
-                                    <td>
-                                        <a href="#" class="js-ver-detalle-nota" data-url="{{ route('ventas.notas.pdf', $nota) }}">Ver Detalle</a>
+                                    <td class="dropdown">
+                                        <a href="#" class="dropdown-toggle" data-bs-toggle="dropdown">Estado</a>
+                                        <ul class="dropdown-menu">
+                                            <li><a class="dropdown-item js-ver-detalle-nota" href="#" data-url="{{ route('ventas.notas.pdf', $nota) }}">Ver Detalle</a></li>
+                                            <li><a class="dropdown-item js-editar-nota" href="#" data-id="{{ $nota->id }}">Editar</a></li>
+                                            <li><a class="dropdown-item text-danger js-eliminar-nota" href="#" data-id="{{ $nota->id }}">Eliminar</a></li>
+                                        </ul>
                                     </td>
                                 </tr>
                             @empty
@@ -231,6 +236,25 @@
     $datosCuentas = $cuentas->map(fn ($c) => ['id' => $c->id, 'nombre' => $c->nombre]);
     $datosDepositos = $depositos->map(fn ($d) => ['id' => $d->id, 'nombre' => $d->nombre]);
     $datosItemsVenta = $venta->items->map(fn ($i) => ['producto_id' => $i->producto_id, 'descripcion' => $i->descripcion])->filter(fn ($i) => $i['producto_id'])->values();
+    $datosNotas = $venta->notasCreditoDebito->map(fn ($n) => [
+        'id' => $n->id,
+        'tipo' => $n->tipo,
+        'afecta_stock' => $n->afecta_stock,
+        'mes_imputacion' => optional($n->mes_imputacion)->format('Y-m'),
+        'fecha_emision' => optional($n->fecha_emision)->format('Y-m-d'),
+        'monto' => (float) $n->monto,
+        'tipo_comprobante' => $n->tipo_comprobante,
+        'nro_comprobante' => $n->nro_comprobante,
+        'descripcion' => $n->descripcion,
+        'nota_ajustada_id' => $n->nota_ajustada_id,
+        'items' => $n->items->map(fn ($i) => [
+            'producto_id' => $i->producto_id,
+            'cantidad' => (float) $i->cantidad,
+            'precio' => (float) $i->precio,
+            'descuento_pct' => (float) ($i->descuento_pct ?? 0),
+            'iva_pct' => $i->iva_pct !== null ? (float) $i->iva_pct : null,
+        ]),
+    ]);
 @endphp
 @section('local-js')
 <script>
@@ -242,6 +266,7 @@
         cuentas: @json($datosCuentas),
         depositos: @json($datosDepositos),
         items: @json($datosItemsVenta),
+        notas: @json($datosNotas),
         autoAbrirCobranza: {{ request()->boolean('cobrar') ? 'true' : 'false' }},
     };
     window.VentasConfig = window.VentasConfig || {};
@@ -252,6 +277,8 @@
         remitoStore: "{{ route('ventas.remitos.store', $venta) }}",
         notasStore: "{{ route('ventas.notas.store', $venta) }}",
         notasItemsDisponibles: "{{ route('ventas.notas.itemsDisponibles', $venta) }}",
+        notasUpdateBase: "{{ url('ventas/'.$venta->id.'/notas') }}",
+        notasDestroyBase: "{{ url('ventas/'.$venta->id.'/notas') }}",
         pdf: "{{ route('ventas.pdf', $venta) }}",
         ticket: "{{ route('ventas.ticket', $venta) }}",
     });

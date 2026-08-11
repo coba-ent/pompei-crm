@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreNotaCreditoDebitoRequest;
+use App\Http\Requests\UpdateNotaCreditoDebitoRequest;
 use App\Models\Compra;
 use App\Models\DatosEmpresa;
 use App\Models\Deposito;
@@ -78,6 +79,8 @@ class NotaCreditoDebitoController extends Controller
                         $signo * (float) $item['cantidad'],
                         ($datos['tipo'] === 'credito' ? 'Nota de Crédito' : 'Nota de Débito').' venta '.$venta->nro_comprobante,
                         $request->user(),
+                        null,
+                        $nota,
                     );
                 }
             }
@@ -104,7 +107,12 @@ class NotaCreditoDebitoController extends Controller
     /** US1 (spec 039): documento imprimible con CAE propio y referencia al comprobante ajustado. */
     public function pdf(NotaCreditoDebito $notaCreditoDebito)
     {
-        $notaCreditoDebito->load(['comprobanteFiscal.puntoVenta', 'venta.cliente', 'venta.comprobanteFiscal']);
+        $notaCreditoDebito->load([
+            'comprobanteFiscal.puntoVenta',
+            'venta.cliente', 'venta.comprobanteFiscal',
+            'compra.proveedor', 'compra.comprobanteFiscal',
+            'items.producto',
+        ]);
         $datosEmpresa = DatosEmpresa::instancia();
 
         $qrDataUri = null;
@@ -198,6 +206,8 @@ class NotaCreditoDebitoController extends Controller
                         $signo * (float) $item['cantidad'],
                         ($datos['tipo'] === 'credito' ? 'Nota de Crédito' : 'Nota de Débito').' compra '.$compra->nro_comprobante,
                         $request->user(),
+                        null,
+                        $nota,
                     );
                 }
             }
@@ -211,5 +221,147 @@ class NotaCreditoDebitoController extends Controller
             'nota' => $nota,
             'a_pagar' => $compra->aPagar(),
         ], 201);
+    }
+
+    /** US1 (spec 057): edita una NC/ND de Venta — bloquea si tiene CAE, revierte y reaplica stock. */
+    public function update(UpdateNotaCreditoDebitoRequest $request, Venta $venta, NotaCreditoDebito $notaCreditoDebito): JsonResponse
+    {
+        return $this->aplicarEdicion($request, $notaCreditoDebito, $venta, null);
+    }
+
+    /** Idem para Compra. */
+    public function updateCompra(UpdateNotaCreditoDebitoRequest $request, Compra $compra, NotaCreditoDebito $notaCreditoDebito): JsonResponse
+    {
+        return $this->aplicarEdicion($request, $notaCreditoDebito, null, $compra);
+    }
+
+    private function aplicarEdicion(UpdateNotaCreditoDebitoRequest $request, NotaCreditoDebito $nota, ?Venta $venta, ?Compra $compra): JsonResponse
+    {
+        if ($nota->tieneCaeAprobado()) {
+            return response()->json([
+                'ok' => false,
+                'mensaje' => 'No se puede editar: la nota ya tiene un comprobante fiscal aprobado por ARCA. Cargá una nueva NC/ND que la ajuste.',
+            ], 409);
+        }
+
+        $datos = $request->validated();
+        $afectaStock = $datos['afecta_stock'] ?? false;
+
+        DB::transaction(function () use ($datos, $nota, $venta, $compra, $afectaStock, $request) {
+            $this->stockService->revertirNotaCreditoDebito($nota, $request->user());
+
+            $notaAjustadaId = ($datos['documento_ajusta']['tipo'] ?? null) === 'nota'
+                ? ($datos['documento_ajusta']['nota_ajustada_id'] ?? null)
+                : null;
+
+            $nota->update([
+                'afecta_stock' => $afectaStock,
+                'mes_imputacion' => $datos['mes_imputacion'],
+                'fecha_emision' => $datos['fecha_emision'],
+                'monto' => $datos['monto'],
+                'tipo_comprobante' => $datos['tipo_comprobante'] ?? $nota->tipo_comprobante,
+                'nro_comprobante' => $datos['nro_comprobante'] ?? null,
+                'nota_ajustada_id' => $notaAjustadaId,
+                'descripcion' => $datos['descripcion'] ?? null,
+            ]);
+
+            $nota->items()->delete();
+
+            if ($afectaStock) {
+                $deposito = Deposito::findOrFail($datos['deposito_id']);
+                // Mismo signo que store()/storeCompra() — venta y compra son inversas entre sí.
+                $signo = $venta
+                    ? ($datos['tipo'] === 'credito' ? 1 : -1)
+                    : ($datos['tipo'] === 'credito' ? -1 : 1);
+
+                foreach ($datos['items'] as $item) {
+                    $producto = Producto::findOrFail($item['producto_id']);
+
+                    $nota->items()->create([
+                        'producto_id' => $producto->id,
+                        'cantidad' => $item['cantidad'],
+                        'precio' => $item['precio'] ?? 0,
+                        'descuento_pct' => $item['descuento_pct'] ?? 0,
+                        'iva_pct' => $item['iva_pct'] ?? null,
+                        'origen' => 'venta_original',
+                    ]);
+
+                    $this->stockService->ajustar(
+                        $producto,
+                        null,
+                        $deposito,
+                        $signo * (float) $item['cantidad'],
+                        ($datos['tipo'] === 'credito' ? 'Nota de Crédito' : 'Nota de Débito').' '.($venta ? 'venta' : 'compra').' '.($venta?->nro_comprobante ?? $compra?->nro_comprobante),
+                        $request->user(),
+                        null,
+                        $nota,
+                    );
+                }
+            } elseif (! empty($datos['items'])) {
+                foreach ($datos['items'] as $item) {
+                    $nota->items()->create([
+                        'producto_id' => $item['producto_id'] ?? null,
+                        'cantidad' => $item['cantidad'] ?? 1,
+                        'precio' => $item['precio'] ?? 0,
+                        'descuento_pct' => $item['descuento_pct'] ?? 0,
+                        'iva_pct' => $item['iva_pct'] ?? null,
+                        'origen' => 'nuevo',
+                    ]);
+                }
+            }
+        });
+
+        $nota->refresh();
+
+        return response()->json([
+            'ok' => true,
+            'mensaje' => 'Nota actualizada correctamente.',
+            'nota' => $nota,
+            'a_cobrar' => $venta?->fresh()->aCobrar(),
+            'a_pagar' => $compra?->fresh()->aPagar(),
+            'comprobante_fiscal' => $nota->comprobanteFiscal()->first(),
+        ]);
+    }
+
+    /** US2 (spec 057): elimina (soft delete) una NC/ND de Venta — bloquea por CAE o por cadena. */
+    public function destroy(\Illuminate\Http\Request $request, Venta $venta, NotaCreditoDebito $notaCreditoDebito): JsonResponse
+    {
+        return $this->aplicarEliminacion($request, $notaCreditoDebito, $venta, null);
+    }
+
+    /** Idem para Compra. */
+    public function destroyCompra(\Illuminate\Http\Request $request, Compra $compra, NotaCreditoDebito $notaCreditoDebito): JsonResponse
+    {
+        return $this->aplicarEliminacion($request, $notaCreditoDebito, null, $compra);
+    }
+
+    private function aplicarEliminacion(\Illuminate\Http\Request $request, NotaCreditoDebito $nota, ?Venta $venta, ?Compra $compra): JsonResponse
+    {
+        if ($nota->tieneCaeAprobado()) {
+            return response()->json([
+                'ok' => false,
+                'mensaje' => 'No se puede eliminar: la nota ya tiene un comprobante fiscal aprobado por ARCA. Cargá una nueva NC/ND que la ajuste.',
+            ], 409);
+        }
+
+        $dependientes = $nota->notasQueLaAjustan()->pluck('id');
+        if ($dependientes->isNotEmpty()) {
+            return response()->json([
+                'ok' => false,
+                'mensaje' => 'No se puede eliminar: las notas #'.$dependientes->implode(', #').' la ajustan a ésta. Eliminalas primero.',
+            ], 409);
+        }
+
+        DB::transaction(function () use ($nota, $request) {
+            $this->stockService->revertirNotaCreditoDebito($nota, $request->user());
+            $nota->delete();
+        });
+
+        return response()->json([
+            'ok' => true,
+            'mensaje' => 'Nota eliminada correctamente.',
+            'a_cobrar' => $venta?->fresh()->aCobrar(),
+            'a_pagar' => $compra?->fresh()->aPagar(),
+        ]);
     }
 }

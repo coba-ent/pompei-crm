@@ -25,7 +25,10 @@
     @php
         $comprobanteFiscal = $notaCreditoDebito->comprobanteFiscal;
         $venta = $notaCreditoDebito->venta;
-        $comprobanteVenta = $venta?->comprobanteFiscal;
+        $compra = $notaCreditoDebito->compra;
+        $comprobanteOriginal = $venta ?? $compra;
+        $comprobanteAjustado = $comprobanteOriginal?->comprobanteFiscal;
+        $tercero = $venta?->cliente ?? $compra?->proveedor;
     @endphp
     @unless ($comprobanteFiscal && $comprobanteFiscal->aprobado())
         <div class="watermark">NO VÁLIDO COMO FACTURA</div>
@@ -59,16 +62,31 @@
 
     <div class="cliente-box">
         <div class="col">
-            <div><strong>Cliente:</strong> {{ optional($venta?->cliente)->nombre }}</div>
-            <div><strong>CUIT:</strong> {{ optional($venta?->cliente)->cuit ?: '-' }}</div>
+            <div><strong>{{ $venta ? 'Cliente' : 'Proveedor' }}:</strong> {{ optional($tercero)->nombre }}</div>
+            <div><strong>CUIT:</strong> {{ optional($tercero)->cuit ?: '-' }}</div>
         </div>
         <div class="col">
             <div><strong>Comprobante que ajusta:</strong></div>
-            <div>Tipo: {{ $comprobanteVenta->tipo_comprobante ?? $venta?->tipo_comprobante ?? '-' }}</div>
-            <div>Número: {{ $comprobanteVenta->numero ?? $venta?->nro_comprobante ?? '-' }}</div>
-            <div>Fecha: {{ optional($venta?->fecha_emision)->format('d/m/Y') ?: '-' }}</div>
+            <div>Tipo: {{ $comprobanteAjustado->tipo_comprobante ?? $comprobanteOriginal?->tipo_comprobante ?? '-' }}</div>
+            <div>Número: {{ $comprobanteAjustado->numero ?? $comprobanteOriginal?->nro_comprobante ?? '-' }}</div>
+            <div>Fecha: {{ optional($comprobanteOriginal?->fecha_emision)->format('d/m/Y') ?: '-' }}</div>
         </div>
     </div>
+
+    @if ($notaCreditoDebito->items->isNotEmpty())
+        <table>
+            <tr><th>Producto</th><th>Cant.</th><th>Precio Unit.</th><th>%Bonif.</th><th>Alícuota IVA</th></tr>
+            @foreach ($notaCreditoDebito->items as $item)
+                <tr>
+                    <td>{{ $item->producto?->nombre ?? '-' }}</td>
+                    <td>{{ $item->cantidad }}</td>
+                    <td class="text-end">$ {{ number_format((float) $item->precio, 2, ',', '.') }}</td>
+                    <td class="text-end">{{ $item->descuento_pct ?? 0 }}%</td>
+                    <td class="text-end">{{ $item->iva_pct !== null ? $item->iva_pct.'%' : '-' }}</td>
+                </tr>
+            @endforeach
+        </table>
+    @endif
 
     <table>
         <tr><td>Descripción</td><td>{{ $notaCreditoDebito->descripcion ?: '-' }}</td></tr>

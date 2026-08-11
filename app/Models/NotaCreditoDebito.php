@@ -18,8 +18,8 @@ class NotaCreditoDebito extends Model
 
     protected $fillable = [
         'legacy_id',
-        'venta_id', 'compra_id', 'tipo', 'afecta_stock', 'mes_imputacion', 'fecha_emision', 'monto',
-        'tipo_comprobante', 'descripcion', 'impuestos',
+        'venta_id', 'compra_id', 'nota_ajustada_id', 'tipo', 'afecta_stock', 'mes_imputacion',
+        'fecha_emision', 'monto', 'tipo_comprobante', 'nro_comprobante', 'descripcion', 'impuestos',
     ];
 
     protected $casts = [
@@ -48,5 +48,23 @@ class NotaCreditoDebito extends Model
     public function comprobanteFiscal(): MorphOne
     {
         return $this->morphOne(ComprobanteFiscal::class, 'comprobantable');
+    }
+
+    /** "Documento que Ajusta" cuando apunta a otra NC/ND en vez del comprobante original (FR-013). */
+    public function notaAjustada(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'nota_ajustada_id');
+    }
+
+    /** NC/ND que ajustan a ésta — no eliminable mientras alguna exista (FR-006). */
+    public function notasQueLaAjustan(): HasMany
+    {
+        return $this->hasMany(self::class, 'nota_ajustada_id');
+    }
+
+    /** Bloquea edición/eliminación una vez que la nota tiene CAE aprobado por ARCA (FR-011). */
+    public function tieneCaeAprobado(): bool
+    {
+        return $this->comprobanteFiscal?->aprobado() === true;
     }
 }

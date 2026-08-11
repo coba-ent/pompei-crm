@@ -477,6 +477,24 @@ Otros Ingresos y Abonos son independientes.
   Compras como en Ventas — spec 045). Paso 2 ("Siguiente"): Fecha de Emisión, Monto, Tipo de
   comprobante (igual al de la factura original), Descripción, Impuestos aplicables. Al guardar se
   puede solicitar aprobación ante ARCA.
+  **Editar/Eliminar/Ver Detalle (capturas propias del usuario, 11/08/2026 — ver
+  `informe_contagram_egresos.md` §2.5.1, mismo patrón confirmado también en Ventas)**: con notas ya
+  cargadas, la fila de la tabla de NC/ND tiene menú de acciones (trigger en la columna "Estado")
+  con **Editar / Eliminar / Ver Detalle** — ninguna de las tres implementada todavía en este CRM
+  (hoy sólo existe Crear). "Ver Detalle" es un PDF propio de la nota (marca "X", sin CAE), con su
+  propia tabla de conceptos (Código, Descripción, Cant., Precio Unit., %Bonif., Subtotal, Alícuota
+  IVA, Subtotal c/IVA) — la nota **no es un monto global**, es un documento con ítems e IVA propios.
+  "Editar" reabre el wizard: paso 1 igual al de creación, con el agregado de que el select
+  "Documento que Ajusta" también lista **las demás NC/ND ya creadas sobre el mismo comprobante**
+  (permite encadenar una NC/ND como corrección de otra, no sólo de la Compra/Venta original); paso 2
+  ya no es "Fecha/Monto/Descripción" sino una página de edición completa equivalente a un
+  formulario de Compra/Venta: Proveedor/Cliente heredado (bloqueado), Emisión/Vto./Servicio
+  Desde-Hasta, **Tipo y N° de comprobante propios de la nota (editables)**, línea(s) de ítem con
+  Cant./Precio/Desc.%/Subtotal/IVA, Nota interna, bloques +Percepciones/+Impuestos
+  Internos/+Intereses, panel de totales con IVA discriminado, y botón **Eliminar** disponible
+  también ahí (además del menú de fila). Brecha estructural respecto a `NotaCreditoDebito`/
+  `NotaCreditoDebitoItem` (spec 039/045), que hoy sólo persiste `monto` + `descripcion` sin ítems
+  con IVA propio ni comprobante propio — pendiente de spec dedicado.
 - **Agregar Retención** *(corroborado, ver §3.6 — resuelve la duda abierta en
   `informe_contagram_funciones_avanzadas.md`)*: no está en el modal simple "Nuevo Cobro"; el botón vive
   **dentro de la sección de Cobranzas del Detalle de Venta**. Campos: Fecha, Monto, Tipo de Retención,
@@ -1762,6 +1780,13 @@ salieron de esta lista:
 - **Remitos con detalle de ítems** y **Recibos con capturas reales**: el documento imprimible de
   Recibos ya se implementó como mejor esfuerzo (spec 039, ver §3.5) por no existir informe con
   capturas; sigue pendiente contrastarlo contra la estructura real de Contagram si se releva.
+- ~~Editar/Eliminar NC/ND de Ventas y Compras~~ — **especificado (11/08/2026) en spec 057**
+  (`specs/057-editar-eliminar-ncnd/`), cadena completa specify→clarify→plan→checklist→tasks→analyze
+  ya corrida, lista para implementar. Cubre: menú de fila Editar/Eliminar/Ver Detalle, wizard de
+  edición con comprobante propio (tipo+número) y encadenamiento de 1 nivel en "Documento que
+  Ajusta", bloqueo total si la nota ya tiene CAE aprobado, reversión exacta de stock al
+  editar/eliminar, y el PDF de NC/ND en **Compras** (hoy sólo existe en Ventas). Ya no aplica más
+  como pendiente de esta lista.
 - **Notificaciones (módulo nuevo, todavía sin spec)** — no existe en Contagram real, sería una
   funcionalidad propia del negocio. Necesidad detectada el 02/08/2026: la cuenta de Mercado Libre quedó
   `desconectada` el 31/07 a las 22:30 (falló el cron `mercadolibre:sincronizar-stock` en ese momento) y

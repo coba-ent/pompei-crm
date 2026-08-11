@@ -9,11 +9,15 @@ class NotaCreditoDebitoItem extends Model
 {
     protected $table = 'nota_credito_debito_items';
 
-    protected $fillable = ['nota_credito_debito_id', 'producto_id', 'cantidad', 'precio', 'origen'];
+    protected $fillable = [
+        'nota_credito_debito_id', 'producto_id', 'cantidad', 'precio', 'descuento_pct', 'iva_pct', 'origen',
+    ];
 
     protected $casts = [
         'cantidad' => 'decimal:3',
         'precio' => 'decimal:2',
+        'descuento_pct' => 'decimal:2',
+        'iva_pct' => 'decimal:2',
     ];
 
     public function notaCreditoDebito(): BelongsTo

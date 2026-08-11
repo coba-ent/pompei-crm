@@ -32,8 +32,9 @@ class StockService
         ?string $descripcion = null,
         ?User $usuario = null,
         ?string $fecha = null,
+        ?Model $origen = null,
     ): float {
-        return DB::transaction(function () use ($producto, $variante, $deposito, $cantidadConSigno, $descripcion, $usuario, $fecha) {
+        return DB::transaction(function () use ($producto, $variante, $deposito, $cantidadConSigno, $descripcion, $usuario, $fecha, $origen) {
             $stock = Stock::lockForUpdate()->firstOrNew([
                 'producto_id' => $producto->id,
                 'variante_id' => $variante?->id,
@@ -50,6 +51,8 @@ class StockService
                 'tipo' => 'ajuste',
                 'cantidad' => $cantidadConSigno,
                 'descripcion' => $descripcion,
+                'origen_type' => $origen ? $origen->getMorphClass() : null,
+                'origen_id' => $origen?->getKey(),
                 'fecha' => $fecha ?: now(),
                 'usuario_id' => $usuario?->id,
             ]);
@@ -150,6 +153,40 @@ class StockService
         ?string $fecha = null,
     ): float {
         return $this->mover('entrada', $producto, $variante, $deposito, abs($cantidad), $origen, $usuario, $fecha);
+    }
+
+    /**
+     * Revierte exactamente el efecto de stock que una NC/ND generó, generando un movimiento
+     * inverso nuevo (append-only, research.md §1) — usado al editar/eliminar una nota que
+     * afecta stock, antes de reaplicar el nuevo ajuste si corresponde.
+     */
+    public function revertirNotaCreditoDebito(\App\Models\NotaCreditoDebito $nota, ?User $usuario = null): void
+    {
+        if (! $nota->afecta_stock) {
+            return;
+        }
+
+        $movimientos = MovimientoStock::where('origen_type', $nota->getMorphClass())
+            ->where('origen_id', $nota->id)
+            ->get();
+
+        foreach ($movimientos as $movimiento) {
+            $producto = Producto::find($movimiento->producto_id);
+            $deposito = Deposito::find($movimiento->deposito_id);
+
+            if (! $producto || ! $deposito) {
+                continue;
+            }
+
+            $this->ajustar(
+                $producto,
+                null,
+                $deposito,
+                -1 * (float) $movimiento->cantidad,
+                'Reversión de '.($nota->tipo === 'credito' ? 'Nota de Crédito' : 'Nota de Débito').' #'.$nota->id,
+                $usuario,
+            );
+        }
     }
 
     /** Stock disponible actual de una variante en un depósito. */
