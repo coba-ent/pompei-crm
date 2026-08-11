@@ -116,6 +116,7 @@ class PresupuestoController extends Controller
             ->addColumn('estado_visual', fn (Presupuesto $p) => $p->estado_visual)
             ->addColumn('cliente', fn (Presupuesto $p) => optional($p->cliente)->nombre)
             ->addColumn('categoria', fn (Presupuesto $p) => optional($p->categoria)->nombre)
+            ->editColumn('created_at', fn (Presupuesto $p) => $p->created_at?->local()->format('d/m/Y H:i'))
             ->editColumn('fecha_emision', fn (Presupuesto $p) => optional($p->fecha_emision)->format('d/m/Y'))
             ->editColumn('fecha_validez', fn (Presupuesto $p) => optional($p->fecha_validez)->format('d/m/Y'))
             ->editColumn('subtotal_sin_descuento', fn (Presupuesto $p) => (float) $p->subtotal_sin_descuento)

@@ -223,10 +223,11 @@
                 processing: 'Cargando...',
             },
             ajax: { url: rutas.data, data: (d) => $.extend(d, filtrosActuales()) },
-            order: [[1, 'desc']],
+            order: [[2, 'desc']],
             columns: [
                 { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
                 { data: 'id', name: 'id' },
+                { data: 'created_at', name: 'created_at' },
                 { data: 'fecha_emision', name: 'fecha_emision' },
                 { data: 'fecha_validez', name: 'fecha_validez' },
                 { data: 'cliente', name: 'cliente.nombre' },

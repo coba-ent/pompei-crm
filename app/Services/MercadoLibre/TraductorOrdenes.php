@@ -3,6 +3,7 @@
 namespace App\Services\MercadoLibre;
 
 use App\Enums\MercadoLibre\EstadoOrden;
+use Carbon\Carbon;
 
 /**
  * Único punto que interpreta el formato externo de una orden de Mercado Libre
@@ -27,8 +28,11 @@ class TraductorOrdenes
             'ml_order_id' => (string) $ordenCruda['id'],
             'estado_ml' => (string) ($ordenCruda['status'] ?? ''),
             'estado_orden' => EstadoOrden::desdeCrudo((string) ($ordenCruda['status'] ?? ''))->value,
-            'fecha_creada' => $ordenCruda['date_created'] ?? null,
-            'fecha_cerrada' => $ordenCruda['date_closed'] ?? null,
+            // ML devuelve estas fechas con offset propio (ej. "-04:00"), no en UTC:
+            // hay que convertirlas explícitamente antes de que el cast `datetime`
+            // del modelo las persista, si no se graba la hora local como si fuera UTC.
+            'fecha_creada' => isset($ordenCruda['date_created']) ? Carbon::parse($ordenCruda['date_created'])->utc() : null,
+            'fecha_cerrada' => isset($ordenCruda['date_closed']) ? Carbon::parse($ordenCruda['date_closed'])->utc() : null,
             'total' => (float) ($ordenCruda['total_amount'] ?? 0),
             'moneda' => (string) ($ordenCruda['currency_id'] ?? self::MONEDA_NEGOCIO),
             'comprador_ml_id' => (string) ($buyer['id'] ?? ''),

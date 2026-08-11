@@ -208,6 +208,7 @@
                             <tr>
                                 <th>Estado</th>
                                 <th>Id</th>
+                                <th>Creado</th>
                                 <th>Emisión</th>
                                 <th>Vencimiento</th>
                                 <th>Cliente</th>
