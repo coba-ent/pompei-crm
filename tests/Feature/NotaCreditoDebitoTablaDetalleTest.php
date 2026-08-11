@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Cliente;
 use App\Models\CondicionIva;
+use App\Models\Compra;
 use App\Models\ComprobanteFiscal;
 use App\Models\Deposito;
 use App\Models\NotaCreditoDebito;
@@ -174,9 +175,33 @@ class NotaCreditoDebitoTablaDetalleTest extends TestCase
         $this->assertSame('00001-00000003', $notaEncadenada->documentoQueAjusta($venta->fresh()));
     }
 
+    public function test_documento_que_ajusta_muestra_nro_comprobante_de_compra_sin_cae(): void
+    {
+        // Compras nunca emiten ComprobanteFiscal propio (el CAE es sólo para Ventas vía ARCA) —
+        // "Documento que Ajusta" tiene que caer al nro_comprobante que cargó el proveedor.
+        $compra = Compra::factory()->create([
+            'tipo_comprobante' => 'A', 'nro_comprobante' => '0011-04769061',
+        ]);
+
+        $nota = $compra->notasCreditoDebito()->create([
+            'tipo' => 'credito',
+            'afecta_stock' => false,
+            'mes_imputacion' => now()->startOfMonth()->toDateString(),
+            'fecha_emision' => now()->toDateString(),
+            'monto' => 100,
+            'tipo_comprobante' => 'A',
+            'descripcion' => 'Ajuste sobre compra sin CAE',
+        ]);
+
+        $response = $this->get(route('compras.show', $compra));
+
+        $response->assertOk();
+        $this->assertSame('A 0011-04769061', $nota->documentoQueAjusta($compra->fresh()));
+    }
+
     public function test_documento_que_ajusta_queda_vacio_sin_comprobante_original_ni_nota_ajustada(): void
     {
-        $venta = $this->crearVenta();
+        $venta = Venta::factory()->create(['tipo_comprobante' => 'B', 'nro_comprobante' => null]);
 
         $nota = $venta->notasCreditoDebito()->create([
             'tipo' => 'credito',

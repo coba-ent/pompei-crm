@@ -101,6 +101,14 @@ class NotaCreditoDebito extends Model
             return $comprobanteOriginal->comprobanteFiscal->numero;
         }
 
+        // Compra nunca emite ComprobanteFiscal propio (el CAE es sólo para comprobantes propios
+        // vía ARCA/Venta) — el "comprobante original" de una Compra es el nro_comprobante que
+        // cargó el proveedor. Sin este fallback, "Documento que Ajusta" quedaba siempre en "-"
+        // para toda NC/ND de Compra.
+        if ($comprobanteOriginal?->tipo_comprobante && $comprobanteOriginal?->nro_comprobante) {
+            return $comprobanteOriginal->tipo_comprobante.' '.$comprobanteOriginal->nro_comprobante;
+        }
+
         return null;
     }
 }
