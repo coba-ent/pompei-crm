@@ -15,44 +15,79 @@
             </div>
         </div>
 
-        <div class="row g-3 mb-4">
-            <div class="col-6 col-md">
-                <div class="card text-center h-100">
-                    <div class="card-body">
-                        <div class="text-muted small">Cantidad de Compras</div>
-                        <div class="h5 mb-0" id="kpi-cantidad">{{ $kpis['cantidad'] }}</div>
+        <div class="row mb-3 g-2" id="panel-kpis">
+            <div class="col-6" style="flex:1 1 20%; max-width:20%;">
+                <div class="widget-stat card mb-0 h-100">
+                    <div class="card-body p-3">
+                        <div class="media ai-icon">
+                            <span class="me-3 bgl-primary text-primary">
+                                <i class="fas fa-receipt"></i>
+                            </span>
+                            <div class="media-body">
+                                <p class="mb-1">Cantidad de Compras</p>
+                                <h4 class="mb-0" id="kpi-cantidad">{{ $kpis['cantidad'] }}</h4>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="col-6 col-md">
-                <div class="card text-center h-100">
-                    <div class="card-body">
-                        <div class="text-muted small">Pagado</div>
-                        <div class="h5 mb-0" id="kpi-pagado">$ {{ number_format($kpis['pagado'], 2, ',', '.') }}</div>
+            <div class="col-6" style="flex:1 1 20%; max-width:20%;">
+                <div class="widget-stat card mb-0 h-100">
+                    <div class="card-body p-3">
+                        <div class="media ai-icon">
+                            <span class="me-3 bgl-success text-success">
+                                <i class="fas fa-dollar-sign"></i>
+                            </span>
+                            <div class="media-body">
+                                <p class="mb-1">Pagado</p>
+                                <h4 class="mb-0" id="kpi-pagado">$ {{ number_format($kpis['pagado'], 2, ',', '.') }}</h4>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="col-6 col-md">
-                <div class="card text-center h-100">
-                    <div class="card-body">
-                        <div class="text-muted small">A Pagar</div>
-                        <div class="h5 mb-0" id="kpi-a-pagar">$ {{ number_format($kpis['a_pagar'], 2, ',', '.') }}</div>
+            <div class="col-6" style="flex:1 1 20%; max-width:20%;">
+                <div class="widget-stat card mb-0 h-100">
+                    <div class="card-body p-3">
+                        <div class="media ai-icon">
+                            <span class="me-3 bgl-warning text-warning">
+                                <i class="fas fa-hand-holding-dollar"></i>
+                            </span>
+                            <div class="media-body">
+                                <p class="mb-1">A Pagar</p>
+                                <h4 class="mb-0" id="kpi-a-pagar">$ {{ number_format($kpis['a_pagar'], 2, ',', '.') }}</h4>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="col-6 col-md">
-                <div class="card text-center h-100">
-                    <div class="card-body">
-                        <div class="text-muted small">Vencido</div>
-                        <div class="h5 mb-0 text-danger" id="kpi-vencido">$ {{ number_format($kpis['vencido'], 2, ',', '.') }}</div>
+            <div class="col-6" style="flex:1 1 20%; max-width:20%;">
+                <div class="widget-stat card mb-0 h-100">
+                    <div class="card-body p-3">
+                        <div class="media ai-icon">
+                            <span class="me-3 bgl-danger text-danger">
+                                <i class="fas fa-triangle-exclamation"></i>
+                            </span>
+                            <div class="media-body">
+                                <p class="mb-1">Vencido</p>
+                                <h4 class="mb-0 text-danger" id="kpi-vencido">$ {{ number_format($kpis['vencido'], 2, ',', '.') }}</h4>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="col-6 col-md">
-                <div class="card text-center h-100">
-                    <div class="card-body">
-                        <div class="text-muted small">Total Compras</div>
-                        <div class="h5 mb-0" id="kpi-total">$ {{ number_format($kpis['total'], 2, ',', '.') }}</div>
+            <div class="col-6" style="flex:1 1 20%; max-width:20%;">
+                <div class="widget-stat card mb-0 h-100">
+                    <div class="card-body p-3">
+                        <div class="media ai-icon">
+                            <span class="me-3 bgl-primary text-primary">
+                                <i class="fas fa-coins"></i>
+                            </span>
+                            <div class="media-body">
+                                <p class="mb-1">Total Compras</p>
+                                <h4 class="mb-0" id="kpi-total">$ {{ number_format($kpis['total'], 2, ',', '.') }}</h4>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
