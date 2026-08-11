@@ -94,16 +94,121 @@
         if (!$tabla.length) { return; }
 
         initSelect2($('#filtro-proveedor'), {
-            placeholder: 'Todos', allowClear: true,
+            placeholder: 'Todos', allowClear: true, multiple: true,
             ajax: {
                 url: rutas.proveedoresOpciones,
                 data: (params) => ({ q: params.term }),
                 processResults: (data) => ({ results: data.data.map((p) => ({ id: p.id, text: p.nombre })) }),
             },
         });
+        initSelect2($('#filtro-categoria'), { placeholder: 'Todas', allowClear: true });
+        initSelect2($('#filtro-etiqueta'), { placeholder: 'Todas', allowClear: true });
+        initSelect2($('#filtro-usuario'), { placeholder: 'Todos', allowClear: true });
+        initSelect2($('#filtro-medio-pago'), { placeholder: 'Todos', allowClear: true });
+        initSelect2($('#filtro-deposito'), { placeholder: 'Todos', allowClear: true });
+        initSelect2($('#filtro-estado-pago'));
+        initSelect2($('#filtro-facturado'));
+
+        // --- Rangos de fecha (Emisión / Vencimiento) con presets, mismo patrón que ventas.js ---
+        let emisionDesde = '';
+        let emisionHasta = '';
+        let vencimientoDesde = '';
+        let vencimientoHasta = '';
+
+        function opcionesRango() {
+            const hoy = moment();
+
+            return {
+                autoUpdateInput: false,
+                opens: 'left',
+                locale: {
+                    format: 'DD/MM/YYYY', applyLabel: 'Aplicar', cancelLabel: 'Borrar filtro',
+                    fromLabel: 'Desde', toLabel: 'Hasta', customRangeLabel: 'Desde - Hasta',
+                    daysOfWeek: ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'],
+                    monthNames: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'],
+                },
+                ranges: {
+                    Hoy: [hoy.clone(), hoy.clone()],
+                    Ayer: [hoy.clone().subtract(1, 'day'), hoy.clone().subtract(1, 'day')],
+                    'Última Semana': [hoy.clone().subtract(6, 'days'), hoy.clone()],
+                    'Mes actual': [hoy.clone().startOf('month'), hoy.clone().endOf('month')],
+                    'Mes anterior': [hoy.clone().subtract(1, 'month').startOf('month'), hoy.clone().subtract(1, 'month').endOf('month')],
+                    'Últimos 30 días': [hoy.clone().subtract(29, 'days'), hoy.clone()],
+                    'Año actual': [hoy.clone().startOf('year'), hoy.clone().endOf('year')],
+                },
+            };
+        }
+
+        if ($.fn.daterangepicker) {
+            $('#filtro-rango-emision').daterangepicker(opcionesRango());
+            $('#filtro-rango-emision').on('apply.daterangepicker', function (e, picker) {
+                emisionDesde = picker.startDate.format('YYYY-MM-DD');
+                emisionHasta = picker.endDate.format('YYYY-MM-DD');
+                $(this).val('Emisión: ' + picker.startDate.format('DD/MM/YYYY') + ' - ' + picker.endDate.format('DD/MM/YYYY'));
+                tabla.ajax.reload();
+            });
+            $('#filtro-rango-emision').on('cancel.daterangepicker', function () {
+                emisionDesde = ''; emisionHasta = '';
+                $(this).val('');
+                tabla.ajax.reload();
+            });
+            $('#filtro-rango-emision').on('blur keyup', function () {
+                if ($(this).val() === '' && emisionDesde !== '') {
+                    emisionDesde = ''; emisionHasta = '';
+                    tabla.ajax.reload();
+                }
+            });
+            $('#btn-limpiar-rango-emision').on('click', function () {
+                emisionDesde = ''; emisionHasta = '';
+                $('#filtro-rango-emision').val('');
+                tabla.ajax.reload();
+            });
+
+            $('#filtro-rango-vencimiento').daterangepicker(opcionesRango());
+            $('#filtro-rango-vencimiento').on('apply.daterangepicker', function (e, picker) {
+                vencimientoDesde = picker.startDate.format('YYYY-MM-DD');
+                vencimientoHasta = picker.endDate.format('YYYY-MM-DD');
+                $(this).val('Vencimiento: ' + picker.startDate.format('D MMM') + ' - ' + picker.endDate.format('D MMM'));
+                tabla.ajax.reload();
+            });
+            $('#filtro-rango-vencimiento').on('cancel.daterangepicker', function () {
+                vencimientoDesde = ''; vencimientoHasta = '';
+                $(this).val('');
+                tabla.ajax.reload();
+            });
+            $('#filtro-rango-vencimiento').on('blur keyup', function () {
+                if ($(this).val() === '' && vencimientoDesde !== '') {
+                    vencimientoDesde = ''; vencimientoHasta = '';
+                    tabla.ajax.reload();
+                }
+            });
+            $('#btn-limpiar-rango-vencimiento').on('click', function () {
+                vencimientoDesde = ''; vencimientoHasta = '';
+                $('#filtro-rango-vencimiento').val('');
+                tabla.ajax.reload();
+            });
+        }
 
         function filtrosActuales() {
-            return { proveedor_id: $('#filtro-proveedor').val(), buscar: $('#filtro-buscar').val() };
+            return {
+                id: $('#filtro-id').val(),
+                proveedor_id: $('#filtro-proveedor').val(),
+                categoria_id: $('#filtro-categoria').val(),
+                estado_pago: $('#filtro-estado-pago').val(),
+                factura_buscar: $('#filtro-factura').val(),
+                etiqueta_id: $('#filtro-etiqueta').val(),
+                facturado: $('#filtro-facturado').val(),
+                medio_pago_id: $('#filtro-medio-pago').val(),
+                usuario_id: $('#filtro-usuario').val(),
+                nota_interna: $('#filtro-nota-interna').val(),
+                deposito_id: $('#filtro-deposito').val(),
+                servicio_desde: $('#filtro-servicio-desde').val(),
+                servicio_hasta: $('#filtro-servicio-hasta').val(),
+                emision_desde: emisionDesde,
+                emision_hasta: emisionHasta,
+                vencimiento_desde: vencimientoDesde,
+                vencimiento_hasta: vencimientoHasta,
+            };
         }
 
         const tabla = $tabla.DataTable({
@@ -130,6 +235,10 @@
                 { data: 'pagado', name: 'pagado', render: money },
                 { data: 'a_pagar', name: 'a_pagar', render: money },
                 { data: 'medio_de_pago', name: 'medio_de_pago' },
+                { data: 'etiquetas', name: 'etiquetas', orderable: false, searchable: false, visible: false },
+                { data: 'cuit', name: 'cuit', orderable: false, searchable: false, visible: false },
+                { data: 'telefono', name: 'telefono', orderable: false, searchable: false, visible: false },
+                { data: 'mail', name: 'mail', orderable: false, searchable: false, visible: false },
             ],
             order: [[2, 'desc']],
             stateSave: true,
@@ -150,8 +259,12 @@
 
         $('#btn-aplicar-filtros').on('click', () => tabla.ajax.reload());
         $('#btn-limpiar-filtros').on('click', () => {
-            $('#filtro-proveedor').val(null).trigger('change');
-            $('#filtro-buscar').val('');
+            $('#filtro-id, #filtro-factura, #filtro-nota-interna, #filtro-servicio-desde, #filtro-servicio-hasta').val('');
+            $('#filtro-proveedor, #filtro-categoria, #filtro-etiqueta, #filtro-usuario').val(null).trigger('change');
+            $('#filtro-estado-pago, #filtro-facturado, #filtro-medio-pago, #filtro-deposito').val('').trigger('change');
+            emisionDesde = ''; emisionHasta = '';
+            vencimientoDesde = ''; vencimientoHasta = '';
+            $('#filtro-rango-emision, #filtro-rango-vencimiento').val('');
             tabla.ajax.reload();
         });
 

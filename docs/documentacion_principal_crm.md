@@ -1051,8 +1051,11 @@ Subtotal con Descuento, Total Compra, Pagado, A Pagar, Etiquetas, Medio de Pago 
 Selector de columnas agrega CUIT, Servicio Desde/Hasta, Teléfono, Mail y otras. Estado editable inline
 ("Pagado"/"A Pagar", flecha desplegable).
 
-**Filtros**: Id, Proveedor, Categoría, Estado del Pago, Etiquetas, Descripción/Nota, Usuario (mismo
-patrón que Ventas).
+**Filtros (12 campos, implementados 11/08/2026, spec 056)**: Id, Proveedor (multi-selección), Categoría
+de Compra (multi), Estado del Pago (A Pagar/Parcial/Pagado), Tipo y N° de Factura, Etiqueta (multi),
+Facturado (Sí/No), Medio de pago, Usuario (multi), Nota Interna, Depósito, Desde/Hasta Servicio. Todos
+combinables con AND entre campos; los de selección múltiple usan OR dentro del propio campo. Más los dos
+selectores de rango de fecha (Emisión/Vencimiento) del toolbar. Mismo patrón que Ventas (§3.2).
 
 **Menú de fila** (9 opciones, más liviano que el de Ventas que tiene 12 — sin "Imprimir Ticket",
 "Enviar Detalle" ni "Enviar Whatsapp"): Ver, Editar, Ver Detalle, Agregar Pago, Crear NC/ND, Crear

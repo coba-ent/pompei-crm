@@ -467,8 +467,10 @@ a Tesorería, `saldos()`, `flujo()`).
 > Gastos es un modelo aparte, mucho más simple. **Nota de implementación:** `pagado`/`a_pagar` y el
 > estado (Pagado/A Pagar) **no son columnas persistidas** — se derivan siempre de `Σ pagos` y
 > `Σ notas_credito_debito` (mismo criterio "derivar, no guardar" que `ventas.a_cobrar`, ver §5 y
-> Clarifications de la spec). Compras **no** usa `etiquetas` (no confirmado en el relevamiento para
-> este documento).
+> Clarifications de la spec). **Corrección (11/08/2026, spec 056)**: Compras **sí** usa `etiquetas`
+> — confirmado contra la captura real (filtro "Etiqueta" en el panel de Filtros de Compras), vía la
+> misma relación polimórfica `Compra::etiquetas(): MorphToMany` (tabla pivote `etiquetables`, ya
+> genérica, sin cambios de esquema) que usa `Venta::etiquetas()`.
 
 ### `compras`
 | Campo | Tipo | Notas |
@@ -486,6 +488,7 @@ a Tesorería, `saldos()`, `flujo()`).
 | descuento_general_pct | decimal(5,2), nullable | **Columna nueva (07/08/2026, fix de bug)**: el % de descuento general ingresado en el formulario ya se aplicaba correctamente al cálculo de `descuento`/`total`, pero no se persistía (a diferencia de `ventas`/`presupuestos`, que sí tienen esta columna) — por eso el modal "Ver" no podía mostrarlo y el form de edición no lo precargaba. Mismo campo/semántica que `ventas.descuento_general_pct`. |
 | nota_interna | text, nullable | |
 | deposito_id | FK → depositos, nullable, `restrictOnDelete()` | **Columna nueva (spec 049)**: depósito al que suma stock esta Compra. Mismo criterio que `ventas.deposito_id` — obligatorio en el formulario, nullable en DB por retrocompatibilidad, reemplaza a `Deposito::porDefecto()` como fuente para `StockDeCompra`. |
+| creado_por_id | FK → users, nullable, `nullOnDelete()` | **Columna nueva (spec 056)**: usuario que creó la Compra, seteada únicamente en `store()` (`auth()->id()`); sin backfill — Compras existentes quedan con `NULL`. Habilita el filtro "Usuario" del listado. Mismo criterio que `ventas.creado_por_id`. |
 | deleted_at | timestamp, nullable | SoftDeletes (Principio III) |
 
 `compras.venta_id`/`presupuesto_id` no aplican — Compras no deriva de otro documento. `pagado`

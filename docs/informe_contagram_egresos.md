@@ -47,15 +47,24 @@ Cada fila cuenta con un **estado editable inline** (etiqueta de color: "Pagado" 
 
 ### 2.2 Filtros `[124]`
 
-Panel expandible con los siguientes campos (patrón consistente con Ventas):
+Panel expandible con los siguientes campos (patrón consistente con Ventas; 12 campos reales,
+implementados 11/08/2026 — spec 056):
 - Id
-- Proveedor
-- Categoría
-- Estado del Pago
-- Etiquetas
-- Descripción / Nota
-- Usuario
+- Proveedor (multi-selección)
+- Categoría de Compra (multi-selección)
+- Estado del Pago (A Pagar / Parcial / Pagado)
+- Tipo y N° de Factura
+- Etiqueta (multi-selección)
+- Facturado (Sí / No)
+- Medio de pago
+- Usuario (multi-selección)
+- Nota Interna
+- Depósito
+- Desde/Hasta Servicio
 - Botón **Buscar**
+
+Más los dos selectores de rango de fecha del toolbar (Emisión / Vencimiento), fuera del panel de
+filtros colapsable — mismo patrón que el toolbar de Ventas.
 
 ### 2.3 Menú de acciones por fila `[125]`
 

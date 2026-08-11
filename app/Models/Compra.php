@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
+use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Compra extends Model
@@ -18,7 +19,7 @@ class Compra extends Model
 
     protected $fillable = [
         'legacy_id',
-        'proveedor_id', 'categoria_id', 'deposito_id', 'tipo_comprobante', 'nro_comprobante',
+        'proveedor_id', 'creado_por_id', 'categoria_id', 'deposito_id', 'tipo_comprobante', 'nro_comprobante',
         'fecha_emision', 'fecha_vto_pago', 'servicio_desde', 'servicio_hasta',
         'mes_imputacion_iva', 'subtotal_sin_descuento', 'descuento_general_pct', 'descuento',
         'subtotal_con_descuento', 'total', 'nota_interna', 'submit_token',
@@ -80,6 +81,16 @@ class Compra extends Model
     public function comprobanteFiscal(): MorphOne
     {
         return $this->morphOne(ComprobanteFiscal::class, 'comprobantable');
+    }
+
+    public function creadoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'creado_por_id');
+    }
+
+    public function etiquetas(): MorphToMany
+    {
+        return $this->morphToMany(Etiqueta::class, 'etiquetable');
     }
 
     /** Pagado = Σ pagos no anulados (derivado, data-model.md §Cálculos clave). */

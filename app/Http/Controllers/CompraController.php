@@ -40,8 +40,13 @@ class CompraController extends Controller
     {
         $CurrentPage = 'compras';
         $kpis = $this->kpis();
+        $categoriasCompra = Categoria::compra()->activas()->orderBy('nombre')->get(['id', 'nombre']);
+        $etiquetas = \App\Models\Etiqueta::orderBy('nombre')->get(['id', 'nombre']);
+        $cuentasTesoreria = CuentaTesoreria::orderBy('nombre')->get(['id', 'nombre']);
+        $usuarios = \App\Models\User::orderBy('name')->get(['id', 'name']);
+        $depositos = Deposito::activos()->orderBy('nombre')->get(['id', 'nombre']);
 
-        return view('compras.index', compact('CurrentPage', 'kpis'));
+        return view('compras.index', compact('CurrentPage', 'kpis', 'categoriasCompra', 'etiquetas', 'cuentasTesoreria', 'usuarios', 'depositos'));
     }
 
     /** Barra de 5 KPIs del listado (informe §2.4): Cantidad, Pagado, A Pagar, Vencido, Total. */
@@ -87,14 +92,70 @@ class CompraController extends Controller
 
     private function queryFiltrada(Request $request): Builder
     {
-        $query = Compra::query()->with(['proveedor:id,nombre', 'categoria:id,nombre', 'pagos.cuentaTesoreria:id,nombre']);
+        $query = Compra::query()->with(['proveedor:id,nombre,cuit,telefono,email', 'categoria:id,nombre', 'pagos.cuentaTesoreria:id,nombre']);
 
-        if ($request->filled('proveedor_id')) {
-            $query->where('proveedor_id', $request->input('proveedor_id'));
+        if ($request->filled('id')) {
+            $query->where('id', (int) $request->input('id'));
         }
-        if ($request->filled('buscar')) {
-            $kw = $request->input('buscar');
-            $query->where('nro_comprobante', 'like', "%{$kw}%");
+        if ($request->filled('proveedor_id')) {
+            $query->whereIn('proveedor_id', (array) $request->input('proveedor_id'));
+        }
+        if ($request->filled('categoria_id')) {
+            $query->whereIn('categoria_id', (array) $request->input('categoria_id'));
+        }
+        if ($request->filled('estado_pago')) {
+            $pagado = 'COALESCE((SELECT SUM(p.monto) FROM pagos p WHERE p.compra_id = compras.id AND p.deleted_at IS NULL), 0)';
+            $nc = "COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.compra_id = compras.id AND n.tipo = 'credito' AND n.deleted_at IS NULL), 0)";
+            $nd = "COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.compra_id = compras.id AND n.tipo = 'debito' AND n.deleted_at IS NULL), 0)";
+            $aPagar = "(compras.total + {$nd} - {$nc} - {$pagado})";
+            match ($request->input('estado_pago')) {
+                'pagado' => $query->whereRaw("{$pagado} > 0")->whereRaw("{$aPagar} <= 0.005"),
+                'parcial' => $query->whereRaw("{$pagado} > 0")->whereRaw("{$aPagar} > 0.005"),
+                default => $query->whereRaw("{$pagado} <= 0"),
+            };
+        }
+        if ($request->filled('factura_buscar')) {
+            $kw = $request->input('factura_buscar');
+            $query->where(fn (Builder $q) => $q->where('tipo_comprobante', 'like', "%{$kw}%")
+                ->orWhereHas('comprobanteFiscal', fn (Builder $qq) => $qq->where('numero', 'like', "%{$kw}%")));
+        }
+        if ($request->filled('etiqueta_id')) {
+            $query->whereHas('etiquetas', fn (Builder $q) => $q->whereIn('etiquetas.id', (array) $request->input('etiqueta_id')));
+        }
+        if ($request->has('facturado')) {
+            $request->input('facturado') === '1'
+                ? $query->whereHas('comprobanteFiscal')
+                : $query->whereDoesntHave('comprobanteFiscal');
+        }
+        if ($request->filled('medio_pago_id')) {
+            $query->whereHas('pagos', fn (Builder $q) => $q->where('cuenta_tesoreria_id', $request->input('medio_pago_id')));
+        }
+        if ($request->filled('usuario_id')) {
+            $query->whereIn('creado_por_id', (array) $request->input('usuario_id'));
+        }
+        if ($request->filled('nota_interna')) {
+            $query->where('nota_interna', 'like', '%'.$request->input('nota_interna').'%');
+        }
+        if ($request->filled('deposito_id')) {
+            $query->where('deposito_id', $request->input('deposito_id'));
+        }
+        if ($request->filled('servicio_desde')) {
+            $query->whereDate('servicio_desde', '>=', $request->input('servicio_desde'));
+        }
+        if ($request->filled('servicio_hasta')) {
+            $query->whereDate('servicio_hasta', '<=', $request->input('servicio_hasta'));
+        }
+        if ($request->filled('emision_desde')) {
+            $query->whereDate('fecha_emision', '>=', $request->input('emision_desde'));
+        }
+        if ($request->filled('emision_hasta')) {
+            $query->whereDate('fecha_emision', '<=', $request->input('emision_hasta'));
+        }
+        if ($request->filled('vencimiento_desde')) {
+            $query->whereDate('fecha_vto_pago', '>=', $request->input('vencimiento_desde'));
+        }
+        if ($request->filled('vencimiento_hasta')) {
+            $query->whereDate('fecha_vto_pago', '<=', $request->input('vencimiento_hasta'));
         }
 
         return $query;
@@ -102,7 +163,7 @@ class CompraController extends Controller
 
     public function data(Request $request): JsonResponse
     {
-        $query = $this->queryFiltrada($request);
+        $query = $this->queryFiltrada($request)->with('etiquetas:id,nombre');
 
         return DataTables::eloquent($query)
             ->addColumn('acciones', fn (Compra $c) => view('compras._row_actions', ['compra' => $c])->render())
@@ -112,6 +173,10 @@ class CompraController extends Controller
             ->addColumn('pagado', fn (Compra $c) => $c->pagado())
             ->addColumn('a_pagar', fn (Compra $c) => $c->aPagar())
             ->addColumn('medio_de_pago', fn (Compra $c) => optional($c->pagos->last()?->cuentaTesoreria)->nombre)
+            ->addColumn('etiquetas', fn (Compra $c) => $c->etiquetas->pluck('nombre')->implode(', '))
+            ->addColumn('cuit', fn (Compra $c) => optional($c->proveedor)->cuit)
+            ->addColumn('telefono', fn (Compra $c) => optional($c->proveedor)->telefono)
+            ->addColumn('mail', fn (Compra $c) => optional($c->proveedor)->email)
             ->editColumn('fecha_emision', fn (Compra $c) => optional($c->fecha_emision)->format('d/m/Y'))
             ->editColumn('fecha_vto_pago', fn (Compra $c) => optional($c->fecha_vto_pago)->format('d/m/Y'))
             ->editColumn('subtotal_sin_descuento', fn (Compra $c) => (float) $c->subtotal_sin_descuento)
@@ -187,6 +252,7 @@ class CompraController extends Controller
 
             $compra = Compra::create([
                 'proveedor_id' => $datos['proveedor_id'],
+                'creado_por_id' => auth()->id(),
                 'categoria_id' => $datos['categoria_id'] ?? null,
                 'deposito_id' => $datos['deposito_id'],
                 'fecha_emision' => $datos['fecha_emision'],
