@@ -323,6 +323,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/', [AuditoriaController::class, 'index'])->name('index');
         Route::get('data', [AuditoriaController::class, 'data'])->name('data');
         Route::get('exportar', [AuditoriaController::class, 'exportar'])->name('exportar');
+        Route::get('{log}/detalle', [AuditoriaController::class, 'detalle'])->name('detalle');
     });
 
     Route::post('categorias-compra', [CategoriaController::class, 'storeCompra'])->name('categorias.compra.store');

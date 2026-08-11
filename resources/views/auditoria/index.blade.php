@@ -76,6 +76,7 @@
                                 <th>Operación</th>
                                 <th>Detalle</th>
                                 <th>Total</th>
+                                <th>Ver</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
@@ -86,6 +87,18 @@
 
     </div>
 </div>
+
+<div class="modal fade" id="modal-detalle-auditoria" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Detalle de la operación</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body" id="modal-detalle-auditoria-body"></div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('local-js')
@@ -94,6 +107,7 @@
         rutas: {
             data: "{{ route('auditoria.data') }}",
             exportar: "{{ route('auditoria.exportar') }}",
+            detalle: "{{ route('auditoria.detalle', ['log' => '__ID__']) }}",
         },
         hoy: "{{ $hoy }}",
     };

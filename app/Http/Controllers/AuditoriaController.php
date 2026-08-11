@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Exports\InformeCsvExport;
 use App\Models\LogAuditoria;
+use App\Models\MovimientoStock;
+use App\Models\MovimientoTesoreria;
 use App\Models\User;
 use App\Services\AuditoriaService;
 use Illuminate\Http\JsonResponse;
@@ -80,6 +82,99 @@ class AuditoriaController extends Controller
             $filas,
             'auditoria_'.now()->format('Y-m-d_His').'.csv'
         );
+    }
+
+    /**
+     * Detalle de "qué pasó" para un evento puntual (stock: qué producto/depósito y cuánto;
+     * tesorería: cuánto y de qué caja a qué caja si es transferencia). Sólo lectura.
+     */
+    public function detalle(LogAuditoria $log): JsonResponse
+    {
+        $datos = match ($log->entidad_tipo) {
+            MovimientoStock::class => $this->detalleMovimientoStock($log->entidad_id),
+            MovimientoTesoreria::class => $this->detalleMovimientoTesoreria($log->entidad_id),
+            default => null,
+        };
+
+        return response()->json([
+            'ok' => true,
+            'log' => [
+                'id' => $log->id,
+                'fecha_hora' => $log->created_at?->local()->format('d/m/Y H:i'),
+                'usuario' => $log->usuario_nombre,
+                'accion' => self::LABELS_ACCION[$log->tipo_accion] ?? $log->tipo_accion,
+                'operacion' => self::LABELS_OPERACION[$log->tipo_operacion] ?? $log->tipo_operacion,
+                'detalle' => $log->detalle,
+                'total' => $log->total !== null ? (float) $log->total : null,
+            ],
+            'tipo' => $log->entidad_tipo === MovimientoStock::class ? 'stock'
+                : ($log->entidad_tipo === MovimientoTesoreria::class ? 'tesoreria' : null),
+            'datos' => $datos,
+        ]);
+    }
+
+    private function detalleMovimientoStock(?int $id): ?array
+    {
+        if (! $id) {
+            return null;
+        }
+
+        $movimiento = MovimientoStock::with(['producto:id,nombre', 'deposito:id,nombre'])->find($id);
+
+        if (! $movimiento) {
+            return null;
+        }
+
+        return [
+            'producto' => optional($movimiento->producto)->nombre ?? 'Producto eliminado',
+            'deposito' => optional($movimiento->deposito)->nombre ?? 'Depósito eliminado',
+            'tipo' => $movimiento->tipo,
+            'cantidad' => (float) $movimiento->cantidad,
+            'descripcion' => $movimiento->descripcion,
+            'fecha' => $movimiento->fecha?->format('d/m/Y H:i'),
+        ];
+    }
+
+    private function detalleMovimientoTesoreria(?int $id): ?array
+    {
+        if (! $id) {
+            return null;
+        }
+
+        $movimiento = MovimientoTesoreria::withTrashed()->with('cuenta:id,nombre')->find($id);
+
+        if (! $movimiento) {
+            return null;
+        }
+
+        $par = $movimiento->transferencia_id
+            ? MovimientoTesoreria::withTrashed()->with('cuenta:id,nombre')
+                ->where('transferencia_id', $movimiento->transferencia_id)
+                ->where('id', '!=', $movimiento->id)
+                ->first()
+            : null;
+
+        $datos = [
+            'cuenta' => optional($movimiento->cuenta)->nombre ?? 'Cuenta eliminada',
+            'tipo' => $movimiento->tipo,
+            'monto' => (float) $movimiento->monto,
+            'concepto' => $movimiento->detalle,
+            'observacion' => $movimiento->observacion,
+            'fecha' => $movimiento->fecha?->format('d/m/Y'),
+            'es_transferencia' => (bool) $par,
+        ];
+
+        if ($par) {
+            $origen = $movimiento->monto < 0 ? $movimiento : $par;
+            $destino = $movimiento->monto < 0 ? $par : $movimiento;
+            $datos['transferencia'] = [
+                'monto' => abs((float) $movimiento->monto),
+                'caja_origen' => optional($origen->cuenta)->nombre ?? 'Cuenta eliminada',
+                'caja_destino' => optional($destino->cuenta)->nombre ?? 'Cuenta eliminada',
+            ];
+        }
+
+        return $datos;
     }
 
     private function filtros(Request $request): array

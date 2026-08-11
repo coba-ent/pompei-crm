@@ -118,6 +118,10 @@
                 { data: 'tipo_operacion_label', name: 'tipo_operacion', orderable: false },
                 { data: 'detalle', name: 'detalle', orderable: false },
                 { data: 'total', name: 'total', render: money },
+                {
+                    data: 'id', name: 'ver', orderable: false, searchable: false,
+                    render: (id) => '<button type="button" class="btn btn-sm btn-outline-primary js-ver-detalle" data-id="' + id + '"><i class="fas fa-eye"></i> Ver</button>',
+                },
             ],
             stateSave: true,
             buttons: [
@@ -131,6 +135,70 @@
 
         $tabla.one('init.dt', function () {
             tabla.buttons().container().appendTo('#dt-buttons-auditoria');
+        });
+
+        const $modal = $('#modal-detalle-auditoria');
+        const $modalBody = $('#modal-detalle-auditoria-body');
+
+        function filaStock(datos) {
+            const signo = (datos.tipo || '').toLowerCase().includes('salida') || Number(datos.cantidad) < 0 ? '-' : '+';
+            return '' +
+                '<dl class="row mb-0">' +
+                '<dt class="col-sm-4">Producto</dt><dd class="col-sm-8">' + datos.producto + '</dd>' +
+                '<dt class="col-sm-4">Depósito</dt><dd class="col-sm-8">' + datos.deposito + '</dd>' +
+                '<dt class="col-sm-4">Tipo</dt><dd class="col-sm-8">' + datos.tipo + '</dd>' +
+                '<dt class="col-sm-4">Cantidad</dt><dd class="col-sm-8">' + signo + Math.abs(Number(datos.cantidad)) + '</dd>' +
+                (datos.descripcion ? '<dt class="col-sm-4">Descripción</dt><dd class="col-sm-8">' + datos.descripcion + '</dd>' : '') +
+                '<dt class="col-sm-4">Fecha</dt><dd class="col-sm-8">' + (datos.fecha || '') + '</dd>' +
+                '</dl>';
+        }
+
+        function filaTesoreria(datos) {
+            let html = '<dl class="row mb-0">';
+            if (datos.es_transferencia && datos.transferencia) {
+                html += '<dt class="col-sm-4">Movimiento</dt><dd class="col-sm-8">Transferencia entre cajas</dd>';
+                html += '<dt class="col-sm-4">De</dt><dd class="col-sm-8">' + datos.transferencia.caja_origen + '</dd>';
+                html += '<dt class="col-sm-4">A</dt><dd class="col-sm-8">' + datos.transferencia.caja_destino + '</dd>';
+                html += '<dt class="col-sm-4">Monto</dt><dd class="col-sm-8">' + money(datos.transferencia.monto) + '</dd>';
+            } else {
+                html += '<dt class="col-sm-4">Caja</dt><dd class="col-sm-8">' + datos.cuenta + '</dd>';
+                html += '<dt class="col-sm-4">Tipo</dt><dd class="col-sm-8">' + datos.tipo + '</dd>';
+                html += '<dt class="col-sm-4">Monto</dt><dd class="col-sm-8">' + (Number(datos.monto) < 0 ? '- ' : '+ ') + money(Math.abs(Number(datos.monto))) + '</dd>';
+            }
+            if (datos.concepto) { html += '<dt class="col-sm-4">Concepto</dt><dd class="col-sm-8">' + datos.concepto + '</dd>'; }
+            if (datos.observacion) { html += '<dt class="col-sm-4">Observación</dt><dd class="col-sm-8">' + datos.observacion + '</dd>'; }
+            html += '<dt class="col-sm-4">Fecha</dt><dd class="col-sm-8">' + (datos.fecha || '') + '</dd>';
+            html += '</dl>';
+            return html;
+        }
+
+        $tabla.on('click', '.js-ver-detalle', function () {
+            const id = $(this).data('id');
+            $modalBody.html('<div class="text-center py-3"><i class="fas fa-spinner fa-spin"></i></div>');
+            $modal.modal('show');
+
+            $.get(rutas.detalle.replace('__ID__', id)).done(function (resp) {
+                const log = resp.log;
+                let html = '' +
+                    '<dl class="row mb-3">' +
+                    '<dt class="col-sm-4">Fecha y Hora</dt><dd class="col-sm-8">' + log.fecha_hora + '</dd>' +
+                    '<dt class="col-sm-4">Usuario</dt><dd class="col-sm-8">' + log.usuario + '</dd>' +
+                    '<dt class="col-sm-4">Acción</dt><dd class="col-sm-8">' + log.accion + '</dd>' +
+                    '<dt class="col-sm-4">Operación</dt><dd class="col-sm-8">' + log.operacion + '</dd>' +
+                    '</dl><hr>';
+
+                if (resp.tipo === 'stock' && resp.datos) {
+                    html += filaStock(resp.datos);
+                } else if (resp.tipo === 'tesoreria' && resp.datos) {
+                    html += filaTesoreria(resp.datos);
+                } else {
+                    html += '<p class="mb-0 text-muted">' + (log.detalle || 'Sin detalle adicional para esta operación.') + '</p>';
+                }
+
+                $modalBody.html(html);
+            }).fail(function () {
+                $modalBody.html('<p class="text-danger mb-0">No se pudo cargar el detalle.</p>');
+            });
         });
 
         $('#btn-aplicar-filtros').on('click', () => tabla.ajax.reload());
