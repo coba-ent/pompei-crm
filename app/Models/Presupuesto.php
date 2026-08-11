@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class Presupuesto extends Model
 {
@@ -101,9 +102,18 @@ class Presupuesto extends Model
         return $this->vencido() ? 'vencido' : $this->estado;
     }
 
-    /** Próximo número correlativo simple (autogenerado, sin significado fiscal). Formato Contagram: 8 dígitos con ceros a la izquierda. */
+    /**
+     * Próximo número correlativo simple (autogenerado, sin significado fiscal). Formato Contagram:
+     * 8 dígitos con ceros a la izquierda.
+     *
+     * Se deriva del propio `nro_presupuesto` y no del `id`: atarlo al auto_increment hacía que
+     * cualquier importación de datos históricos corriera la numeración tantas posiciones como filas
+     * se insertaran.
+     */
     public static function siguienteNumero(): string
     {
-        return str_pad((string) ((int) static::max('id') + 1), 8, '0', STR_PAD_LEFT);
+        $ultimo = (int) static::query()->max(DB::raw('CAST(nro_presupuesto AS UNSIGNED)'));
+
+        return str_pad((string) ($ultimo + 1), 8, '0', STR_PAD_LEFT);
     }
 }

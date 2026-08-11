@@ -92,8 +92,14 @@ class CuentaCorrienteController extends Controller
             ->whereNull('cobros.deleted_at')
             ->selectRaw(
                 "cobros.id as id, cobros.fecha as fecha_emision, ventas.cliente_id as cliente_id, ".
-                "'cobro' as operacion, NULL as categoria, NULL as total_venta, NULL as cobrado, NULL as a_cobrar, ".
-                'NULL as nro_comprobante, cuentas_tesoreria.nombre as medio_cobro, cobros.nota as descripcion'
+                // El monto va en `cobrado`: una fila de cobro sin importe no dice nada. Estaba en
+                // NULL y la cuenta corriente mostraba el cobro en blanco, así que no se podía
+                // seguir el movimiento de la plata. `nro_comprobante` trae el de la venta cobrada,
+                // para poder relacionar el cobro con su factura de un vistazo.
+                "'cobro' as operacion, NULL as categoria, NULL as total_venta, ".
+                'cobros.monto as cobrado, NULL as a_cobrar, '.
+                'ventas.nro_comprobante as nro_comprobante, '.
+                'cuentas_tesoreria.nombre as medio_cobro, cobros.nota as descripcion'
             );
 
         $notas = DB::table('notas_credito_debito')

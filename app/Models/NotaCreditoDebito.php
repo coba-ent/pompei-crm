@@ -17,6 +17,7 @@ class NotaCreditoDebito extends Model
     protected $table = 'notas_credito_debito';
 
     protected $fillable = [
+        'legacy_id',
         'venta_id', 'compra_id', 'tipo', 'afecta_stock', 'mes_imputacion', 'fecha_emision', 'monto',
         'tipo_comprobante', 'descripcion', 'impuestos',
     ];

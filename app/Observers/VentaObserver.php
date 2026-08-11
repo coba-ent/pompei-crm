@@ -24,6 +24,14 @@ class VentaObserver
                     $cobranzas->anularCobro($cobro);
                 }
 
+                // Las ventas migradas de Contagram (legacy_id) se importaron SIN descontar stock:
+                // son historia, el stock que reflejan ya está consolidado en el saldo actual.
+                // Reintegrarlo devolvería mercadería que nunca salió e inflaría el stock en
+                // silencio. Los cobros sí se revierten: esos movimientos de tesorería existen.
+                if ($venta->legacy_id !== null) {
+                    return;
+                }
+
                 App::make(StockDeVenta::class)->reintegrarPorEliminacion($venta->load('items.producto'));
             });
         }

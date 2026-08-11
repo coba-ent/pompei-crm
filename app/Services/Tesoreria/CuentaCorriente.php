@@ -108,35 +108,78 @@ class CuentaCorriente
         ]);
     }
 
+    /**
+     * Los seis buckets del aging, calculados **en una sola consulta agregada**.
+     *
+     * Antes se traían todos los documentos a memoria (`documentosParaAging()`) y se recorrían en
+     * PHP. Con el histórico de Contagram cargado eso son 23.672 ventas, cada una con tres
+     * subconsultas correlacionadas, hidratadas como objetos: la pantalla de Tesorería —que llama a
+     * esto dos veces, para clientes y para proveedores— se pasaba de los 60 s de límite de
+     * ejecución y devolvía error 500 (10/08/2026).
+     *
+     * La clasificación replica exactamente `clasificarBucket()`: sin vencimiento o vencimiento
+     * futuro es `a_vencer`, y si no, se agrupa por días vencidos en 0-30, 31-60, 61-90 y >90.
+     * `vencido` es la suma de todo lo que no está `a_vencer`.
+     *
+     * @return array<string, float>
+     */
+    private function bucketsEnSql(string $tipo, Carbon $fecha): array
+    {
+        $esCliente = $tipo === 'cliente';
+        $tabla = $esCliente ? 'ventas' : 'compras';
+        $vto = $esCliente ? 'fecha_vto_cobro' : 'fecha_vto_pago';
+        $fk = $esCliente ? 'venta_id' : 'compra_id';
+        $pagosTabla = $esCliente ? 'cobros' : 'pagos';
+
+        $saldo = "({$tabla}.total + COALESCE(nd.monto, 0) - COALESCE(nc.monto, 0) - COALESCE(p.monto, 0))";
+        // DATEDIFF y no diffInDays: la comparación tiene que resolverse en el motor, no en PHP.
+        $dias = "DATEDIFF(?, {$tabla}.{$vto})";
+        $aVencer = "({$tabla}.{$vto} IS NULL OR {$tabla}.{$vto} >= ?)";
+
+        $sub = fn (string $t, ?string $signo) => DB::table($t)
+            ->selectRaw("{$fk} as fk, SUM(monto) as monto")
+            ->whereNull('deleted_at')
+            ->when($signo !== null, fn ($q) => $q->where('tipo', $signo))
+            ->whereNotNull($fk)
+            ->groupBy($fk);
+
+        $r = DB::table($tabla)
+            ->leftJoinSub($sub('notas_credito_debito', 'debito'), 'nd', 'nd.fk', '=', "{$tabla}.id")
+            ->leftJoinSub($sub('notas_credito_debito', 'credito'), 'nc', 'nc.fk', '=', "{$tabla}.id")
+            ->leftJoinSub($sub($pagosTabla, null), 'p', 'p.fk', '=', "{$tabla}.id")
+            ->whereNull("{$tabla}.deleted_at")
+            ->selectRaw("
+                COALESCE(SUM(CASE WHEN {$saldo} > ? AND {$aVencer} THEN {$saldo} ELSE 0 END), 0) AS a_vencer,
+                COALESCE(SUM(CASE WHEN {$saldo} > ? AND NOT {$aVencer} THEN {$saldo} ELSE 0 END), 0) AS vencido,
+                COALESCE(SUM(CASE WHEN {$saldo} > ? AND NOT {$aVencer} AND {$dias} <= 30 THEN {$saldo} ELSE 0 END), 0) AS b0_30,
+                COALESCE(SUM(CASE WHEN {$saldo} > ? AND NOT {$aVencer} AND {$dias} > 30 AND {$dias} <= 60 THEN {$saldo} ELSE 0 END), 0) AS b31_60,
+                COALESCE(SUM(CASE WHEN {$saldo} > ? AND NOT {$aVencer} AND {$dias} > 60 AND {$dias} <= 90 THEN {$saldo} ELSE 0 END), 0) AS b61_90,
+                COALESCE(SUM(CASE WHEN {$saldo} > ? AND NOT {$aVencer} AND {$dias} > 90 THEN {$saldo} ELSE 0 END), 0) AS mas_90
+            ", [
+                self::TOLERANCIA, $fecha->toDateString(),
+                self::TOLERANCIA, $fecha->toDateString(),
+                self::TOLERANCIA, $fecha->toDateString(), $fecha->toDateString(),
+                self::TOLERANCIA, $fecha->toDateString(), $fecha->toDateString(), $fecha->toDateString(),
+                self::TOLERANCIA, $fecha->toDateString(), $fecha->toDateString(), $fecha->toDateString(),
+                self::TOLERANCIA, $fecha->toDateString(), $fecha->toDateString(),
+            ])
+            ->first();
+
+        return [
+            'a_vencer' => (float) $r->a_vencer,
+            'vencido' => (float) $r->vencido,
+            '0_30' => (float) $r->b0_30,
+            '31_60' => (float) $r->b31_60,
+            '61_90' => (float) $r->b61_90,
+            'mas_90' => (float) $r->mas_90,
+        ];
+    }
+
     /** @return array{total: float, buckets: array{a_vencer: float, vencido: float, "0_30": float, "31_60": float, "61_90": float, mas_90: float}} */
     public function aging(string $tipo, ?Carbon $fecha = null): array
     {
         $fecha = $fecha ?? Carbon::today();
-        $documentos = $this->documentosParaAging($tipo);
-
-        $buckets = [
-            'a_vencer' => 0.0,
-            'vencido' => 0.0,
-            '0_30' => 0.0,
-            '31_60' => 0.0,
-            '61_90' => 0.0,
-            'mas_90' => 0.0,
-        ];
-
-        foreach ($documentos as $documento) {
-            $saldo = $documento->saldo;
-
-            if ($saldo <= self::TOLERANCIA) {
-                continue;
-            }
-
-            $bucket = $this->clasificarBucket($documento->vencimiento, $fecha);
-            $buckets[$bucket] += $saldo;
-
-            if ($bucket !== 'a_vencer') {
-                $buckets['vencido'] += $saldo;
-            }
-        }
+        $buckets = $this->bucketsEnSql($tipo, $fecha);
 
         // Saldo inicial de Cliente/Proveedor (spec 031): a diferencia de los
         // documentos, no se descarta por `saldo <= TOLERANCIA` sino sólo si es

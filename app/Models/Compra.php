@@ -17,6 +17,7 @@ class Compra extends Model
     protected $table = 'compras';
 
     protected $fillable = [
+        'legacy_id',
         'proveedor_id', 'categoria_id', 'deposito_id', 'tipo_comprobante', 'nro_comprobante',
         'fecha_emision', 'fecha_vto_pago', 'servicio_desde', 'servicio_hasta',
         'mes_imputacion_iva', 'subtotal_sin_descuento', 'descuento_general_pct', 'descuento',

@@ -45,19 +45,43 @@ class CompraController extends Controller
     }
 
     /** Barra de 5 KPIs del listado (informe §2.4): Cantidad, Pagado, A Pagar, Vencido, Total. */
+    /**
+     * KPIs del listado, en **una sola consulta agregada** — mismo criterio que VentaController.
+     *
+     * Traer todas las compras a memoria y llamar `aPagar()` por fila dispara 3 consultas por
+     * compra. Con datos de prueba no se nota; con el histórico de Contagram (2.526 compras) son
+     * ~7.500 consultas en cada carga de la pantalla. Es el mismo bug que dejó Ventas en más de un
+     * minuto tras importar el histórico (10/08/2026), corregido acá antes de que se manifieste.
+     *
+     * Mantiene la definición del modelo: `A Pagar = Total + Σ ND − Σ NC − Pagado`.
+     */
     private function kpis(): array
     {
-        $compras = Compra::query()->get();
+        $pagado = 'COALESCE((SELECT SUM(p.monto) FROM pagos p WHERE p.compra_id = compras.id AND p.deleted_at IS NULL), 0)';
+        $nc = "COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.compra_id = compras.id AND n.tipo = 'credito' AND n.deleted_at IS NULL), 0)";
+        $nd = "COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.compra_id = compras.id AND n.tipo = 'debito' AND n.deleted_at IS NULL), 0)";
+        $aPagar = "(compras.total + {$nd} - {$nc} - {$pagado})";
 
-        $vencido = $compras->filter(fn (Compra $c) => $c->fecha_vto_pago && $c->fecha_vto_pago->isPast() && $c->aPagar() > 0.005)
-            ->sum(fn (Compra $c) => $c->aPagar());
+        $r = Compra::query()
+            ->selectRaw("
+                COUNT(*) AS cantidad,
+                COALESCE(SUM(compras.total), 0) AS total,
+                COALESCE(SUM({$pagado}), 0) AS pagado,
+                COALESCE(SUM({$aPagar}), 0) AS a_pagar,
+                COALESCE(SUM(CASE
+                    WHEN compras.fecha_vto_pago IS NOT NULL
+                     AND compras.fecha_vto_pago < CURDATE()
+                     AND {$aPagar} > 0.005
+                    THEN {$aPagar} ELSE 0 END), 0) AS vencido
+            ")
+            ->first();
 
         return [
-            'cantidad' => $compras->count(),
-            'pagado' => $compras->sum(fn (Compra $c) => $c->pagado()),
-            'a_pagar' => $compras->sum(fn (Compra $c) => $c->aPagar()),
-            'vencido' => $vencido,
-            'total' => $compras->sum(fn (Compra $c) => (float) $c->total),
+            'cantidad' => (int) $r->cantidad,
+            'pagado' => round((float) $r->pagado, 2),
+            'a_pagar' => round((float) $r->a_pagar, 2),
+            'vencido' => round((float) $r->vencido, 2),
+            'total' => round((float) $r->total, 2),
         ];
     }
 

@@ -63,21 +63,72 @@ class VentaController extends Controller
         ]);
     }
 
-    /** Barra de 5 KPIs del listado, espejo de Compras (documentacion_principal_crm.md §4.1): Cantidad, Cobrado, A Cobrar, Vencido, Total. */
+    /**
+     * Barra de 5 KPIs del listado, espejo de Compras (documentacion_principal_crm.md §4.1):
+     * Cantidad, Cobrado, A Cobrar, Vencido, Total.
+     *
+     * Se calcula con **una sola consulta agregada**. La versión anterior hacía `Venta::all()` y
+     * recorría la colección llamando `aCobrar()` por fila, que a su vez dispara 3 consultas
+     * (cobros + NC + ND). Con las 138 ventas de prueba ni se notaba; con el histórico de Contagram
+     * cargado son ~24.000 modelos hidratados y ~70.000 consultas **en cada carga de la pantalla**,
+     * que la dejaba en más de un minuto (medido el 10/08/2026 al importar).
+     *
+     * Los subselects mantienen la definición exacta de los métodos del modelo:
+     * `A Cobrar = Total + Σ ND − Σ NC − Cobrado`, y "vencido" es el A Cobrar > 0 de las ventas con
+     * `fecha_vto_cobro` pasada. Si cambia esa fórmula en Venta, hay que reflejarla acá.
+     */
     private function kpis(): array
     {
-        $ventas = Venta::query()->get();
+        // JOIN contra subconsultas ya agrupadas, no subselects correlacionados: éstos se evalúan
+        // una vez por fila (1,5s con 23.659 ventas), mientras que así cada tabla se recorre una
+        // sola vez y el motor une por clave.
+        $cobrado = 'COALESCE(c.monto, 0)';
+        $nc = 'COALESCE(n.credito, 0)';
+        $nd = 'COALESCE(n.debito, 0)';
+        $aCobrar = "(ventas.total + {$nd} - {$nc} - {$cobrado})";
 
-        $vencido = $ventas->filter(fn (Venta $v) => $v->fecha_vto_cobro && $v->fecha_vto_cobro->isPast() && $v->aCobrar() > 0.005)
-            ->sum(fn (Venta $v) => $v->aCobrar());
+        $r = Venta::query()
+            ->leftJoinSub(
+                DB::table('cobros')->selectRaw('venta_id, SUM(monto) AS monto')
+                    ->whereNull('deleted_at')->groupBy('venta_id'),
+                'c', 'c.venta_id', '=', 'ventas.id'
+            )
+            ->leftJoinSub(
+                DB::table('notas_credito_debito')->selectRaw("
+                        venta_id,
+                        SUM(CASE WHEN tipo = 'credito' THEN monto ELSE 0 END) AS credito,
+                        SUM(CASE WHEN tipo = 'debito'  THEN monto ELSE 0 END) AS debito
+                    ")->whereNull('deleted_at')->whereNotNull('venta_id')->groupBy('venta_id'),
+                'n', 'n.venta_id', '=', 'ventas.id'
+            )
+            ->selectRaw("
+                COUNT(*) AS cantidad,
+                COALESCE(SUM(ventas.total), 0) AS total,
+                COALESCE(SUM({$cobrado}), 0) AS cobrado,
+                COALESCE(SUM({$aCobrar}), 0) AS a_cobrar,
+                COALESCE(SUM(CASE
+                    WHEN ventas.fecha_vto_cobro IS NOT NULL
+                     AND ventas.fecha_vto_cobro < CURDATE()
+                     AND {$aCobrar} > 0.005
+                    THEN {$aCobrar} ELSE 0 END), 0) AS vencido
+            ")
+            ->first();
 
         return [
-            'cantidad' => $ventas->count(),
-            'cobrado' => $ventas->sum(fn (Venta $v) => $v->cobrado()),
-            'a_cobrar' => $ventas->sum(fn (Venta $v) => $v->aCobrar()),
-            'vencido' => $vencido,
-            'total' => $ventas->sum(fn (Venta $v) => (float) $v->total),
+            'cantidad' => (int) $r->cantidad,
+            'cobrado' => round((float) $r->cobrado, 2),
+            'a_cobrar' => round((float) $r->a_cobrar, 2),
+            'vencido' => round((float) $r->vencido, 2),
+            'total' => round((float) $r->total, 2),
         ];
+    }
+
+    /** Número que el comprobante tenía en Contagram: de `2021-FC-2140` devuelve `2140`. */
+    private function numeroContagram(string $legacyId): string
+    {
+        $partes = explode('-', $legacyId);
+
+        return end($partes);
     }
 
     /**
@@ -90,7 +141,16 @@ class VentaController extends Controller
         $query = Venta::query()->with(['cliente:id,nombre', 'categoria:id,nombre', 'presupuesto:id', 'listaPrecio:id,nombre', 'vendedor:id,nombre', 'etiquetas:id,nombre', 'cobros.cuentaTesoreria:id,nombre', 'comprobanteFiscal:id,comprobantable_type,comprobantable_id,estado', 'items.producto:id,nombre']);
 
         if ($request->filled('id')) {
-            $query->where('id', (int) $request->input('id'));
+            // Busca por el id del CRM **y** por el número que la venta tenía en Contagram: los
+            // comprobantes en papel y los reclamos de clientes traen el número viejo, que es el
+            // único dato con el que se puede encontrar una venta de 2021 años después.
+            // `legacy_id` es `{año}-{familia}-{Id}`, así que se ancla al final para que "2140"
+            // encuentre `2021-FC-2140` y no cualquier cosa que contenga esos dígitos.
+            $id = trim((string) $request->input('id'));
+            $query->where(fn (Builder $q) => $q
+                ->where('id', (int) $id)
+                ->orWhere('legacy_id', 'like', '%-'.$id)
+            );
         }
         if ($request->filled('cliente_id')) {
             $query->whereIn('cliente_id', (array) $request->input('cliente_id'));
@@ -196,6 +256,12 @@ class VentaController extends Controller
                 default => 'Venta',
             })
             ->addColumn('cliente', fn (Venta $v) => optional($v->cliente)->nombre)
+            // Las migradas muestran el número que tenían en Contagram junto al id del CRM: es el
+            // dato por el que se las busca cuando llega un comprobante viejo en papel.
+            ->editColumn('id', fn (Venta $v) => $v->legacy_id === null
+                ? (string) $v->id
+                : $v->id.' <span class="badge bg-light text-muted" title="Número en Contagram">'
+                    .e($this->numeroContagram($v->legacy_id)).'</span>')
             ->addColumn('productos', fn (Venta $v) => $v->items->map(fn (VentaItem $i) => $i->producto?->nombre ?? $i->descripcion)->filter()->implode(', '))
             ->addColumn('categoria', fn (Venta $v) => optional($v->categoria)->nombre)
             ->addColumn('cobrado', fn (Venta $v) => $v->cobrado())
@@ -211,7 +277,7 @@ class VentaController extends Controller
             ->editColumn('descuento', fn (Venta $v) => (float) $v->descuento)
             ->editColumn('subtotal_con_descuento', fn (Venta $v) => (float) $v->subtotal_con_descuento)
             ->editColumn('total', fn (Venta $v) => (float) $v->total)
-            ->rawColumns(['acciones'])
+            ->rawColumns(['acciones', 'id'])
             ->toJson();
     }
 

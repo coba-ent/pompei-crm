@@ -183,11 +183,35 @@ class Venta extends Model
         return ! ($comprobante && $comprobante->estado === 'aprobado');
     }
 
-    /** N° de comprobante correlativo simple por tipo (dato sin emisión fiscal — research.md §5). */
+    /**
+     * Prefijo de la serie interna, sin significado fiscal (research.md §5).
+     *
+     * Vive en un espacio de nombres separado a propósito: la numeración fiscal real la asigna ARCA
+     * sobre el punto de venta configurado (hoy el 9) y se guarda al aprobarse el comprobante, así
+     * que la serie interna nunca puede colisionar con ella.
+     */
+    public const PREFIJO_SERIE_INTERNA = '0001-';
+
+    /**
+     * N° de comprobante correlativo simple por tipo (dato sin emisión fiscal — research.md §5).
+     *
+     * Toma el máximo de la serie en vez de contar filas: contar rompía de dos formas — al importar
+     * el histórico el contador saltaba tantas posiciones como ventas importadas, y al borrar una
+     * venta el número siguiente se repetía. El filtro por prefijo es imprescindible porque conviven
+     * en la columna los números fiscales reales (`0009-…` de ARCA, `0005-…` del sistema viejo), que
+     * ordenan por encima de la serie interna y darían un máximo equivocado.
+     */
     public static function siguienteNroComprobante(string $tipoComprobante): string
     {
-        $n = static::withTrashed()->where('tipo_comprobante', $tipoComprobante)->count() + 1;
+        $ultimo = static::withTrashed()
+            ->where('tipo_comprobante', $tipoComprobante)
+            ->where('nro_comprobante', 'like', self::PREFIJO_SERIE_INTERNA.'%')
+            ->max('nro_comprobante');
 
-        return '0001-'.str_pad((string) $n, 8, '0', STR_PAD_LEFT);
+        $n = $ultimo === null
+            ? 1
+            : (int) substr($ultimo, strlen(self::PREFIJO_SERIE_INTERNA)) + 1;
+
+        return self::PREFIJO_SERIE_INTERNA.str_pad((string) $n, 8, '0', STR_PAD_LEFT);
     }
 }

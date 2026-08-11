@@ -24,6 +24,14 @@ class CompraObserver
                     $pagos->anularPago($pago);
                 }
 
+                // Las compras migradas de Contagram (legacy_id) se importaron SIN sumar stock: son
+                // historia y esa mercadería ya está consolidada en el saldo actual. Descontarla al
+                // borrarlas sacaría stock que nunca entró por esta vía. Los pagos sí se revierten:
+                // esos movimientos de tesorería existen. Mismo criterio que VentaObserver.
+                if ($compra->legacy_id !== null) {
+                    return;
+                }
+
                 App::make(StockDeCompra::class)->reintegrarPorEliminacion($compra->load('items.producto'));
             });
         }

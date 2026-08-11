@@ -15,6 +15,7 @@ class Gasto extends Model
     protected $table = 'gastos';
 
     protected $fillable = [
+        'legacy_id',
         'fecha', 'monto', 'categoria_id', 'cuenta_tesoreria_id',
         'descripcion', 'pendiente', 'usuario_id',
     ];

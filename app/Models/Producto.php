@@ -30,6 +30,7 @@ class Producto extends Model
     ];
 
     protected $fillable = [
+        'legacy_id',
         'nombre',
         'codigo',
         'tipo',

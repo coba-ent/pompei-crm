@@ -1293,3 +1293,63 @@ de §1), asignado por defecto al rol Admin.
 
 Un solo evento de auditoría por acción humana: los Observers filtran los `updated` que sólo tocan
 campos derivados/recalculados internamente (no cada `save()` interno genera una fila nueva).
+
+---
+
+## 19. Migración del histórico de Contagram 2021-2026 (ejecutada el 10/08/2026)
+
+No es una feature: es la carga por única vez del histórico del sistema anterior. No agrega entidades
+ni cambia reglas de negocio; sólo suma la columna que identifica los registros migrados y un valor
+de enum que faltaba. El diseño está en `docs/importacion_2021_2026_plan_tecnico.md` y los pendientes
+en `docs/importacion_casos_a_revisar.md`.
+
+### `legacy_id` — columna nueva en 5 tablas
+
+| Tabla | Formato | |
+|---|---|---|
+| `ventas` | `{año}-{familia}-{Id}` | ya existía (spec previa), se le dio el formato con familia |
+| `compras` | `{año}-{familia}-{Id}` | |
+| `productos` | `{Id}` | el Id del producto en Contagram |
+| `gastos` | `GASTO-{año}-{Id}` | |
+| `notas_credito_debito` | `COMPRA-…` para las de compra | el prefijo evita que la NC 1 de compras choque con la NC 1 de ventas: **comparten tabla y ambos Id arrancan en 1** |
+| `movimientos_tesoreria` | `TES-{cuenta}-{operación}-{Id}-{fecha}-{centavos}` | el `Id` de Contagram **no** identifica un movimiento: tiene 22.823 colisiones sobre 48.222 filas |
+
+`string(40)` nullable y **`unique`** en todos los casos (64 en tesorería). El `unique` no es
+decorativo: es lo que hace que el importador sea idempotente y lo que cortó en seco una corrida con
+la clave mal construida.
+
+**Es un dato de consulta permanente, no sólo del importador**: los comprobantes en papel, remitos y
+reclamos traen el número viejo, así que el filtro por Id de Ventas busca por el id del CRM **y** por
+`legacy_id`, y el listado lo muestra junto al id.
+
+### `movimientos_tesoreria.tipo` — valor de enum nuevo
+
+Se agregó **`ingreso`** a `('saldo_inicial','movimiento_entre_cuentas','cobro','pago','gasto')`.
+Corresponde a los "Otros Ingresos" (aportes de socios, préstamos financieros). Mapearlos a `cobro`
+los habría mezclado con los cobros de ventas.
+
+> Pendiente relacionado: hoy el módulo Otros Ingresos **no genera** movimiento de tesorería, así que
+> el saldo de la cuenta no se mueve al cargar uno. Es un cambio de regla de negocio y necesita spec.
+
+### `notas_credito_debito.venta_id` — corrección de esquema
+
+Pasó a **nullable**, como el código siempre asumió. La migración que creó la tabla ya lo declaraba
+así, pero el `->nullable()` se agregó al archivo después de que la tabla existiera y nunca llegó al
+esquema. Efecto real: **emitir una NC/ND de una compra fallaba** (ahí `venta_id` va vacío por
+diseño). Nunca se había disparado porque no se había hecho ninguna.
+
+### Índices para volumen
+
+Todas las tablas transaccionales se listan ordenadas por `created_at` y **ninguna tenía índice en
+esa columna**: cada carga resolvía con `type=ALL` + `filesort`. Se indexó `created_at` y las fechas
+de filtro en `ventas`, `compras`, `presupuestos`, `cobros`, `pagos`, `gastos`, `movimientos_stock`,
+`movimientos_tesoreria`, `notas_credito_debito` y `remitos`.
+
+### Reglas que fija la migración
+
+- Los registros migrados **no generan movimientos de stock**: esa mercadería ya entró y salió, y el
+  saldo actual lo refleja. `VentaObserver` y `CompraObserver` tienen el guardarraíl del otro lado
+  (no reintegran al borrar un registro con `legacy_id`), cubierto por tests.
+- Los cobros y pagos migrados **no generan movimientos de tesorería**: éstos entran completos desde
+  los archivos `Cuentas/`, que son la única fuente que incluye las transferencias entre cuentas.
+- `created_at` de los registros migrados = **la fecha del comprobante**, no la del import.

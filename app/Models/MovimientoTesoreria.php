@@ -16,6 +16,7 @@ class MovimientoTesoreria extends Model
     protected $table = 'movimientos_tesoreria';
 
     protected $fillable = [
+        'legacy_id',
         'cuenta_tesoreria_id', 'fecha', 'tipo', 'monto', 'detalle',
         'nro_comprobante', 'observacion', 'transferencia_id',
         'origen_type', 'origen_id', 'usuario_id',

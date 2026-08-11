@@ -17,6 +17,18 @@ use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
 
 /**
+ * @deprecated 10/08/2026 — reemplazado por `migracion:ventas` (MigrarVentasContagram).
+ *
+ * Se conserva sólo como registro del import de agosto 2026. **No volver a correrlo**: tres de sus
+ * reglas se demostraron equivocadas al analizar los 6 años completos
+ * (docs/importacion_2021_2026_plan_tecnico.md §3.9 y §3.11):
+ *
+ * - toma los importes del export por-ítem, cuando el bueno es el `c/ cobro` (acierta 210 a 14);
+ * - agrupa por `Id` solo, y en 2021 el Id se reusa entre facturas y notas de crédito;
+ * - saltea las NC/ND, que son $58M que tienen que estar para que cierre la caja.
+ *
+ * ---
+ *
  * Importa las Ventas históricas de Contagram desde los Excel de public/imports/ventas
  * (uno por año, 2021–2025). Ver docs/importacion_ventas_historicas.md para el detalle
  * completo de las reglas y gotchas de los archivos de origen.
