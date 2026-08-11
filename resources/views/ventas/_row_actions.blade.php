@@ -16,7 +16,9 @@
     </button>
     <ul class="dropdown-menu dropdown-menu-end">
         <li><a class="dropdown-item" href="{{ route('ventas.show', $venta) }}">Ver</a></li>
-        <li><a class="dropdown-item" href="{{ route('ventas.edit', $venta) }}">Editar</a></li>
+        @if (! $venta->estaFacturada())
+            <li><a class="dropdown-item" href="{{ route('ventas.edit', $venta) }}">Editar</a></li>
+        @endif
         <li><a class="dropdown-item text-danger js-eliminar" href="#" data-id="{{ $venta->id }}">Eliminar</a></li>
         <li><hr class="dropdown-divider"></li>
         <li><a class="dropdown-item js-agregar-cobranza" href="{{ route('ventas.show', $venta) }}">Agregar Cobranza</a></li>

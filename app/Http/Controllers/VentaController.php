@@ -439,6 +439,10 @@ class VentaController extends Controller
 
     public function edit(Venta $venta)
     {
+        if ($venta->estaFacturada()) {
+            abort(403, 'Esta venta ya fue enviada a ARCA y no se puede editar.');
+        }
+
         $CurrentPage = 'ventas';
         $venta->load(['items', 'conceptos', 'etiquetas', 'cliente', 'categoria', 'listaPrecio', 'vendedor', 'deposito']);
         $categoriasVenta = Categoria::venta()->activas()->orderBy('nombre')->get();
@@ -458,6 +462,13 @@ class VentaController extends Controller
 
     public function update(UpdateVentaRequest $request, Venta $venta): JsonResponse
     {
+        if ($venta->estaFacturada()) {
+            return response()->json([
+                'ok' => false,
+                'mensaje' => 'Esta venta ya fue enviada a ARCA y no se puede editar.',
+            ], 403);
+        }
+
         $datos = $request->validated();
 
         DB::transaction(function () use ($datos, $venta) {

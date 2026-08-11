@@ -183,6 +183,14 @@ class Venta extends Model
         return ! ($comprobante && $comprobante->estado === 'aprobado');
     }
 
+    /** Ya tiene CAE aprobado de ARCA: no se puede editar (los datos ya fueron declarados al fisco). */
+    public function estaFacturada(): bool
+    {
+        $comprobante = $this->relationLoaded('comprobanteFiscal') ? $this->comprobanteFiscal : $this->comprobanteFiscal()->first();
+
+        return (bool) ($comprobante && $comprobante->estado === 'aprobado');
+    }
+
     /**
      * Prefijo de la serie interna, sin significado fiscal (research.md §5).
      *
