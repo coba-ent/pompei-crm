@@ -231,6 +231,88 @@ pesos) **sin conversión alguna** — imposible si fueran monedas distintas.
 no debería deber plata; el negativo sale de acreditaciones que superan lo migrado. No es un problema
 de tipificación y quedó sin analizar.
 
+## 8d. Notas de crédito/débito de Compras — diagnóstico del 11/08/2026
+
+### El importador leyó mal el Excel
+
+`ComprasContagram` buscaba los valores `NC` y `ND` en la columna `Tipo de Comprobante`, pero el
+export dice **`Nota de Crédito`** y **`Nota de Débito`** completos. Consecuencia: las 149 notas de
+compra se importaron **sólo con la cabecera** —monto, tipo y fecha— sin número de comprobante, sin
+renglones y sin percepciones, **aunque el Excel traía todo eso**:
+
+```
+id    legacy_id             nro_comprobante   impuestos   items
+836   COMPRA-2026-ND-15     NULL              NULL          0
+841   COMPRA-2026-NC-106    NULL              NULL          0
+```
+
+No es una limitación del origen: el archivo `Compras/{año} Compras.xlsx` tiene `Punto de Venta`,
+`N° Factura`, `Producto/Servicio`, `Código`, `Cantidad`, `Precio unitario`, `Perc. IVA` y
+`Perc. IIBB` en cada fila de nota. **Se puede recuperar todo reimportando.**
+
+### El vínculo nota → compra no está en el export, pero se reconstruye
+
+El Excel de Compras **no tiene** la columna `Documento que Ajusta` que sí se ve en la pantalla de
+Contagram. Y —verificado con un caso de control— el `N° Factura` de una nota es **su propio
+número**, no el de la compra que ajusta:
+
+```
+NOTA DE DÉBITO   Id 15     PV 57    N° 67262      ← A-0057-00067262, número de la nota
+COMPRA           Id 2147   PV 11    N° 4800615    ← A-0011-04800615, la compra que ajusta
+```
+
+Las notas aparecen **intercaladas** junto a las compras del mismo proveedor y fecha, lo que hace
+parecer que se corresponden por posición; es sólo el orden del listado.
+
+**La llave real está en el otro archivo.** `Compras c- pago/{año}` trae, por compra, las columnas
+`Total NC` y `Total ND`. Cruzándolas con los importes de las notas del mismo proveedor y buscando
+qué subconjunto suma exactamente ese total, el vínculo queda **deducido, no adivinado**:
+
+| | |
+|---|---:|
+| Notas de compra en los Excel | 149 |
+| Compras con notas | 100 |
+| Grupos resueltos sin ambigüedad | **103** |
+| Grupos ambiguos | 4 |
+| Grupos sin solución | 10 |
+| **Notas asociables** | **132 de 149** |
+
+Los 4 ambiguos son notas de **importe idéntico** ("ANULACIÓN BONIF. POR USO DE LA PLATAFORMA" de
+Mercado Libre: dos de $461,09 y dos de ~$2.396,4), indistinguibles por monto; se desempatan por
+fecha. Los 10 sin solución se concentran en 2021 (3) y 2024 (4) y **están sin analizar**.
+
+Gotcha de archivos: `2023 Comrpas c_ cobro.xlsx` tiene el nombre mal escrito ("Comrpas"), y los de
+2021-2024 dicen `c_ cobro` en vez de `c_ pago`. Un glob por `{año}*c_*.xlsx` los cubre a todos.
+
+### Regla: una nota sobre un comprobante migrado NO debe afectar stock
+
+Los comprobantes del histórico se importaron **sin generar movimientos de stock**, para que el
+inventario quedara exactamente como estaba. Una nota que ajuste stock sobre uno de ellos descuenta
+algo que nunca entró por sistema. Pasó: una NC cargada a mano sobre la compra 2381 dejó el producto
+100015 en **−1**; al borrarla volvió a 0.
+
+La pregunta correcta no es "¿la nota afecta stock?" sino **"¿el comprobante que ajusta había movido
+stock?"**. Para todo lo migrado, la respuesta es no.
+
+### El aviso de la pantalla miente
+
+`compras.js` decide con `const sinProductos = (resp.data || []).length === 0;` sobre el resultado de
+`itemsDisponibles()`, que sólo devuelve productos con `pendiente > 0`. El cartel resultante dice
+*"Este comprobante no tiene productos (sólo conceptos/servicios)"*, pero **colapsa tres situaciones
+distintas**:
+
+1. el comprobante no tiene productos (el único caso donde el texto es cierto);
+2. tiene productos pero **ya fueron ajustados** por notas anteriores;
+3. es un comprobante migrado, donde además **no corresponde** ajustar stock.
+
+Mismo código duplicado en `ventas/_modal_ncnd.blade.php`. Sin corregir.
+
+### Pendiente menor
+
+El movimiento de stock **431** (−1 del producto 100015) quedó en la tabla aunque su nota fue
+borrada. El saldo está bien (0, la columna se revirtió), pero aparece como un ajuste huérfano en el
+informe de movimientos.
+
 ## 9. Cosméticos
 
 - **~1.446 clientes con `created_at` con día y mes invertidos**, del import anterior.
