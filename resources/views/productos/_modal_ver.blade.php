@@ -20,56 +20,71 @@
                     </div>
                 </div>
 
-                <div class="row g-3 mb-3">
-                    <div class="col-md-6">
-                        <div class="text-muted fs-13">Tipo de Producto</div>
-                        <div class="fw-semibold" id="ver-producto-tipo-producto">&mdash;</div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="text-muted fs-13">Proveedor</div>
-                        <div class="fw-semibold" id="ver-producto-proveedor">&mdash;</div>
-                    </div>
-                    <div class="col-md-4" id="ver-producto-stock-wrap">
-                        <div class="text-muted fs-13">Stock</div>
-                        <div class="fw-semibold" id="ver-producto-stock">&mdash;</div>
-                    </div>
-                    <div class="col-12 d-none" id="ver-producto-stock-depositos-wrap">
-                        <div class="text-muted fs-13 mb-1">Stock por Depósito</div>
-                        <table class="table table-sm table-borderless mb-0">
-                            <tbody id="ver-producto-stock-depositos-body"></tbody>
-                        </table>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="text-muted fs-13">Costo</div>
-                        <div class="fw-semibold" id="ver-producto-costo">&mdash;</div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="text-muted fs-13">Precio de Venta</div>
-                        <div class="fw-semibold text-success" id="ver-producto-precio-venta">&mdash;</div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="text-muted fs-13">IVA por defecto (ventas)</div>
-                        <div class="fw-semibold" id="ver-producto-iva-venta">&mdash;</div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="text-muted fs-13">IVA por defecto (compras)</div>
-                        <div class="fw-semibold" id="ver-producto-iva-compra">&mdash;</div>
-                    </div>
-                    <div class="col-12">
-                        <div class="text-muted fs-13">Mostrar en</div>
-                        <div class="fw-semibold" id="ver-producto-mostrar-en">&mdash;</div>
+                {{-- General --}}
+                <div class="bg-light rounded-3 p-3 mb-3">
+                    <div class="text-uppercase text-muted fs-12 fw-semibold mb-2">General</div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="text-muted fs-13">Tipo de Producto</div>
+                            <div class="fw-semibold" id="ver-producto-tipo-producto">&mdash;</div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="text-muted fs-13">Proveedor</div>
+                            <div class="fw-semibold" id="ver-producto-proveedor">&mdash;</div>
+                        </div>
+                        <div class="col-12">
+                            <div class="text-muted fs-13">Mostrar en</div>
+                            <div class="fw-semibold" id="ver-producto-mostrar-en">&mdash;</div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="mb-3 d-none" id="ver-producto-listas-wrap">
-                    <div class="text-muted fs-13 mb-1">Lista de Precios</div>
-                    <table class="table table-sm table-borderless mb-0">
+                {{-- Precios y costos --}}
+                <div class="bg-light rounded-3 p-3 mb-3">
+                    <div class="text-uppercase text-muted fs-12 fw-semibold mb-2">Precios y Costos</div>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <div class="text-muted fs-13">Costo</div>
+                            <div class="fw-semibold" id="ver-producto-costo">&mdash;</div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-muted fs-13">Precio de Venta</div>
+                            <div class="fw-semibold text-success" id="ver-producto-precio-venta">&mdash;</div>
+                        </div>
+                        <div class="col-md-4" id="ver-producto-stock-wrap">
+                            <div class="text-muted fs-13">Stock</div>
+                            <div class="fw-semibold" id="ver-producto-stock">&mdash;</div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="text-muted fs-13">IVA por defecto (ventas)</div>
+                            <div class="fw-semibold" id="ver-producto-iva-venta">&mdash;</div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="text-muted fs-13">IVA por defecto (compras)</div>
+                            <div class="fw-semibold" id="ver-producto-iva-compra">&mdash;</div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Stock por Depósito --}}
+                <div class="bg-light rounded-3 p-3 mb-3 d-none" id="ver-producto-stock-depositos-wrap">
+                    <div class="text-uppercase text-muted fs-12 fw-semibold mb-2">Stock por Depósito</div>
+                    <table class="table table-sm table-borderless mb-0 bg-transparent">
+                        <tbody id="ver-producto-stock-depositos-body"></tbody>
+                    </table>
+                </div>
+
+                {{-- Lista de Precios --}}
+                <div class="bg-light rounded-3 p-3 mb-3 d-none" id="ver-producto-listas-wrap">
+                    <div class="text-uppercase text-muted fs-12 fw-semibold mb-2">Lista de Precios</div>
+                    <table class="table table-sm table-borderless mb-0 bg-transparent">
                         <tbody id="ver-producto-listas-body"></tbody>
                     </table>
                 </div>
 
-                <div id="ver-producto-descripcion-wrap" class="d-none">
-                    <div class="text-muted fs-13 mb-1">Descripción</div>
+                {{-- Descripción --}}
+                <div class="bg-light rounded-3 p-3 d-none" id="ver-producto-descripcion-wrap">
+                    <div class="text-uppercase text-muted fs-12 fw-semibold mb-2">Descripción</div>
                     <p class="mb-0" id="ver-producto-descripcion"></p>
                 </div>
             </div>
