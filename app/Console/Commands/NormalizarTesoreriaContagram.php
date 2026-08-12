@@ -98,6 +98,7 @@ class NormalizarTesoreriaContagram extends Command
                 $this->reconstruirCajaChica();
                 $this->vincularNotas();
                 $this->recuperarNotasSinImporte();
+                $this->vincularNotasCompra();
 
                 // El dry-run recorre todo con las escrituras hechas y las descarta al final: así el
                 // conteo de cada paso refleja el estado que dejaría el paso anterior, no el actual.
@@ -339,5 +340,40 @@ class NormalizarTesoreriaContagram extends Command
         }
 
         $this->line("  Notas con importe recuperado del `Total NC` de su venta: {$recuperadas} de ".count($mapa));
+    }
+
+    /**
+     * Las 12 NC/ND de compra que el mapeo automático de §8d no había podido resolver. Se sacaron
+     * del "Documento que Ajusta" de la ficha de cada compra en Contagram, y cada grupo cierra por
+     * aritmética contra el total de NC/ND que declara esa misma ficha —por ejemplo la compra 1300:
+     * 338.887,40 + 179.735,88 = 518.623,28—, así que el vínculo no depende de leer bien una captura.
+     *
+     * Dos de ellas traían además el importe mal por el defecto de multi-renglón: la NC 46 estaba en
+     * $89.867,94 y vale $179.735,88, exactamente el doble.
+     */
+    private function vincularNotasCompra(): void
+    {
+        $archivo = base_path('database/data/notas_compra_recuperadas.json');
+
+        if (! is_file($archivo)) {
+            return;
+        }
+
+        $mapa = json_decode(file_get_contents($archivo), true);
+        $compras = \App\Models\Compra::whereIn('legacy_id', array_column($mapa, 'compra'))->pluck('id', 'legacy_id');
+        $vinculadas = 0;
+
+        foreach ($mapa as $notaLegacy => $d) {
+            if (! isset($compras[$d['compra']])) {
+                continue;
+            }
+
+            $q = NotaCreditoDebito::where('legacy_id', $notaLegacy)->whereNull('compra_id');
+            $vinculadas += $this->dryRun
+                ? $q->count()
+                : $q->update(['compra_id' => $compras[$d['compra']], 'monto' => $d['monto']]);
+        }
+
+        $this->line("  NC/ND de compra vinculadas a su comprobante: {$vinculadas} de ".count($mapa));
     }
 }

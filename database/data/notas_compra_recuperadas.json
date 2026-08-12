@@ -1,0 +1,50 @@
+{
+  "COMPRA-2021-NC-5": {
+    "compra": "COMPRA-2021-FC-164",
+    "monto": 8225.94
+  },
+  "COMPRA-2021-NC-6": {
+    "compra": "COMPRA-2021-FC-164",
+    "monto": 5444.47
+  },
+  "COMPRA-2024-NC-45": {
+    "compra": "COMPRA-2024-FC-1300",
+    "monto": 338887.4
+  },
+  "COMPRA-2024-NC-46": {
+    "compra": "COMPRA-2024-FC-1300",
+    "monto": 179735.88
+  },
+  "COMPRA-2025-NC-67": {
+    "compra": "COMPRA-2025-FC-1649",
+    "monto": 275566.44
+  },
+  "COMPRA-2025-NC-68": {
+    "compra": "COMPRA-2025-FC-1649",
+    "monto": 30854.05
+  },
+  "COMPRA-2025-NC-69": {
+    "compra": "COMPRA-2025-FC-1649",
+    "monto": 20886.49
+  },
+  "COMPRA-2025-ND-7": {
+    "compra": "COMPRA-2025-FC-1772",
+    "monto": 2396.45
+  },
+  "COMPRA-2025-ND-12": {
+    "compra": "COMPRA-2025-FC-1929",
+    "monto": 52885.3
+  },
+  "COMPRA-2025-ND-13": {
+    "compra": "COMPRA-2025-FC-2035",
+    "monto": 2396.41
+  },
+  "COMPRA-2026-ND-15": {
+    "compra": "COMPRA-2026-FC-2147",
+    "monto": 461.09
+  },
+  "COMPRA-2026-ND-17": {
+    "compra": "COMPRA-2026-FC-2230",
+    "monto": 461.09
+  }
+}
