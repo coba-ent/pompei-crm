@@ -27,6 +27,20 @@ class ComprasContagram
         '21' => 'IVA - 21%', '27' => 'IVA - 27%',
     ];
 
+    /**
+     * Conceptos que van fuera del neto gravado y suman al total (spec 061). Sin ellos, el total de
+     * una nota no cierra: la NC 105 de la compra 2107 tiene $2.411,96 de percepción de IVA que el
+     * PDF no muestra y que explicaba toda su diferencia.
+     *
+     * El nombre del concepto es el que usa el selector de la aplicación, para que una nota migrada
+     * se vea igual que una cargada a mano.
+     */
+    private const COLUMNAS_CONCEPTO = [
+        'Perc. IVA' => ['percepcion', 'IVA (Percepción)'],
+        'Perc. IIBB' => ['percepcion', 'IIBB Buenos Aires'],
+        'Imp. Internos' => ['impuesto_interno', 'Impuestos Internos'],
+    ];
+
     public function __construct(
         private readonly LectorExcelContagram $lector,
         private readonly string $base,
@@ -160,8 +174,52 @@ class ComprasContagram
                 'trim', explode(' - ', $L->texto($cab['Medio de Pago'] ?? null) ?? '')
             ))),
 
+            'conceptos' => $this->armarConceptos($cab, $items, (float) $total),
+
+            // `Total NC`/`Total ND` sólo existen en el resumen `c/ pago`, y son la única pista del
+            // export sobre qué notas ajustan esta compra: no dice cuáles, pero sí cuánto suman.
+            // Con eso se reconstruye el vínculo que Contagram no exporta (ver §8d del registro).
+            'total_nc' => abs((float) ($L->numero($cab['Total NC'] ?? null) ?? 0)),
+            'total_nd' => abs((float) ($L->numero($cab['Total ND'] ?? null) ?? 0)),
+
             'items' => $items,
         ];
+    }
+
+    /**
+     * Percepciones e impuestos internos de la cabecera, en el formato que guarda la aplicación
+     * en `notas_credito_debito.impuestos` / `compras.impuestos`.
+     *
+     * @return array<int, array{tipo:string, concepto:string, monto:float}>
+     */
+    private function armarConceptos(array $cab, array $items, float $total): array
+    {
+        $conceptos = [];
+
+        foreach (self::COLUMNAS_CONCEPTO as $columna => [$tipo, $nombre]) {
+            $monto = abs((float) ($this->lector->numero($cab[$columna] ?? null) ?? 0));
+
+            if ($monto > 0.005) {
+                $conceptos[] = ['tipo' => $tipo, 'concepto' => $nombre, 'monto' => round($monto, 2)];
+            }
+        }
+
+        // El export **no desglosa la percepción de IVA**: la suma dentro de `Total Compra` pero deja
+        // su columna vacía. Se ve claro en la NC 105 de la compra 2107 — items+IVA dan 35.523,79
+        // contra un total de 37.935,75— y al abrir esa nota en Contagram el hueco es exactamente
+        // una percepción de IVA de $2.411,96.
+        //
+        // Sin esto el desglose de 56 notas no cierra contra su propio monto. Es una deducción, no
+        // un dato del archivo: se asume percepción de IVA porque es lo que se pudo verificar, y
+        // sólo cuando el residuo es positivo (un residuo negativo sería otra cosa y se deja pasar).
+        $sumaItems = array_sum(array_column($items, 'subtotal_con_iva'));
+        $residuo = round(abs($total) - abs($sumaItems) - array_sum(array_column($conceptos, 'monto')), 2);
+
+        if ($residuo > 0.05) {
+            $conceptos[] = ['tipo' => 'percepcion', 'concepto' => 'IVA (Percepción)', 'monto' => $residuo];
+        }
+
+        return $conceptos;
     }
 
     private function armarItem(array $f): array

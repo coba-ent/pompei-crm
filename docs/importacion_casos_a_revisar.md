@@ -324,6 +324,38 @@ mismo día que su compra. Los dos de FV aparecieron recién en la segunda pasada
 Gotcha de archivos: `2023 Comrpas c_ cobro.xlsx` tiene el nombre mal escrito ("Comrpas"), y los de
 2021-2024 dicen `c_ cobro` en vez de `c_ pago`. Un glob por `{año}*c_*.xlsx` los cubre a todos.
 
+### A VERIFICAR CONTRA CONTAGRAM: 56 percepciones deducidas ($178.147,76)
+
+El export **no desglosa la percepción de IVA**: la suma dentro de `Total Compra` pero deja su
+columna vacía. Se ve en la NC 105 de la compra 2107:
+
+```
+Subtotal con Descuento   -29.358,50
+IVA - 21%                 -6.165,29     suma:  35.523,79
+Total Compra             -37.935,75     hueco:  2.411,96
+```
+
+Al abrir esa misma nota en Contagram, el hueco es exactamente una **`IVA (Percepción)` de
+$2.411,96**. Sin cubrirlo, el desglose de 56 de las 149 notas no cierra contra su propio monto.
+
+`ComprasContagram::armarConceptos()` lo carga como `IVA (Percepción)` cuando el residuo es
+positivo. **Es una deducción, no un dato del archivo:**
+
+| | |
+|---|---:|
+| Notas que cierran solas | 93 |
+| Notas con residuo deducido | **56** |
+| Importe total deducido | **$178.147,76** |
+| Casos verificados contra Contagram | **2** (NC 105 y NC 110) |
+
+Los dos verificables dan exacto ($2.411,96 y $3.365,11), pero **las otras 54 no se contrastaron**.
+Queda pendiente abrirlas en Contagram y confirmar que el concepto sea percepción de IVA y no otra
+cosa (IIBB, sellos, impuestos internos). Si alguna resulta distinta, se corrige el nombre del
+concepto: el monto ya es correcto, porque sale del total.
+
+Los residuos negativos (visto uno: `COMPRA-2021-NC-6`, −$21,48) **no se cargan**: serían otra cosa
+y quedan sin explicar.
+
 ### Regla: una nota sobre un comprobante migrado NO debe afectar stock
 
 Los comprobantes del histórico se importaron **sin generar movimientos de stock**, para que el
