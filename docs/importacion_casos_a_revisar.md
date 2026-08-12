@@ -233,12 +233,19 @@ de tipificación y quedó sin analizar.
 
 ## 8d. Notas de crédito/débito de Compras — diagnóstico del 11/08/2026
 
-### El importador leyó mal el Excel
+### El importador las creó sólo con la cabecera
 
-`ComprasContagram` buscaba los valores `NC` y `ND` en la columna `Tipo de Comprobante`, pero el
-export dice **`Nota de Crédito`** y **`Nota de Débito`** completos. Consecuencia: las 149 notas de
-compra se importaron **sólo con la cabecera** —monto, tipo y fecha— sin número de comprobante, sin
-renglones y sin percepciones, **aunque el Excel traía todo eso**:
+`ComprasContagram` detecta bien los tipos (`str_contains($tc, 'crédito')`, etc.). El problema está
+en `MigrarComprasContagram::importarNota()`, que crea la nota con **monto, tipo y fecha y nada más**:
+
+```php
+/** NC/ND de compra: sin `compra_id` porque el export no dice a qué comprobante corrigen. */
+'compra_id' => null,
+```
+
+El `compra_id` en null fue una decisión consciente y documentada. Lo que quedó sin justificación es
+que tampoco se levantaron **`nro_comprobante`, los renglones ni las percepciones**, que el Excel sí
+traía. Estado de las notas migradas:
 
 ```
 id    legacy_id             nro_comprobante   impuestos   items
