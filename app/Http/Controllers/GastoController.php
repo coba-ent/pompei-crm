@@ -23,7 +23,7 @@ class GastoController extends Controller
     {
         $CurrentPage = 'gastos';
         $categorias = Categoria::gasto()->activas()->orderBy('nombre')->get();
-        $cuentas = CuentaTesoreria::visibles()->orderBy('orden')->orderBy('nombre')->get();
+        $cuentas = CuentaTesoreria::visibles()->orderBy('nombre')->get();
 
         return view('gastos.index', compact('CurrentPage', 'categorias', 'cuentas'));
     }
