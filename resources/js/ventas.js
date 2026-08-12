@@ -345,6 +345,12 @@
         tabla.on('xhr.dt', actualizarKpis);
 
         $('#btn-aplicar-filtros').on('click', () => tabla.ajax.reload());
+        // Excluye .select2-search__field: es el buscador inline de los filtros multi-select
+        // (ej. filtro-cliente); ahí Enter tiene que elegir el ítem resaltado, no disparar la
+        // búsqueda a mitad de selección.
+        $('#panel-filtros').on('keydown', 'input:not(.select2-search__field), select', function (e) {
+            if (e.key === 'Enter') { e.preventDefault(); $('#btn-aplicar-filtros').trigger('click'); }
+        });
         $('#btn-limpiar-filtros').on('click', () => {
             $('#filtro-id, #filtro-factura, #filtro-remito-buscar, #filtro-nota-cliente, #filtro-nota-interna, #filtro-servicio-desde, #filtro-servicio-hasta').val('');
             $('#filtro-cliente, #filtro-categoria, #filtro-etiqueta, #filtro-vendedor, #filtro-usuario').val(null).trigger('change');
