@@ -99,6 +99,7 @@ class NormalizarTesoreriaContagram extends Command
                 $this->vincularNotas();
                 $this->recuperarNotasSinImporte();
                 $this->vincularNotasCompra();
+                $this->refecharPagos();
 
                 // El dry-run recorre todo con las escrituras hechas y las descarta al final: así el
                 // conteo de cada paso refleja el estado que dejaría el paso anterior, no el actual.
@@ -375,5 +376,66 @@ class NormalizarTesoreriaContagram extends Command
         }
 
         $this->line("  NC/ND de compra vinculadas a su comprobante: {$vinculadas} de ".count($mapa));
+    }
+
+    /**
+     * Los pagos migrados quedaron con **la fecha de emisión de la compra**, no la del pago real
+     * (2.343 de 2.346). Con eso el saldo de Cta Cte de Proveedores a hoy cierra, pero a cualquier
+     * fecha pasada da mal: se descuentan pagos que todavía no habían ocurrido.
+     *
+     * La fecha real está en los movimientos de tesorería que vinieron de `Cuentas/`: los de tipo
+     * `pago` traen el `nro_comprobante` de la compra que cancelan. Se cruza compra + importe exacto
+     * y sólo se re-fecha cuando el movimiento es **único** para ese importe, o cuando todos los
+     * candidatos coinciden en la fecha. Nada que quede ambiguo se toca.
+     */
+    private function refecharPagos(): void
+    {
+        $movimientos = DB::table('movimientos_tesoreria as m')
+            ->join('compras as c', function ($j) {
+                $j->on('c.nro_comprobante', '=', 'm.nro_comprobante')->whereNull('c.deleted_at');
+            })
+            ->where('m.tipo', 'pago')->whereNotNull('m.legacy_id')
+            ->whereNotNull('m.nro_comprobante')->where('m.nro_comprobante', '<>', '')
+            ->select('c.id as compra_id', 'm.fecha', 'm.monto')
+            ->get()
+            ->groupBy('compra_id');
+
+        $refechados = 0;
+
+        foreach (DB::table('pagos')->whereNull('deleted_at')->get()->groupBy('compra_id') as $compraId => $pagos) {
+            $candidatos = $movimientos->get($compraId, collect())->all();
+
+            foreach ($pagos as $pago) {
+                $mismos = array_filter($candidatos,
+                    fn ($m) => abs(abs((float) $m->monto) - (float) $pago->monto) < 0.005);
+
+                if ($mismos === []) {
+                    continue;
+                }
+
+                $fechas = array_unique(array_map(fn ($m) => (string) $m->fecha, $mismos));
+
+                // Varios movimientos del mismo importe pero en fechas distintas: no hay forma de
+                // saber cuál corresponde a este pago, así que se deja como está.
+                if (count($fechas) > 1) {
+                    continue;
+                }
+
+                $primero = array_key_first($mismos);
+                unset($candidatos[$primero]);
+
+                if ((string) $pago->fecha === reset($fechas)) {
+                    continue;
+                }
+
+                $refechados++;
+
+                if (! $this->dryRun) {
+                    DB::table('pagos')->where('id', $pago->id)->update(['fecha' => reset($fechas)]);
+                }
+            }
+        }
+
+        $this->line("  Pagos re-fechados contra su movimiento de tesorería: {$refechados}");
     }
 }
