@@ -166,7 +166,8 @@ class CuentaCorriente
                 COALESCE(SUM(CASE WHEN {$saldo} > ? AND NOT {$aVencer} AND {$dias} <= 30 THEN {$saldo} ELSE 0 END), 0) AS b0_30,
                 COALESCE(SUM(CASE WHEN {$saldo} > ? AND NOT {$aVencer} AND {$dias} > 30 AND {$dias} <= 60 THEN {$saldo} ELSE 0 END), 0) AS b31_60,
                 COALESCE(SUM(CASE WHEN {$saldo} > ? AND NOT {$aVencer} AND {$dias} > 60 AND {$dias} <= 90 THEN {$saldo} ELSE 0 END), 0) AS b61_90,
-                COALESCE(SUM(CASE WHEN {$saldo} > ? AND NOT {$aVencer} AND {$dias} > 90 THEN {$saldo} ELSE 0 END), 0) AS mas_90
+                COALESCE(SUM(CASE WHEN {$saldo} > ? AND NOT {$aVencer} AND {$dias} > 90 THEN {$saldo} ELSE 0 END), 0) AS mas_90,
+                COALESCE(SUM(CASE WHEN {$saldo} < ? THEN {$saldo} ELSE 0 END), 0) AS a_favor
             ", [
                 self::TOLERANCIA, $fecha->toDateString(),
                 self::TOLERANCIA, $fecha->toDateString(),
@@ -174,6 +175,7 @@ class CuentaCorriente
                 self::TOLERANCIA, $fecha->toDateString(), $fecha->toDateString(), $fecha->toDateString(),
                 self::TOLERANCIA, $fecha->toDateString(), $fecha->toDateString(), $fecha->toDateString(),
                 self::TOLERANCIA, $fecha->toDateString(), $fecha->toDateString(),
+                -self::TOLERANCIA,
             ])
             ->first();
 
@@ -185,7 +187,11 @@ class CuentaCorriente
             // $9.535.004,71 (hecho el 31/07, facturado el 04/08) inflaba Proveedores en esa cifra.
             // Es un patrón regular del proveedor, que liquida a fin de mes y factura a principios
             // del siguiente — hay 80 casos por $51,8 M.
-            'a_vencer' => (float) $r->a_vencer - $this->anticipos($tipo, $fecha),
+            // Un comprobante sobrecobrado/sobrepagado es **saldo a favor**, no deja de existir: el
+            // total de cuenta corriente lo netea, igual que Contagram. Va contra `a_vencer` porque
+            // un saldo a favor no está vencido — los buckets de antigüedad siguen mostrando sólo
+            // deuda genuina. Al 01/08/2026 son 142 ventas por −$3,5 M y 28 compras por −$272 mil.
+            'a_vencer' => (float) $r->a_vencer + (float) $r->a_favor - $this->anticipos($tipo, $fecha),
             'vencido' => (float) $r->vencido,
             '0_30' => (float) $r->b0_30,
             '31_60' => (float) $r->b31_60,
