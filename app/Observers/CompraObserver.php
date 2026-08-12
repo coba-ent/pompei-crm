@@ -33,6 +33,12 @@ class CompraObserver
                 }
 
                 App::make(StockDeCompra::class)->reintegrarPorEliminacion($compra->load('items.producto'));
+
+                // spec 064 (FR-018): idem VentaObserver — sin cascadeOnDelete de base porque
+                // Compra usa soft delete.
+                foreach ($compra->remitos as $remito) {
+                    $remito->delete();
+                }
             });
         }
     }

@@ -411,9 +411,36 @@ jurisdicción), nro_comprobante (string, nullable), descripcion (text, nullable)
 
 ### `remitos`
 id, venta_id (FK → ventas, **nullable**), compra_id (FK → `compras`, **nullable**, agregado en spec
-009 — exactamente uno de los dos), fecha (date), nro_remito (string, nullable). **Estructura interna
-no relevada en detalle** (el informe sólo confirma el botón "Crear Remito"; falta un relevamiento
-específico antes de implementar contenido más allá del encabezado).
+009 — exactamente uno de los dos), fecha (date), nro_remito (string, nullable).
+
+**Ampliado por spec 064** con el relevamiento que faltaba (`docs/Contagram-Informe-Remitos.md` +
+12 capturas, 12/08/2026): transportista_id (FK → `transportistas`, nullable), domicilio_entrega
+(string, nullable — precargado del cliente en Ventas y del depósito que recibe en Compras, editable
+sin alterar la ficha de origen), nota (text, nullable), monto_asegurado (decimal(14,2), **nullable**
+— null = interruptor apagado; dato interno que **no se imprime** en el documento), tipo (string(1),
+default `X` — letra informativa, el remito **no es fiscal**).
+
+**`total_bultos` NO se persiste**: se deriva de la suma de `remito_items.cantidad`.
+
+> ⚠️ **Bug de esquema corregido en spec 064**: `venta_id` estaba en la base como **NOT NULL** pese a
+> documentarse acá como nullable, de modo que `CompraController::remitoStore()` —que setea sólo
+> `compra_id`— **fallaba: era imposible crear un remito desde una Compra**. Es el mismo patrón del bug
+> ya registrado para `notas_credito_debito.venta_id` (ver `docs/importacion_casos_a_revisar.md` §0).
+> Nunca se detectó porque el camino de Compras jamás se ejercitó.
+
+### `remito_items`
+**Nueva en spec 064.** Qué se entrega en cada remito: id, remito_id (FK → `remitos`, cascade on
+delete), producto_id (FK → `productos`, **nullable** — null para ítems libres sin producto),
+codigo (string, nullable — snapshot al momento de remitir), descripcion (string — snapshot del nombre,
+para que el remito siga imprimiéndose si el producto se da de baja), observacion (string, nullable —
+texto libre por línea), cantidad (decimal(14,3), > 0).
+
+**Sin precio, sin IVA, sin subtotal**: el remito es logístico, no fiscal.
+
+### `transportistas`
+**Nueva en spec 064.** id, nombre. Único atributo, por fidelidad al alta rápida de Contagram (no pide
+CUIT, patente ni contacto). Reutilizable entre remitos; un nombre existente se reutiliza en vez de
+duplicarse. Sin pantalla de ABM: sólo alta al vuelo desde el formulario del remito.
 
 ### `otros_ingresos`
 id, fecha (date), monto (decimal(14,2)), categoria_id (FK → categorias, tipo=`ingreso` — el enum de

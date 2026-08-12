@@ -842,10 +842,10 @@
                 .fail((xhr) => toast('error', xhr.responseJSON?.errors ? Object.values(xhr.responseJSON.errors)[0][0] : 'No se pudo crear la retención.'));
         });
 
-        $('#btn-crear-remito').on('click', function () {
-            $.post(rutas.remitoStore, {})
-                .done((resp) => toast('success', resp.mensaje || 'Remito creado.'))
-                .fail((xhr) => toast('error', xhr.responseJSON?.mensaje || 'No se pudo crear el remito.'));
+        $('.js-ver-remito').on('click', function (e) {
+            e.preventDefault();
+            const url = $(this).data('url');
+            if (window.AppPdf) { window.AppPdf.abrir(url, 'Remito'); } else { window.open(url, '_blank'); }
         });
 
         $('.js-imprimir').on('click', function (e) {

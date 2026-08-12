@@ -33,6 +33,12 @@ class VentaObserver
                 }
 
                 App::make(StockDeVenta::class)->reintegrarPorEliminacion($venta->load('items.producto'));
+
+                // spec 064 (FR-018): los remitos no tienen cascadeOnDelete de base porque Venta
+                // usa soft delete — se borran acá, sin tocar la reversión de cobros/stock de arriba.
+                foreach ($venta->remitos as $remito) {
+                    $remito->delete();
+                }
             });
         }
     }

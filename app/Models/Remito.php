@@ -4,16 +4,33 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 
-/** Encabezado mínimo (FR-018); detalle de ítems pendiente de relevamiento propio. */
+/** Remito (spec 064): documento logístico, no mueve stock ni dinero (FR-010). */
 class Remito extends Model
 {
     protected $table = 'remitos';
 
-    protected $fillable = ['venta_id', 'compra_id', 'fecha', 'nro_remito'];
+    protected $fillable = [
+        'venta_id', 'compra_id', 'fecha', 'nro_remito',
+        'transportista_id', 'domicilio_entrega', 'nota', 'monto_asegurado', 'tipo',
+    ];
 
-    protected $casts = ['fecha' => 'date'];
+    protected $casts = [
+        'fecha' => 'date',
+        'monto_asegurado' => 'decimal:2',
+    ];
+
+    protected static function booted(): void
+    {
+        // FR-018: al eliminar la Venta/Compra de origen, sus remitos se eliminan con ella. El
+        // borrado es real (no soft delete — FR-017), así que el `cascadeOnDelete` de la FK no
+        // alcanza porque Venta/Compra usan soft delete.
+        static::deleting(function (Remito $remito) {
+            $remito->items()->delete();
+        });
+    }
 
     public function venta(): BelongsTo
     {
@@ -23,6 +40,22 @@ class Remito extends Model
     public function compra(): BelongsTo
     {
         return $this->belongsTo(Compra::class);
+    }
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(RemitoItem::class);
+    }
+
+    public function transportista(): BelongsTo
+    {
+        return $this->belongsTo(Transportista::class);
+    }
+
+    /** Se deriva de la suma de las líneas; no se persiste (data-model.md). */
+    public function totalBultos(): float
+    {
+        return (float) $this->items->sum('cantidad');
     }
 
     /**

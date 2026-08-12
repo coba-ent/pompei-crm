@@ -23,7 +23,7 @@
         <li><hr class="dropdown-divider"></li>
         <li><a class="dropdown-item js-agregar-cobranza" href="{{ route('ventas.show', $venta) }}">Agregar Cobranza</a></li>
         <li><a class="dropdown-item" href="{{ route('ventas.show', $venta) }}#notas">Crear NC/ND</a></li>
-        <li><a class="dropdown-item" href="{{ route('ventas.show', $venta) }}#remitos">Crear Remito</a></li>
+        <li><a class="dropdown-item" href="{{ route('ventas.remitos.create', $venta) }}">Crear Remito</a></li>
         @if ($venta->puedeEnviarseAArca())
             <li><a class="dropdown-item js-enviar-arca" href="#" data-id="{{ $venta->id }}" data-url="{{ route('ventas.enviarArca', $venta) }}">Enviar a ARCA</a></li>
         @endif

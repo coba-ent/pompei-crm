@@ -38,9 +38,11 @@ use App\Http\Controllers\OtroIngresoController;
 use App\Http\Controllers\PresupuestoController;
 use App\Http\Controllers\ProductoController;
 use App\Http\Controllers\ProveedorController;
+use App\Http\Controllers\RemitoController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\TesoreriaController;
 use App\Http\Controllers\TipoProductoController;
+use App\Http\Controllers\TransportistaController;
 use App\Http\Controllers\VendedorController;
 use App\Http\Controllers\VentaController;
 use Illuminate\Support\Facades\Route;
@@ -213,7 +215,11 @@ Route::middleware('auth')->group(function () {
         Route::delete('{venta}/notas/{notaCreditoDebito}', [NotaCreditoDebitoController::class, 'destroy'])->name('notas.destroy');
         Route::get('notas/{notaCreditoDebito}/pdf', [NotaCreditoDebitoController::class, 'pdf'])->name('notas.pdf');
         Route::get('{venta}/notas-credito-debito/items-disponibles', [NotaCreditoDebitoController::class, 'itemsDisponiblesVenta'])->name('notas.itemsDisponibles');
-        Route::post('{venta}/remitos', [VentaController::class, 'remitoStore'])->name('remitos.store');
+        Route::get('{venta}/remitos/nuevo', [RemitoController::class, 'create'])->name('remitos.create');
+        Route::post('{venta}/remitos', [RemitoController::class, 'store'])->name('remitos.store');
+        Route::get('{venta}/remitos/{remito}/editar', [RemitoController::class, 'edit'])->name('remitos.edit');
+        Route::put('{venta}/remitos/{remito}', [RemitoController::class, 'update'])->name('remitos.update');
+        Route::delete('{venta}/remitos/{remito}', [RemitoController::class, 'destroy'])->name('remitos.destroy');
         Route::get('{venta}', [VentaController::class, 'show'])->name('show');
     });
 
@@ -290,6 +296,12 @@ Route::middleware('auth')->group(function () {
     Route::patch('vendedores/{vendedor}', [VendedorController::class, 'update'])->name('vendedores.update');
     Route::delete('vendedores/{vendedor}', [VendedorController::class, 'destroy'])->name('vendedores.destroy');
 
+    // Remitos (spec 064) — documento imprimible global (Ventas y Compras comparten el mismo id) y
+    // alta al vuelo de Transportista, sin pantalla de ABM propia (FR-021 a FR-023).
+    Route::get('remitos/{remito}/pdf', [RemitoController::class, 'pdf'])->name('remitos.pdf');
+    Route::get('transportistas/opciones', [TransportistaController::class, 'opciones'])->name('transportistas.opciones');
+    Route::post('transportistas', [TransportistaController::class, 'store'])->name('transportistas.store');
+
     // Egresos (spec 009) — Compras (+ Pagos/Retenciones/NC-ND/Remitos) y Gastos
     Route::middleware('permiso:compras.ver')->prefix('compras')->name('compras.')->group(function () {
         Route::get('/', [CompraController::class, 'index'])->name('index');
@@ -312,7 +324,11 @@ Route::middleware('auth')->group(function () {
         Route::delete('{compra}/notas/{notaCreditoDebito}', [NotaCreditoDebitoController::class, 'destroyCompra'])->name('notas.destroy');
         Route::get('notas/{notaCreditoDebito}/pdf', [NotaCreditoDebitoController::class, 'pdf'])->name('notas.pdf');
         Route::get('{compra}/notas-credito-debito/items-disponibles', [NotaCreditoDebitoController::class, 'itemsDisponiblesCompra'])->name('notas.itemsDisponibles');
-        Route::post('{compra}/remitos', [CompraController::class, 'remitoStore'])->name('remitos.store');
+        Route::get('{compra}/remitos/nuevo', [RemitoController::class, 'createCompra'])->name('remitos.create');
+        Route::post('{compra}/remitos', [RemitoController::class, 'storeCompra'])->name('remitos.store');
+        Route::get('{compra}/remitos/{remito}/editar', [RemitoController::class, 'editCompra'])->name('remitos.edit');
+        Route::put('{compra}/remitos/{remito}', [RemitoController::class, 'updateCompra'])->name('remitos.update');
+        Route::delete('{compra}/remitos/{remito}', [RemitoController::class, 'destroyCompra'])->name('remitos.destroy');
         Route::get('{compra}', [CompraController::class, 'show'])->name('show');
     });
 

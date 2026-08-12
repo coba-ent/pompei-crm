@@ -441,7 +441,7 @@ class CompraController extends Controller
     public function show(Compra $compra)
     {
         $CurrentPage = 'compras';
-        $compra->load(['items', 'conceptos', 'proveedor.condicionIva', 'categoria', 'pagos.cuentaTesoreria', 'pagos.retenciones', 'comprobanteFiscal', 'notasCreditoDebito.comprobanteFiscal', 'notasCreditoDebito.notaAjustada.comprobanteFiscal', 'remitos']);
+        $compra->load(['items', 'conceptos', 'proveedor.condicionIva', 'categoria', 'pagos.cuentaTesoreria', 'pagos.retenciones', 'comprobanteFiscal', 'notasCreditoDebito.comprobanteFiscal', 'notasCreditoDebito.notaAjustada.comprobanteFiscal', 'remitos.transportista', 'remitos.items']);
         $cuentas = CuentaTesoreria::visibles()->orderBy('orden')->orderBy('nombre')->get();
         $depositos = Deposito::where('activo', true)->orderBy('nombre')->get();
 
@@ -529,19 +529,6 @@ class CompraController extends Controller
             'mensaje' => 'Retención creada correctamente.',
             'retencion' => $retencion,
         ], 201);
-    }
-
-    /** "Crear Remito" — encabezado mínimo (FR-011, mismo criterio que Ventas). */
-    public function remitoStore(Request $request, Compra $compra): JsonResponse
-    {
-        $datos = $request->validate(['fecha' => 'nullable|date']);
-
-        $remito = $compra->remitos()->create([
-            'fecha' => $datos['fecha'] ?? now()->local()->toDateString(),
-            'nro_remito' => Remito::siguienteNumero(),
-        ]);
-
-        return response()->json(['ok' => true, 'mensaje' => 'Remito creado.', 'remito' => $remito], 201);
     }
 
     /**

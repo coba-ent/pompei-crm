@@ -17,9 +17,9 @@
                 </a>
             </div>
             <div class="col-sm-6 text-sm-end">
-                <button type="button" class="btn btn-warning" id="btn-crear-remito">
+                <a href="{{ route('compras.remitos.create', $compra) }}" class="btn btn-warning">
                     <i class="fas fa-truck me-1"></i> Crear Remito
-                </button>
+                </a>
             </div>
         </div>
 
@@ -191,6 +191,40 @@
             </div>
         </div>
 
+        {{-- Remitos (spec 064, FR-013, FR-026) --}}
+        <div class="card mb-3" id="remitos">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h5 class="mb-0">Remitos</h5>
+                    <a href="{{ route('compras.remitos.create', $compra) }}" class="btn btn-sm btn-success">
+                        <i class="fas fa-plus me-1"></i> Crear Remito
+                    </a>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr><th>Id</th><th>Fecha</th><th>Transportista</th><th>Nota</th><th>Total Bultos</th><th>Comprobante</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($compra->remitos as $remitoCompra)
+                                <tr>
+                                    <td>{{ $remitoCompra->id }}</td>
+                                    <td>{{ optional($remitoCompra->fecha)->format('d/m/Y') }}</td>
+                                    <td>{{ optional($remitoCompra->transportista)->nombre ?: '-' }}</td>
+                                    <td>{{ $remitoCompra->nota ?: '-' }}</td>
+                                    <td>{{ rtrim(rtrim(number_format($remitoCompra->totalBultos(), 3, ',', '.'), '0'), ',') }}</td>
+                                    <td><a href="#" class="js-ver-remito" data-url="{{ route('remitos.pdf', $remitoCompra) }}">Ver Remito</a></td>
+                                    <td><a href="{{ route('compras.remitos.edit', [$compra, $remitoCompra]) }}" title="Editar"><i class="fas fa-pencil-alt"></i></a></td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="7" class="text-center text-muted">Sin remitos</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         {{-- Notas de Crédito y Débito (US4) --}}
         <div class="card mb-3" id="notas">
             <div class="card-body">
@@ -279,7 +313,6 @@
         pagoStore: "{{ route('compras.pagos.store', $compra) }}",
         pagoDestroyBase: "{{ url('compras/'.$compra->id.'/pagos') }}",
         retencionStore: "{{ route('compras.retenciones.store', $compra) }}",
-        remitoStore: "{{ route('compras.remitos.store', $compra) }}",
         notasStore: "{{ route('compras.notas.store', $compra) }}",
         notasItemsDisponibles: "{{ route('compras.notas.itemsDisponibles', $compra) }}",
         notasUpdateBase: "{{ url('compras/'.$compra->id.'/notas') }}",

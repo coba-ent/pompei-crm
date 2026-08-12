@@ -34,9 +34,9 @@
                         <i class="fas fa-check me-1"></i> Enviada a ARCA
                     </button>
                 @endif
-                <button type="button" class="btn btn-warning" id="btn-crear-remito"
+                <a href="{{ route('ventas.remitos.create', $venta) }}" class="btn btn-warning">
                     <i class="fas fa-truck me-1"></i> Crear Remito
-                </button>
+                </a>
             </div>
         </div>
 
@@ -127,6 +127,40 @@
                                 </tr>
                             @empty
                                 <tr><td colspan="7" class="text-center text-muted">Sin cobranzas</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        {{-- Remitos (spec 064, FR-013, FR-026) --}}
+        <div class="card mb-3" id="remitos">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h5 class="mb-0">Remitos</h5>
+                    <a href="{{ route('ventas.remitos.create', $venta) }}" class="btn btn-sm btn-success">
+                        <i class="fas fa-plus me-1"></i> Crear Remito
+                    </a>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr><th>Id</th><th>Fecha</th><th>Transportista</th><th>Nota</th><th>Total Bultos</th><th>Comprobante</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($venta->remitos as $remitoVenta)
+                                <tr>
+                                    <td>{{ $remitoVenta->id }}</td>
+                                    <td>{{ optional($remitoVenta->fecha)->format('d/m/Y') }}</td>
+                                    <td>{{ optional($remitoVenta->transportista)->nombre ?: '-' }}</td>
+                                    <td>{{ $remitoVenta->nota ?: '-' }}</td>
+                                    <td>{{ rtrim(rtrim(number_format($remitoVenta->totalBultos(), 3, ',', '.'), '0'), ',') }}</td>
+                                    <td><a href="#" class="js-ver-remito" data-url="{{ route('remitos.pdf', $remitoVenta) }}">Ver Remito</a></td>
+                                    <td><a href="{{ route('ventas.remitos.edit', [$venta, $remitoVenta]) }}" title="Editar"><i class="fas fa-pencil-alt"></i></a></td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="7" class="text-center text-muted">Sin remitos</td></tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -313,7 +347,6 @@
         cobranzaStore: "{{ route('ventas.cobranzas.store', $venta) }}",
         cobranzaDestroyBase: "{{ url('ventas/'.$venta->id.'/cobranzas') }}",
         cobranzaUpdateBase: "{{ url('ventas/'.$venta->id.'/cobranzas') }}",
-        remitoStore: "{{ route('ventas.remitos.store', $venta) }}",
         notasStore: "{{ route('ventas.notas.store', $venta) }}",
         notasItemsDisponibles: "{{ route('ventas.notas.itemsDisponibles', $venta) }}",
         notasUpdateBase: "{{ url('ventas/'.$venta->id.'/notas') }}",

@@ -24,6 +24,7 @@ resolver la base**. Con 138 ventas de prueba no se notaba; con 23.521 sí.
 | Ninguna tabla transaccional tenía índice en `created_at`, que es por donde ordenan todos los listados | migración `..._indices_para_listados_con_historico` | `type=ALL + filesort` → `type=index` |
 | Las filas de cobro mostraban los importes en blanco | `CuentaCorrienteController` | el monto no se veía en la cuenta corriente **de ningún cobro**, migrado o no |
 | `notas_credito_debito.venta_id` era NOT NULL aunque el código lo declara nullable | migración `..._hacer_venta_id_nullable...` | **emitir una NC/ND de una compra fallaba**; nunca se había probado |
+| `remitos.venta_id` tenía el mismo problema (spec 064) | migración `..._hacer_venta_id_nullable_en_remitos_table` | **crear un remito de Compra fallaba**; nunca se había probado |
 | El input de Emisión arrancaba siempre en `now()` y no se recargaba al editar | `ventas/form.blade.php`, `ventas.js`, `compras/form.blade.php` | **toda venta o compra vieja que se abriera y guardara quedaba refechada al día de hoy** (§8b) |
 | La fecha de emisión de ML salía de `toDateString()` sobre un instante en UTC | `ConversorOrdenAVenta` | toda orden posterior a las 21:00 argentinas caía en el día siguiente (§8b) |
 
@@ -42,6 +43,11 @@ resolver la base**. Con 138 ventas de prueba no se notaba; con 23.521 sí.
    hasta el 11/08/2026. Se encontraron sólo dos, buscando fechas posteriores al corte del 05/08,
    pero **ese criterio no detecta una venta de 2023 refechada a 2026-08-10**: se ve como una venta
    de 2026 cualquiera. Queda pendiente barrer por `updated_at` reciente y contrastar contra el Excel.
+6. **Revisar si hay más tablas con el patrón `venta_id`/`compra_id` donde uno de los dos quedó
+   NOT NULL en la migración** (spec 064, T038). Ya pasó dos veces —`notas_credito_debito` y
+   `remitos`— y en ambos casos nunca se detectó porque el camino de Compras jamás se ejercitó. Vale
+   la pena un barrido explícito de `information_schema.columns` sobre todas las tablas que declaran
+   ambas FKs, en vez de esperar a que aparezca un tercer caso por accidente.
 
 ---
 

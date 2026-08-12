@@ -17,7 +17,6 @@ use App\Models\ListaPrecio;
 use App\Models\Presupuesto;
 use App\Models\Proveedor;
 use App\Models\Provincia;
-use App\Models\Remito;
 use App\Models\TipoProducto;
 use App\Models\Vendedor;
 use App\Models\Venta;
@@ -565,7 +564,7 @@ class VentaController extends Controller
     public function show(Venta $venta)
     {
         $CurrentPage = 'ventas';
-        $venta->load(['items', 'conceptos', 'cliente.condicionIva', 'categoria', 'listaPrecio', 'vendedor', 'etiquetas', 'cobros.cuentaTesoreria', 'comprobanteFiscal', 'notasCreditoDebito.comprobanteFiscal', 'notasCreditoDebito.notaAjustada.comprobanteFiscal', 'remitos', 'mlOrden']);
+        $venta->load(['items', 'conceptos', 'cliente.condicionIva', 'categoria', 'listaPrecio', 'vendedor', 'etiquetas', 'cobros.cuentaTesoreria', 'comprobanteFiscal', 'notasCreditoDebito.comprobanteFiscal', 'notasCreditoDebito.notaAjustada.comprobanteFiscal', 'remitos.transportista', 'remitos.items', 'mlOrden']);
         $cuentas = CuentaTesoreria::visibles()->paraCobrar()->orderBy('orden')->orderBy('nombre')->get();
         $depositos = Deposito::activos()->orderBy('nombre')->get();
 
@@ -755,19 +754,6 @@ class VentaController extends Controller
             'a_cobrar' => $venta->aCobrar(),
             'estado_cobro' => $venta->estadoCobro(),
         ]);
-    }
-
-    /** "Crear Remito" — encabezado mínimo (FR-018). */
-    public function remitoStore(Request $request, Venta $venta): JsonResponse
-    {
-        $datos = $request->validate(['fecha' => 'nullable|date']);
-
-        $remito = $venta->remitos()->create([
-            'fecha' => $datos['fecha'] ?? now()->local()->toDateString(),
-            'nro_remito' => Remito::siguienteNumero(),
-        ]);
-
-        return response()->json(['ok' => true, 'mensaje' => 'Remito creado.', 'remito' => $remito], 201);
     }
 
     /**

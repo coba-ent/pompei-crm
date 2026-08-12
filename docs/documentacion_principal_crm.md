@@ -958,8 +958,10 @@ dependencia (ver `CLAUDE.md`, principio rector):
   Clientes, §4.1).
 - **Facturación Electrónica (ARCA/AFIP)**: Tipo de Comprobante A/B/C/E, numeración real de
   comprobantes, y el watermark "NO VÁLIDO COMO FACTURA" sólo tienen sentido pleno con ese módulo.
-- **Remitos**: estructura de pantalla real de Contagram sigue sin relevar con capturas (§3.6 sólo pudo
-  confirmar la forma genérica de un remito, no la pantalla real de la app).
+- ~~**Remitos**: estructura de pantalla real de Contagram sigue sin relevar con capturas.~~
+  ✅ **Brecha cerrada el 12/08/2026** por `docs/Contagram-Informe-Remitos.md` (12 capturas reales:
+  alta, modal de transportista, PDF, edición y segundo remito sobre la misma venta). El módulo
+  completo se especifica en `specs/064-modulo-remitos/`. Ver §3.6bis.
 - **Cheques**: recién detectado (§3.6) como su propio sub-ciclo dentro de Tesorería (cuentas "cheques de
   terceros"/"cheques propios" + transferencia al depositar), no un medio de cobro simple. Sin capturas
   propias todavía.
@@ -1059,6 +1061,55 @@ detalle es en reglas de negocio no capturadas:
 [Preguntas Frecuentes](https://help.contagram.com/es/articles/1319608-preguntas-frecuentes)*
 
 *Fuente(s): `docs/informe_contagram_ingresos.md` · `docs/informe_contagram_funciones_avanzadas.md §6`*
+
+### 3.6bis Remitos (spec 064 — relevado 12/08/2026)
+
+Documento que acompaña la **entrega física** de la mercadería: qué productos, en qué cantidad, con qué
+transportista y a qué domicilio. Aplica a **Ventas y Compras**. Relevado con capturas reales en
+`docs/Contagram-Informe-Remitos.md` (12 capturas), que cerró la brecha declarada en §5.
+
+**Las dos reglas que lo ordenan todo:**
+
+- **No mueve stock.** Ni al crear, ni al editar, ni al eliminar. El stock ya se descontó al vender (o
+  ingresó al comprar). Coincide con la regla de negocio crítica de §11 y con la constitución del
+  proyecto. Documentación oficial de Contagram: *"El stock es afectado al momento de vender o comprar,
+  no al momento de emitir el remito."*
+- **No es fiscal.** Sin CAE, sin ARCA, y **sin precios, IVA ni totales de dinero** en el documento
+  imprimible.
+
+**Estructura:**
+
+- **Formulario en página completa** (no modal — mismo criterio que NC/ND, §3.2), titulado "Nuevo
+  Remito Venta ID [n]". Precargado con: cliente (no editable), domicilio de entrega (editable, sin
+  alterar la ficha del cliente), fecha de emisión, Tipo (X/R), N° de comprobante, transportista
+  (selector con buscador), Nota para el Cliente, y **todas las líneas de producto de la operación con
+  sus cantidades originales** (producto · observación por línea · cantidad, con tachito para quitar
+  filas). Abajo: **Total Bultos** autocalculado y **Monto Asegurado** opcional (interruptor + importe
+  precargado con el total).
+- **Transportista**: entidad reutilizable con **un único atributo, el nombre**. Se crea al vuelo desde
+  un modal dentro del formulario. Sin pantalla de administración propia.
+- **Sección "Remitos" en el detalle** de la Venta/Compra, estructuralmente igual a la de Cobranzas:
+  Id · Fecha · Transportista · Nota · Total Bultos · Comprobante (enlace "Ver Remito" + lápiz para
+  editar).
+- **Documento imprimible**: encabezado REMITO con la letra en recuadro, Nro. Remito, Fecha de Emisión,
+  Transportista, datos del cliente (razón social, teléfono, persona de contacto, condición de IVA,
+  CUIT), Domicilio de Entrega, y tabla **Código · Productos · Observaciones · Cantidad**. El **Monto
+  Asegurado no se imprime**: es dato interno.
+- **Edición sin campos bloqueados**, a diferencia de las NC/ND (donde Tipo y Stock quedan fijos), con
+  botón **Eliminar** en el propio formulario.
+- **Varios remitos por operación**, para envíos parciales. Cada remito nuevo precarga **las cantidades
+  totales originales**: el sistema **no** descuenta ni recuerda lo ya remitido, el control queda a
+  cargo del usuario (comportamiento verificado en Contagram, no una simplificación).
+
+**Divergencias deliberadas respecto de Contagram:**
+
+| Punto | Contagram | Este CRM | Motivo |
+|---|---|---|---|
+| N° de comprobante | Manual, formato `____-________`, queda vacío si no se completa | **Autonumérico correlativo** | Decisión del usuario (spec 064). Consecuencia: el documento **siempre** trae número |
+| Domicilio de entrega en **Compras** | Sin relevar (el informe cubre sólo Ventas) | **Depósito que recibe**, no el proveedor | En una Compra la mercadería viene *hacia* el negocio |
+
+*Fuente(s): `docs/Contagram-Informe-Remitos.md` + `docs/capturas/Capturas-Remitos/` (12 capturas) ·
+[Remitos](https://help.contagram.com/es/articles/1319079-remitos) · `specs/064-modulo-remitos/`*
 
 ### 3.7 Módulo Tesorería (implementado — spec 007)
 
