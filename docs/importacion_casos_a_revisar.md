@@ -770,3 +770,53 @@ problema ya documentado:
 
 O sea que el defecto de §5 no es teórico y afecta importes por cuenta, no sólo fechas. **Ya no hace
 falta pedir el export de `Caja chica gastos`.**
+
+## 14. Cierre de la sesión del 12/08/2026 — qué quedó y qué falta
+
+Todo lo de abajo está aplicado en el VPS a través de `contagram:normalizar-tesoreria`, idempotente
+y verificado sobre un clon limpio de la base de producción antes de cada corrida.
+
+### Resultados
+
+| | Antes | Ahora | Control |
+|---|---:|---:|---|
+| Disponible al 01/07 | — | **$30.167.119,29** | Contagram $30.167.120,29 → **$1** |
+| Cta Cte Clientes (hoy) | $67.033.584,52 | **$11.231.037,82** | Excel "A Cobrar" $11.086.350,32 |
+| NC/ND sin comprobante | 704 ($59,2 M) | **2 ($0,00)** | — |
+| Cuentas de tesorería | 28 | **21** | las 21 de Contagram |
+
+Las 2 notas que quedan sueltas valen $0,00: la `2021-ND-1` (ningún comprobante la reclama) y la
+`2022-NC-43`, que figura en $0,00 **también en Contagram**.
+
+### El defecto de multi-renglón apareció en tres lugares
+
+El importador tomaba el `Total Venta`/`Total Compra` de **una fila** del comprobante en vez de sumar
+los renglones. Ya estaba documentado para las notas de compra (§8d) y volvió a aparecer en:
+
+- **NC de venta 234** ($212.560,92 → $311.628,81), **498** ($54.179,66 → $108.359,32) y
+  **534** ($65.409,49 → $130.818,99).
+- **NC de compra 46** ($89.867,94 → $179.735,88, exactamente el doble).
+
+Ninguna de esas podía matchearse por importe justamente porque el importe estaba mal. Si alguna vez
+se re-importa un comprobante, revisar esto primero.
+
+### Cta Cte de Proveedores: mejorada, no cerrada
+
+2.343 de los 2.346 pagos migrados tenían la **fecha de emisión de la compra** en vez de la del pago.
+Se re-fecharon **802** cruzando contra los movimientos de `Cuentas/` (que traen el `nro_comprobante`
+de la compra que cancelan), con 0 ambigüedades. Al 01/07/2026 el saldo pasó de $1.035.345,99 a
+**$11.350.848,54**, contra $17.160.519,48 de Contagram.
+
+**Techo**: 1.202 pagos no tienen ningún movimiento que los respalde —esos movimientos vinieron sin
+`nro_comprobante`— y siguen con la fecha de emisión. Es la misma carencia de origen ya anotada en §7:
+faltan las **compras 2021-2024 en formato "c/ pago"**. Sin eso, el saldo de Proveedores a una fecha
+pasada no se puede terminar de reconstruir; el de hoy sí cierra (~2 %).
+
+### Pendientes
+
+1. **Compras 2021-2024 en formato "c/ pago"** — desbloquea el resto de las fechas de pago.
+2. **$144.687,50** de diferencia en Cta Cte Clientes contra el Excel.
+3. **8 ventas con $929.119,03 cobrados de más** que el Excel — detectado, sin investigar.
+4. **56 percepciones deducidas** ($178.147,76) en notas de compra, a verificar (§8d).
+5. **$1,00** en Caja chica, en movimientos anteriores al 24/07/2024.
+6. **16 tests fallando con 403** — preexistentes, de permisos, no de lógica.
