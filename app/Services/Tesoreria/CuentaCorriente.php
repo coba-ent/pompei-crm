@@ -54,11 +54,16 @@ class CuentaCorriente
     }
 
     /** @return Collection<int, object{saldo_inicial: string, saldo_inicial_fecha: ?string}> */
-    private function entidadesConSaldoInicial(string $tipo): Collection
+    private function entidadesConSaldoInicial(string $tipo, ?Carbon $fecha = null): Collection
     {
         $modelo = $tipo === 'cliente' ? Cliente::class : Proveedor::class;
 
-        return $modelo::where('saldo_inicial', '!=', 0)->get(['id', 'nombre', 'saldo_inicial', 'saldo_inicial_fecha']);
+        return $modelo::where('saldo_inicial', '!=', 0)
+            // Mismo criterio de corte que los documentos: un saldo inicial fechado después no cuenta.
+            ->when($fecha, fn ($q) => $q->where(fn ($w) => $w
+                ->whereNull('saldo_inicial_fecha')
+                ->orWhere('saldo_inicial_fecha', '<=', $fecha->toDateString())))
+            ->get(['id', 'nombre', 'saldo_inicial', 'saldo_inicial_fecha']);
     }
 
     /**
@@ -136,18 +141,25 @@ class CuentaCorriente
         $dias = "DATEDIFF(?, {$tabla}.{$vto})";
         $aVencer = "({$tabla}.{$vto} IS NULL OR {$tabla}.{$vto} >= ?)";
 
-        $sub = fn (string $t, ?string $signo) => DB::table($t)
+        // Todo lo que se agrega tiene que respetar la fecha de corte: si no, el aging devuelve
+        // siempre el saldo de hoy y la pantalla no reacciona al filtro (detectado el 12/08/2026
+        // comparando el panel a tres fechas distintas: los dos "Saldo Cta Cte" no se movían).
+        // `$fecha` acotaba sólo la clasificación en buckets, no los importes.
+        $sub = fn (string $t, ?string $signo, string $colFecha) => DB::table($t)
             ->selectRaw("{$fk} as fk, SUM(monto) as monto")
             ->whereNull('deleted_at')
             ->when($signo !== null, fn ($q) => $q->where('tipo', $signo))
+            ->where($colFecha, '<=', $fecha->toDateString())
             ->whereNotNull($fk)
             ->groupBy($fk);
 
         $r = DB::table($tabla)
-            ->leftJoinSub($sub('notas_credito_debito', 'debito'), 'nd', 'nd.fk', '=', "{$tabla}.id")
-            ->leftJoinSub($sub('notas_credito_debito', 'credito'), 'nc', 'nc.fk', '=', "{$tabla}.id")
-            ->leftJoinSub($sub($pagosTabla, null), 'p', 'p.fk', '=', "{$tabla}.id")
+            ->leftJoinSub($sub('notas_credito_debito', 'debito', 'fecha_emision'), 'nd', 'nd.fk', '=', "{$tabla}.id")
+            ->leftJoinSub($sub('notas_credito_debito', 'credito', 'fecha_emision'), 'nc', 'nc.fk', '=', "{$tabla}.id")
+            ->leftJoinSub($sub($pagosTabla, null, 'fecha'), 'p', 'p.fk', '=', "{$tabla}.id")
             ->whereNull("{$tabla}.deleted_at")
+            // Un comprobante emitido después del corte todavía no existía a esa fecha.
+            ->where("{$tabla}.fecha_emision", '<=', $fecha->toDateString())
             ->selectRaw("
                 COALESCE(SUM(CASE WHEN {$saldo} > ? AND {$aVencer} THEN {$saldo} ELSE 0 END), 0) AS a_vencer,
                 COALESCE(SUM(CASE WHEN {$saldo} > ? AND NOT {$aVencer} THEN {$saldo} ELSE 0 END), 0) AS vencido,
@@ -184,7 +196,7 @@ class CuentaCorriente
         // Saldo inicial de Cliente/Proveedor (spec 031): a diferencia de los
         // documentos, no se descarta por `saldo <= TOLERANCIA` sino sólo si es
         // ≈0 (research.md R2) — un saldo negativo (a favor) resta del total.
-        foreach ($this->entidadesConSaldoInicial($tipo) as $entidad) {
+        foreach ($this->entidadesConSaldoInicial($tipo, $fecha) as $entidad) {
             $saldo = (float) $entidad->saldo_inicial;
 
             if (abs($saldo) <= self::TOLERANCIA) {
