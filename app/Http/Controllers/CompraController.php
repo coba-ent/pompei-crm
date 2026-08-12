@@ -224,6 +224,7 @@ class CompraController extends Controller
                 ? (string) $c->id
                 : $c->id.' <span class="badge bg-light text-muted" title="Número en Contagram">'
                     .e($this->numeroContagram($c->legacy_id)).'</span>')
+            ->editColumn('created_at', fn (Compra $c) => $c->created_at?->local()->format('d/m/Y H:i'))
             ->editColumn('fecha_emision', fn (Compra $c) => optional($c->fecha_emision)->format('d/m/Y'))
             ->editColumn('fecha_vto_pago', fn (Compra $c) => optional($c->fecha_vto_pago)->format('d/m/Y'))
             ->editColumn('subtotal_sin_descuento', fn (Compra $c) => (float) $c->subtotal_sin_descuento)

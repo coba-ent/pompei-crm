@@ -149,11 +149,13 @@
                 { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
                 { data: 'id', name: 'id' },
                 { data: 'fecha', name: 'fecha' },
+                { data: 'created_at', name: 'created_at' },
                 { data: 'categoria', name: 'categoria.nombre' },
                 { data: 'descripcion', name: 'descripcion' },
                 { data: 'medio_de_pago', name: 'medio_de_pago' },
                 { data: 'monto', name: 'monto', render: money },
             ],
+            order: [[3, 'desc']],
             stateSave: true,
             buttons: [
                 {

@@ -41,6 +41,7 @@ class GastoController extends Controller
             ->addColumn('medio_de_pago', fn (Gasto $g) => optional($g->cuentaTesoreria)->nombre)
             ->addColumn('fecha_raw', fn (Gasto $g) => optional($g->fecha)->format('Y-m-d'))
             ->editColumn('fecha', fn (Gasto $g) => optional($g->fecha)->format('d/m/Y'))
+            ->editColumn('created_at', fn (Gasto $g) => $g->created_at?->local()->format('d/m/Y H:i'))
             ->editColumn('monto', fn (Gasto $g) => (float) $g->monto)
             ->rawColumns(['acciones'])
             ->toJson();

@@ -224,6 +224,7 @@
             columns: [
                 { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
                 { data: 'id', name: 'id' },
+                { data: 'created_at', name: 'created_at' },
                 { data: 'fecha_emision', name: 'fecha_emision' },
                 { data: 'fecha_vto_pago', name: 'fecha_vto_pago' },
                 { data: 'proveedor', name: 'proveedor.nombre' },
@@ -240,7 +241,7 @@
                 { data: 'telefono', name: 'telefono', orderable: false, searchable: false, visible: false },
                 { data: 'mail', name: 'mail', orderable: false, searchable: false, visible: false },
             ],
-            order: [[2, 'desc']],
+            order: [[2, 'desc']], // índice 2 = "Creado" (created_at), mismo criterio que Ventas/Gastos: la única columna con hora, evita empates de mismo día en desorden.
             stateSave: true,
             buttons: [
                 {

@@ -50,6 +50,7 @@
                                 <th>Estado</th>
                                 <th>Id</th>
                                 <th>Fecha</th>
+                                <th>Creado</th>
                                 <th>Categoría</th>
                                 <th>Descripción</th>
                                 <th>Medio de Pago</th>
