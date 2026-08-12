@@ -277,9 +277,42 @@ qué subconjunto suma exactamente ese total, el vínculo queda **deducido, no ad
 | Grupos sin solución | 10 |
 | **Notas asociables** | **132 de 149** |
 
-Los 4 ambiguos son notas de **importe idéntico** ("ANULACIÓN BONIF. POR USO DE LA PLATAFORMA" de
-Mercado Libre: dos de $461,09 y dos de ~$2.396,4), indistinguibles por monto; se desempatan por
-fecha. Los 10 sin solución se concentran en 2021 (3) y 2024 (4) y **están sin analizar**.
+### Segunda pasada: 139 de 149
+
+La primera pasada dejaba 10 grupos sin solución. La causa no era el método sino **cómo se calculaba
+el importe de la nota**: varias tienen más de un renglón y se estaba tomando el `Total Compra` de la
+primera fila, así que entraban cortas y nunca cerraban. Aplicando el mismo criterio que en ventas
+—si el total se repite igual en todas las filas es uno solo, si difiere se suma— se resolvieron 9
+de esos 10:
+
+| | 1ª pasada | 2ª pasada |
+|---|---:|---:|
+| Notas mapeadas | 132 | **139** de 149 |
+| Conflictos (nota en 2 compras) | 0 | **0** |
+| Grupos ambiguos | 4 | 6 |
+| Grupos sin solución | 10 | **1** |
+
+Control: las 5 notas verificables contra las capturas de Contagram (compras 2107 y 2147) siguen
+mapeando correcto en ambas pasadas.
+
+**Las 10 notas que quedan fuera** — conviene cargarlas a mano, no seguir refinando el emparejador:
+
+```
+sin solución
+  2024  compra 1300  FV              NC = 518.623,28
+
+ambiguos (2 combinaciones posibles cada uno)
+  2025  compra 1649  FV              NC = 327.306,98
+  2025  compra 1929  FV              ND =  52.885,30
+  2025  compra 1772  MERCADO LIBRE   ND =   2.396,45
+  2025  compra 2035  MERCADO LIBRE   ND =   2.396,41
+  2026  compra 2147  MERCADO LIBRE   ND =     461,09   ← su ND es la 15 (verificado)
+  2026  compra 2230  MERCADO LIBRE   ND =     461,09
+```
+
+Los cuatro de Mercado Libre son las notas de "ANULACIÓN BONIF. POR USO DE LA PLATAFORMA", de
+**importe idéntico** entre sí, indistinguibles por monto: se desempatan por fecha, cada nota es del
+mismo día que su compra. Los dos de FV aparecieron recién en la segunda pasada y están sin analizar.
 
 Gotcha de archivos: `2023 Comrpas c_ cobro.xlsx` tiene el nombre mal escrito ("Comrpas"), y los de
 2021-2024 dicen `c_ cobro` en vez de `c_ pago`. Un glob por `{año}*c_*.xlsx` los cubre a todos.
