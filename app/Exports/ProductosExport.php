@@ -64,8 +64,12 @@ class ProductosExport implements FromQuery, WithHeadings, WithMapping, WithStyle
     }
 
     /**
-     * Formato numérico explícito ('0' en vez de General) para Stock total/por depósito:
-     * evita que un 0 real se vea vacío en Excel si la celda hereda algún formato tipo
+     * Formato numérico explícito para Stock y para las columnas de dinero (Costo, Precio
+     * venta, cada lista de precios): sin esto la celda queda en 'General' y, aunque el
+     * valor ya es un número real (ver map()), tanto Excel como Google Sheets la muestran
+     * sin marcar ningún formato de número concreto (en Sheets: "Automático" en vez de
+     * "Número" en Formato > Número), lo que genera dudas de que sea texto. '0' evita
+     * además que un stock en 0 real se vea vacío si la celda hereda algún formato tipo
      * contable con la sección de "cero" en blanco.
      */
     public function columnFormats(): array
@@ -74,6 +78,13 @@ class ProductosExport implements FromQuery, WithHeadings, WithMapping, WithStyle
         $formatos = [];
         for ($i = 0; $i < 1 + $this->depositos->count(); $i++) {
             $formatos[$this->columnLetra($inicioStock + $i)] = '0';
+        }
+
+        // Costo y Precio venta arrancan justo después de las columnas de stock.
+        $inicioDinero = $inicioStock + 1 + $this->depositos->count();
+        $columnasDinero = 2 + $this->listas->count(); // Costo, Precio venta, + una por cada lista.
+        for ($i = 0; $i < $columnasDinero; $i++) {
+            $formatos[$this->columnLetra($inicioDinero + $i)] = '#,##0.00';
         }
 
         return $formatos;
