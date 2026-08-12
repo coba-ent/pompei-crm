@@ -22,7 +22,13 @@
         <div class="row align-items-center mb-3 g-2">
             <div class="col-md-4">
                 <label class="form-label mb-1">Buscar por Fecha</label>
-                <input type="date" id="tesoreria-fecha-corte" class="form-control" value="{{ $fecha->toDateString() }}">
+                {{-- Texto + datepicker en dd/mm/yyyy y NO `type=date`: el nativo se dibuja con el
+                     locale del navegador y mostraba 08/05/2026 para el 5 de agosto. En un proyecto
+                     donde el origen ya venía con día y mes invertidos, la fecha se lee como se
+                     escribe acá. El valor que viaja al backend sigue siendo ISO (`data-fecha`). --}}
+                <input type="text" id="tesoreria-fecha-corte" class="form-control" autocomplete="off"
+                       placeholder="dd/mm/aaaa" value="{{ $fecha->format('d/m/Y') }}"
+                       data-fecha="{{ $fecha->toDateString() }}">
             </div>
             <div class="col-md-8 text-md-end">
                 <button type="button" class="btn btn-success" id="btn-movimiento-entre-cuentas">

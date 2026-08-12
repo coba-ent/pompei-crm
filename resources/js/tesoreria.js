@@ -101,17 +101,46 @@
                 });
             }
 
+            // El input muestra dd/mm/yyyy (formato argentino) y guarda el ISO en `data-fecha`,
+            // que es lo único que viaja al backend. Ver el comentario de la vista.
+            const $fechaCorte = $('#tesoreria-fecha-corte');
+
+            function fechaISO() {
+                return $fechaCorte.data('fecha');
+            }
+
+            if ($.fn.datepicker) {
+                $fechaCorte.datepicker({
+                    format: 'dd/mm/yyyy',
+                    autoclose: true,
+                    todayHighlight: true,
+                    weekStart: 1, // el template no trae el locale `es` de bootstrap-datepicker
+                }).on('changeDate', function (e) {
+                    const d = e.date;
+                    const iso = d.getFullYear() + '-' +
+                        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                        String(d.getDate()).padStart(2, '0');
+                    $fechaCorte.data('fecha', iso);
+                    cargarSaldos(iso);
+                });
+            } else {
+                // Sin datepicker el campo sigue siendo usable a mano en dd/mm/yyyy.
+                $fechaCorte.on('change', function () {
+                    const p = String($(this).val()).split('/');
+                    if (p.length !== 3) { return; }
+                    const iso = p[2] + '-' + p[1].padStart(2, '0') + '-' + p[0].padStart(2, '0');
+                    $fechaCorte.data('fecha', iso);
+                    cargarSaldos(iso);
+                });
+            }
+
             if (cfg.saldosIniciales) {
                 renderSaldos(cfg.saldosIniciales);
             } else {
-                cargarSaldos($('#tesoreria-fecha-corte').val());
+                cargarSaldos(fechaISO());
             }
 
-            $('#tesoreria-fecha-corte').on('change', function () {
-                cargarSaldos($(this).val());
-            });
-
-            window.TesoreriaSaldos = { recargar: cargarSaldos, fechaActual: function () { return $('#tesoreria-fecha-corte').val(); } };
+            window.TesoreriaSaldos = { recargar: cargarSaldos, fechaActual: fechaISO };
         }
 
         // ============================================================

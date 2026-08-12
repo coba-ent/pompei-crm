@@ -117,7 +117,15 @@ class Tesoreria
         $bancos = $bloque('banco');
 
         $aCobrar = $bloque('a_cobrar');
+
+        // A Pagar se muestra en positivo, como en Contagram: el bloque ya dice que es deuda, y su
+        // total es la suma de las deudas (verificado contra el panel real: 22.223.085,07 +
+        // 30.000,31 + 212.175,83 + 174.574,63 = 22.639.835,84). Los movimientos siguen guardados
+        // en negativo — esto es sólo la convención de presentación del bloque, y por eso invierte
+        // también un saldo a favor, que pasa a verse negativo.
         $aPagar = $bloque('a_pagar');
+        $aPagar['cuentas'] = $aPagar['cuentas']->map(fn (array $c) => [...$c, 'saldo' => -$c['saldo']]);
+        $aPagar['total'] = -$aPagar['total'];
 
         $saldoCtaCteClientes = $this->cuentaCorriente->aging('cliente', $fecha)['total'];
         $aCobrar['cuentas']->prepend(['id' => null, 'nombre' => 'Saldo Cta Cte Clientes', 'saldo' => $saldoCtaCteClientes]);
