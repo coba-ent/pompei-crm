@@ -190,11 +190,13 @@ class ClienteController extends Controller
     }
 
     /**
-     * Búsqueda flexible sobre nombre/CUIT: parte el texto en palabras y exige que
-     * cada una aparezca (en cualquier orden) en nombre o CUIT — mismo criterio que
-     * en Productos (ver ProductoController::aplicarBusquedaFlexible). Para palabras
-     * de 4+ letras suma un fallback por SOUNDEX que tolera errores de tipeo en el
-     * nombre (no aplica a CUIT, que es numérico).
+     * Búsqueda flexible sobre nombre/razón social/CUIT: parte el texto en palabras y
+     * exige que cada una aparezca (en cualquier orden) en nombre, razón social o CUIT
+     * — mismo criterio que en Productos (ver ProductoController::aplicarBusquedaFlexible).
+     * razon_social es opcional (no todos los clientes la tienen), por eso se suma como
+     * OR y no reemplaza a nombre. Para palabras de 4+ letras suma un fallback por
+     * SOUNDEX sobre nombre y razón social que tolera errores de tipeo (no aplica a CUIT,
+     * que es numérico).
      */
     private function aplicarBusquedaFlexible(Builder $query, string $texto): void
     {
@@ -203,13 +205,15 @@ class ClienteController extends Controller
         foreach ($palabras as $palabra) {
             $query->where(function ($q) use ($palabra) {
                 $q->where('nombre', 'like', "%{$palabra}%")
+                    ->orWhere('razon_social', 'like', "%{$palabra}%")
                     ->orWhere('cuit', 'like', "%{$palabra}%");
 
                 // SOUNDEX de una cadena SIN letras (CUIT, códigos con guiones/barras)
                 // devuelve '', y eso hace que "columna LIKE CONCAT('', '%')" matchee
                 // cualquier fila — por eso se exige al menos una letra en la palabra.
                 if (preg_match('/\p{L}/u', $palabra) === 1 && mb_strlen($palabra) >= 4 && $q->getConnection()->getDriverName() === 'mysql') {
-                    $q->orWhereRaw('SOUNDEX(nombre) LIKE CONCAT(SOUNDEX(?), "%")', [$palabra]);
+                    $q->orWhereRaw('SOUNDEX(nombre) LIKE CONCAT(SOUNDEX(?), "%")', [$palabra])
+                        ->orWhereRaw('SOUNDEX(razon_social) LIKE CONCAT(SOUNDEX(?), "%")', [$palabra]);
                 }
             });
         }
