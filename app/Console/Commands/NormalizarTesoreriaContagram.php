@@ -97,6 +97,7 @@ class NormalizarTesoreriaContagram extends Command
                 $this->borrarInexistentes();
                 $this->reconstruirCajaChica();
                 $this->vincularNotas();
+                $this->recuperarNotasSinImporte();
 
                 // El dry-run recorre todo con las escrituras hechas y las descarta al final: así el
                 // conteo de cada paso refleja el estado que dejaría el paso anterior, no el actual.
@@ -300,5 +301,40 @@ class NormalizarTesoreriaContagram extends Command
         }
 
         $this->line("  NC/ND de venta vinculadas a su comprobante: {$vinculadas} de ".count($mapa));
+    }
+
+    /**
+     * Las notas de 2021 y 2022 quedaron en $0,00 porque el export por-ítem de esos años **no trae
+     * los importes** en las filas de nota (verificado: `Total Venta`, `Subtotal` y `Precio de Venta`
+     * vienen todos vacíos). El importe se recupera de la columna `Total NC` de la venta en el
+     * `Ventas c- cobro` —que sí lo trae— una vez identificada la venta por cliente y fecha.
+     *
+     * Sólo entran las que resolvieron con **candidato único**: mismo cliente y nota posterior a la
+     * venta. Las tres de un mismo cliente que quedaron ambiguas no se cargan a ojo.
+     */
+    private function recuperarNotasSinImporte(): void
+    {
+        $archivo = base_path('database/data/notas_2021_sin_importe.json');
+
+        if (! is_file($archivo)) {
+            return;
+        }
+
+        $mapa = json_decode(file_get_contents($archivo), true);
+        $ventas = Venta::whereIn('legacy_id', array_column($mapa, 'venta'))->pluck('id', 'legacy_id');
+        $recuperadas = 0;
+
+        foreach ($mapa as $notaLegacy => $d) {
+            if (! isset($ventas[$d['venta']])) {
+                continue;
+            }
+
+            $q = NotaCreditoDebito::where('legacy_id', $notaLegacy)->whereNull('venta_id');
+            $recuperadas += $this->dryRun
+                ? $q->count()
+                : $q->update(['venta_id' => $ventas[$d['venta']], 'monto' => $d['monto']]);
+        }
+
+        $this->line("  Notas de 2021 con importe recuperado del `Total NC` de su venta: {$recuperadas} de ".count($mapa));
     }
 }
