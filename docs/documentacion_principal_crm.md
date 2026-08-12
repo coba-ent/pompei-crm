@@ -1043,6 +1043,30 @@ Control "Buscar por Fecha" (saldo a fecha de corte, sólo movimientos con fecha 
 "Movimiento entre Cuentas"; ícono de ajustes (llave) para la configuración de cuentas. Saldo negativo
 permitido sin bloqueo (descubierto).
 
+> **Reglas confirmadas contra Contagram real el 12/08/2026** (comparación del panel a la misma fecha
+> de corte en ambos sistemas, ver `docs/importacion_casos_a_revisar.md` §10 y §12):
+>
+> - **"Buscar por Fecha" es una fecha de corte, no un rango.** Muestra el saldo **acumulado desde el
+>   origen hasta esa fecha inclusive**, sin filtro de inicio. Default: hoy. Verificado: al 01/07/2026
+>   los cinco bancos dan idénticos en ambos sistemas (Total Bancos $17.370.690,61 exacto).
+>   Consecuencia: un movimiento con fecha futura (ej. un cheque propio a vencer) no aparece hasta que
+>   llegue esa fecha.
+> - **El campo se muestra en `dd/mm/aaaa`.** No usar `<input type="date">`: el navegador lo dibuja
+>   según su locale y llegó a mostrar `08/05/2026` para el 5 de agosto. En este proyecto, donde el
+>   origen ya traía día y mes invertidos, la fecha se lee como se escribe en pantalla.
+> - **El bloque A Pagar muestra los saldos en positivo** y su total es la **suma** de las deudas
+>   (verificado: 22.223.085,07 + 30.000,31 + 212.175,83 + 174.574,63 = 22.639.835,84, el total que
+>   muestra Contagram). Los movimientos se guardan en negativo: es sólo convención de presentación.
+> - **Los dos "Saldo Cta Cte" no son cuentas**: se calculan con el aging de Clientes/Proveedores a la
+>   misma fecha de corte y se anteponen a su bloque.
+> - **El nombre canónico de una cuenta es el de su ficha, no el del panel**, que los recorta: el panel
+>   dice "Visa", "Mastercard", "Nulo", "Cabal Credicoop", y las fichas se titulan "Visa a Cobrar",
+>   "Mastercard a Cobrar", "Nulo a Cobrar", "Cabal Credicoop a Pagar". El sufijo lo llevan las cuentas
+>   de tarjeta/valores; cajas y bancos no.
+> - **Los importes del panel de Contagram son un total filtrado y no sirven para conciliar.** Para
+>   comparar saldos hay que usar la columna `Saldo` de la ficha/export de cada cuenta, que sí es
+>   acumulada.
+
 **Configuración de cuentas** (modal "Ajustes Cuentas Tesorería"): tabla agrupada por tipo (Efectivo,
 Banco, A Cobrar, A Pagar) con estado Visible. Alta/edición por modal único (tipo bloqueado en edición).
 Dos **cuentas del sistema** precargadas —"Cheque de Terceros" (A Cobrar) y "Cheque Propio" (A

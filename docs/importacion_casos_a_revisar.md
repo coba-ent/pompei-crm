@@ -390,3 +390,383 @@ informe de movimientos.
 - **~1.446 clientes con `created_at` con día y mes invertidos**, del import anterior.
 - **Bug ARCA `10051`** ("los importes de AlicIVA no se corresponden con los porcentajes"), visto una
   vez el 03/08/2026. A vigilar cuando se facturen ventas con IVA mixto.
+
+---
+
+## 10. Catálogo real de cuentas de Contagram — relevado el 12/08/2026
+
+Lista completa dictada por el usuario desde el panel de Saldos de Contagram (sin recortes de scroll).
+Es la **referencia contra la cual tiene que calcar el catálogo de cuentas del CRM**. Los dos
+"Saldo Cta Cte" son calculados, no son cuentas.
+
+⚠️ **Los importes que muestra ese panel son un total filtrado, no el acumulado de todos los tiempos.
+No sirven para conciliar saldos y no se usan acá.** La conciliación de importes se hace contra la
+columna `Saldo` de cada Excel de `Cuentas/`, que sí es acumulada.
+
+**Contagram tiene 21 cuentas; el CRM (VPS) tiene 28.** No falta ninguna: sobran 7.
+
+| Bloque en Contagram | Cuenta | En el CRM (VPS) | Estado |
+|---|---|---|---|
+| A Cobrar | Cheque de Terceros | Cheque de Terceros | ✅ |
+| A Cobrar | Amex | AMEX | ✅ |
+| A Cobrar | Cabal Acreditaciones | existe vacía; los 54 mov entraron como **`Cabal`** | ⚠️ duplicado de nombre |
+| A Cobrar | Maestro | Maestro | ✅ |
+| A Cobrar | Mastercard | Mastercard | ✅ |
+| A Cobrar | Nulo | Nulo, tipada `efectivo` | ⚠️ cae en Cajas, no en A Cobrar |
+| A Cobrar | PAYWAY QR | PAYWAY QR | ✅ |
+| A Cobrar | Retenciones | Retenciones, tipada `efectivo` | ⚠️ cae en Cajas, no en A Cobrar |
+| A Cobrar | Visa | VISA | ✅ |
+| A Pagar | Cheque Propio | Cheque Propio | ✅ |
+| A Pagar | Cabal Credicoop | existe vacía; los 9 mov entraron como **`Cabal A Pagar`** | ⚠️ duplicado de nombre |
+| A Pagar | Visa Credicoop | existe vacía; los 22 mov entraron como **`Visa Credicoop A Pagar`** | ⚠️ duplicado de nombre |
+| Cajas | Caja chica gastos | existe, **0 movimientos** | ❌ falta el export de origen |
+| Cajas | Caja del Local | Caja del Local | ✅ |
+| Cajas | Caja General Abajo | Caja General Abajo | ✅ |
+| Cajas | Juan USD Personal | existe con **1 solo movimiento** (vino de un cobro de venta) y **sin saldo inicial** | ❌ falta el export de origen |
+| Bancos | Banco Credicoop | Banco Credicoop | ✅ |
+| Bancos | Banco Santander Río | Banco Santander Río | ✅ |
+| Bancos | Galicia | **Banco Galicia** | ⚠️ nombre distinto (cosmético) |
+| Bancos | Mercado Pago | Mercado Pago | ✅ |
+| Bancos | USD online | USD Online, tipada `efectivo` | ⚠️ cae en Cajas, no en Bancos |
+
+### Las 7 cuentas que sobran en el CRM
+
+| Cuenta | Mov. | Qué es | Qué hacer |
+|---|---:|---|---|
+| `Cabal` | 54 | alias de archivo de `Cabal Acreditaciones` | renombrar y borrar la vacía |
+| `Cabal A Pagar` | 9 | alias de archivo de `Cabal Credicoop` | renombrar y borrar la vacía |
+| `Visa Credicoop A Pagar` | 22 | alias de archivo de `Visa Credicoop` | renombrar y borrar la vacía |
+| `Cabal Credicoop A Pagar` | 0 | no existe en Contagram | ocultar (`visible = 0`) |
+| `Caja General` | 0 | no existe en Contagram | ocultar |
+| `VISA Corporativa` | 0 | no existe en Contagram | ocultar |
+| **`USD Local`** | **524** | **no existe en Contagram**, pero tiene un archivo propio (`USD local_.xlsx`) y 524 movimientos | **investigar antes de tocar** |
+
+### ✅ RESUELTO: `USD Local` **es** `Juan USD Personal`
+
+Confirmado el 12/08/2026 por `legacy_id` contra la ficha de la cuenta en Contagram (no por importes):
+los movimientos de la cuenta `USD Local` del CRM traen exactamente los Id de Contagram del perfil de
+**Juan USD Personal** — `62` (31/07, Ingreso "Actualizacion USD" $195.977,65), `3364`/`3363` (28/07,
+Pago JPD AMOBLAMIENTO), `3357`/`3356`/`3355` (24/07), `3338`…`3335` (17/07, Pompei SRL).
+
+El archivo `USD local_.xlsx` es el export de esa cuenta y llegó con otro nombre, así que el
+importador creó una cuenta nueva. **Acción: fusionar `USD Local` → `Juan USD Personal`** (mover los
+524 movimientos, trasladar `saldo_inicial`, borrar `USD Local`). El único movimiento que ya tiene
+`Juan USD Personal` es el Id 26142 de Contagram (07/08, Cobro GARBERS ANGELES), **posterior al corte
+del export**, así que no hay riesgo de duplicar.
+
+**Ya no hace falta pedir el export de `Juan USD Personal`.**
+
+### ⚠️ Los nombres del panel de Saldos están recortados — el nombre real está en la ficha
+
+Hallazgo del 12/08/2026, y **cambia el plan de renombrado**. El panel de Saldos muestra
+"Visa Credicoop", "Cabal Credicoop", "Cabal Acreditaciones", pero al abrir cada cuenta el título
+real es con sufijo:
+
+| Nombre en el panel | **Nombre real (ficha)** | Cuenta del CRM que tiene los datos | Mov. |
+|---|---|---|---:|
+| Visa Credicoop | **Visa Credicoop a Pagar** | `Visa Credicoop A Pagar` | 22 |
+| Cabal Credicoop | **Cabal Credicoop a Pagar** | `Cabal A Pagar` | 9 |
+| Cabal Acreditaciones | **Cabal Acreditaciones a Cobrar** | `Cabal` | 54 |
+| Visa | **Visa a Cobrar** | `VISA` | 5.660 |
+| Mastercard | **Mastercard a Cobrar** | `Mastercard` | 1.333 |
+| PAYWAY QR | **PAYWAY QR a Cobrar** | `PAYWAY QR` | 524 |
+| Nulo | **Nulo a Cobrar** | `Nulo` | 32 |
+
+Las cajas y bancos **no** llevan sufijo: `Caja General Abajo`, `Caja chica gastos`,
+`Juan USD Personal` se titulan igual en la ficha que en el panel. El sufijo es de las cuentas de
+tarjeta/valores, y **confirma la retipificación pendiente**: `Nulo a Cobrar` y `Retenciones` son
+`a_cobrar`, no `efectivo`.
+
+Verificado por `legacy_id` fila por fila contra las fichas (Cabal Acreditaciones: Ids 4551, 3774,
+16254, 3739, 16236, 16222, 2928, 27, 2925, 12655 — coinciden todos; los conteos también: 54, 9 y 22).
+
+**Consecuencia**: `Visa Credicoop A Pagar` del CRM **ya tiene el nombre correcto** (no hay que
+renombrarlo), y la cuenta vacía a eliminar es `Visa Credicoop` (id 22). Igual para Cabal: sobra
+`Cabal Credicoop` (id 21) y el nombre destino de `Cabal A Pagar` es `Cabal Credicoop a Pagar`
+(que en el CRM ya existe vacía como `Cabal Credicoop A Pagar`, id 28).
+
+**Regla para el futuro: el nombre canónico de una cuenta se toma de la ficha, nunca del panel de
+Saldos** — igual que la regla de que los importes del panel son un total filtrado y no sirven.
+
+### `Caja chica gastos`: es la caja de gastos menores del local
+
+Relevada su ficha el 12/08/2026. Patrón claro y confirmado por el usuario:
+
+- **Se fondea con `Movimiento entre Cuenta` desde `Caja del Local`** (ej. $500.000 el 16/06/2026,
+  $101.000 el 06/01/2026, $130.000, $180.000, $200.000, $300.000…).
+- **Se gasta en menudeo**: Ferretería, Sube, Supermercado, Farmacia, Cabify - Uber, Otro/Otros.
+- Ocasionalmente recibe algún `Cobro` (ej. Id 21330 "de nc", Id 20682).
+- Los Id de los gastos (9188, 8454, 8185, 7943…) **son del mismo espacio de Id que el módulo
+  Gastos**, o sea que estos movimientos deberían cruzar con los gastos ya importados de `Gastos/`.
+  Al importar el archivo hay que chequear que no se duplique contra esos gastos.
+
+**Es la única cuenta que sigue necesitando export.** La ficha existe y tiene botón Exportar, así que
+el dato está disponible.
+
+### Otros patrones útiles relevados en las fichas
+
+- **Las cuentas de tarjeta se vacían contra el banco**: `Cabal Acreditaciones a Cobrar` liquida con
+  `Movimiento entre Cuenta` hacia **Banco Credicoop** (por eso cierra en ~$0), y `Visa a Cobrar`
+  hacia **Galicia** (Ids 5303, 5302, 5300, 5297, 5295…). Sirve para entender el saldo negativo de
+  Mastercard (§8c pendiente): hay que ver contra qué banco liquida.
+- **`Otros Ingresos` se usa como ajuste manual**: en `Cabal Acreditaciones` el Id 27 es un `Ingreso`
+  de $5.719,14 con observación *"Borro cobro venta 9088. Paso a 9094"*. No es un ingreso real de
+  plata, es una corrección. Hay 61 movimientos tipo `ingreso` migrados: conviene mirar sus
+  observaciones antes de tratarlos como ingresos genuinos en cualquier informe.
+
+### Cuenta sin export de origen (a pedir al usuario)
+
+Sólo `Caja chica gastos`. Formato: las mismas 11 columnas del resto de `Cuentas/`,
+con la fila de `Saldo Inicial`, y ensanchando las columnas antes de exportar para no repetir el bug
+de las celdas `######`.
+
+### Fichas relevadas el 12/08/2026 — hallazgos por cuenta
+
+**`Caja General Abajo` — la diferencia de $1.200.000 NO es un error del import.** Su último
+movimiento en Contagram es el Id 3382 (06/08/2026, Pago a Pompei SRL, −$1.200.000) que deja la
+cuenta en $0. El export de `Cuentas/` corta el 05/08, así que el CRM cierra en $1.200.000: le falta
+exactamente ese pago posterior al corte. Es la confirmación más limpia de que **las diferencias
+grandes son corte temporal, no import**. Patrón de la cuenta: se fondea con `Movimiento entre Cuenta`
+desde `Caja del Local` y se usa para pagos grandes a proveedores (Pompei SRL, JPD AMOBLAMIENTO) y
+gastos fijos (Sueldos, Alquiler, Comisiones, Extras hijos, Juan Personal/Ahorro).
+
+**`Mastercard a Cobrar` — resuelve la pregunta abierta de §8c: liquida contra Galicia.** Los
+`Movimiento entre Cuenta` hacia `Galicia` (Ids 5304, 5299, 5298, 5292, 5285, 5276, 5272, 5270,
+5265, 5259, 5255, 5253…) son las acreditaciones netas del posnet, con observaciones tipo
+*"Mov retencion posnet"*. El saldo negativo sale de que esas transferencias a Galicia superan a los
+cobros migrados en el período. **Mismo patrón en `PAYWAY QR a Cobrar` y en `Visa a Cobrar`**: las
+tres tarjetas se vacían contra Galicia; `Cabal Acreditaciones a Cobrar` es la excepción, liquida
+contra Banco Credicoop.
+
+**`Nulo a Cobrar` — es una cuenta de ajustes contables, no una cuenta real de plata.** Arranca con
+un **`Saldo Inicial` negativo de −$133.127,79** (08/02/2022) y sus movimientos son correcciones:
+*"Se modifica pago por mal cobrado"*, *"Mov para sacar gasto ajuste caja mal…"*, más cobros del
+cliente sentinela `NO USAR MAS`. Cierra en $0,13. No hay que interpretarla como caja ni como
+cobranza real.
+
+**`VISA Corporativa` — confirmado por el usuario: no existe en Contagram.** Se oculta
+(`visible = 0`), no se pide export.
+
+### Nota sobre los filtros de las fichas
+
+Las fichas de `Mastercard a Cobrar` y `PAYWAY QR a Cobrar` se abrieron con el rango **13 Jul - 12 Ago**
+aplicado. La columna `Balance` sí es acumulada (arrastra el saldo previo), pero **la lista de
+movimientos está filtrada**: no confundir "22 resultados" de una ficha filtrada con el total de
+movimientos de la cuenta. El conteo total sólo es confiable cuando la ficha está sin filtro de fecha
+(fue el caso de Cabal Acreditaciones 54, Cabal Credicoop 9, Visa Credicoop 22).
+
+### `Caja chica gastos` se puede reconstruir sin el export (12/08/2026)
+
+Los `Gastos/{año} Gastos.xlsx` traen una columna **`Medio de pago`** que es la cuenta de tesorería,
+y el import ya la usó: `gastos.cuenta_tesoreria_id` está poblado. Hay **120 gastos con cuenta
+`Caja chica gastos` por $3.672.808,76** — el dato existe, lo que falta es el `movimiento_tesoreria`
+correspondiente (el import de gastos no lo generó; los movimientos salieron todos de `Cuentas/`).
+
+El fondeo también está: hay **50 `movimiento_entre_cuentas` por −$3.643.377,01** con detalle
+`Caja chica gastos`, registrados del lado de `Caja del Local`. Sólo falta la pata de entrada.
+
+Reconstrucción estimada: +3.643.377,01 (fondeo) −3.672.808,76 (gastos) +cobros ≈ $25.297,60 contra
+los **$33.137,66** que muestra Contagram → **quedan ~$7.840 sin explicar**. Alcanza para armar la
+cuenta, **no para darla por buena**: sin la columna `Saldo` del export no hay control independiente,
+que es la regla que atrapó todos los errores de este import (§8). **Recomendación: reconstruir desde
+`gastos` + fondeo, y pedir igual el export sólo como cifra de control.**
+
+Aviso: la misma lógica revela que **ninguna cuenta sin archivo en `Cuentas/` tiene movimientos de
+gasto**, aunque sus gastos sí estén en la tabla `gastos`. Al reconstruir hay que hacerlo sólo para
+`Caja chica gastos`, o se duplican los gastos de las cuentas que sí vinieron de `Cuentas/`.
+
+### ✅ Verificación del import de tesorería contra los Excel — 12/08/2026
+
+Hecha sobre un **clon de la base del VPS en local**, comparando cuenta por cuenta el saldo del CRM
+(sólo movimientos con `legacy_id`) contra la **última fila de la columna `Saldo`** de cada archivo de
+`Cuentas/`, leyendo las fechas con la regla de día/mes invertido.
+
+**Resultado: las 20 cuentas cierran. No falta un peso.**
+
+- **15 cierran exacto** (13 al centavo + 2 que difieren sólo en el signo: los archivos de cuentas
+  `a_pagar` muestran la deuda en positivo y el CRM la guarda en negativo — `Cabal Credicoop a Pagar`
+  $212.175,83 y `Visa Credicoop a Pagar` $174.574,63. Es convención, no error).
+- **5 tenían diferencia, y las 72 filas involucradas son exclusiones deliberadas del propio
+  importador** (`MigrarTesoreriaContagram`), no movimientos perdidos:
+
+| Cuenta | Filas | Causa |
+|---|---:|---|
+| Mercado Pago | 65 | 24 posteriores al corte + **41 cobros de ventas de ML que el CRM ya había generado** |
+| Visa a Cobrar | 3 | posteriores al corte (06-07/08) |
+| Mastercard a Cobrar | 2 | posteriores al corte (06/08) |
+| Caja General Abajo | 1 | Id 3382, 06/08, Pago a Pompei SRL −$1.200.000 |
+| Cheque Propio | 1 | Id 3320, **fechado 24/08/2026** — un cheque propio a vencer, o sea del futuro |
+
+Las dos reglas están escritas en el importador y son correctas: `CORTE = 2026-08-05` (del 06/08 en
+adelante manda el CRM, importar duplicaría lo que la app ya generó) y la exclusión de los cobros de
+ML ya convertidos.
+
+**Consecuencia práctica: la diferencia contra el panel de Contagram de hoy no es un problema del
+import.** Los pesos están, por el otro camino (movimientos generados por la app, `legacy_id IS NULL`).
+
+**Trampa metodológica anotada**: comparar el saldo total del CRM (legacy + no-legacy) hasta la fecha
+de corte tampoco cierra, porque el 05/08 se solapan el final del Excel y la operación real del CRM
+de ese mismo día. **La única comparación limpia es sólo-legacy contra el Excel**, tratando las 72
+exclusiones como diferencia esperada y cuantificada.
+
+### Cambios aplicados en local (clon del VPS) — 12/08/2026
+
+Pendientes de subir al VPS. La base local es un clon exacto del VPS del 12/08 00:53.
+
+1. **Fusiones** — las cuentas "vacías" no lo estaban: tenían cobros/pagos/gastos del import de
+   ventas/compras/gastos, que usa el nombre del Excel de origen y por eso creó ids paralelos.
+   - `USD Local` (26) → `Juan USD Personal` (13): 524 movimientos.
+   - `Cabal Acreditaciones` (17, con 17 cobros) → `Cabal` (25).
+   - `Cabal Credicoop` (21, 2 pagos) + `Cabal Credicoop A Pagar` (28, 4 gastos) → `Cabal A Pagar` (24).
+   - `Visa Credicoop` (22, 9 pagos) → `Visa Credicoop A Pagar` (27).
+2. **Nombres canónicos** (los de la ficha de Contagram): `Cabal Acreditaciones a Cobrar`,
+   `Cabal Credicoop a Pagar`, `Visa Credicoop a Pagar`, `Visa a Cobrar`, `Mastercard a Cobrar`,
+   `PAYWAY QR a Cobrar`, `Nulo a Cobrar`.
+3. **Tipos**: `Nulo a Cobrar` y `Retenciones` → `a_cobrar`; `USD Online` → `banco`.
+4. **Borradas**: `Caja General` y `VISA Corporativa`. No existen en Contagram (confirmado por el
+   usuario el 12/08/2026) y estaban limpias de verdad — 0 referencias en las 6 tablas que apuntan a
+   `cuenta_tesoreria_id`, saldo inicial 0, `es_sistema = 0`. Primero se habían ocultado por la
+   lección de §8 ("nunca borrar lo que no está en uso"), pero esa lección aplica a lo que *puede*
+   estar en uso: acá se verificó que no lo está. **Revierte la decisión de §8c de dejar visibles las
+   cuentas sin movimientos**, que se tomó antes de saber que no existían en Contagram.
+5. **`Caja chica gastos` reconstruida**: 120 movimientos de gasto desde `gastos` + 50 contrapartidas
+   de fondeo (36 desde `Caja del Local`, 13 desde `Caja General Abajo`, 1 desde `Juan USD Personal`),
+   todos con `legacy_id` prefijado **`RECON-19-`** para poder distinguirlos y revertirlos.
+   Cierra en **−$29.431,75** contra los $33.137,66 de Contagram: **faltan los cobros**. Los 3 cobros
+   que la tabla `cobros` asigna a esa cuenta ($630.929,41) **no son confiables** — vienen del import
+   de ventas, que usa "primer medio de pago" y fecha de emisión (§5). **No se cargaron.**
+   Sigue haciendo falta el export de Contagram, aunque sea sólo como cifra de control.
+
+De 28 cuentas se pasó a **21: exactamente las 21 de Contagram**.
+
+**Pendiente de confirmar contra ficha antes de renombrar**: `AMEX`, `Cheque de Terceros`,
+`Cheque Propio`, `Retenciones`, `Maestro` (¿llevan sufijo "a Cobrar"/"a Pagar"?) y `Banco Galicia`
+(el panel lo llama `Galicia`). No se tocaron: sólo se renombró lo verificado en una ficha.
+
+## 11. Las NC/ND sin comprobante asociado inflan la Cta Cte de Clientes — 12/08/2026
+
+Detectado a partir de una observación del usuario ("hay unas 10 notas sin compra asociada"). El
+problema existe pero es **mucho más grande y está del lado de Ventas**: los 10 pendientes eran de
+Compras, y ahí el mapeo llegó a 149 de 149.
+
+Estado real de `notas_credito_debito` (859 notas):
+
+| tipo | total | con `venta_id` | con `compra_id` | **sueltas** | monto suelto |
+|---|---:|---:|---:|---:|---:|
+| crédito | 780 | 5 | 130 | **645** | **$56.977.170,21** |
+| débito | 79 | 1 | 19 | **59** | $2.259.667,47 |
+
+**Esto explica el descuadre de la Cuenta Corriente de Clientes.** El `aging` calcula
+`ventas.total + ND − NC − cobros`, y una NC sin `venta_id` no descuenta de ninguna factura:
+
+```
+Cta Cte Clientes CRM      $67.033.584,52
+Cta Cte Clientes Contagram $8.579.530,87
+diferencia                $58.454.053,65
+NC de venta sin asociar   $56.977.170,21   → explica el 97,5 %
+```
+
+No es un problema de tesorería ni de saldos de cuenta (que cierran 19/20 contra los Excel), es de
+**imputación**: la plata está bien, lo que está mal es a qué comprobante se le resta.
+
+El precedente de Compras dice que se puede resolver: allá se reconstruyó el vínculo nota→compra sin
+que el export lo trajera (ver §8d), y quedó 149/149.
+
+### Mapeo ejecutado el 12/08/2026 — 598 de 692 (86,4 %)
+
+Mismo método que Compras: el export `Ventas c- cobro` trae **`Total NC` y `Total ND` por venta**, y
+se busca qué nota (o qué subconjunto de notas) del mismo cliente suma exactamente ese total. La suma
+de control cierra: $56.972.371,64 en el `c/ cobro` contra $56.977.170,21 en las notas.
+
+| Paso | Criterio | Notas mapeadas |
+|---|---|---:|
+| 1 | candidato único del mismo cliente con monto exacto | — |
+| 2 | + desambiguación y subconjuntos de 2 a 4 notas | 594 |
+| 3 | monto exacto y mismo año, sin exigir cliente (sólo si es único) | +4 |
+| | **Total** | **598 de 692 (86,4 %)** |
+
+**Efecto medido en la Cta Cte de Clientes: de $67.033.584,52 a $29.541.374,69.**
+
+**Gotcha que costó 16 puntos de cobertura**: `Ventas/Ventas 2023.xlsx` trae el **encabezado en la
+última fila** (7066 de 7067), no en la primera. Leyéndolo como los demás archivos, las 117 notas de
+2023 quedaban sin cliente y no se podían matchear. Un lector de estos Excel tiene que buscar la fila
+de encabezado en cualquier posición, no asumir la primera.
+
+### Las 93 notas que quedan ($17.545.403,37)
+
+No se resuelven con este método: sus montos no coinciden con el `Total NC` pendiente de ninguna
+venta, ni por cliente ni por monto dentro del mismo año. Las ventas que las reclaman son en su
+mayoría de **2021**, donde el export por-ítem trae sólo 16 notas contra las 17 de la base — o sea el
+origen mismo está incompleto para ese año.
+
+El vínculo real existe en Contagram, en la columna **"Documento que Ajusta"** de la pantalla de la
+nota, que **ningún export trae**. Para cerrar el 13,6 % restante hace falta ese dato, o revisarlas a
+mano. Son 93 notas: es viable.
+
+Mientras tanto la Cta Cte de Clientes queda en $29,5 M contra los $8,58 M de Contagram. Las notas
+sin mapear explican $17,5 M de esa diferencia; **los ~$3,4 M restantes son otra causa, todavía sin
+identificar** (probablemente la imputación de cobros por cliente y no por factura, §5).
+
+## 12. El aging de Cuenta Corriente ignoraba la fecha de corte — corregido el 12/08/2026
+
+Detectado comparando el panel de Tesorería a tres fechas distintas (01/07, 03/08 y 05/08): los dos
+"Saldo Cta Cte" devolvían **exactamente el mismo número en las tres** ($67.033.584,52 clientes y
+$23.371.408,79 proveedores), mientras que en Contagram sí se movían.
+
+`CuentaCorriente::bucketsEnSql()` recibía `$fecha` pero la usaba **sólo para clasificar en buckets
+de vencimiento** (`DATEDIFF`, `a_vencer`). Los importes salían de todas las ventas/compras con todos
+sus cobros/pagos/notas, sin corte: el resultado era siempre el saldo de hoy.
+
+Corregido: se filtran por `<= fecha` los comprobantes (`fecha_emision`), los cobros/pagos (`fecha`),
+las notas (`fecha_emision`) y el saldo inicial de cliente/proveedor (`saldo_inicial_fecha`, tratando
+el nulo como siempre vigente). Ahora el total varía con el corte, como debe.
+
+### Lo que el arreglo dejó a la vista: las fechas de pagos y cobros migrados no reconstruyen el pasado
+
+Con el corte aplicado, Proveedores da **$1.894.946,66 al 01/07** contra los **$17.160.519,48** de
+Contagram, y **sube** hacia agosto mientras que en Contagram **baja**. Pero **sin corte (o sea a
+hoy) da $23.371.408,79 contra $23.841.392,08 de Contagram: 2 % de diferencia**.
+
+O sea: **el saldo actual de proveedores está bien; lo que no se puede reconstruir es el saldo a una
+fecha pasada.** Es el mismo defecto ya documentado en §5 para los cobros — el import les asignó la
+fecha de emisión del comprobante y no la del pago real. Mientras esas fechas no se corrijan, el
+filtro de fecha del panel es confiable para las cuentas de tesorería (que cierran 19/20 contra los
+Excel) pero **no** para las dos filas de Cuenta Corriente.
+
+Clientes es otro caso: ahí ni siquiera el saldo de hoy cierra ($67 M contra $8,58 M), y la causa son
+las 645 notas de crédito sin `venta_id` (§11).
+
+## 13. `Caja chica gastos` reconstruida desde la ficha — 12/08/2026
+
+El usuario pasó capturas de la **ficha completa** de la cuenta en Contagram, y con eso se cerró sin
+necesidad del export. Lo que faltaba no eran gastos (los 120 ya estaban en la tabla `gastos`) sino
+**tres cobros y un pago**:
+
+| Id Contagram | Fecha | Concepto | Importe |
+|---|---|---|---:|
+| 21330 | 27/10/2025 | Cobro Juan Ignacio (obs. *"de nc"*) | +44.729,35 |
+| 17283 | 09/01/2025 | Cobro Maria Elena (obs. *"Cobro Mauricio"*) | +32.889,06 |
+| 20682 | 05/09/2025 | Cobro Maria | +10.000,00 |
+| 2268 | 09/01/2025 | Pago Ferreteria La de Olleros | −25.050,00 |
+
+Resultado: la cuenta pasó de **−$29.431,75 a $33.136,66** contra los **$33.137,66** de Contagram —
+**queda $1,00 de diferencia**, que debe estar en los movimientos anteriores al 24/07/2024 (la ficha
+capturada no llega hasta el principio: su fila más vieja deja balance −$15.368,09, o sea que había
+saldo antes).
+
+Efecto en el panel al 01/07/2026: **Total Bancos cierra exacto** ($17.370.690,61) y **Total Cajas
+queda a $1,00** ($12.796.428,68 contra $12.796.429,68).
+
+### Dos pruebas directas del defecto de imputación de cobros (§5)
+
+Al cruzar esos cobros con la tabla `cobros` aparecieron, en un universo de tres, dos casos del
+problema ya documentado:
+
+- **Fecha equivocada**: el cobro de $32.889,06 está en la base con fecha **2024-12-14** y en
+  Contagram es del **09/01/2025**. Es la fecha de emisión de la venta, no la del cobro.
+- **Cuenta y monto equivocados**: el cobro `id 16639` figura con **$553.311,00** en `Caja chica
+  gastos`, pero a esa caja entraron **$10.000** (Id 20682 de Contagram). El resto se cobró por otro
+  medio: el import asignó **el total al primer medio de pago listado**.
+
+O sea que el defecto de §5 no es teórico y afecta importes por cuenta, no sólo fechas. **Ya no hace
+falta pedir el export de `Caja chica gastos`.**
