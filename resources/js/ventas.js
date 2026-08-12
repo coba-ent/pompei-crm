@@ -383,10 +383,18 @@
                 .fail((xhr) => toast('error', xhr.responseJSON?.mensaje || 'No se pudo eliminar.'));
         });
 
-        // Envío manual a ARCA (spec 040) — reemplaza el trigger automático que causó el incidente
-        // del 04/08/2026. El resultado real de ARCA (aprobado o rechazado) va en un modal
-        // persistente (FR-007); un rechazo de precondición (422, ni siquiera llegó a ARCA) va en
-        // toast (FR-007a).
+        inicializarArca(() => tabla.ajax.reload(null, false));
+    }
+
+    // ---------------------------------------------------------------------
+    // Envío manual a ARCA (spec 040) — reemplaza el trigger automático que causó el incidente
+    // del 04/08/2026. El resultado real de ARCA (aprobado o rechazado) va en un modal
+    // persistente (FR-007); un rechazo de precondición (422, ni siquiera llegó a ARCA) va en
+    // toast (FR-007a). Compartido por el listado y el detalle de la venta.
+    // ---------------------------------------------------------------------
+    function inicializarArca(alEnviar) {
+        if (!document.getElementById('modal-confirmar-arca')) { return; }
+
         let $btnArcaPendiente = null;
         $(document).on('click', '.js-enviar-arca', function (e) {
             e.preventDefault();
@@ -404,7 +412,7 @@
             $.ajax({ url: $btn.data('url'), method: 'POST' })
                 .done((resp) => {
                     mostrarResultadoArca(resp);
-                    tabla.ajax.reload(null, false);
+                    if (typeof alEnviar === 'function') { alEnviar(resp); }
                 })
                 .fail((xhr) => {
                     if (xhr.status === 422) {
@@ -1056,6 +1064,10 @@
     function inicializarDetalle() {
         const data = window.VentaDetalleData;
         if (!data) { return; }
+
+        // Tras un envío exitoso a ARCA se recarga el detalle: el botón queda deshabilitado y
+        // aparecen el CAE y los datos fiscales ya declarados.
+        inicializarArca((resp) => { if (resp && resp.ok) { window.location.reload(); } });
 
         let cuentaSeleccionadaEdicion = null;
 

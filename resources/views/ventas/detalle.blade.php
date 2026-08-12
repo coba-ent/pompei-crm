@@ -23,7 +23,18 @@
                 @endif
             </div>
             <div class="col-sm-6 text-sm-end">
-                <button type="button" class="btn btn-warning" id="btn-crear-remito">
+                @if ($venta->puedeEnviarseAArca())
+                    <button type="button" class="btn btn-warning js-enviar-arca me-1"
+                            data-id="{{ $venta->id }}" data-url="{{ route('ventas.enviarArca', $venta) }}">
+                        <i class="fas fa-paper-plane me-1"></i> Enviar a ARCA
+                    </button>
+                @elseif ($venta->estaFacturada())
+                    <button type="button" class="btn btn-secondary me-1" disabled
+                            title="Ya enviada a ARCA: tiene CAE aprobado.">
+                        <i class="fas fa-check me-1"></i> Enviada a ARCA
+                    </button>
+                @endif
+                <button type="button" class="btn btn-warning" id="btn-crear-remito"
                     <i class="fas fa-truck me-1"></i> Crear Remito
                 </button>
             </div>
@@ -233,6 +244,7 @@
 
 @include('ventas._modal_cobranza')
 @includeIf('ventas._modal_ncnd')
+@include('ventas._modales_arca')
 @endsection
 
 @php
