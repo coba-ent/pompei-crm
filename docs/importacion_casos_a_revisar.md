@@ -816,7 +816,6 @@ pasada no se puede terminar de reconstruir; el de hoy sí cierra (~2 %).
 
 1. **Compras 2021-2024 en formato "c/ pago"** — desbloquea el resto de las fechas de pago.
 2. **$144.687,50** de diferencia en Cta Cte Clientes contra el Excel.
-3. **8 ventas con $929.119,03 cobrados de más** que el Excel — detectado, sin investigar.
-4. **56 percepciones deducidas** ($178.147,76) en notas de compra, a verificar (§8d).
+3. **56 percepciones deducidas** ($178.147,76) en notas de compra, a verificar (§8d).
 5. **$1,00** en Caja chica, en movimientos anteriores al 24/07/2024.
 6. **16 tests fallando con 403** — preexistentes, de permisos, no de lógica.
