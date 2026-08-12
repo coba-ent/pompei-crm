@@ -867,3 +867,58 @@ reservada a ventas sin comprobante fiscal emitido.
 Pendiente: agregar la verificación en `VentaController::destroy()` (o donde corresponda del dominio)
 antes de permitir el `delete()`, y decidir si se bloquea del todo o se exige confirmación explícita.
 No se resuelve en la spec 063 para no ampliar su alcance.
+
+## 15. Cuenta Corriente de Proveedores conciliada — 12/08/2026
+
+**Alcance: la comparación contra Contagram vale hasta el 01/08/2026.** Después los dos ambientes
+divergen por operación propia del CRM (ventas de Mercado Libre desde el 22/07, más las cargadas a
+mano). Para verificar el import, cualquier corte anterior sirve; posteriores, no.
+
+| Corte | CRM | Contagram | Diferencia |
+|---|---:|---:|---:|
+| 01/07/2026 | $17.165.169,44 | $17.160.519,48 | +$4.649,96 |
+| 01/08/2026 | $14.157.574,03 | $14.152.924,06 | +$4.649,97 |
+
+Venía de **+$9,8 M**. Tres correcciones, en este orden:
+
+1. **Re-armado de pagos** con el informe "Cuentas Corrientes - Movimientos de Proveedores" filtrado
+   por `Operación = Pago`, que trae `Id Compra`, fecha real y medio. 222 fechas corregidas y 635
+   compras rearmadas (el importador consolidaba en un pago lo que en Contagram son varios): 3.333
+   pagos contra 2.346, **misma suma total y mismo `Pagado` por compra**.
+2. **Anticipos**: un pago anterior a la emisión de su comprobante resta de la deuda. Un solo pago a
+   Mercado Libre de $9.535.004,71 (31/07, facturado el 04/08) inflaba el saldo al 01/08 en esa cifra.
+3. **Neteo de saldos a favor** en el total.
+
+### La diferencia que queda no es del CRM
+
+Calculando el saldo **desde el propio informe de Contagram** con nuestro mismo criterio:
+
+```
+              desde el Excel      nuestro aging     panel de Contagram
+01/07        17.165.169,25       17.165.169,44        17.160.519,48
+01/08        14.157.573,83       14.157.574,03        14.152.924,06
+```
+
+Reproducimos el informe con **19 centavos** de redondeo. Los $4.649,96 están **entre el informe de
+Contagram y su propio panel**. Es la segunda vez que aparece ese desfasaje: en Mercado Pago el export
+daba $16.382.756,42 al 01/08 y el panel $15.955.229,51 ($427.526,91 de diferencia).
+
+**Regla que se desprende: el panel de Saldos de Contagram no reproduce sus propios exports. Para
+conciliar hay que usar los exports, nunca el panel.**
+
+### Verificación por comprobante
+
+- **2.318 compras** con saldo idéntico al 01/07 contra el informe: **0 diferencias**.
+- Agregados de compras, pagos, NC y ND: coinciden al centavo.
+- Único faltante real: **la compra Id 85 del 24/04/2021 (PERSONAL, $683,08) no se importó**. Su pago
+  tampoco, así que se cancelan y no afectan ningún saldo, pero el comprobante falta.
+
+### Pendiente: Clientes
+
+Sigue sin cerrar (−$221.731,28 al 01/07 y +$3.132.875,97 al 01/08 — oscila, no es una constante).
+La causa está identificada: **23.213 de los 23.228 cobros tienen la fecha de emisión de su venta**,
+no la del cobro real ($1.522 M). Es el defecto de §5, que del lado de pagos ya se resolvió.
+
+Se cierra con el mismo método: el informe **"Movimientos de Clientes" filtrado por `Operación = Cobro`**.
+El `Ventas c- cobro` **no sirve** para esto: es una fila por venta, con `Cobrado` acumulado y los
+medios concatenados (`Mercado Pago - Mercado Pago`), sin fecha ni importe por cobro.
