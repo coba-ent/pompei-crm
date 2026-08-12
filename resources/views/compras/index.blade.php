@@ -133,8 +133,7 @@
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label">Estado del Pago</label>
-                                <select id="filtro-estado-pago" class="form-select">
-                                    <option value="">Todos</option>
+                                <select id="filtro-estado-pago" class="form-select" multiple>
                                     <option value="a_pagar">A Pagar</option>
                                     <option value="parcial">Parcial</option>
                                     <option value="pagado">Pagado</option>
@@ -156,16 +155,14 @@
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label">Facturado</label>
-                                <select id="filtro-facturado" class="form-select">
-                                    <option value="">Todos</option>
+                                <select id="filtro-facturado" class="form-select" multiple>
                                     <option value="1">Sí</option>
                                     <option value="0">No</option>
                                 </select>
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label">Medio de pago</label>
-                                <select id="filtro-medio-pago" class="form-select">
-                                    <option value="">Todos</option>
+                                <select id="filtro-medio-pago" class="form-select" multiple>
                                     @foreach ($cuentasTesoreria as $ct)
                                         <option value="{{ $ct->id }}">{{ $ct->nombre }}</option>
                                     @endforeach
@@ -186,8 +183,7 @@
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label">Depósito</label>
-                                <select id="filtro-deposito" class="form-select">
-                                    <option value="">Todos</option>
+                                <select id="filtro-deposito" class="form-select" multiple>
                                     @foreach ($depositos as $d)
                                         <option value="{{ $d->id }}">{{ $d->nombre }}</option>
                                     @endforeach

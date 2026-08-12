@@ -129,13 +129,20 @@ class CompraController extends Controller
             $nc = "COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.compra_id = compras.id AND n.tipo = 'credito' AND n.deleted_at IS NULL), 0)";
             $nd = "COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.compra_id = compras.id AND n.tipo = 'debito' AND n.deleted_at IS NULL), 0)";
             $aPagar = "(compras.total + {$nd} - {$nc} - {$pagado})";
-            match ($request->input('estado_pago')) {
-                'pagado' => $query->whereRaw("{$pagado} > 0")->whereRaw("{$aPagar} <= 0.005"),
-                'parcial' => $query->whereRaw("{$pagado} > 0")->whereRaw("{$aPagar} > 0.005"),
-                // Mismo criterio que la card KPI "Vencido": vto. pasado y todavía queda saldo.
-                'vencido' => $query->whereNotNull('fecha_vto_pago')->whereDate('fecha_vto_pago', '<', now())->whereRaw("{$aPagar} > 0.005"),
-                default => $query->whereRaw("{$pagado} <= 0"),
-            };
+            $estados = (array) $request->input('estado_pago');
+            $query->where(function (Builder $q) use ($estados, $pagado, $aPagar) {
+                foreach ($estados as $estado) {
+                    $q->orWhere(function (Builder $qq) use ($estado, $pagado, $aPagar) {
+                        match ($estado) {
+                            'pagado' => $qq->whereRaw("{$pagado} > 0")->whereRaw("{$aPagar} <= 0.005"),
+                            'parcial' => $qq->whereRaw("{$pagado} > 0")->whereRaw("{$aPagar} > 0.005"),
+                            // Mismo criterio que la card KPI "Vencido": vto. pasado y todavía queda saldo.
+                            'vencido' => $qq->whereNotNull('fecha_vto_pago')->whereDate('fecha_vto_pago', '<', now())->whereRaw("{$aPagar} > 0.005"),
+                            default => $qq->whereRaw("{$pagado} <= 0"),
+                        };
+                    });
+                }
+            });
         }
         if ($request->filled('factura_buscar')) {
             $kw = $request->input('factura_buscar');
@@ -145,13 +152,18 @@ class CompraController extends Controller
         if ($request->filled('etiqueta_id')) {
             $query->whereHas('etiquetas', fn (Builder $q) => $q->whereIn('etiquetas.id', (array) $request->input('etiqueta_id')));
         }
-        if ($request->has('facturado')) {
-            $request->input('facturado') === '1'
-                ? $query->whereHas('comprobanteFiscal')
-                : $query->whereDoesntHave('comprobanteFiscal');
+        if ($request->filled('facturado')) {
+            $valores = (array) $request->input('facturado');
+            $query->where(function (Builder $q) use ($valores) {
+                foreach ($valores as $valor) {
+                    $q->orWhere(fn (Builder $qq) => $valor === '1'
+                        ? $qq->whereHas('comprobanteFiscal')
+                        : $qq->whereDoesntHave('comprobanteFiscal'));
+                }
+            });
         }
         if ($request->filled('medio_pago_id')) {
-            $query->whereHas('pagos', fn (Builder $q) => $q->where('cuenta_tesoreria_id', $request->input('medio_pago_id')));
+            $query->whereHas('pagos', fn (Builder $q) => $q->whereIn('cuenta_tesoreria_id', (array) $request->input('medio_pago_id')));
         }
         if ($request->filled('usuario_id')) {
             $query->whereIn('creado_por_id', (array) $request->input('usuario_id'));
@@ -160,7 +172,7 @@ class CompraController extends Controller
             $query->where('nota_interna', 'like', '%'.$request->input('nota_interna').'%');
         }
         if ($request->filled('deposito_id')) {
-            $query->where('deposito_id', $request->input('deposito_id'));
+            $query->whereIn('deposito_id', (array) $request->input('deposito_id'));
         }
         if ($request->filled('servicio_desde')) {
             $query->whereDate('servicio_desde', '>=', $request->input('servicio_desde'));

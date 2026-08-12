@@ -191,7 +191,7 @@
         initSelect2($('#filtro-etiqueta'), { placeholder: 'Todas', allowClear: true });
         initSelect2($('#filtro-vendedor'), { placeholder: 'Todos', allowClear: true });
         initSelect2($('#filtro-usuario'), { placeholder: 'Todos', allowClear: true });
-        initSelect2($('#filtro-estado'));
+        initSelect2($('#filtro-estado'), { placeholder: 'Todos', allowClear: true });
 
         function filtrosActuales() {
             return {

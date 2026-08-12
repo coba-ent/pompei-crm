@@ -177,28 +177,41 @@ class VentaController extends Controller
             };
         }
         if ($request->filled('estado_cobro')) {
-            match ($request->input('estado_cobro')) {
-                'sin_cobrar' => $query->whereDoesntHave('cobros'),
-                'cobrada' => $query->whereHas('cobros')->whereRaw('(select coalesce(sum(monto),0) from cobros where cobros.venta_id = ventas.id) >= ventas.total'),
-                'parcial' => $query->whereHas('cobros')->whereRaw('(select coalesce(sum(monto),0) from cobros where cobros.venta_id = ventas.id) < ventas.total'),
-                // Mismo criterio que la card KPI "Vencido": vto. pasado y todavía queda saldo
-                // (A Cobrar real, con NC/ND — no sólo cobros vs. total como los casos de arriba).
-                'vencido' => $query->whereNotNull('fecha_vto_cobro')->whereDate('fecha_vto_cobro', '<', now())->whereRaw("(ventas.total
-                        + COALESCE((SELECT SUM(monto) FROM notas_credito_debito WHERE venta_id = ventas.id AND tipo = 'debito' AND deleted_at IS NULL), 0)
-                        - COALESCE((SELECT SUM(monto) FROM notas_credito_debito WHERE venta_id = ventas.id AND tipo = 'credito' AND deleted_at IS NULL), 0)
-                        - COALESCE((SELECT SUM(monto) FROM cobros WHERE venta_id = ventas.id AND deleted_at IS NULL), 0)
-                    ) > 0.005"),
-                default => null,
-            };
+            // Multi-select (spec de filtros múltiples): cada estado elegido se agrupa con OR
+            // dentro de un único where anidado, para no pisar el resto de los filtros con AND.
+            $estados = (array) $request->input('estado_cobro');
+            $query->where(function (Builder $q) use ($estados) {
+                foreach ($estados as $estado) {
+                    $q->orWhere(function (Builder $qq) use ($estado) {
+                        match ($estado) {
+                            'sin_cobrar' => $qq->whereDoesntHave('cobros'),
+                            'cobrada' => $qq->whereHas('cobros')->whereRaw('(select coalesce(sum(monto),0) from cobros where cobros.venta_id = ventas.id) >= ventas.total'),
+                            'parcial' => $qq->whereHas('cobros')->whereRaw('(select coalesce(sum(monto),0) from cobros where cobros.venta_id = ventas.id) < ventas.total'),
+                            // Mismo criterio que la card KPI "Vencido": vto. pasado y todavía queda saldo
+                            // (A Cobrar real, con NC/ND — no sólo cobros vs. total como los casos de arriba).
+                            'vencido' => $qq->whereNotNull('fecha_vto_cobro')->whereDate('fecha_vto_cobro', '<', now())->whereRaw("(ventas.total
+                                    + COALESCE((SELECT SUM(monto) FROM notas_credito_debito WHERE venta_id = ventas.id AND tipo = 'debito' AND deleted_at IS NULL), 0)
+                                    - COALESCE((SELECT SUM(monto) FROM notas_credito_debito WHERE venta_id = ventas.id AND tipo = 'credito' AND deleted_at IS NULL), 0)
+                                    - COALESCE((SELECT SUM(monto) FROM cobros WHERE venta_id = ventas.id AND deleted_at IS NULL), 0)
+                                ) > 0.005"),
+                            default => $qq->whereRaw('1 = 0'),
+                        };
+                    });
+                }
+            });
         }
         if ($request->filled('categoria_id')) {
             $query->whereIn('categoria_id', (array) $request->input('categoria_id'));
         }
         if ($request->filled('estado_factura')) {
-            match ($request->input('estado_factura')) {
-                'sin_emitir' => $query->whereDoesntHave('comprobanteFiscal'),
-                default => $query->whereHas('comprobanteFiscal', fn (Builder $q) => $q->where('estado', $request->input('estado_factura'))),
-            };
+            $estados = (array) $request->input('estado_factura');
+            $query->where(function (Builder $q) use ($estados) {
+                foreach ($estados as $estado) {
+                    $q->orWhere(fn (Builder $qq) => $estado === 'sin_emitir'
+                        ? $qq->whereDoesntHave('comprobanteFiscal')
+                        : $qq->whereHas('comprobanteFiscal', fn (Builder $qqq) => $qqq->where('estado', $estado)));
+                }
+            });
         }
         if ($request->filled('factura_buscar')) {
             $kw = $request->input('factura_buscar');
@@ -220,10 +233,10 @@ class VentaController extends Controller
             $query->whereHas('remitos', fn (Builder $q) => $q->where('nro_remito', 'like', '%'.$request->input('remito_buscar').'%'));
         }
         if ($request->filled('deposito_id')) {
-            $query->whereHas('movimientosStock', fn (Builder $q) => $q->where('deposito_id', $request->input('deposito_id')));
+            $query->whereHas('movimientosStock', fn (Builder $q) => $q->whereIn('deposito_id', (array) $request->input('deposito_id')));
         }
         if ($request->filled('medio_cobro_id')) {
-            $query->whereHas('cobros', fn (Builder $q) => $q->where('cuenta_tesoreria_id', $request->input('medio_cobro_id')));
+            $query->whereHas('cobros', fn (Builder $q) => $q->whereIn('cuenta_tesoreria_id', (array) $request->input('medio_cobro_id')));
         }
         if ($request->filled('usuario_id')) {
             $query->whereIn('creado_por_id', (array) $request->input('usuario_id'));

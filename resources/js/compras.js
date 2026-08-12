@@ -106,8 +106,8 @@
         initSelect2($('#filtro-usuario'), { placeholder: 'Todos', allowClear: true });
         initSelect2($('#filtro-medio-pago'), { placeholder: 'Todos', allowClear: true });
         initSelect2($('#filtro-deposito'), { placeholder: 'Todos', allowClear: true });
-        initSelect2($('#filtro-estado-pago'));
-        initSelect2($('#filtro-facturado'));
+        initSelect2($('#filtro-estado-pago'), { placeholder: 'Todos', allowClear: true });
+        initSelect2($('#filtro-facturado'), { placeholder: 'Todos', allowClear: true });
 
         // --- Rangos de fecha (Emisión / Vencimiento) con presets, mismo patrón que ventas.js ---
         let emisionDesde = '';

@@ -70,10 +70,14 @@ class PresupuestoController extends Controller
             $query->whereIn('cliente_id', (array) $request->input('cliente_id'));
         }
         if ($request->filled('estado')) {
-            match ($request->input('estado')) {
-                'vencido' => $query->where('estado', 'pendiente')->whereDate('fecha_validez', '<', now()),
-                default => $query->where('estado', $request->input('estado')),
-            };
+            $estados = (array) $request->input('estado');
+            $query->where(function (Builder $q) use ($estados) {
+                foreach ($estados as $estado) {
+                    $q->orWhere(fn (Builder $qq) => $estado === 'vencido'
+                        ? $qq->where('estado', 'pendiente')->whereDate('fecha_validez', '<', now())
+                        : $qq->where('estado', $estado));
+                }
+            });
         }
         if ($request->filled('categoria_id')) {
             $query->whereIn('categoria_id', (array) $request->input('categoria_id'));

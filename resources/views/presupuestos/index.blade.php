@@ -120,8 +120,7 @@
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label">Estado del Presupuesto</label>
-                                <select id="filtro-estado" class="form-select">
-                                    <option value="">Todos</option>
+                                <select id="filtro-estado" class="form-select" multiple>
                                     <option value="pendiente">Pendiente</option>
                                     <option value="vencido">Vencido</option>
                                     <option value="rechazado">Rechazado</option>

@@ -163,8 +163,8 @@
         initSelect2($('#filtro-usuario'), { placeholder: 'Todos', allowClear: true });
         initSelect2($('#filtro-medio-cobro'), { placeholder: 'Todos', allowClear: true });
         initSelect2($('#filtro-deposito'), { placeholder: 'Todos', allowClear: true });
-        initSelect2($('#filtro-estado-cobro'));
-        initSelect2($('#filtro-estado-factura'));
+        initSelect2($('#filtro-estado-cobro'), { placeholder: 'Todos', allowClear: true });
+        initSelect2($('#filtro-estado-factura'), { placeholder: 'Todas', allowClear: true });
         initSelect2($('#filtro-remitos'));
         initSelect2($('#filtro-creada-desde'));
 
