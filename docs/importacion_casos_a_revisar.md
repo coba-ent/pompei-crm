@@ -808,14 +808,45 @@ de la compra que cancelan), con 0 ambigüedades. Al 01/07/2026 el saldo pasó de
 **$11.350.848,54**, contra $17.160.519,48 de Contagram.
 
 **Techo**: 1.202 pagos no tienen ningún movimiento que los respalde —esos movimientos vinieron sin
-`nro_comprobante`— y siguen con la fecha de emisión. Es la misma carencia de origen ya anotada en §7:
-faltan las **compras 2021-2024 en formato "c/ pago"**. Sin eso, el saldo de Proveedores a una fecha
-pasada no se puede terminar de reconstruir; el de hoy sí cierra (~2 %).
+`nro_comprobante`— y siguen con la fecha de emisión. Sin eso, el saldo de Proveedores **a una fecha
+pasada** no se puede terminar de reconstruir.
+
+### ✅ El saldo de Proveedores de HOY cierra al centavo (12/08/2026)
+
+Corrección: se venía arrastrando de §7 que faltaban las **compras 2021-2024 en formato "c/ pago"**.
+**No faltan** — están en `public/imports/Compras c- pago/`, sólo que los archivos de 2021 a 2024 se
+llaman `Compras c_ cobro.xlsx` (y uno `Comrpas`, con la r cambiada) aunque el contenido es el
+formato de pago: mismas 40 columnas, con `Pagado`, `A Pagar` y `Medio de Pago`.
+
+Con la columna `A Pagar` como control independiente, sobre las 2.380 compras del resumen:
+
+```
+Excel "A Pagar"                      $19.039.453,15
+- pagos cargados en el CRM el 11/08     $467.123,48
+                                     ───────────────
+                                     $18.572.329,67  = el saldo de la base, exacto
+```
+
+Los tres pagos son de compras posteriores al corte (`COMPRA-2026-FC-2375/2377/2379`), mismo caso que
+las 8 ventas de más arriba. Y **sólo 3 de 2.380 compras tienen el `Pagado` distinto al de la base**:
+la imputación de pagos por comprobante está bien. Lo único que sigue mal es **la fecha** de 1.202 de
+esos pagos.
+
+### La diferencia entre los dos exports de Compras
+
+Mismo par que en Ventas, y conviene no confundirlos:
+
+| Carpeta | Granularidad | Trae |
+|---|---|---|
+| `Compras/` | una fila **por renglón** (1.158 filas en 2021) | `Producto/Servicio`, `Código`, `Cantidad`, `Costo`, `Precio unitario`, `Afecta Stock` |
+| `Compras c- pago/` | una fila **por comprobante** (322 en 2021) | `Total ND`, `Total NC`, `Pagado`, `A Pagar`, `Estado`, `Medio de Pago` |
+
+El resumen **no trae la fecha de cada pago**, sólo el medio y el acumulado pagado. Por eso la fecha
+real sigue saliendo únicamente de `Cuentas/`.
 
 ### Pendientes
 
-1. **Compras 2021-2024 en formato "c/ pago"** — desbloquea el resto de las fechas de pago.
-2. **$144.687,50** de diferencia en Cta Cte Clientes contra el Excel.
+1. **$144.687,50** de diferencia en Cta Cte Clientes contra el Excel.
 3. **56 percepciones deducidas** ($178.147,76) en notas de compra, a verificar (§8d).
 5. **$1,00** en Caja chica, en movimientos anteriores al 24/07/2024.
 6. **16 tests fallando con 403** — preexistentes, de permisos, no de lógica.
