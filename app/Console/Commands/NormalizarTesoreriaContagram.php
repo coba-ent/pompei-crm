@@ -304,17 +304,20 @@ class NormalizarTesoreriaContagram extends Command
     }
 
     /**
-     * Las notas de 2021 y 2022 quedaron en $0,00 porque el export por-ítem de esos años **no trae
-     * los importes** en las filas de nota (verificado: `Total Venta`, `Subtotal` y `Precio de Venta`
-     * vienen todos vacíos). El importe se recupera de la columna `Total NC` de la venta en el
-     * `Ventas c- cobro` —que sí lo trae— una vez identificada la venta por cliente y fecha.
+     * Notas cuyo **importe en la base estaba mal** y por eso nunca pudieron matchearse. Dos causas:
      *
-     * Sólo entran las que resolvieron con **candidato único**: mismo cliente y nota posterior a la
-     * venta. Las tres de un mismo cliente que quedaron ambiguas no se cargan a ojo.
+     * 1. Las de 2021/2022 quedaron en $0,00: el export por-ítem de esos años no trae los importes
+     *    en las filas de nota (`Total Venta`, `Subtotal` y `Precio de Venta` vienen vacíos).
+     * 2. Las multi-renglón quedaron **cortas**: el importador tomó el `Total Venta` de una fila en
+     *    vez de sumar los renglones. La NC 234 entró en $212.560,92 sumando 2 de sus 3 ítems,
+     *    cuando vale $311.628,81.
+     *
+     * En ambos casos el importe correcto está en la columna `Total NC` de la venta en el
+     * `Ventas c- cobro`, y el vínculo se confirmó contra el "Documento que Ajusta" de Contagram.
      */
     private function recuperarNotasSinImporte(): void
     {
-        $archivo = base_path('database/data/notas_2021_sin_importe.json');
+        $archivo = base_path('database/data/notas_venta_recuperadas.json');
 
         if (! is_file($archivo)) {
             return;
@@ -335,6 +338,6 @@ class NormalizarTesoreriaContagram extends Command
                 : $q->update(['venta_id' => $ventas[$d['venta']], 'monto' => $d['monto']]);
         }
 
-        $this->line("  Notas de 2021 con importe recuperado del `Total NC` de su venta: {$recuperadas} de ".count($mapa));
+        $this->line("  Notas con importe recuperado del `Total NC` de su venta: {$recuperadas} de ".count($mapa));
     }
 }
