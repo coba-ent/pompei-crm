@@ -112,6 +112,50 @@ class TraductorOrdenes
         return $ordenTraducida['moneda'] === self::MONEDA_NEGOCIO;
     }
 
+    /**
+     * Estados de los pagos de la orden (`payments[].status`), que hoy se descartaban.
+     * La mediación no aparece en el estado de la orden, sólo acá (spec 063 / research.md §R3).
+     *
+     * @param  array<string, mixed>  $ordenCruda
+     * @return array<int, string>
+     */
+    public function estadoPagos(array $ordenCruda): array
+    {
+        $pagos = $ordenCruda['payments'] ?? [];
+
+        return array_values(array_filter(array_map(
+            static fn (array $pago) => (string) ($pago['status'] ?? ''),
+            $pagos
+        )));
+    }
+
+    /** FR-004: la mediación se detecta por el estado de los pagos, no por el de la orden. */
+    public function tieneMediacion(array $ordenCruda): bool
+    {
+        return in_array('in_mediation', $this->estadoPagos($ordenCruda), true);
+    }
+
+    /**
+     * Importe reembolsado informado por el marketplace, si viene en algún pago
+     * (`transaction_amount_refunded`). FR-004a: si no viene informado, null —
+     * el aviso debe mostrarse igual, dejando constancia de que no vino el dato.
+     *
+     * @param  array<string, mixed>  $ordenCruda
+     */
+    public function importeReembolsado(array $ordenCruda): ?float
+    {
+        $pagos = $ordenCruda['payments'] ?? [];
+        $total = null;
+
+        foreach ($pagos as $pago) {
+            if (isset($pago['transaction_amount_refunded']) && (float) $pago['transaction_amount_refunded'] > 0) {
+                $total = ($total ?? 0) + (float) $pago['transaction_amount_refunded'];
+            }
+        }
+
+        return $total;
+    }
+
     private function nombreComprador(array $buyer): ?string
     {
         $billing = $buyer['billing_info'] ?? [];

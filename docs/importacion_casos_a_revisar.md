@@ -850,3 +850,20 @@ real sigue saliendo únicamente de `Cuentas/`.
 3. **56 percepciones deducidas** ($178.147,76) en notas de compra, a verificar (§8d).
 5. **$1,00** en Caja chica, en movimientos anteriores al 24/07/2024.
 6. **16 tests fallando con 403** — preexistentes, de permisos, no de lógica.
+
+## `VentaController::destroy()` permite eliminar una Venta con comprobante fiscal emitido
+
+Hallazgo del 12/08/2026, al implementar la spec 063 (cancelaciones de Mercado Libre posteriores a
+la venta). No es parte de esa spec —que sólo detecta y avisa, no toca el circuito fiscal (Principio
+III)— pero apareció al revisar cómo se resuelve un aviso y hay que dejarlo registrado por separado
+(research.md §R7 de esa spec).
+
+`VentaController::destroy()` hoy hace `$venta->delete()` sin ninguna verificación de si la Venta
+tiene un comprobante ya autorizado por ARCA (CAE emitido). Eso significa que **el sistema permite
+eliminar una factura ya autorizada**, cuando lo correcto para revertir una venta facturada es emitir
+una nota de crédito (el comprobante no debe desaparecer). La eliminación sin control debería quedar
+reservada a ventas sin comprobante fiscal emitido.
+
+Pendiente: agregar la verificación en `VentaController::destroy()` (o donde corresponda del dominio)
+antes de permitir el `delete()`, y decidir si se bloquea del todo o se exige confirmación explícita.
+No se resuelve en la spec 063 para no ampliar su alcance.

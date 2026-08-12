@@ -139,7 +139,7 @@ class VentaController extends Controller
      */
     private function queryFiltrada(Request $request): Builder
     {
-        $query = Venta::query()->with(['cliente:id,nombre', 'categoria:id,nombre', 'presupuesto:id', 'listaPrecio:id,nombre', 'vendedor:id,nombre', 'etiquetas:id,nombre', 'cobros.cuentaTesoreria:id,nombre', 'comprobanteFiscal:id,comprobantable_type,comprobantable_id,estado', 'items.producto:id,nombre']);
+        $query = Venta::query()->with(['cliente:id,nombre', 'categoria:id,nombre', 'presupuesto:id', 'listaPrecio:id,nombre', 'vendedor:id,nombre', 'etiquetas:id,nombre', 'cobros.cuentaTesoreria:id,nombre', 'comprobanteFiscal:id,comprobantable_type,comprobantable_id,estado', 'items.producto:id,nombre', 'mlOrden:id,venta_id,estado_conversion,motivo,motivo_detalle']);
 
         return $this->aplicarFiltros($query, $request);
     }
@@ -291,10 +291,23 @@ class VentaController extends Controller
             ->addColumn('cliente', fn (Venta $v) => optional($v->cliente)->nombre)
             // Las migradas muestran el número que tenían en Contagram junto al id del CRM: es el
             // dato por el que se las busca cuando llega un comprobante viejo en papel.
-            ->editColumn('id', fn (Venta $v) => $v->legacy_id === null
-                ? (string) $v->id
-                : $v->id.' <span class="badge bg-light text-muted" title="Número en Contagram">'
-                    .e($this->numeroContagram($v->legacy_id)).'</span>')
+            ->editColumn('id', function (Venta $v) {
+                $html = $v->legacy_id === null
+                    ? (string) $v->id
+                    : $v->id.' <span class="badge bg-light text-muted" title="Número en Contagram">'
+                        .e($this->numeroContagram($v->legacy_id)).'</span>';
+
+                // spec 063 (T015, FR-008): indicador de aviso pendiente (cancelación/reembolso
+                // parcial/mediación posterior a la conversión) en el listado de Ventas.
+                if ($v->mlOrden
+                    && $v->mlOrden->estado_conversion === \App\Enums\MercadoLibre\EstadoConversion::RequiereAtencion
+                    && in_array($v->mlOrden->motivo, \App\Enums\MercadoLibre\MotivoRequiereAtencion::motivosDeCancelacionPosterior(), true)) {
+                    $html .= ' <span class="badge bg-warning text-dark" title="'.e($v->mlOrden->motivo_detalle).'">'
+                        .'<i class="fas fa-triangle-exclamation me-1"></i>'.e($v->mlOrden->motivo->etiqueta()).'</span>';
+                }
+
+                return $html;
+            })
             ->addColumn('productos', fn (Venta $v) => $v->items->map(fn (VentaItem $i) => $i->producto?->nombre ?? $i->descripcion)->filter()->implode(', '))
             ->addColumn('categoria', fn (Venta $v) => optional($v->categoria)->nombre)
             ->addColumn('cobrado', fn (Venta $v) => $v->cobrado())

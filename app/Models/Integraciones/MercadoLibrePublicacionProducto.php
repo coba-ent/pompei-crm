@@ -21,6 +21,7 @@ class MercadoLibrePublicacionProducto extends Model
     protected $fillable = [
         'ml_item_id', 'producto_id', 'titulo_ml', 'vinculada_por',
         'stock_pendiente', 'stock_sincronizado_en', 'stock_error', 'stock_error_en',
+        'stock_intentos_fallidos', 'stock_error_desde', 'stock_requiere_intervencion', 'ultimo_stock_publicado',
         'precio_pendiente', 'precio_sincronizado_en', 'precio_error', 'precio_error_en',
         'listing_type_id', 'listing_type_sincronizado_en',
     ];
@@ -29,6 +30,10 @@ class MercadoLibrePublicacionProducto extends Model
         'stock_pendiente' => 'boolean',
         'stock_sincronizado_en' => 'datetime',
         'stock_error_en' => 'datetime',
+        'stock_intentos_fallidos' => 'integer',
+        'stock_error_desde' => 'datetime',
+        'stock_requiere_intervencion' => 'boolean',
+        'ultimo_stock_publicado' => 'integer',
         'precio_pendiente' => 'boolean',
         'precio_sincronizado_en' => 'datetime',
         'precio_error_en' => 'datetime',
@@ -45,10 +50,20 @@ class MercadoLibrePublicacionProducto extends Model
         return $this->belongsTo(User::class, 'vinculada_por');
     }
 
-    /** Vínculos con un cambio de stock sin empujar todavía a Mercado Libre (spec 013, FR-003). */
+    /**
+     * Vínculos con un cambio de stock sin empujar todavía a Mercado Libre (spec 013, FR-003).
+     * spec 063/FR-016: excluye las bloqueadas por error permanente — ahí está el ahorro de las
+     * ~305 llamadas fallidas cada 6 h (SC-004); se reactivan a mano (T025).
+     */
     public function scopePendientes(Builder $query): Builder
     {
-        return $query->where('stock_pendiente', true);
+        return $query->where('stock_pendiente', true)->where('stock_requiere_intervencion', false);
+    }
+
+    /** spec 063/FR-014: publicaciones cuya sincronización de stock está fallando y ya requieren intervención. */
+    public function scopeRequierenIntervencion(Builder $query): Builder
+    {
+        return $query->where('stock_requiere_intervencion', true);
     }
 
     /** Vínculos con un cambio de precio sin empujar todavía a Mercado Libre (spec 016, FR-014). */

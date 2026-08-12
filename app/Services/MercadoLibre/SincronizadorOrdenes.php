@@ -38,6 +38,7 @@ class SincronizadorOrdenes
         private readonly EvaluadorConvertibilidad $evaluador,
         private readonly ConversorOrdenAVenta $conversor,
         private readonly ResolutorCliente $resolutorCliente,
+        private readonly DetectorCancelaciones $detectorCancelaciones,
     ) {
     }
 
@@ -192,10 +193,16 @@ class SincronizadorOrdenes
         $datosOrden = $this->traductor->traducirOrden($ordenCruda, $datosFaltantes);
         $itemsTraducidos = $this->traductor->traducirItems($ordenCruda);
 
-        [$esNueva, $orden, $estado] = DB::transaction(function () use ($datosOrden, $itemsTraducidos) {
+        [$esNueva, $orden, $estado] = DB::transaction(function () use ($datosOrden, $itemsTraducidos, $ordenCruda) {
             $existente = MercadoLibreOrden::where('ml_order_id', $datosOrden['ml_order_id'])->first();
             $esNueva = ! $existente;
             $estadoPrevio = $existente?->estado_conversion ?? EstadoConversion::PendientePago;
+            // spec 063: se capturan ANTES de que evaluador->evaluar() los pise, porque para una
+            // orden convertida y cancelada evaluador siempre devuelve motivo=null (líneas de
+            // abajo) — sin esto el detector de cancelaciones perdería su propia marca anterior en
+            // cada re-sincronización y rompería la idempotencia (FR-005).
+            $motivoPrevio = $existente?->motivo;
+            $motivoDetallePrevio = $existente?->motivo_detalle;
 
             $orden = MercadoLibreOrden::updateOrCreate(
                 ['ml_order_id' => $datosOrden['ml_order_id']],
@@ -227,6 +234,20 @@ class SincronizadorOrdenes
                 $this->resolutorCliente->buscarExistente($orden);
 
             [$estado, $motivo, $detalle] = $this->evaluador->evaluar($orden, $clienteAmbiguo);
+
+            // spec 063 (T007-T010): si la orden ya está convertida en Venta, el detector de
+            // cancelaciones tiene la última palabra sobre estado/motivo — puede pisar la decisión
+            // "Cancelada sin aviso" de arriba con "RequiereAtencion" + el motivo correspondiente,
+            // o dejar pasar la de evaluador si no hay nada que avisar (FR-001 a FR-007).
+            if ($orden->venta_id) {
+                $decision = $this->detectorCancelaciones->decidir(
+                    $orden, $ordenCruda, $motivoPrevio, $motivoDetallePrevio, $estadoPrevio
+                );
+
+                if ($decision) {
+                    [$estado, $motivo, $detalle] = $decision;
+                }
+            }
 
             $orden->update([
                 'estado_conversion' => $estado->value,

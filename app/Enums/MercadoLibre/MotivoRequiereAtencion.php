@@ -13,6 +13,9 @@ enum MotivoRequiereAtencion: string
     case AlertaFraude = 'alerta_fraude';
     case DatosIncompletos = 'datos_incompletos';
     case ErrorConversion = 'error_conversion';
+    case OrdenCancelada = 'orden_cancelada';
+    case OrdenReembolsoParcial = 'orden_reembolso_parcial';
+    case OrdenEnMediacion = 'orden_en_mediacion';
 
     public function etiqueta(): string
     {
@@ -25,6 +28,15 @@ enum MotivoRequiereAtencion: string
             self::AlertaFraude => 'Mercado Libre marcó la orden con alerta de fraude — no despachar',
             self::DatosIncompletos => 'Faltan datos del comprador en la respuesta de Mercado Libre',
             self::ErrorConversion => 'Falla inesperada durante la conversión',
+            self::OrdenCancelada => 'La orden fue cancelada en Mercado Libre después de facturarse',
+            self::OrdenReembolsoParcial => 'Mercado Libre informó un reembolso parcial',
+            self::OrdenEnMediacion => 'Hay un reclamo en mediación; el desenlace todavía no está definido',
         };
+    }
+
+    /** Motivos que corresponden a una cancelación posterior a la conversión (spec 063). */
+    public static function motivosDeCancelacionPosterior(): array
+    {
+        return [self::OrdenCancelada, self::OrdenReembolsoParcial, self::OrdenEnMediacion];
     }
 }

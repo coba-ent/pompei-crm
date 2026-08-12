@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers\Ingresos;
 
+use App\Enums\MercadoLibre\EstadoConversion;
+use App\Enums\MercadoLibre\MotivoRequiereAtencion;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Integraciones\ConvertirOrdenRequest;
 use App\Models\Integraciones\MercadoLibreOrden;
 use App\Models\Integraciones\MercadoLibrePublicacionProducto;
 use App\Models\Venta;
+use App\Services\AuditoriaService;
 use App\Services\MercadoLibre\ConversorOrdenAVenta;
 use App\Services\MercadoLibre\ReevaluadorOrdenes;
 use App\Services\MercadoLibre\ResolutorCliente;
@@ -33,6 +36,7 @@ class MercadoLibreVentaController extends Controller
         private readonly SincronizadorPrecios $sincronizadorPrecios,
         private readonly ResolutorCliente $resolutorCliente,
         private readonly ReevaluadorOrdenes $reevaluador,
+        private readonly AuditoriaService $auditoria,
     ) {
     }
 
@@ -153,6 +157,45 @@ class MercadoLibreVentaController extends Controller
         $submitToken = (string) Str::uuid();
 
         return view('ingresos.mercadolibre.convertir', compact('CurrentPage', 'orden', 'preview', 'submitToken'));
+    }
+
+    /**
+     * "Descartar aviso" (spec 063, T013/T014, FR-010/FR-011): deja la Venta vigente tal cual está
+     * y devuelve la orden a `Convertida`, sin ejecutar ningún circuito de reversión propio
+     * (FR-009a) — la persona decidió que no correspondía anular nada. Se registra en auditoría
+     * quién y cuándo, con el motivo original (FR-011); las notas de crédito y la eliminación ya
+     * tienen su propia auditoría, no se duplica acá.
+     */
+    public function descartarAviso(MercadoLibreOrden $orden): JsonResponse
+    {
+        if ($orden->estado_conversion !== EstadoConversion::RequiereAtencion
+            || ! in_array($orden->motivo, MotivoRequiereAtencion::motivosDeCancelacionPosterior(), true)) {
+            return response()->json([
+                'ok' => false,
+                'mensaje' => 'Esta orden no tiene un aviso de cancelación pendiente para descartar.',
+            ], 409);
+        }
+
+        $motivoOriginal = $orden->motivo->etiqueta();
+
+        $orden->update([
+            'estado_conversion' => EstadoConversion::Convertida->value,
+            'motivo' => null,
+            'motivo_detalle' => null,
+        ]);
+
+        $this->auditoria->registrarEvento(
+            tipoAccion: 'descartar',
+            tipoOperacion: 'ml_orden_aviso_cancelacion',
+            entidad: $orden,
+            detalle: "Se descartó el aviso de \"{$motivoOriginal}\" de la orden {$orden->ml_order_id}. La Venta ".
+                optional($orden->venta)->nro_comprobante." queda vigente sin cambios.",
+        );
+
+        return response()->json([
+            'ok' => true,
+            'mensaje' => 'Aviso descartado. La Venta sigue vigente.',
+        ]);
     }
 
     /** Ejecuta la conversión (FR-032, FR-044, FR-046). */

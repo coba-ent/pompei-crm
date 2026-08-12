@@ -55,21 +55,35 @@ class MercadoLibreVinculacionController extends Controller
             ->addColumn('stock_ml', fn (MercadoLibrePublicacionProducto $v) => $v->producto
                 ? (int) max(0, $stockService->disponibilidad($v->producto, null, $depositoMl))
                 : null)
+            // spec 063/FR-018: diferencia entre lo que el CRM tiene y lo último que se publicó
+            // (sólo tiene sentido si ya se sincronizó al menos una vez; si no, no hay con qué comparar).
+            ->addColumn('stock_diferencia', function (MercadoLibrePublicacionProducto $v) use ($stockService, $depositoMl) {
+                if (! $v->producto || ! $v->stock_sincronizado_en) {
+                    return null;
+                }
+
+                return (int) max(0, $stockService->disponibilidad($v->producto, null, $depositoMl)) - (int) $v->ultimo_stock_publicado;
+            })
             ->addColumn('acciones', fn (MercadoLibrePublicacionProducto $v) => view('ingresos.mercadolibre._row_actions_vinculacion', ['vinculacion' => $v])->render())
             ->addColumn('stock_estado', fn (MercadoLibrePublicacionProducto $v) => $this->stockEstado($v))
             ->addColumn('precio_estado', fn (MercadoLibrePublicacionProducto $v) => $this->precioEstado($v))
             ->editColumn('created_at', fn (MercadoLibrePublicacionProducto $v) => $v->created_at->format('d/m/Y'))
             ->editColumn('stock_sincronizado_en', fn (MercadoLibrePublicacionProducto $v) => $v->stock_sincronizado_en?->local()->format('d/m/Y H:i'))
             ->editColumn('stock_error_en', fn (MercadoLibrePublicacionProducto $v) => $v->stock_error_en?->local()->format('d/m/Y H:i'))
+            ->editColumn('stock_error_desde', fn (MercadoLibrePublicacionProducto $v) => $v->stock_error_desde?->local()->format('d/m/Y H:i'))
             ->editColumn('precio_sincronizado_en', fn (MercadoLibrePublicacionProducto $v) => $v->precio_sincronizado_en?->local()->format('d/m/Y H:i'))
             ->editColumn('precio_error_en', fn (MercadoLibrePublicacionProducto $v) => $v->precio_error_en?->local()->format('d/m/Y H:i'))
             ->rawColumns(['acciones'])
             ->toJson();
     }
 
-    /** Estado de sincronización de stock del vínculo (spec 013, FR-017). */
+    /** Estado de sincronización de stock del vínculo (spec 013, FR-017; spec 063, FR-014/FR-015). */
     private function stockEstado(MercadoLibrePublicacionProducto $v): string
     {
+        if ($v->stock_requiere_intervencion) {
+            return 'requiere_intervencion';
+        }
+
         if ($v->stock_error) {
             return 'error';
         }
@@ -210,6 +224,29 @@ class MercadoLibreVinculacionController extends Controller
         } finally {
             $lock->release();
         }
+    }
+
+    /**
+     * spec 063 (T025/FR-017): devuelve al ciclo normal una publicación bloqueada por error
+     * permanente. NO reenvía el stock acá mismo — sólo limpia el bloqueo y la marca como
+     * pendiente, para que la sincronización que corre después envíe el stock **vigente en ese
+     * momento** (edge case de la spec: el stock puede haber cambiado mientras estuvo bloqueada).
+     */
+    public function reactivar(MercadoLibrePublicacionProducto $vinculacion): JsonResponse
+    {
+        $vinculacion->update([
+            'stock_requiere_intervencion' => false,
+            'stock_intentos_fallidos' => 0,
+            'stock_error_desde' => null,
+            'stock_error' => null,
+            'stock_error_en' => null,
+            'stock_pendiente' => true,
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'mensaje' => 'Publicación reactivada: vuelve al ciclo normal de sincronización.',
+        ]);
     }
 
     public function update(VincularPublicacionRequest $request, MercadoLibrePublicacionProducto $vinculacion): JsonResponse

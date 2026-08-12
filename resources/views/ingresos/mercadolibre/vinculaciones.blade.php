@@ -41,6 +41,9 @@
                                     Stock publicado
                                 </th>
                                 <th>Sincronización</th>
+                                <th title="Diferencia entre el stock del CRM y lo último que se confirmó publicado en Mercado Libre (spec 063).">
+                                    Diferencia
+                                </th>
                                 <th>Precio</th>
                             </tr>
                         </thead>

@@ -766,6 +766,20 @@ del CRM (§5).
 `creacion_automatica`, `convertida_en`, `convertida_por`, `payload` (json, sin datos sensibles),
 `sincronizada_en`. **Sin soft delete ni purga** — es respaldo de documentos contables.
 
+> **Cancelación posterior a la conversión (spec 063, pendiente de implementar)**. Una orden ya
+> convertida que después se cancela vuelve a `estado_conversion = requiere_atencion`, con uno de tres
+> motivos nuevos: `orden_cancelada`, `orden_reembolso_parcial` u `orden_en_mediacion`. **El aviso vive
+> en la orden, no en la Venta**: no hay entidad ni tabla nueva, y la idempotencia sale del
+> `updateOrCreate` sobre `ml_order_id`. La marca **no modifica** importes, cobros, tesorería ni stock:
+> una persona decide si anula la Venta o descarta el aviso.
+>
+> Esto obliga a dos cambios en los enums: `EstadoConversion` admite la transición
+> `convertida → requiere_atencion` (hoy sólo `convertida → cancelada`), y `EstadoOrden` **deja de
+> colapsar** `cancelled`, `pending_cancel` y `partially_refunded` en un único estado `Cancelada`, que
+> hacía indistinguible un reembolso parcial de una cancelación firme. La **mediación** no viene en el
+> estado de la orden sino en el del pago (`payments[].status = in_mediation`), así que el traductor
+> debe leer también los pagos.
+
 ### `ml_orden_items`
 `ml_orden_id` (FK, cascade), `ml_item_id` (publicación), `ml_variation_id` (nullable — **si viene con
 valor, la orden se marca como no soportada**), `titulo`, `sku_vendedor`, `cantidad`, `precio_unitario`
@@ -786,6 +800,15 @@ publicaciones vinculadas, no sólo hacia una — ver `specs/036-vinculacion-mult
 > nullable — motivo del último rechazo), `stock_error_en` (datetime, nullable). Son el **único estado
 > persistente** de la sincronización de stock: no hay tabla de historial propia, los envíos se registran
 > en `ml_operaciones_log` (§8). Detalle completo en `specs/013-stock-mercadolibre/data-model.md`.
+
+> **Columnas nuevas (spec 063, pendiente de implementar)** — control de reintentos, para que un error
+> permanente deje de golpear la API: `stock_intentos_fallidos` (entero, default 0 — fallas consecutivas
+> con el **mismo** error), `stock_error_desde` (datetime, nullable — primera falla de la racha actual, a
+> diferencia de `stock_error_en` que guarda la última), `stock_requiere_intervencion` (bool, default
+> false). A los **5 intentos consecutivos** la publicación se marca y **queda excluida de las
+> pendientes** hasta que alguien la reactive. Motivo: cinco publicaciones acumulaban 61 reintentos cada
+> 6 horas —unas 305 llamadas fallidas— por bloqueos de Mercado Libre (`status:under_review`) que
+> reintentar no puede resolver. Una sincronización exitosa limpia las tres columnas.
 
 > **Columnas nuevas (spec 016, implementada)** — mismo patrón que las de stock, para
 > precio: `precio_pendiente` (bool, default false — precio vigente en la Lista de Precios configurada sin

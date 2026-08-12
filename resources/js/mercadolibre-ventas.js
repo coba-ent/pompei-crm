@@ -42,6 +42,7 @@
         inicializarSincronizarStock();
         inicializarDetalle();
         inicializarTransformarTodasEnVenta();
+        inicializarDescartarAviso();
     });
 
     function inicializarListado() {
@@ -201,6 +202,37 @@
         return '<p>' + resp.convertidas + ' de ' + resp.total + ' órdenes convertidas.</p>'
             + '<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Orden</th><th>Motivo</th><th>Detalle</th></tr></thead><tbody>'
             + filas + '</tbody></table></div>';
+    }
+
+    /** spec 063 (T013/T014): "Descartar aviso" — modal de confirmación + AJAX + toast, sin recarga. */
+    function inicializarDescartarAviso() {
+        const modalEl = document.getElementById('modal-descartar-aviso-ml');
+        if (!modalEl) { return; }
+        const modal = new bootstrap.Modal(modalEl);
+        let ordenId = null;
+
+        $(document).on('click', '.js-descartar-aviso-ml', function (e) {
+            e.preventDefault();
+            ordenId = $(this).data('id');
+            modal.show();
+        });
+
+        $('#btn-confirmar-descartar-aviso-ml').on('click', function () {
+            if (!ordenId) { return; }
+            const $btn = window.AppBtn.loading($(this), true);
+
+            $.post(rutas.descartarAviso + '/' + ordenId + '/descartar-aviso')
+                .done((resp) => {
+                    toast('success', resp.mensaje || 'Aviso descartado.');
+                    modal.hide();
+                    if (window._mlOrdenesTabla) { window._mlOrdenesTabla.ajax.reload(null, false); }
+                })
+                .fail((xhr) => {
+                    const resp = xhr.responseJSON || {};
+                    toast('error', resp.mensaje || 'No se pudo descartar el aviso.');
+                })
+                .always(() => window.AppBtn.loading($btn, false));
+        });
     }
 
     function inicializarDetalle() {

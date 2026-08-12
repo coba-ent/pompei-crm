@@ -647,6 +647,24 @@ Ver §5.2 para la divergencia deliberada de todo el módulo (aplicación propia 
 - **Fuera de alcance**: comisión de Mercado Libre y costo de envío (la Venta se crea por el monto
   bruto, por lo que el saldo de Mercado Pago en el CRM no coincidirá con el real, neto de comisiones).
   Las cancelaciones posteriores se señalan pero **no** modifican la Venta ya creada.
+  > 🚨 **Cancelaciones posteriores a la conversión (spec 063, implementada)**: si una orden ya
+  > convertida en Venta pasa a **cancelada**, **reembolso parcial** o entra en **mediación** (esto
+  > último se lee del estado de los **pagos**, `payments[].status = in_mediation`, no del estado de
+  > la orden), la sincronización marca la orden como **Requiere atención** con el motivo
+  > correspondiente (`orden_cancelada` / `orden_reembolso_parcial` / `orden_en_mediacion`) y la fecha
+  > de detección — **sin tocar** total, cobro, movimiento de Tesorería ni stock de la Venta ya creada.
+  > Es idempotente (repetir la sincronización no duplica el aviso ni mueve la fecha original) y no
+  > marca nada si la orden nunca se convirtió o si la Venta ya fue eliminada. La Venta marcada **no
+  > queda bloqueada**: se sigue pudiendo editar y cobrar con normalidad, el aviso sólo informa.
+  > Desde el aviso se llega a la Venta con un clic; la resolución usa el circuito que ya existe (nota
+  > de crédito —recomendado para un comprobante ya emitido— o eliminación de la Venta), **no se
+  > construyó ningún circuito de reversión propio**. También se puede **descartar el aviso** sin
+  > tocar la Venta (registra quién y cuándo). El aviso se cierra solo, sin ningún paso extra, cuando
+  > la Venta queda compensada por una nota de crédito, es eliminada, se descarta a mano, o la orden
+  > vuelve a un estado vigente (ej. una mediación resuelta a favor del negocio) — conservando la
+  > fecha de detección original si sólo cambió el motivo (ej. una mediación que termina en
+  > cancelación). El listado de Ventas muestra un indicador para las que tienen aviso pendiente. Ver
+  > `specs/063-ml-cancelaciones-avisos/`.
   > 📋 **Transformar todas en Venta (spec 025, implementada)**: botón siempre visible en el listado,
   > independiente de que la creación automática esté activa o no. Convierte en un único request
   > síncrono todas las órdenes en estado "Lista para convertir" de la conexión (ignorando filtros de
@@ -661,7 +679,7 @@ Ver §5.2 para la divergencia deliberada de todo el módulo (aplicación propia 
 > **no** reducía el stock publicado en Mercado Libre, que seguía ofreciendo unidades inexistentes. La
 > spec 013 construyó el sentido inverso (CRM → ML) y ese riesgo ya no está vigente. Ver §3.2.ter.
 
-*Fuente(s): `specs/012-ventas-mercadolibre/`*
+*Fuente(s): `specs/012-ventas-mercadolibre/`, `specs/063-ml-cancelaciones-avisos/`*
 
 ### 3.2.ter Sincronización de stock hacia Mercado Libre (spec 013 — implementada)
 
@@ -691,8 +709,20 @@ nuevas** — extiende las ya construidas por la spec 012.
   un pendiente. Lo mismo con la conexión caída.
 - **Rechazos**: si Mercado Libre rechaza una publicación puntual (pausada, cerrada, inexistente), el
   vínculo queda señalado con el **motivo concreto y la fecha**, el resto de los vínculos de esa corrida
-  se sincroniza con normalidad, y el pendiente se conserva para reintentarlo. Un error no excluye al
-  vínculo de futuras corridas.
+  se sincroniza con normalidad, y el pendiente se conserva para reintentarlo.
+  > 🛑 **Corte de reintentos permanentes (spec 063, implementada)**: un error se reintenta en cada
+  > corrida sólo mientras no se repita 5 veces seguidas. Si el **mismo** error se repite **5 intentos
+  > consecutivos**, el vínculo queda marcado **"Requiere intervención"** — deja de reintentarse y se
+  > excluye de la selección de pendientes, para no seguir golpeando la API por un bloqueo que no se
+  > va a resolver solo (bajó las llamadas fallidas de ~305 a menos de 10 cada 6 h). Si el error
+  > **cambia** respecto del anterior, el contador se reinicia en 1 en vez de acumularse (rachas
+  > mezcladas no tendrían sentido). El panel de Vinculación de publicaciones muestra el estado
+  > bloqueado, el motivo, los intentos acumulados, la fecha de la primera falla de la racha y la
+  > diferencia entre el stock del CRM y el último confirmado en Mercado Libre. Acción manual
+  > **"Reactivar"** devuelve el vínculo al ciclo normal una vez resuelto el problema en el
+  > marketplace, enviando el stock **vigente al momento de reactivar** (no el que tenía cuando se
+  > bloqueó). Al sincronizar con éxito se limpian contador, fecha y marca. Ver
+  > `specs/063-ml-cancelaciones-avisos/`.
 - > 📋 **Sincronización forzada y eliminación masiva (spec 035)**: en la pantalla de Vinculación de
   > publicaciones hay dos acciones adicionales a "Sincronizar ahora"/"Sincronizar stock ahora"/
   > "Sincronizar precios ahora":
@@ -724,7 +754,7 @@ nuevas** — extiende las ya construidas por la spec 012.
 > de stock, y desde spec 030 las Compras generan los suyos igual que Ventas y ajustes — quedan cubiertas
 > por este mecanismo sin cambios adicionales.
 
-*Fuente(s): `specs/013-stock-mercadolibre/`, `specs/035-sincronizacion-forzada-vinculaciones/`*
+*Fuente(s): `specs/013-stock-mercadolibre/`, `specs/035-sincronizacion-forzada-vinculaciones/`, `specs/063-ml-cancelaciones-avisos/`*
 
 ### 3.2.quater Tiendanube (`/ingresos/tiendanube`) — spec 017
 

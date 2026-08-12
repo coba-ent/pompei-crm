@@ -242,6 +242,8 @@ Route::middleware('auth')->group(function () {
             Route::delete('/', [MercadoLibreVinculacionController::class, 'eliminarTodas'])->name('eliminarTodas');
             Route::patch('{vinculacion}', [MercadoLibreVinculacionController::class, 'update'])->name('update');
             Route::delete('{vinculacion}', [MercadoLibreVinculacionController::class, 'destroy'])->name('destroy');
+            // spec 063 (T025/FR-017): reactiva una publicación bloqueada por error permanente.
+            Route::post('{vinculacion}/reactivar', [MercadoLibreVinculacionController::class, 'reactivar'])->name('reactivar');
         });
 
         // Rutas con {orden} genérico DEBEN ir después de /vinculaciones — si no, "vinculaciones"
@@ -249,6 +251,9 @@ Route::middleware('auth')->group(function () {
         // en el deploy del 28/07/2026).
         Route::get('{orden}/convertir', [MercadoLibreVentaController::class, 'convertir'])->name('convertir');
         Route::post('{orden}/convertir', [MercadoLibreVentaController::class, 'convertirGuardar'])->name('convertirGuardar');
+        // spec 063 (T013/T014): descarta el aviso de cancelación/reembolso/mediación posterior a la
+        // conversión, dejando la Venta vigente tal cual está (FR-010/FR-011).
+        Route::post('{orden}/descartar-aviso', [MercadoLibreVentaController::class, 'descartarAviso'])->name('descartarAviso');
         Route::get('{orden}', [MercadoLibreVentaController::class, 'show'])->name('show');
     });
 

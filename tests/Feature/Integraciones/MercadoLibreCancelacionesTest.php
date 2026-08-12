@@ -101,7 +101,10 @@ class MercadoLibreCancelacionesTest extends TestCase
         app(SincronizadorOrdenes::class)->ejecutar();
 
         $orden->refresh();
-        $this->assertSame('cancelada', $orden->estado_conversion->value);
+        // spec 063: una orden CONVERTIDA que se cancela después ya no colapsa a "cancelada" sin
+        // avisar — queda "requiere_atencion" con el motivo, para que alguien la revise (T007-T010).
+        $this->assertSame('requiere_atencion', $orden->estado_conversion->value);
+        $this->assertSame('orden_cancelada', $orden->motivo->value);
         $this->assertNotNull($orden->venta_id);
 
         // La Venta permanece intacta: no se borró, no cambió su total, el stock no se revirtió.

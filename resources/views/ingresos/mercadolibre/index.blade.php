@@ -119,6 +119,24 @@
     </div>
 </div>
 
+<div class="modal fade" id="modal-descartar-aviso-ml" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Descartar aviso</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0">¿Descartar este aviso? La Venta queda vigente tal cual está, sin ningún cambio en su total, cobro ni stock.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-warning" id="btn-confirmar-descartar-aviso-ml">Descartar aviso</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="modal-resultado-transformar-venta-ml" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
@@ -144,6 +162,7 @@
             sincronizarStock: @json(route('ingresos.mercadolibre.sincronizarStock')),
             transformarTodasEnVenta: @json(route('ingresos.mercadolibre.transformarTodasEnVenta')),
             show: @json(url('ingresos/mercadolibre')),
+            descartarAviso: @json(url('ingresos/mercadolibre')),
             ventaShow: @json(url('ventas')),
             vinculaciones: @json(Route::has('ingresos.mercadolibre.vinculaciones.index') ? route('ingresos.mercadolibre.vinculaciones.index') : null),
         },

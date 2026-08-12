@@ -13,15 +13,23 @@ enum EstadoOrden: string
     case Pendiente = 'pendiente';
     case Pagada = 'pagada';
     case Cancelada = 'cancelada';
+    case ReembolsoParcial = 'reembolso_parcial';
     case Otro = 'otro';
 
-    /** Mapea el `status` crudo de la API (`paid`, `cancelled`, etc.) al enum normalizado. */
+    /**
+     * Mapea el `status` crudo de la API (`paid`, `cancelled`, etc.) al enum normalizado.
+     *
+     * spec 063 / data-model.md §"EstadoOrden": `partially_refunded` deja de colapsarse
+     * con `cancelled`/`pending_cancel` — antes eran indistinguibles. La mediación NO se
+     * deriva de este estado: vive en `payments[].status` (ver TraductorOrdenes::estadoPagos()).
+     */
     public static function desdeCrudo(string $statusCrudo): self
     {
         return match ($statusCrudo) {
             'paid' => self::Pagada,
             'confirmed', 'payment_required', 'payment_in_process', 'partially_paid' => self::Pendiente,
-            'cancelled', 'pending_cancel', 'partially_refunded' => self::Cancelada,
+            'cancelled', 'pending_cancel' => self::Cancelada,
+            'partially_refunded' => self::ReembolsoParcial,
             default => self::Otro,
         };
     }
@@ -32,6 +40,7 @@ enum EstadoOrden: string
             self::Pendiente => 'Pendiente de pago',
             self::Pagada => 'Pagada',
             self::Cancelada => 'Cancelada',
+            self::ReembolsoParcial => 'Reembolso parcial',
             self::Otro => 'Otro',
         };
     }

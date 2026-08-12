@@ -40,6 +40,30 @@
             </div>
         </div>
 
+        @php
+            // spec 063 (FR-008/FR-009): aviso de cancelación/reembolso parcial/mediación posterior
+            // a la conversión — el motivo a la vista al llegar desde el aviso o al listado.
+            $avisoCancelacion = $venta->mlOrden
+                && $venta->mlOrden->estado_conversion === \App\Enums\MercadoLibre\EstadoConversion::RequiereAtencion
+                && in_array($venta->mlOrden->motivo, \App\Enums\MercadoLibre\MotivoRequiereAtencion::motivosDeCancelacionPosterior(), true)
+                ? $venta->mlOrden
+                : null;
+        @endphp
+        @if ($avisoCancelacion)
+            <div class="alert alert-warning d-flex align-items-start gap-2 mb-3">
+                <i class="fas fa-triangle-exclamation mt-1"></i>
+                <div>
+                    <strong>{{ $avisoCancelacion->motivo->etiqueta() }}</strong>
+                    <div class="small">{{ $avisoCancelacion->motivo_detalle }}</div>
+                    <div class="small text-muted mt-1">
+                        El aviso no bloquea nada: podés editar y cobrar esta Venta con normalidad. Resolvela
+                        con lo que ya existe —una nota de crédito o eliminando la Venta— o descartá el aviso
+                        desde la pantalla de Órdenes de Mercado Libre si no corresponde anular nada.
+                    </div>
+                </div>
+            </div>
+        @endif
+
         {{-- Barra de ecuación (informe §3.8) --}}
         <div class="card mb-3">
             <div class="card-body">

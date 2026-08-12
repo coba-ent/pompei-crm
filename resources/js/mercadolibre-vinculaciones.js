@@ -45,6 +45,7 @@
         inicializarListado();
         inicializarModalAlta();
         inicializarEliminar();
+        inicializarReactivar();
         inicializarVinculacionAutomatica();
         inicializarSincronizacionForzada();
         inicializarEliminarTodas();
@@ -220,6 +221,13 @@
                     render: (data, type, row) => renderEstadoStock(data, row),
                 },
                 {
+                    // spec 063/FR-018: diferencia entre el stock del CRM y lo último publicado.
+                    data: 'stock_diferencia', name: 'stock_diferencia', orderable: false, searchable: false,
+                    render: (data) => data === null || data === undefined
+                        ? '—'
+                        : (data === 0 ? '<span class="text-muted">0</span>' : '<span class="badge bg-warning text-dark">' + (data > 0 ? '+' : '') + data + '</span>'),
+                },
+                {
                     data: 'precio_estado', name: 'precio_estado', orderable: false, searchable: false,
                     render: (data, type, row) => renderEstadoPrecio(data, row),
                 },
@@ -245,6 +253,8 @@
         sincronizado: { color: 'success', etiqueta: 'Sincronizado' },
         pendiente: { color: 'warning', etiqueta: 'Pendiente' },
         error: { color: 'danger', etiqueta: 'Error' },
+        // spec 063/FR-014/FR-015: dejó de reintentarse tras 5 fallas consecutivas con el mismo error.
+        requiere_intervencion: { color: 'dark', etiqueta: 'Requiere intervención' },
     };
 
     function renderEstadoStock(estado, row) {
@@ -259,6 +269,15 @@
             html += ' <i class="fas fa-circle-info text-danger ms-1" title="'
                 + $('<div>').text(row.stock_error + (row.stock_error_en ? ' (' + row.stock_error_en + ')' : '')).html()
                 + '"></i>';
+        }
+
+        if (estado === 'requiere_intervencion') {
+            const detalle = (row.stock_error || 'Error permanente')
+                + (row.stock_error_desde ? ' — desde el ' + row.stock_error_desde : '')
+                + (row.stock_intentos_fallidos ? ' — ' + row.stock_intentos_fallidos + ' intentos' : '');
+            html += ' <i class="fas fa-circle-info text-dark ms-1" title="' + $('<div>').text(detalle).html() + '"></i>'
+                + ' <button type="button" class="btn btn-sm btn-outline-dark ms-1 js-reactivar-vinculacion" data-id="' + row.id + '">'
+                + 'Reactivar</button>';
         }
 
         return html;
@@ -401,6 +420,29 @@
                         });
                     }
                     toast('error', resp.message || resp.mensaje || 'No se pudo guardar la vinculación.');
+                });
+        });
+    }
+
+    /** spec 063 (T025): reactiva una publicación bloqueada por error permanente, sin recargar la página. */
+    function inicializarReactivar() {
+        $(document).on('click', '.js-reactivar-vinculacion', function () {
+            const id = $(this).data('id');
+            if (!id) { return; }
+            const $btn = $(this);
+            window.AppBtn.loading($btn, true);
+
+            $.ajax({ url: rutas.base + '/' + id + '/reactivar', method: 'POST' })
+                .done((resp) => {
+                    toast('success', resp.mensaje || 'Publicación reactivada.');
+                    if (tabla) { tabla.ajax.reload(null, false); }
+                })
+                .fail((xhr) => {
+                    const resp = xhr.responseJSON || {};
+                    toast('error', resp.mensaje || resp.message || 'No se pudo reactivar la publicación.');
+                })
+                .always(() => {
+                    window.AppBtn.loading($btn, false);
                 });
         });
     }

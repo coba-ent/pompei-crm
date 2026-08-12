@@ -56,8 +56,8 @@ enum EstadoConversion: string
         return match ($this) {
             self::PendientePago => [self::Lista, self::Cancelada],
             self::Lista => [self::RequiereAtencion, self::Convertida, self::Cancelada],
-            self::RequiereAtencion => [self::Lista, self::Cancelada],
-            self::Convertida => [self::Cancelada],
+            self::RequiereAtencion => [self::Lista, self::Convertida, self::Cancelada],
+            self::Convertida => [self::RequiereAtencion, self::Cancelada],
             self::Cancelada => [],
         };
     }

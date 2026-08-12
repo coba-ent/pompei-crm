@@ -1,5 +1,10 @@
 @php
     $puedeConvertir = $orden->estado_conversion->habilitaCrearVenta();
+    // spec 063 (T012/T013): un aviso de cancelación/reembolso/mediación posterior a la
+    // conversión — sólo aplica a órdenes que YA tienen Venta (FR-007).
+    $esAvisoCancelacion = $orden->venta_id
+        && $orden->estado_conversion === \App\Enums\MercadoLibre\EstadoConversion::RequiereAtencion
+        && in_array($orden->motivo, \App\Enums\MercadoLibre\MotivoRequiereAtencion::motivosDeCancelacionPosterior(), true);
 @endphp
 <div class="dropdown">
     <button class="btn btn-sm btn-outline-{{ $orden->estado_conversion->color() }} dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-display="static">
@@ -16,6 +21,14 @@
                 <span class="dropdown-item disabled" title="{{ $orden->motivo_detalle }}">
                     Crear Venta @if($orden->motivo) ({{ $orden->motivo->etiqueta() }}) @endif
                 </span>
+            </li>
+        @endif
+        @if ($esAvisoCancelacion)
+            <li><hr class="dropdown-divider"></li>
+            <li>
+                <a class="dropdown-item text-warning js-descartar-aviso-ml" href="#" data-id="{{ $orden->id }}" title="{{ $orden->motivo_detalle }}">
+                    Descartar aviso
+                </a>
             </li>
         @endif
     </ul>

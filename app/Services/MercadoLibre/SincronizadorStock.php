@@ -26,6 +26,9 @@ class SincronizadorStock
 {
     public const LOCK_KEY = 'ml:sincronizar_stock';
 
+    /** spec 063/FR-015: intentos consecutivos con el mismo error antes de marcar "requiere intervención". */
+    public const MAX_INTENTOS_CONSECUTIVOS = 5;
+
     public function __construct(
         private readonly ClienteMercadoLibre $cliente,
         private readonly StockService $stock,
@@ -193,9 +196,20 @@ class SincronizadorStock
 
             if ($respuesta->fallo()) {
                 $conError++;
+
+                $mensajeError = $respuesta->mensajeError ?? 'Mercado Libre rechazó la actualización.';
+                // spec 063/FR-014: mismo error consecutivo → incrementa; error distinto → reinicia
+                // la racha en 1 y refija "desde cuándo" (no tiene sentido contar rachas mezcladas).
+                $mismoError = $vinculo->stock_error === $mensajeError;
+                $intentos = $mismoError ? $vinculo->stock_intentos_fallidos + 1 : 1;
+
                 $vinculo->update([
-                    'stock_error' => $respuesta->mensajeError ?? 'Mercado Libre rechazó la actualización.',
+                    'stock_error' => $mensajeError,
                     'stock_error_en' => now(),
+                    'stock_intentos_fallidos' => $intentos,
+                    'stock_error_desde' => $mismoError ? $vinculo->stock_error_desde : now(),
+                    // FR-015: a los 5 intentos consecutivos con el mismo error, deja de reintentarse.
+                    'stock_requiere_intervencion' => $intentos >= self::MAX_INTENTOS_CONSECUTIVOS,
                 ]);
 
                 continue;
@@ -207,6 +221,10 @@ class SincronizadorStock
                 'stock_sincronizado_en' => now(),
                 'stock_error' => null,
                 'stock_error_en' => null,
+                'stock_intentos_fallidos' => 0,
+                'stock_error_desde' => null,
+                'stock_requiere_intervencion' => false,
+                'ultimo_stock_publicado' => $cantidad,
             ]);
         }
 
