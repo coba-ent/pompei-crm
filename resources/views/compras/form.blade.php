@@ -37,6 +37,7 @@
                             <option value="A">A</option>
                             <option value="B" selected>B</option>
                             <option value="C">C</option>
+                            <option value="S">Sin Factura</option>
                         </select>
                     </div>
                     <div class="col-md-3">

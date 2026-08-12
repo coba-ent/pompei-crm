@@ -125,7 +125,7 @@
         <div class="card mb-3 position-relative overflow-hidden">
             <div class="card-body" style="position:relative; z-index:2;">
                 <div class="d-flex justify-content-between mb-3">
-                    <h5 class="mb-0">Comprobante {{ $compra->tipo_comprobante }} N° {{ $compra->nro_comprobante }}</h5>
+                    <h5 class="mb-0">Comprobante {{ $compra->tipo_comprobante === 'S' ? 'Sin Factura' : $compra->tipo_comprobante }} N° {{ $compra->nro_comprobante }}</h5>
                     <div class="text-end">
                         <div>Fecha de Emisión: {{ optional($compra->fecha_emision)->format('d/m/Y') }}</div>
                         @if ($compra->fecha_vto_pago)
