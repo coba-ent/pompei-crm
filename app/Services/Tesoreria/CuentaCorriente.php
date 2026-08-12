@@ -178,13 +178,37 @@ class CuentaCorriente
             ->first();
 
         return [
-            'a_vencer' => (float) $r->a_vencer,
+            // Un pago/cobro anterior a la emisión de su comprobante es un **anticipo**: a la fecha
+            // de corte la plata ya se movió aunque la factura todavía no exista, así que es saldo a
+            // favor y resta de la deuda. Sin esto el filtro por `fecha_emision` se lleva puesto el
+            // pago junto con la compra futura: al 01/08/2026 un único pago a Mercado Libre de
+            // $9.535.004,71 (hecho el 31/07, facturado el 04/08) inflaba Proveedores en esa cifra.
+            // Es un patrón regular del proveedor, que liquida a fin de mes y factura a principios
+            // del siguiente — hay 80 casos por $51,8 M.
+            'a_vencer' => (float) $r->a_vencer - $this->anticipos($tipo, $fecha),
             'vencido' => (float) $r->vencido,
             '0_30' => (float) $r->b0_30,
             '31_60' => (float) $r->b31_60,
             '61_90' => (float) $r->b61_90,
             'mas_90' => (float) $r->mas_90,
         ];
+    }
+
+    /** Pagos/cobros ya hechos a la fecha de corte cuyo comprobante se emitió después. */
+    private function anticipos(string $tipo, Carbon $fecha): float
+    {
+        $esCliente = $tipo === 'cliente';
+        $tabla = $esCliente ? 'ventas' : 'compras';
+        $fk = $esCliente ? 'venta_id' : 'compra_id';
+        $pagosTabla = $esCliente ? 'cobros' : 'pagos';
+
+        return (float) DB::table($pagosTabla)
+            ->join($tabla, "{$tabla}.id", '=', "{$pagosTabla}.{$fk}")
+            ->whereNull("{$pagosTabla}.deleted_at")
+            ->whereNull("{$tabla}.deleted_at")
+            ->where("{$pagosTabla}.fecha", '<=', $fecha->toDateString())
+            ->where("{$tabla}.fecha_emision", '>', $fecha->toDateString())
+            ->sum("{$pagosTabla}.monto");
     }
 
     /** @return array{total: float, buckets: array{a_vencer: float, vencido: float, "0_30": float, "31_60": float, "61_90": float, mas_90: float}} */

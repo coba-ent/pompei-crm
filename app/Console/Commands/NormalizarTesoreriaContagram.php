@@ -100,6 +100,7 @@ class NormalizarTesoreriaContagram extends Command
                 $this->recuperarNotasSinImporte();
                 $this->vincularNotasCompra();
                 $this->refecharPagos();
+                $this->reconstruirPagos();
 
                 // El dry-run recorre todo con las escrituras hechas y las descarta al final: así el
                 // conteo de cada paso refleja el estado que dejaría el paso anterior, no el actual.
@@ -437,5 +438,168 @@ class NormalizarTesoreriaContagram extends Command
         }
 
         $this->line("  Pagos re-fechados contra su movimiento de tesorería: {$refechados}");
+    }
+
+    /**
+     * Alias de los medios de pago de Contagram que no coinciden literalmente con el nombre de la
+     * cuenta en el CRM. `Juan USD  Personal` viene con doble espacio y se resuelve normalizando.
+     */
+    private const MEDIOS = [
+        'galicia' => 'Banco Galicia',
+        'usd online' => 'USD Online',
+        'visa credicoop' => 'Visa Credicoop a Pagar',
+        'cabal credicoop' => 'Cabal Credicoop a Pagar',
+        'cabal acreditaciones' => 'Cabal Acreditaciones a Cobrar',
+        'mastercard' => 'Mastercard a Cobrar',
+        'visa' => 'Visa a Cobrar',
+        'payway qr' => 'PAYWAY QR a Cobrar',
+        'nulo' => 'Nulo a Cobrar',
+    ];
+
+    /**
+     * Deja los pagos de cada compra igual a Contagram, usando el informe
+     * "Cuentas Corrientes - Movimientos de Proveedores" filtrado por `Operación = Pago`, que trae
+     * el vínculo explícito (`Id Compra`), la fecha real y el medio de pago de cada uno.
+     *
+     * Dos situaciones:
+     *
+     * 1. **El importe coincide** → se corrige la fecha (y la cuenta si hace falta). Es el caso de
+     *    los pagos que el importador creó bien pero fechados con la emisión de la compra.
+     * 2. **El desglose no coincide pero la suma sí** → el importador consolidó en un pago lo que en
+     *    Contagram son varios. Ahí se reemplaza el conjunto por el real.
+     *
+     * Salvaguarda: si algún medio de pago de esa compra no resuelve a una cuenta, **no se toca la
+     * compra**. Sin eso se borrarían pagos sin poder recrearlos y la compra quedaría con menos
+     * pagado del que tiene (pasó en una prueba: 145 pagos perdidos por `Galicia` vs `Banco Galicia`).
+     */
+    private function reconstruirPagos(): void
+    {
+        $archivo = base_path('database/data/pagos_contagram.json');
+
+        if (! is_file($archivo)) {
+            return;
+        }
+
+        $mapa = json_decode(file_get_contents($archivo), true);
+        $cuentas = CuentaTesoreria::pluck('id', 'nombre')
+            ->mapWithKeys(fn ($id, $nombre) => [$this->clave($nombre) => $id]);
+
+        $cuentaDe = function (string $medio) use ($cuentas): ?int {
+            $k = $this->clave($medio);
+
+            return $cuentas[$k] ?? ($cuentas[$this->clave(self::MEDIOS[$k] ?? '')] ?? null);
+        };
+
+        $refechados = 0;
+        $rearmadas = 0;
+        $creados = 0;
+        $omitidas = 0;
+
+        foreach (\App\Models\Compra::whereNotNull('legacy_id')->get(['id', 'legacy_id']) as $compra) {
+            $idContagram = substr($compra->legacy_id, strrpos($compra->legacy_id, '-') + 1);
+            $reales = $mapa[$idContagram] ?? null;
+
+            if ($reales === null) {
+                continue;
+            }
+
+            // Sólo los pagos que trajo la migración. Un pago cargado después en el CRM (sin esa
+            // nota) no se toca ni entra en el cálculo: el informe de Contagram es anterior y no lo
+            // tiene, así que borrarlo sería perder plata real. En el VPS ya hay 8 de esos.
+            $pagos = DB::table('pagos')->where('compra_id', $compra->id)->whereNull('deleted_at')
+                ->where('nota', 'like', 'Migrado de Contagram%')->get();
+
+            if ($pagos->isEmpty()) {
+                continue;
+            }
+
+            // 1) Los que coinciden por importe: sólo se corrige fecha y cuenta.
+            $libres = $reales;
+            $pendientes = [];
+
+            foreach ($pagos as $pago) {
+                $i = null;
+                foreach ($libres as $k => $r) {
+                    if (abs($r['monto'] - (float) $pago->monto) < 0.005) {
+                        $i = $k;
+                        break;
+                    }
+                }
+
+                if ($i === null) {
+                    $pendientes[] = $pago;
+
+                    continue;
+                }
+
+                $cambios = array_filter([
+                    'fecha' => $pago->fecha === $libres[$i]['fecha'] ? null : $libres[$i]['fecha'],
+                    'cuenta_tesoreria_id' => ($cid = $cuentaDe($libres[$i]['medio'])) === $pago->cuenta_tesoreria_id ? null : $cid,
+                ]);
+
+                if ($cambios !== [] && ! $this->dryRun) {
+                    DB::table('pagos')->where('id', $pago->id)->update($cambios);
+                }
+
+                $refechados += $cambios === [] ? 0 : 1;
+                unset($libres[$i]);
+            }
+
+            if ($pendientes === []) {
+                continue;
+            }
+
+            $sumaReal = array_sum(array_column($libres, 'monto'));
+            $sumaNuestra = array_sum(array_map(fn ($p) => (float) $p->monto, $pendientes));
+
+            if (abs($sumaReal - $sumaNuestra) > 0.02) {
+                continue;
+            }
+
+            // Sin cuenta para todos, no se toca: borrar sin poder recrear descuadra la compra.
+            foreach ($libres as $r) {
+                if ($cuentaDe($r['medio']) === null) {
+                    $this->warn("  Compra {$compra->legacy_id}: medio \"{$r['medio']}\" sin cuenta, se omite.");
+                    $omitidas++;
+
+                    continue 2;
+                }
+            }
+
+            $rearmadas++;
+
+            if ($this->dryRun) {
+                $creados += count($libres);
+
+                continue;
+            }
+
+            foreach ($pendientes as $p) {
+                DB::table('pagos')->where('id', $p->id)->delete();
+            }
+
+            foreach ($libres as $r) {
+                DB::table('pagos')->insert([
+                    'compra_id' => $compra->id,
+                    'fecha' => $r['fecha'],
+                    'monto' => $r['monto'],
+                    'cuenta_tesoreria_id' => $cuentaDe($r['medio']),
+                    'nota' => 'Migrado de Contagram (pago '.$r['id'].')',
+                    'created_at' => $r['fecha'],
+                    'updated_at' => $r['fecha'],
+                ]);
+                $creados++;
+            }
+        }
+
+        $this->line("  Pagos corregidos contra el informe de Contagram: {$refechados}");
+        $this->line("  Compras con el desglose de pagos rearmado: {$rearmadas} ({$creados} pagos)".
+            ($omitidas > 0 ? " — {$omitidas} omitidas por medio sin cuenta" : ''));
+    }
+
+    /** Normaliza un nombre de cuenta/medio para compararlo: espacios colapsados y minúsculas. */
+    private function clave(string $s): string
+    {
+        return mb_strtolower(trim(preg_replace('/\s+/', ' ', $s)));
     }
 }
