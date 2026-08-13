@@ -104,6 +104,7 @@ class NormalizarTesoreriaContagram extends Command
                 $this->vincularNotasCompra();
                 $this->refecharPagos();
                 $this->reconstruirPagos();
+                $this->reconstruirCobros();
                 $this->movimientosPosterioresAlCorte();
                 $this->tesoreriaDePagosSinMovimiento();
 
@@ -599,6 +600,151 @@ class NormalizarTesoreriaContagram extends Command
 
         $this->line("  Pagos corregidos contra el informe de Contagram: {$refechados}");
         $this->line("  Compras con el desglose de pagos rearmado: {$rearmadas} ({$creados} pagos)".
+            ($omitidas > 0 ? " — {$omitidas} omitidas por medio sin cuenta" : ''));
+    }
+
+    /**
+     * Lo mismo que `reconstruirPagos()` pero del lado de las ventas, con el informe
+     * "Cuentas Corrientes - Movimientos de Clientes" filtrado por `Operación = Cobro` (§17).
+     *
+     * El importador de ventas **consolidó en un solo cobro** los parciales de cada venta y los
+     * fechó con la emisión de la factura, así que la Cta Cte de Clientes envejecía mal: 1.690
+     * ventas tienen varios cobros en Contagram y uno solo acá, y otros 1.046 cobros coinciden en
+     * importe pero no en fecha (hasta 353 días de desvío).
+     *
+     * **No toca `movimientos_tesoreria`.** Son dos capas independientes: los saldos de las cajas se
+     * importaron de los extractos de `Cuentas/` y ya están verificados contra Contagram, y los
+     * cobros migrados no generan movimiento (25.022 movimientos de tipo `cobro` tienen
+     * `origen_type` nulo). Por eso las cajas cerraban aunque el desglose de cobros estuviera mal.
+     *
+     * Salvaguardas, iguales a las de los pagos:
+     * - sólo se consideran los cobros con nota `Migrado de Contagram%`: uno cargado después por la
+     *   app (una orden de Mercado Libre, por ejemplo) es posterior al informe y borrarlo sería
+     *   perder plata real;
+     * - el desglose se rearma **sólo si la suma coincide**, y si algún medio no resuelve a una
+     *   cuenta se omite la venta entera;
+     * - las ventas que no están en el informe se dejan intactas. El export arranca el 02/08/2021,
+     *   así que las 358 ventas cobradas antes de esa fecha quedan como están hasta que se consiga
+     *   el tramo que falta; volver a correr el comando con el JSON completo las termina de arreglar.
+     */
+    private function reconstruirCobros(): void
+    {
+        $archivo = base_path('database/data/cobros_contagram.json');
+
+        if (! is_file($archivo)) {
+            return;
+        }
+
+        $mapa = json_decode(file_get_contents($archivo), true);
+        $cuentas = CuentaTesoreria::pluck('id', 'nombre')
+            ->mapWithKeys(fn ($id, $nombre) => [$this->clave($nombre) => $id]);
+
+        $cuentaDe = function (string $medio) use ($cuentas): ?int {
+            $k = $this->clave($medio);
+
+            return $cuentas[$k] ?? ($cuentas[$this->clave(self::MEDIOS[$k] ?? '')] ?? null);
+        };
+
+        $corregidos = 0;
+        $rearmadas = 0;
+        $creados = 0;
+        $omitidas = 0;
+
+        foreach (Venta::whereNotNull('legacy_id')->get(['id', 'legacy_id']) as $venta) {
+            $idContagram = substr($venta->legacy_id, strrpos($venta->legacy_id, '-') + 1);
+            $reales = $mapa[$idContagram] ?? null;
+
+            if ($reales === null) {
+                continue;
+            }
+
+            $cobros = DB::table('cobros')->where('venta_id', $venta->id)->whereNull('deleted_at')
+                ->where('nota', 'like', 'Migrado de Contagram%')->get();
+
+            if ($cobros->isEmpty()) {
+                continue;
+            }
+
+            // 1) Los que coinciden por importe: sólo se corrige fecha y cuenta.
+            $libres = $reales;
+            $pendientes = [];
+
+            foreach ($cobros as $cobro) {
+                $i = null;
+                foreach ($libres as $k => $r) {
+                    if (abs($r['monto'] - (float) $cobro->monto) < 0.005) {
+                        $i = $k;
+                        break;
+                    }
+                }
+
+                if ($i === null) {
+                    $pendientes[] = $cobro;
+
+                    continue;
+                }
+
+                $cambios = array_filter([
+                    'fecha' => $cobro->fecha === $libres[$i]['fecha'] ? null : $libres[$i]['fecha'],
+                    'cuenta_tesoreria_id' => ($cid = $cuentaDe($libres[$i]['medio'])) === $cobro->cuenta_tesoreria_id ? null : $cid,
+                ]);
+
+                if ($cambios !== [] && ! $this->dryRun) {
+                    DB::table('cobros')->where('id', $cobro->id)->update($cambios);
+                }
+
+                $corregidos += $cambios === [] ? 0 : 1;
+                unset($libres[$i]);
+            }
+
+            if ($pendientes === []) {
+                continue;
+            }
+
+            $sumaReal = array_sum(array_column($libres, 'monto'));
+            $sumaNuestra = array_sum(array_map(fn ($c) => (float) $c->monto, $pendientes));
+
+            if (abs($sumaReal - $sumaNuestra) > 0.02) {
+                continue;
+            }
+
+            foreach ($libres as $r) {
+                if ($cuentaDe($r['medio']) === null) {
+                    $this->warn("  Venta {$venta->legacy_id}: medio \"{$r['medio']}\" sin cuenta, se omite.");
+                    $omitidas++;
+
+                    continue 2;
+                }
+            }
+
+            $rearmadas++;
+
+            if ($this->dryRun) {
+                $creados += count($libres);
+
+                continue;
+            }
+
+            foreach ($pendientes as $c) {
+                DB::table('cobros')->where('id', $c->id)->delete();
+            }
+
+            foreach ($libres as $r) {
+                DB::table('cobros')->insert([
+                    'venta_id' => $venta->id,
+                    'fecha' => $r['fecha'],
+                    'monto' => $r['monto'],
+                    'cuenta_tesoreria_id' => $cuentaDe($r['medio']),
+                    'nota' => 'Migrado de Contagram (cobro '.$r['id'].')',
+                    'created_at' => $r['fecha'],
+                    'updated_at' => $r['fecha'],
+                ]);
+                $creados++;
+            }
+        }
+
+        $this->line("  Cobros corregidos contra el informe de Contagram: {$corregidos}");
+        $this->line("  Ventas con el desglose de cobros rearmado: {$rearmadas} ({$creados} cobros)".
             ($omitidas > 0 ? " — {$omitidas} omitidas por medio sin cuenta" : ''));
     }
 
