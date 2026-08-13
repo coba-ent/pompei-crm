@@ -1112,3 +1112,32 @@ $47.999,00, ambos del 05/08.
   "08/06" pero su Id (26136) corresponde al 07/08. El archivo llega a agosto, no a junio. Los
   exports nuevos por rango no tienen el problema: traen la fecha como fecha, no como texto.
   **Para cualquier comparación futura usar los exports por rango, no los de `Cuentas/`.**
+
+## 19. Bug: editar un gasto conciliado no movía la caja — corregido el 13/08/2026
+
+`Pagos::conciliarGasto()` salía sin hacer nada cuando el gasto ya tenía movimiento de tesorería. El
+método estaba pensado sólo para el alta diferida (quitar "pendiente" genera el movimiento recién
+ahí), pero `GastoController::update()` lo llama en **toda** edición. Resultado: cambiarle la cuenta
+a un gasto ya conciliado lo dejaba descontando de la anterior, y cambiarle el monto o la fecha no
+se reflejaba en ningún saldo.
+
+En el VPS quedó **un solo caso** de toda la base: el gasto 9246 ("Ley 25413", $660,80 del
+10/08/2026), creado el 11/08 en `Caja del Local` y reasignado el 12/08 a `Banco Credicoop`, con el
+movimiento quedado en la caja vieja. Corregido: Caja del Local +$660,80, Banco Credicoop −$660,80.
+No afecta los saldos al 05/08 porque es posterior al corte.
+
+Se verificó que **pagos y cobros no tienen el mismo problema**: 0 movimientos desfasados.
+
+### Por qué no lo agarró la suite
+
+`tests/Feature/GastoEdicionBajaTest.php` tiene el test exacto que lo cubría
+(`test_cambiar_cuenta_mueve_el_importe_entre_cuentas`), pero apunta a `App\Services\Gastos\Gastos`
+y a los campos `importe`/`estado`, de una implementación que ya no existe: el archivo falla al
+construirse y nunca llegó a correr.
+
+**Esa familia entera de tests está contra la API vieja** (`GastoAltaTest` usa `cuenta_origen_id`,
+`estado`, `importe`). Los 16 tests "en rojo por permisos" que veníamos arrastrando son en buena
+parte esto, no un problema de permisos. Vale la pena revisarlos: mientras estén rotos, la suite no
+cubre gastos.
+
+El fix nuevo va con `GastoEdicionSincronizaTesoreriaTest`, verificado en rojo antes de aplicarlo.
