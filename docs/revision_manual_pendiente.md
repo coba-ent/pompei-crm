@@ -8,27 +8,45 @@ Lo demás está cerrado: tesorería, NC/ND, Cta Cte de Proveedores y los cobros 
 
 ---
 
-## 1. Tres ventas cuyo cobro Contagram borró — $427.526,91
+## 1. Seis notas de crédito de agosto que el CRM no tiene — $886.882,46
 
-**Es lo único que separa a Mercado Pago de estar cerrada.**
+**Resuelto el diagnóstico**: las tres ventas cuyo cobro "Contagram había borrado" no se borraron —
+se les **emitió nota de crédito** el 10/08/2026. Por eso desapareció el cobro del informe. Aparecen
+en el informe de NC/ND de 2026 (`public/imports/nc nd 2026/`).
 
-| Cliente | Venta CRM | Id Contagram | Fecha | Comprobante | Importe |
-|---|---|---|---|---|---:|
-| Micaela Echeverría | 20853 | 2026-FC-23661 | 08/07 | B s/nº | $79.096,49 |
-| Emanuel Gutiérrez | 20363 | 2026-FC-24159 | 30/07 | B **0005-00005650** | $171.818,79 |
-| Martín González | 20360 | 2026-FC-24162 | 30/07 | B **0005-00005652** | $176.611,63 |
+| Id NC | Fecha | Venta | Cliente | Importe |
+|---|---|---|---|---:|
+| 733 | 11/08 | 24395 | Jacinto 1157350697 | $227.357,99 |
+| 729 | 10/08 | 23756 | Paloma 1161840539 | $212.706,70 |
+| 731 | 10/08 | 24162 | Martín González | $176.611,63 |
+| 732 | 10/08 | 24159 | Emanuel Gutiérrez | $171.818,79 |
+| 730 | 10/08 | 23661 | Micaela Echeverría | $79.096,49 |
+| 728 | 07/08 | 24103 | CAROLINA 1158929779 | $19.290,86 |
 
-Existían en Contagram cuando importamos y se borraron después: sus Ids son huecos en la numeración
-(está el 25418-25422 pero falta el 25421) y tampoco figuran en el informe de cobros del 13/08. Dos
-fuentes independientes.
+Todas posteriores al corte del 05/08, así que no afectan los saldos ya conciliados a esa fecha —
+pero **sí inflan la Cta Cte de Clientes de hoy en $886.882,46**.
 
-**Qué mirar**: buscar esas tres ventas en Contagram.
+Del resto del informe: **148 notas de 2026 están en ambos sistemas con el importe idéntico**, cero
+diferencias. El import de NC/ND está bien.
 
-- **Si la venta ya no existe** → se anuló. Los dos del 30/07 tienen comprobante fiscal emitido, así
-  que en el CRM la baja va **por nota de crédito**, nunca borrando la venta. Micaela Echeverría no
-  tiene número, esa sí se puede eliminar.
-- **Si la venta existe pero figura impaga** → el cobro se borró por error en Contagram y hay que
-  recargarlo allá; el CRM está bien.
+**Qué hacer**: cargar esas seis notas de crédito en el CRM, contra su venta. Ojo que Jacinto y
+CAROLINA son los mismos nombres que aparecen en las diferencias de Caja del Local (punto 8), así que
+probablemente resuelvan las dos cosas a la vez.
+
+---
+
+## 1b. Tres notas de crédito del CRM sin venta asociada — $549.433,50
+
+| Nota | Fecha | Importe | Estado |
+|---|---|---:|---|
+| 1 | 05/08 | $307.569,76 | sin venta |
+| 2 | 07/08 | $129.061,49 | sin venta |
+| 860 | 12/08 | $112.802,25 | sin venta — es la **Id 734 de Contagram** (JUAN 2257505195, venta 24396) |
+
+Una nota de crédito sin venta asociada **no descuenta de la cuenta corriente del cliente**. La 860
+sí existe en Contagram y está aplicada a la venta 24396; las otras dos hay que ver contra qué van.
+
+**Qué hacer**: vincular cada una a su venta.
 
 ---
 
