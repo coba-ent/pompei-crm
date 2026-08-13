@@ -77,6 +77,9 @@ class NormalizarTesoreriaContagram extends Command
         ['RECON-19-PAG-2268', '2025-01-09', 'pago', -25050.00, 'Ferreteria La de Olleros', 'Ficha de Contagram, Id 2268'],
     ];
 
+    /** Fecha hasta la que llega el export `Cuentas/` (el archivo más completo). */
+    private const CORTE_EXPORT = '2026-08-05';
+
     private bool $dryRun = false;
 
     /** Tablas que apuntan a `cuenta_tesoreria_id` y hay que arrastrar en cada fusión. */
@@ -102,6 +105,7 @@ class NormalizarTesoreriaContagram extends Command
                 $this->refecharPagos();
                 $this->reconstruirPagos();
                 $this->movimientosPosterioresAlCorte();
+                $this->tesoreriaDePagosSinMovimiento();
 
                 // El dry-run recorre todo con las escrituras hechas y las descarta al final: así el
                 // conteo de cada paso refleja el estado que dejaría el paso anterior, no el actual.
@@ -643,6 +647,60 @@ class NormalizarTesoreriaContagram extends Command
 
         if ($creados > 0) {
             $this->line("  Pagos posteriores al corte incorporados a tesorería: {$creados}");
+        }
+    }
+
+    /**
+     * Todo pago migrado posterior al corte del export tiene que impactar la caja.
+     *
+     * Los movimientos de tesorería salen sólo de `Cuentas/`, y **cada archivo tiene su propio
+     * corte**: `Caja abajo` llega al 06/08 y `Caja local` al 05/08. Los pagos que el informe de
+     * Movimientos de Proveedores trajo después de esa fecha quedaron en `pagos` sin movimiento:
+     * descontaban de la deuda del proveedor pero no de la caja. Así `Caja General Abajo` mostraba
+     * $1.200.000 y `Caja del Local` $500.000 que ya no estaban.
+     *
+     * Sólo entran los **posteriores al corte** y sólo si no hay ya un movimiento equivalente en esa
+     * cuenta, fecha e importe. No hay riesgo de duplicar contra la app: los pagos a proveedores no
+     * los genera nadie automáticamente (a diferencia de los cobros de Mercado Libre, que sí, y por
+     * eso el corte original era correcto para ellos).
+     */
+    private function tesoreriaDePagosSinMovimiento(): void
+    {
+        $pagos = DB::table('pagos as pg')
+            ->join('cuentas_tesoreria as ct', 'ct.id', '=', 'pg.cuenta_tesoreria_id')
+            ->whereNull('pg.deleted_at')
+            ->where('pg.fecha', '>', self::CORTE_EXPORT)
+            ->where('pg.nota', 'like', 'Migrado de Contagram%')
+            ->select('pg.id', 'pg.fecha', 'pg.monto', 'pg.cuenta_tesoreria_id', 'ct.nombre as cuenta')
+            ->get();
+
+        $creados = 0;
+
+        foreach ($pagos as $pago) {
+            $yaEsta = DB::table('movimientos_tesoreria')
+                ->where('cuenta_tesoreria_id', $pago->cuenta_tesoreria_id)
+                ->whereNull('deleted_at')
+                ->where(fn ($q) => $q->where('origen_type', 'like', '%Pago%')->where('origen_id', $pago->id))
+                ->exists()
+                || DB::table('movimientos_tesoreria')
+                    ->where('cuenta_tesoreria_id', $pago->cuenta_tesoreria_id)
+                    ->whereNull('deleted_at')
+                    ->where('fecha', $pago->fecha)
+                    ->whereRaw('ABS(ABS(monto) - ?) < 0.01', [$pago->monto])
+                    ->exists();
+
+            if ($yaEsta) {
+                continue;
+            }
+
+            $creados += (int) $this->crearMovimiento($pago->cuenta_tesoreria_id, 'RECON-PAG-'.$pago->id,
+                $pago->fecha, 'pago', -(float) $pago->monto, 'Pago a proveedor',
+                'Pago posterior al corte del export: su movimiento de tesorería no vino en Cuentas/',
+                \App\Models\Pago::class, $pago->id);
+        }
+
+        if ($creados > 0) {
+            $this->line("  Pagos posteriores al corte que no impactaban la caja: {$creados} movimientos creados");
         }
     }
 
