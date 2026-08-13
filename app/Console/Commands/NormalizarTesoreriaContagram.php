@@ -104,6 +104,7 @@ class NormalizarTesoreriaContagram extends Command
                 $this->recuperarNotasSinImporte();
                 $this->vincularNotasCompra();
                 $this->notasPosterioresAlCorte();
+                $this->cobrosPosterioresAlCorte();
                 $this->refecharPagos();
                 $this->reconstruirPagos();
                 $this->reconstruirCobros();
@@ -403,6 +404,119 @@ class NormalizarTesoreriaContagram extends Command
 
         if ($creadas > 0) {
             $this->line("  Notas de crédito posteriores al corte, creadas desde el informe: {$creadas}");
+        }
+    }
+
+    /**
+     * Cobros del 06/08 en adelante que quedaron distintos entre los dos sistemas.
+     *
+     * Desde el corte se carga a mano en Contagram **y** en el CRM, y en estas ventas los dos
+     * divergieron: en Contagram se siguieron aplicando cobros y editando importes, y acá no. Salió
+     * de cruzar el informe de ventas de 2026 (`public/imports/movmientos ventas 2026/`) contra el de
+     * cobros: de 3.674 ventas sólo 7 tienen el total distinto, y son éstas las que además mueven
+     * caja. El usuario confirmó que para este tramo **manda Contagram**.
+     *
+     * Explican las diferencias más grandes que quedaban en `Caja del Local` — el cobro de $700.000
+     * de CAROLINA, que figuraba como "sólo en Contagram", y los dos importes de VIVIANA.
+     *
+     * Cada cobro se toca junto con su movimiento de tesorería, que es lo que mueve el saldo. Los
+     * cobros migrados no tienen movimiento propio (el suyo vino del extracto), así que acá sólo
+     * entran los que creó la app después del corte, que sí lo tienen.
+     *
+     * Lo que **no** se toca a propósito:
+     * - el cobro de $230.686,45 de VERONICA en Mercado Pago: lo tiene el CRM y no Contagram, pero
+     *   borrarlo dejaría la venta impaga y bien puede ser que allá todavía no lo cargaron;
+     * - el cobro de $19.290,86 de CAROLINA: existe en el CRM aplicado a su otra venta (24103) en vez
+     *   de a la 24209. Cambia a qué venta imputa, no la caja;
+     * - el total de las 7 ventas: corregirlo obliga a rehacer sus renglones, y es otra decisión.
+     *
+     * @var list<array{0: string, 1: string, 2: string, 3: float, 4: string, 5: string}>
+     *     [modo, venta legacy, fecha, monto, cuenta, detalle]
+     */
+    private const COBROS_POST_CORTE = [
+        ['crear', '2026-FC-24209', '2026-08-07', 700000.00, 'Caja del Local', 'CAROLINA 1158929779'],
+        ['crear', '2026-FC-24209', '2026-08-07', 219355.86, 'Mercado Pago', 'CAROLINA 1158929779'],
+        ['ajustar', '2026-FC-24173', '2026-08-10', 36169.69, 'Caja del Local', 'VIVIANA 1156385079'],
+        ['ajustar', '2026-FC-24300', '2026-08-07', 99123.29, 'Caja del Local', 'Aurelio 1151245914'],
+    ];
+
+    private function cobrosPosterioresAlCorte(): void
+    {
+        $creados = 0;
+        $ajustados = 0;
+
+        foreach (self::COBROS_POST_CORTE as [$modo, $legacyVenta, $fecha, $monto, $cuenta, $detalle]) {
+            $venta = DB::table('ventas')->where('legacy_id', $legacyVenta)->whereNull('deleted_at')->first(['id', 'nro_comprobante']);
+            $cuentaId = DB::table('cuentas_tesoreria')->where('nombre', $cuenta)->value('id');
+
+            if ($venta === null || $cuentaId === null) {
+                $this->warn("  Cobro de {$legacyVenta}: falta la venta o la cuenta \"{$cuenta}\", se omite.");
+
+                continue;
+            }
+
+            if ($modo === 'ajustar') {
+                // El cobro de esa fecha cuyo importe todavía es el viejo: si ya está en el valor de
+                // Contagram no hay nada que hacer, y así el paso es idempotente.
+                $cobro = DB::table('cobros')->where('venta_id', $venta->id)->where('fecha', $fecha)
+                    ->whereNull('deleted_at')->where('monto', '<>', $monto)->first(['id', 'monto']);
+
+                if ($cobro === null) {
+                    continue;
+                }
+
+                $ajustados++;
+
+                if ($this->dryRun) {
+                    continue;
+                }
+
+                DB::table('cobros')->where('id', $cobro->id)->update(['monto' => $monto]);
+                DB::table('movimientos_tesoreria')
+                    ->where('origen_type', \App\Models\Cobro::class)->where('origen_id', $cobro->id)
+                    ->whereNull('deleted_at')->update(['monto' => $monto]);
+
+                continue;
+            }
+
+            if (DB::table('cobros')->where('venta_id', $venta->id)->where('fecha', $fecha)
+                ->where('monto', $monto)->whereNull('deleted_at')->exists()) {
+                continue;
+            }
+
+            $creados++;
+
+            if ($this->dryRun) {
+                continue;
+            }
+
+            $cobroId = DB::table('cobros')->insertGetId([
+                'venta_id' => $venta->id,
+                'fecha' => $fecha,
+                'cuenta_tesoreria_id' => $cuentaId,
+                'monto' => $monto,
+                'nota' => 'Cargado desde Contagram (posterior al corte del export)',
+                'created_at' => $fecha,
+                'updated_at' => $fecha,
+            ]);
+
+            DB::table('movimientos_tesoreria')->insert([
+                'cuenta_tesoreria_id' => $cuentaId,
+                'fecha' => $fecha,
+                'tipo' => 'cobro',
+                'monto' => $monto,
+                'detalle' => $detalle,
+                'nro_comprobante' => $venta->nro_comprobante,
+                'observacion' => 'Cobro que estaba sólo en Contagram (§22)',
+                'origen_type' => \App\Models\Cobro::class,
+                'origen_id' => $cobroId,
+                'created_at' => $fecha,
+                'updated_at' => $fecha,
+            ]);
+        }
+
+        if ($creados > 0 || $ajustados > 0) {
+            $this->line("  Cobros posteriores al corte: {$creados} creados, {$ajustados} ajustados al importe de Contagram");
         }
     }
 
