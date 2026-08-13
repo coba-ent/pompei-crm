@@ -1141,3 +1141,41 @@ parte esto, no un problema de permisos. Vale la pena revisarlos: mientras estén
 cubre gastos.
 
 El fix nuevo va con `GastoEdicionSincronizaTesoreriaTest`, verificado en rojo antes de aplicarlo.
+
+## 20. Fechas de gastos con día y mes cambiados — corregido el 13/08/2026
+
+Detectado al comparar el panel al **01/05/2026**: `Caja chica gastos` mostraba $101.566,66 contra
+$810,66 de Contagram, y todo lo demás cerraba.
+
+En los Excel de `Gastos/` la fecha viene en formato **mes/día**. Cuando el día es ≤ 12 se interpretó
+al revés: el gasto 8184 ("Caja chica", $77.757) figura el 01/06/2026 y es del **06/01/2026**. Se ve
+en el propio archivo — los "días" van sólo del 1 al 8 y los meses del 1 al 12, imposible en un año
+de gastos. Las filas con día > 12 vienen como texto (`'1/13/2026'`) y quedaron bien.
+
+### Los movimientos de tesorería NO estaban afectados
+
+Se importaron de los extractos de `Cuentas/`, que traen la fecha como fecha. Por eso los bancos
+cierran a cualquier corte (verificado al 01/05: los 5 idénticos, total $6.641.221,35).
+
+La excepción es **`Caja chica gastos`**, la única cuenta sin export propio: se reconstruye desde
+`gastos` (§13) y por eso heredó las fechas malas.
+
+### Cómo se corrigió, y por qué es seguro
+
+- **945 gastos** contra su propio movimiento del extracto, que tiene la fecha buena. Sólo cuando el
+  cruce es inequívoco: un único movimiento con ese Id de Contagram, mismo importe, y fecha igual a
+  la del gasto con día y mes intercambiados.
+- **17 gastos de Caja chica** por la regla del formato, porque no tienen extracto contra el cual
+  cruzar. La regla se validó contra los otros: **de 945 casos ambiguos, los 945 estaban invertidos
+  y cero quedaron derechos** — sin contraejemplos. La lista va explícita y versionada en
+  `database/data/gastos_caja_chica_refecha.json` para poder auditarla gasto por gasto.
+
+`Caja chica gastos` al 01/05 pasa de $101.566,66 a **$809,66** (Contagram $810,66: queda el mismo
+$1,00 estructural de §13, que ahora se ve en todos los cortes en vez de aparecer sólo al final).
+Ninguna otra cuenta se movió, ni al 01/05 ni al 05/08.
+
+### Lo que queda
+
+El cruce sólo alcanza a los gastos que tienen movimiento en un extracto. Los que no —además de los
+17 ya corregidos— quedan con la fecha del Excel: **no afectan tesorería**, pero sí los informes del
+módulo de Gastos. Si aparece otra cuenta sin export, revisar esto antes de reconstruirla.
