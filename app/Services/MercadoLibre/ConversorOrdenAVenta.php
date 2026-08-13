@@ -226,6 +226,11 @@ class ConversorOrdenAVenta
                     'cliente_id' => $clienteFinal->id,
                     'categoria_id' => MercadoLibreConfiguracion::actual()->categoria_venta_id,
                     'vendedor_id' => MercadoLibreConfiguracion::actual()->vendedor_id,
+                    // El depósito del que sale el stock tiene que quedar guardado en la Venta, no
+                    // sólo en el movimiento: sin esto la Venta queda con `deposito_id` en NULL y al
+                    // editarla el selector cae en el primer depósito de la lista, que puede no ser
+                    // el que despachó. Es el mismo que usa el descuento de stock, más abajo.
+                    'deposito_id' => MercadoLibreConfiguracion::actual()->depositoEfectivo()->id,
                     'fecha_emision' => $fechaEmision,
                     'tipo_comprobante' => $tipoComprobante,
                     'nro_comprobante' => Venta::siguienteNroComprobante($tipoComprobante),

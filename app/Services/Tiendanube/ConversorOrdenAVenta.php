@@ -214,6 +214,10 @@ class ConversorOrdenAVenta
                     'cliente_id' => $clienteFinal->id,
                     'categoria_id' => TiendanubeConexionRest::actual()->categoria_venta_id,
                     'vendedor_id' => TiendanubeConexionRest::actual()->vendedor_id,
+                    // Mismo criterio que en Mercado Libre: el depósito del que sale el stock queda
+                    // guardado en la Venta, no sólo en el movimiento. Sin esto la Venta queda con
+                    // `deposito_id` en NULL y al editarla el selector cae en el primero de la lista.
+                    'deposito_id' => TiendanubeConexionRest::actual()->depositoEfectivo()->id,
                     'fecha_emision' => $fechaEmision,
                     'tipo_comprobante' => $tipoComprobante,
                     'nro_comprobante' => Venta::siguienteNroComprobante($tipoComprobante),

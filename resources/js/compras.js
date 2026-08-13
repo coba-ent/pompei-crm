@@ -386,7 +386,7 @@
             refreshSelect2($('#f-proveedor'));
         }
         if (data.categoriaId) { renderCategorias(data.categoriaId); }
-        if (data.depositoId) { $('#f-deposito').val(data.depositoId).trigger('change.select2'); }
+        $('#f-deposito').val(data.depositoId || '').trigger('change.select2');
         if (data.nroComprobante) { $('#f-nro-comprobante').val(data.nroComprobante); }
         if (!$('#f-deposito option').length) {
             $('#f-deposito').prop('disabled', true);

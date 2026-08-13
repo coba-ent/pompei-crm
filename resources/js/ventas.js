@@ -603,7 +603,7 @@
             $('#f-tipo-comprobante').val(defaults.tipoComprobante);
         }
         if (defaults.fechaVtoCobro && !$('#f-fecha-vto-cobro').val()) { $('#f-fecha-vto-cobro').val(defaults.fechaVtoCobro); }
-        if (data.depositoId) { $('#f-deposito').val(data.depositoId).trigger('change.select2'); } else if (defaults.depositoId) { $('#f-deposito').val(defaults.depositoId).trigger('change.select2'); }
+        $('#f-deposito').val(data.depositoId || defaults.depositoId || '').trigger('change.select2');
         if (!$('#f-deposito option').length) {
             $('#f-deposito').prop('disabled', true);
             $('#btn-guardar-venta').prop('disabled', true);

@@ -57,6 +57,9 @@
                     <div class="col-md-3">
                         <label class="form-label">Depósito</label>
                         <select id="f-deposito" class="form-select" style="width:100%">
+                            {{-- Ver el comentario equivalente en ventas/form.blade.php: sin la opción
+                                 vacía, un comprobante sin depósito muestra el primero como si fuera suyo. --}}
+                            <option value=""></option>
                             @foreach ($depositos ?? [] as $deposito)
                                 <option value="{{ $deposito->id }}">{{ $deposito->nombre }}</option>
                             @endforeach

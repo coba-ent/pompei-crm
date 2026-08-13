@@ -83,6 +83,11 @@
                     <div class="col-md-3">
                         <label class="form-label">Depósito</label>
                         <select id="f-deposito" class="form-select" style="width:100%">
+                            {{-- Opción vacía a propósito: si el comprobante no tiene depósito guardado
+                                 —como las ventas de integraciones anteriores al fix—, el selector debe
+                                 quedar en blanco y obligar a elegir, en vez de mostrar el primero de la
+                                 lista como si fuera el real. --}}
+                            <option value=""></option>
                             @foreach ($depositos ?? [] as $deposito)
                                 <option value="{{ $deposito->id }}">{{ $deposito->nombre }}</option>
                             @endforeach
