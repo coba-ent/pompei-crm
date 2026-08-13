@@ -928,3 +928,59 @@ no la del cobro real ($1.522 M). Es el defecto de §5, que del lado de pagos ya 
 Se cierra con el mismo método: el informe **"Movimientos de Clientes" filtrado por `Operación = Cobro`**.
 El `Ventas c- cobro` **no sirve** para esto: es una fila por venta, con `Cobrado` acumulado y los
 medios concatenados (`Mercado Pago - Mercado Pago`), sin fecha ni importe por cobro.
+
+## 16. Tesorería cerrada — y hasta qué fecha se puede comparar (13/08/2026)
+
+**Verificado por el usuario: las cajas cierran exacto al 05/08/2026.** Todo lo que difiere después
+es operación registrada en un sistema y no en el otro, no error de migración.
+
+### Cada archivo de `Cuentas/` tiene su propio corte
+
+Es el hallazgo que faltaba y explica los últimos descuadres:
+
+| Archivo | Llega hasta |
+|---|---|
+| `Caja abajo.xlsx` | **06/08** — trae el pago Id 3382 a Pompei SRL |
+| `Caja local.xlsx` | **05/08** — el pago Id 3383 no está en ningún archivo |
+
+El importador usa un corte único (`CORTE = 2026-08-05`) con un criterio correcto —"del 06/08 en
+adelante manda el CRM"— pero que **sólo vale para los cobros**, porque la app los genera sola al
+convertir órdenes de Mercado Libre. **Para los pagos a proveedores no vale**: no los genera nadie,
+así que quedaron en `pagos` sin movimiento de tesorería. Descontaban de la deuda del proveedor pero
+no de la caja: `Caja General Abajo` mostraba $1.200.000 y `Caja del Local` $500.000 que ya no
+estaban.
+
+Resuelto como regla en `contagram:normalizar-tesoreria`: todo pago migrado posterior al corte que no
+tenga ya un movimiento equivalente genera el suyo. Fueron 5, por $2.169.538,13.
+
+### La contracara: por qué NO se importa el resto
+
+De los 31 movimientos del export posteriores al corte, **28 ya estaban cubiertos**:
+
+- **12** coinciden exacto con un movimiento propio del CRM.
+- **16 son los mismos cobros con UN CENTAVO de diferencia**: el Excel trae `253.464,20` donde el CRM
+  tiene `253.464,19`, y el nombre real del cliente donde el CRM tiene el apodo de ML
+  (`Alexiana Wolf` / `ALEXIANAWOLF`). **Importarlos duplicaba $2,6 M en Mercado Pago.**
+
+Un cruce por importe exacto no los detecta. Es el mismo patrón de centavos que ya había aparecido
+con las notas de crédito.
+
+### Hasta qué fecha vale comparar contra Contagram
+
+| Qué | Fecha límite | Por qué |
+|---|---|---|
+| Cajas y bancos | **05/08** | después, el CRM registra operación propia |
+| Mercado Pago | **22/07** | desde ahí el CRM sincroniza Mercado Libre y Contagram no |
+| Cta Cte Proveedores | **01/08** | ídem, más los pagos cargados a mano en el CRM |
+
+Comparar más allá de esas fechas es perseguir un número que **no debe coincidir**. Al 13/08 la única
+caja que difiere es `Caja del Local` (+$77.145,55), y esa cuenta tiene 69 movimientos posteriores al
+06/08, **todos propios del CRM**.
+
+### Estado
+
+- **Cajas y bancos**: cierran al 05/08. Único desvío estructural: $1,00 en `Caja chica gastos`.
+- **Cta Cte Proveedores**: conciliada hasta el 01/08 ($4.649,96, y esa diferencia está entre el
+  informe de Contagram y su propio panel, no en el CRM).
+- **NC/ND**: 2 sueltas de 704, ambas en $0,00.
+- **Cta Cte Clientes**: pendiente del informe de Movimientos de Clientes filtrado por `Cobro`.
