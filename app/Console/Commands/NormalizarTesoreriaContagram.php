@@ -103,6 +103,7 @@ class NormalizarTesoreriaContagram extends Command
                 $this->vincularNotas();
                 $this->recuperarNotasSinImporte();
                 $this->vincularNotasCompra();
+                $this->notasPosterioresAlCorte();
                 $this->refecharPagos();
                 $this->reconstruirPagos();
                 $this->reconstruirCobros();
@@ -321,6 +322,87 @@ class NormalizarTesoreriaContagram extends Command
 
         if ($corregidos > 0) {
             $this->line("  Gastos de Caja chica re-fechados por la regla del formato: {$corregidos}");
+        }
+    }
+
+    /**
+     * Notas de crédito emitidas en Contagram **después** del corte del 05/08 y que el CRM no tiene.
+     *
+     * Salieron del informe de NC/ND de 2026 (`public/imports/nc nd 2026/`): de 155 notas, 148 están
+     * en los dos sistemas con el importe idéntico y éstas 6 sólo en Contagram. Explican por qué las
+     * ventas de Micaela Echeverría, Emanuel Gutiérrez y Martín González aparecían con el cobro
+     * "borrado" — no se borró la venta, se le emitió NC y se anuló el cobro.
+     *
+     * La de Jacinto además cierra una de las diferencias de `Caja del Local`: la venta es de
+     * $257.690,06 y $257.690,06 − $227.357,99 = **$30.332,07**, que es justo lo que Contagram tenía
+     * cobrado para ese cliente.
+     *
+     * Se cargan una por una y no por regla general: son documentos fiscales de otro sistema, así
+     * que el número de comprobante y la venta a la que aplican se transcriben, no se deducen. El
+     * `legacy_id` es el que habría puesto el importador, así que si alguna vez llega un export que
+     * las incluya no se duplican.
+     *
+     * `nro_comprobante` va nulo a propósito: las 546 notas B migradas lo tienen nulo (sólo las A de
+     * compras lo traen), y romper esa convención por 6 filas ensucia más de lo que aporta. El
+     * número real queda en `nota_interna`.
+     *
+     * @var list<array{0: string, 1: string, 2: string, 3: float, 4: string, 5: string}>
+     */
+    private const NOTAS_POST_CORTE = [
+        ['2026-NC-728', '2026-FC-24103', '2026-08-07', 19290.86, 'B', 'Contagram Id 728, B 0005-00000311'],
+        ['2026-NC-729', '2026-FC-23756', '2026-08-10', 212706.70, 'B', 'Contagram Id 729, B 0005-00000312'],
+        ['2026-NC-730', '2026-FC-23661', '2026-08-10', 79096.49, 'B', 'Contagram Id 730, B 0005-00000313'],
+        ['2026-NC-731', '2026-FC-24162', '2026-08-10', 176611.63, 'B', 'Contagram Id 731, B 0005-00000225'],
+        ['2026-NC-732', '2026-FC-24159', '2026-08-10', 171818.79, 'B', 'Contagram Id 732, B 0005-00000226'],
+        // La venta de Jacinto se cargó a mano después del corte, así que no tiene legacy: se
+        // identifica por su id del CRM, verificado por cliente y por el neto de $30.332,07.
+        ['2026-NC-733', '#23756', '2026-08-11', 227357.99, 'B', 'Contagram Id 733, sin comprobante fiscal'],
+    ];
+
+    private function notasPosterioresAlCorte(): void
+    {
+        $creadas = 0;
+
+        foreach (self::NOTAS_POST_CORTE as [$legacy, $refVenta, $fecha, $monto, $tipoComp, $nota]) {
+            if (DB::table('notas_credito_debito')->where('legacy_id', $legacy)->exists()) {
+                continue;
+            }
+
+            $ventaId = str_starts_with($refVenta, '#')
+                ? (int) substr($refVenta, 1)
+                : (int) DB::table('ventas')->where('legacy_id', $refVenta)->whereNull('deleted_at')->value('id');
+
+            // Sin venta no se crea: una NC suelta no descuenta de la cuenta corriente de nadie.
+            if ($ventaId === 0 || ! DB::table('ventas')->where('id', $ventaId)->whereNull('deleted_at')->exists()) {
+                $this->warn("  Nota {$legacy}: no existe la venta {$refVenta}, se omite.");
+
+                continue;
+            }
+
+            $creadas++;
+
+            if ($this->dryRun) {
+                continue;
+            }
+
+            DB::table('notas_credito_debito')->insert([
+                'legacy_id' => $legacy,
+                'venta_id' => $ventaId,
+                'tipo' => 'credito',
+                'afecta_stock' => 0,
+                'mes_imputacion' => substr($fecha, 0, 8).'01',
+                'fecha_emision' => $fecha,
+                'monto' => $monto,
+                'descuento_general_tipo' => 'porcentaje',
+                'tipo_comprobante' => $tipoComp,
+                'nota_interna' => $nota,
+                'created_at' => $fecha,
+                'updated_at' => $fecha,
+            ]);
+        }
+
+        if ($creadas > 0) {
+            $this->line("  Notas de crédito posteriores al corte, creadas desde el informe: {$creadas}");
         }
     }
 
