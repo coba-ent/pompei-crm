@@ -1209,3 +1209,67 @@ cambia nada.
 **Un cobro que desaparece de un informe no significa que se haya borrado la venta.** Antes de
 concluir que falta algo, mirar si hay una nota de crédito que lo explique — es la forma normal de
 revertir una venta ya cobrada, y no deja rastro en el informe de cobros.
+
+## 22. Las ventas de 2026 y los cobros del 06/08 en adelante — 13/08/2026
+
+Con el informe de **ventas de 2026** (`public/imports/movmientos ventas 2026/`, 3.674 filas del
+01/01 al 12/08) se pudo cruzar la última pieza que faltaba.
+
+### Las ventas están bien
+
+| | |
+|---|---:|
+| ventas de Contagram sin equivalente en el CRM | 187 (todas del 06/08 en adelante) |
+| ventas del CRM sin equivalente en Contagram | **0** |
+| con fecha distinta | **0** |
+| con total distinto | **7** ($310.600,57) |
+
+Las 187 son la doble carga ya conocida: el CRM tiene 175 propias en ese mismo tramo
+($23.871.580,37 contra $23.617.887,55). No falta plata.
+
+### La Cta Cte de Clientes del CRM está bien — el panel de Contagram es el que no cierra
+
+Reconstruida **con datos exclusivamente de Contagram** (sus ventas, sus cobros, sus notas):
+
+| Corte | Reconstruida | CRM | Panel de Contagram |
+|---|---:|---:|---:|
+| 01/05 | 11.880.950,99 | **10.501.640,11** | 5.426.263,21 |
+| 05/08 | 9.869.890,64 | **9.440.682,65** | 7.372.300,01 |
+
+El CRM queda a $429 mil de los propios números de Contagram al 05/08; el panel de Contagram, a
+$2,5 millones. **Los $2 M y los $5 M que se venían persiguiendo no eran un descuadre del CRM.**
+Quinta aparición del patrón de §16: el panel no reproduce sus propios movimientos.
+
+### Los 7 casos reales, y su efecto en la caja
+
+Son ventas **editadas en Contagram después del import**, y sus cobros también divergieron:
+
+| Venta | Cliente | Contagram | CRM | Efecto |
+|---|---|---:|---:|---|
+| 24209 | CAROLINA | 4 cobros | sólo 900.000 | faltaban $700.000 en Caja del Local y $219.355,86 en Mercado Pago |
+| 24173 | VIVIANA | 36.169,69 | 170.642,49 | sobraban $134.472,80 en Caja del Local |
+| 23953 | VERONICA | sólo 200.000 | + 230.686,45 MP | el CRM tiene un cobro que Contagram no |
+| 24300 | Aurelio | 99.123,29 | 99.123,98 | $0,69 |
+
+Aplicado (`cobrosPosterioresAlCorte()`): **Caja del Local +$565.526,51** y **Mercado Pago
++$219.355,86**. Todo del 07 y el 10/08, así que **los saldos al 05/08 no se movieron**. Eso cierra
+las dos diferencias más grandes de `Caja del Local` — el cobro de $700.000 de CAROLINA, que
+figuraba como "sólo en Contagram", y los dos importes de VIVIANA.
+
+### Lo que quedó fuera a propósito
+
+- **El cobro de $230.686,45 de VERONICA** (Mercado Pago): lo tiene el CRM y no Contagram. Borrarlo
+  dejaría la venta impaga, y bien puede ser que allá todavía no lo cargaron. **Decisión pendiente.**
+- **El cobro de $19.290,86 de CAROLINA**: existe en el CRM aplicado a su otra venta (24103) en vez
+  de a la 24209. Cambia a qué venta imputa, no la caja.
+- **El total de las 7 ventas**: corregirlo obliga a rehacer sus renglones. **Decisión pendiente.**
+
+### Otros Ingresos: ya estaban
+
+El export de `Listado de Ingresos` (61 filas, $34.570.442,27) cruza **uno a uno** con los 61
+movimientos de tipo `ingreso` del CRM: mismo Id, fecha, importe y cuenta, cero diferencias. No
+aporta nada a la caja.
+
+Lo que sí falta es el registro en el módulo: **`otros_ingresos` está vacía**, así que la pantalla de
+Otros Ingresos no muestra nada aunque la plata esté bien. Si se cargan, tiene que ser por el comando
+enlazando al movimiento existente — hacerlo desde la pantalla duplicaría los $34,5 M.
