@@ -984,3 +984,74 @@ caja que difiere es `Caja del Local` (+$77.145,55), y esa cuenta tiene 69 movimi
   informe de Contagram y su propio panel, no en el CRM).
 - **NC/ND**: 2 sueltas de 704, ambas en $0,00.
 - **Cta Cte Clientes**: pendiente del informe de Movimientos de Clientes filtrado por `Cobro`.
+
+## 17. Cuenta Corriente de Clientes — cobros reconstruidos (13/08/2026)
+
+Cerrado con el informe **"Cuentas Corrientes → Movimientos de Clientes" filtrado por
+`Operación = Cobro`** (`public/imports/cobros/`), 24.828 filas del 02/08/2021 al 12/08/2026.
+
+### El informe sirve, y es la mejor fuente que apareció
+
+- **100% de las filas traen `Id Venta`.** Sin huérfanos.
+- La columna `Emisión` es **la fecha real del cobro**, no la de la factura: 2.683 filas difieren de
+  `Fecha Factura Aplicada`. Eso es justo lo que faltaba.
+- El `Id` del informe **cruza 1-a-1 con el `legacy_id` de `movimientos_tesoreria`**: 24.623 coinciden
+  por Id, importe y fecha. Es llave exacta, no cruce por importe (que nunca funciona, ver §16).
+
+### El hallazgo: tesorería y cobros son dos capas independientes
+
+Esto explica por qué las cajas cerraban con el desglose de cobros mal:
+
+| Capa | Origen | Estado |
+|---|---|---|
+| `movimientos_tesoreria` | extractos de `Cuentas/` | correcta, verificada cuenta por cuenta |
+| `cobros` | importador de ventas | consolidada y mal fechada |
+
+**Los cobros migrados no generan movimiento de tesorería**: de 25.022 movimientos de tipo `cobro`,
+todos tienen `origen_type` nulo salvo 214 (los que creó la app después del corte). Por eso se puede
+reconstruir `cobros` entero sin mover un peso de ningún saldo — y así fue: los 21 saldos al 05/08 y
+el conteo de movimientos de cada cuenta quedaron idénticos antes y después, en local y en el VPS.
+
+**No confundir con una verificación de cajas.** Comparar "total cobrado por cuenta" del informe
+contra `cobros` da diferencias grandes (Juan USD Personal $7,0 M, Mercado Pago $6,1 M) que **no son
+plata faltante**: son la cuenta declarada en la capa de cobros, que no alimenta los saldos.
+
+### Qué estaba mal
+
+El importador **consolidó en un solo cobro los parciales de cada venta** y lo fechó con la emisión
+de la factura:
+
+- **1.690 ventas** con varios cobros en Contagram y uno solo acá — misma suma, distinto desglose. En
+  **561** de ellas los parciales van a **medios distintos**.
+- **1.046 cobros** 1-a-1 con la fecha equivocada, hasta 353 días de desvío (el grueso, 1 a 7 días).
+- En cambio la **cuenta** estaba bien: 0 discrepancias en 20.940 cobros 1-a-1. El mapeo de medios de
+  `self::MEDIOS` es correcto.
+
+Sumas por venta: **22.633 de 22.851 coinciden exactas**. El saldo global nunca estuvo mal; lo que
+estaba mal era la distribución por fecha, que es lo que usa el aging.
+
+### El efecto: cambia la foto histórica, no el saldo de hoy
+
+El total de hoy **no se mueve** ($10,62 M): a esta altura todos los cobros ya ocurrieron, con la
+fecha vieja o la nueva. Lo que estaba mal era la Cta Cte **a cualquier fecha pasada**, donde un
+parcial de junio figuraba con la fecha de la factura de marzo y hacía aparecer marzo como cobrado:
+
+| Corte | Antes | Después |
+|---|---:|---:|
+| 31/12/2025 | $214.743,75 | $1.482.244,59 |
+| 31/03/2026 | $3.898.950,52 | $12.196.957,20 |
+| 31/05/2026 | $6.362.777,98 | $9.270.646,51 |
+| 30/06/2026 | $6.372.023,59 | $12.143.138,41 |
+
+Aplicado en el VPS el 13/08/2026 (`reconstruirCobros()`): 1.048 corregidos, 1.690 ventas rearmadas,
+23.244 → 25.209 cobros, suma total sin cambios ($1.527.312.529,14). Backup previo en
+`/root/backups/contagram_pre_cobros_20260813_1317.sql.gz`.
+
+### Lo que falta
+
+El informe **arranca el 02/08/2021** y la operación empieza en febrero de ese año: quedan **358
+ventas** con cobro anteriores a esa fecha, el grueso de las 434 diferencias pre-corte. Pedir el
+**mismo informe del 01/01/2021 al 01/08/2021**, regenerar `database/data/cobros_contagram.json` y
+volver a correr el comando — es idempotente y sólo toca ventas que estén en el JSON.
+
+Fuera de 2021 quedan 8 casos sueltos (2022, 2023, 2025) y 50 de 2026 cerca del corte.
