@@ -101,6 +101,7 @@ class NormalizarTesoreriaContagram extends Command
                 $this->vincularNotasCompra();
                 $this->refecharPagos();
                 $this->reconstruirPagos();
+                $this->movimientosPosterioresAlCorte();
 
                 // El dry-run recorre todo con las escrituras hechas y las descarta al final: así el
                 // conteo de cada paso refleja el estado que dejaría el paso anterior, no el actual.
@@ -595,6 +596,54 @@ class NormalizarTesoreriaContagram extends Command
         $this->line("  Pagos corregidos contra el informe de Contagram: {$refechados}");
         $this->line("  Compras con el desglose de pagos rearmado: {$rearmadas} ({$creados} pagos)".
             ($omitidas > 0 ? " — {$omitidas} omitidas por medio sin cuenta" : ''));
+    }
+
+    /**
+     * Pagos que el export `Cuentas/` **sí trae** pero el importador salteó por su corte del 05/08
+     * ("del 06/08 en adelante manda el CRM"). Ese corte es correcto para los cobros —el CRM los
+     * genera solo al convertir órdenes de Mercado Libre— pero **no para los pagos a proveedores**,
+     * que la app no genera: quedaron en `pagos` sin su movimiento, así que descontaban de la deuda
+     * del proveedor pero no de la caja. Por eso `Caja General Abajo` mostraba $1.200.000 que ya no
+     * estaban (detectado por el usuario contra el Excel, donde ese pago deja el saldo en 0).
+     *
+     * Se cargan **sólo estos tres**, uno por uno y no por regla general, porque de los 31
+     * movimientos posteriores al corte los otros 28 sí están cubiertos: 12 coinciden exacto con un
+     * movimiento propio del CRM y 16 son los mismos cobros con **un centavo** de diferencia (el
+     * Excel trae 253.464,20 donde el CRM tiene 253.464,19). Importarlos duplicaría $2,6 M en
+     * Mercado Pago.
+     *
+     * El `legacy_id` es el que habría puesto el importador, así que si alguna vez se corre sin
+     * corte no se duplican.
+     *
+     * @var list<array{0: string, 1: string, 2: string, 3: float, 4: string}>
+     */
+    private const PAGOS_POST_CORTE = [
+        ['TES-15-PAG-3382-20260806--120000000', 'Caja General Abajo', '2026-08-06', -1200000.00, 'Pompei SRL'],
+        ['TES-7-PAG-3384-20260806--213580035', 'Mercado Pago', '2026-08-06', -2135800.35, 'MERCADO ENVIOS'],
+        // Cheque propio a vencer: no descuenta caja hasta el 24/08, y el filtro por fecha de corte
+        // de la pantalla ya lo resuelve solo.
+        ['TES-2-PAG-3320-20260824--162295712', 'Cheque Propio', '2026-08-24', -1622957.12, 'Peisa'],
+    ];
+
+    private function movimientosPosterioresAlCorte(): void
+    {
+        $cuentas = CuentaTesoreria::pluck('id', 'nombre');
+        $creados = 0;
+
+        foreach (self::PAGOS_POST_CORTE as [$legacy, $cuenta, $fecha, $monto, $detalle]) {
+            if (! isset($cuentas[$cuenta])) {
+                $this->warn("  Cuenta \"{$cuenta}\" inexistente: se omite {$legacy}.");
+
+                continue;
+            }
+
+            $creados += (int) $this->crearMovimiento($cuentas[$cuenta], $legacy, $fecha, 'pago', $monto,
+                $detalle, 'Pago del export Cuentas/ que el importador salteó por el corte del 05/08');
+        }
+
+        if ($creados > 0) {
+            $this->line("  Pagos posteriores al corte incorporados a tesorería: {$creados}");
+        }
     }
 
     /** Normaliza un nombre de cuenta/medio para compararlo: espacios colapsados y minúsculas. */
