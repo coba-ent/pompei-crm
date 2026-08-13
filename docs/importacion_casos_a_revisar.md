@@ -1055,3 +1055,60 @@ ventas** con cobro anteriores a esa fecha, el grueso de las 434 diferencias pre-
 volver a correr el comando — es idempotente y sólo toca ventas que estén en el JSON.
 
 Fuera de 2021 quedan 8 casos sueltos (2022, 2023, 2025) y 50 de 2026 cerca del corte.
+
+## 18. Mercado Pago explicado al peso (13/08/2026)
+
+Al 05/08 el panel mostraba $19.728.852,82 en el CRM contra $17.020.619,08 en Contagram:
+**$2.708.233,74**. Se cerró con el export de movimientos de la cuenta en tandas
+(`public/imports/MERCADO PAGO DESDE EL 1/7/`, 684 movimientos del 01/07 al 10/08), cruzando por
+`Id` contra el `legacy_id` de `movimientos_tesoreria`.
+
+| Concepto | Importe |
+|---|---:|
+| 3 cobros que Contagram borró después del import | $427.526,91 |
+| Doble carga manual del 22/07 al 05/08, con fechas distintas en cada sistema | $2.280.706,83 |
+| **Total** | **$2.708.233,74** |
+
+### Del 01/07 al 21/07 el CRM y Contagram son idénticos
+
+349 movimientos en ambos, **importe idéntico en los 349**, cero movimientos sólo-Contagram y **uno**
+sólo-CRM. El import de Mercado Pago está bien hecho: antes de que empezara la doble carga no hay
+un solo desvío estructural.
+
+### Los 3 cobros que Contagram borró
+
+Sus Ids **no existen en el export aunque sus vecinos sí** (25418-25422 pero no 25421; 25951-25955
+pero no 25954), y no aparecen por nombre ni por importe. Existían al momento del import —de ahí su
+`legacy_id`— y se eliminaron de Contagram después. Suman los $427.526,91 que figuraban como
+diferencia inexplicada de Mercado Pago.
+
+| Cliente | Venta | legacy_id | Fecha | Comprobante | Importe |
+|---|---|---|---|---|---:|
+| Micaela Echeverría | 20853 | 2026-FC-23661 | 08/07 | B s/nº | $79.096,49 |
+| Emanuel Gutiérrez | 20363 | 2026-FC-24159 | 30/07 | B 0005-00005650 | $171.818,79 |
+| Martín González | 20360 | 2026-FC-24162 | 30/07 | B 0005-00005652 | $176.611,63 |
+
+**Decisión pendiente del usuario**: si esas ventas se anularon en Contagram, hay que anularlas
+también en el CRM. Los dos del 30/07 tienen comprobante fiscal emitido, así que la baja va por nota
+de crédito, no por borrado.
+
+### La doble carga del 22/07 en adelante
+
+De los 55 movimientos propios del CRM en el tramo, 39 son las mismas operaciones que los 40
+"sólo Contagram" con otro Id, y de los 16 restantes **13 están en Contagram fechados entre el 06/08
+y el 10/08** (Andrea Srur $81.000 el 06/08 contra 05/08 en el CRM; Domingo Esquivel $52.023,08
+ídem; Daniela $279.589,50 ídem). Se cargaron a mano en el CRM el 06/08 entre las 12:59 y las 15:16
+con fecha retroactiva al 05/08, y en Contagram el día que se cargaron.
+
+Sólo 2 no aparecen en Contagram por ningún lado: `GLOOLIVARES` $389.934,68 y `FALVAR2009`
+$47.999,00, ambos del 05/08.
+
+### Correcciones a §16
+
+- **El panel de Saldos de Contagram SÍ reproduce su export en esta cuenta**: el saldo calculado
+  desde el export nuevo da $17.020.619,08, exacto al panel. La afirmación contraria salió de leer
+  mal el export viejo (ver punto siguiente) y no vale para Mercado Pago.
+- **`Cuentas/2026 MP.xlsx` tiene las fechas día/mes ambiguas**: su fila más reciente figura como
+  "08/06" pero su Id (26136) corresponde al 07/08. El archivo llega a agosto, no a junio. Los
+  exports nuevos por rango no tienen el problema: traen la fecha como fecha, no como texto.
+  **Para cualquier comparación futura usar los exports por rango, no los de `Cuentas/`.**
