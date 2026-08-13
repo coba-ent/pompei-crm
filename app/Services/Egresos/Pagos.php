@@ -66,14 +66,39 @@ class Pagos
         );
     }
 
-    /** Conciliar: al editar quitando "pendiente" (con cuenta asignada) genera recién ahí el movimiento. */
+    /**
+     * Deja el movimiento de tesorería del Gasto igual al Gasto, después de editarlo.
+     *
+     * Antes esto sólo cubría el alta diferida (quitar "pendiente" genera el movimiento recién ahí)
+     * y salía sin hacer nada si el gasto **ya** tenía movimiento. Con eso, editar un gasto ya
+     * conciliado no movía la caja: cambiarle la cuenta lo dejaba descontando de la anterior, y
+     * cambiarle el monto o la fecha no se reflejaba en ningún saldo. Pasó con el gasto 9246
+     * ("Ley 25413", $660,80 del 10/08/2026): se le cambió la cuenta a Banco Credicoop y el
+     * movimiento se quedó en Caja del Local.
+     */
     public function conciliarGasto(Gasto $gasto): void
     {
-        if ($gasto->pendiente || $gasto->movimientoTesoreria || ! $gasto->cuenta_tesoreria_id) {
+        $movimiento = $gasto->movimientoTesoreria;
+
+        // Volvió a pendiente o se quedó sin cuenta: no puede seguir impactando ninguna caja.
+        if ($gasto->pendiente || ! $gasto->cuenta_tesoreria_id) {
+            $movimiento?->delete();
+
             return;
         }
 
-        $this->registrarGasto($gasto);
+        if ($movimiento === null) {
+            $this->registrarGasto($gasto);
+
+            return;
+        }
+
+        $movimiento->update([
+            'cuenta_tesoreria_id' => $gasto->cuenta_tesoreria_id,
+            'monto' => -(float) $gasto->monto,
+            'fecha' => $gasto->fecha,
+            'detalle' => $gasto->categoria?->nombre,
+        ]);
     }
 
     /** Anula un Gasto: soft-delete + reversión del movimiento si lo tenía. */

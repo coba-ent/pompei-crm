@@ -107,6 +107,7 @@ class NormalizarTesoreriaContagram extends Command
                 $this->reconstruirCobros();
                 $this->movimientosPosterioresAlCorte();
                 $this->tesoreriaDePagosSinMovimiento();
+                $this->resincronizarGastos();
 
                 // El dry-run recorre todo con las escrituras hechas y las descarta al final: así el
                 // conteo de cada paso refleja el estado que dejaría el paso anterior, no el actual.
@@ -847,6 +848,50 @@ class NormalizarTesoreriaContagram extends Command
 
         if ($creados > 0) {
             $this->line("  Pagos posteriores al corte que no impactaban la caja: {$creados} movimientos creados");
+        }
+    }
+
+    /**
+     * Re-sincroniza los movimientos de gastos que quedaron apuntando a otra cuenta, otro monto u
+     * otra fecha que su gasto.
+     *
+     * Los dejó así `Pagos::conciliarGasto()`, que hasta el 13/08/2026 salía sin hacer nada cuando
+     * el gasto ya tenía movimiento: editar un gasto conciliado no movía la caja. El código ya está
+     * arreglado; esto limpia lo que quedó mal de antes. En el VPS era un solo caso, el gasto 9246
+     * ("Ley 25413", $660,80 del 10/08/2026), cuyo movimiento descontaba de `Caja del Local` cuando
+     * el gasto es de `Banco Credicoop`.
+     */
+    private function resincronizarGastos(): void
+    {
+        $desfasados = DB::table('movimientos_tesoreria as m')
+            ->join('gastos as g', function ($j) {
+                $j->on('g.id', '=', 'm.origen_id')->where('m.origen_type', '=', \App\Models\Gasto::class);
+            })
+            ->whereNull('m.deleted_at')
+            ->whereNull('g.deleted_at')
+            ->whereNotNull('g.cuenta_tesoreria_id')
+            ->where('g.pendiente', false)
+            ->where(function ($q) {
+                $q->whereColumn('m.cuenta_tesoreria_id', '<>', 'g.cuenta_tesoreria_id')
+                    ->orWhereColumn('m.fecha', '<>', 'g.fecha')
+                    ->orWhereRaw('ABS(m.monto + g.monto) > 0.005');
+            })
+            ->get(['m.id', 'g.cuenta_tesoreria_id', 'g.fecha', 'g.monto']);
+
+        foreach ($desfasados as $d) {
+            if ($this->dryRun) {
+                continue;
+            }
+
+            DB::table('movimientos_tesoreria')->where('id', $d->id)->update([
+                'cuenta_tesoreria_id' => $d->cuenta_tesoreria_id,
+                'fecha' => $d->fecha,
+                'monto' => -(float) $d->monto,
+            ]);
+        }
+
+        if ($desfasados->isNotEmpty()) {
+            $this->line("  Movimientos de gastos re-sincronizados con su gasto: {$desfasados->count()}");
         }
     }
 
