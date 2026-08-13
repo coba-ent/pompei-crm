@@ -60,18 +60,41 @@ módulo de Notificaciones que está anotado como pendiente en `documentacion_pri
 
 ---
 
-## 4. Cuenta Corriente de Clientes: $2.068.382,64 al 05/08
+## 4. Cuenta Corriente de Clientes: $5.075.376,90 al 01/05 (y $2.068.382,64 al 05/08)
 
-CRM $9.440.682,65 contra Contagram $7.372.300,01.
+CRM $10.501.640,11 contra Contagram $5.426.263,21 al 01/05.
 
-Todo el saldo del CRM está en ventas de 2026 ($10.412.488,81); los años anteriores dan saldos
-chicos y negativos (a favor del cliente), que el aging netea.
+**La diferencia NO está en los cobros.** Se descartó reconstruyendo la Cta Cte desde cero con las
+ventas del CRM y **los cobros del informe de Contagram**: da $15,4 M al 01/05, todavía más lejos de
+los $5,4 M que muestra Contagram. Si el problema fueran los cobros del CRM, esa reconstrucción
+tendría que haber dado el número de Contagram. Está del lado de las **ventas o las notas de
+crédito**.
 
-Parte de la diferencia son los puntos 1 a 3 de esta lista ($1.425.512,02 entre los tres). El resto
-no se puede ubicar sin el detalle de Contagram.
+Tampoco son fechas invertidas como en los gastos (§20): los Excel de Ventas y el informe de cobros
+traen días hasta 31, y en la base los días 1-12 pesan 39,4 % en ventas y 39,6 % en cobros — lo
+esperable para una distribución pareja.
 
-**Qué pedir**: el informe de **Cuenta Corriente de Clientes por cliente al 05/08** desde Contagram.
-Con eso se cruza cliente por cliente y sale la diferencia exacta.
+### 46 ventas concentran $10.229.977,85 de saldo al 01/05
+
+Y **tres explican $8,67 M**:
+
+| Venta (Id Contagram) | Fecha | Total | Cobrado al 01/05 | Saldo | Cobrado en total |
+|---|---|---:|---:|---:|---:|
+| **21846** | 26/03/2026 | 11.500.000,00 | 5.750.000,00 | **5.750.000,00** | 9.500.000,00 |
+| **21790** | 21/03/2026 | 3.511.308,51 | 1.660.000,00 | **1.851.308,51** | 1.660.000,00 |
+| **21793** | 21/03/2026 | 2.623.410,53 | 1.550.000,00 | **1.073.410,53** | 2.623.410,53 |
+
+El saldo de la 21846 sola ($5.750.000) es casi exactamente la diferencia con Contagram
+($5.075.376,90).
+
+**Qué mirar**: esas tres ventas en Contagram, sobre todo la 21846. Comparar el total facturado, los
+cobros que tiene aplicados y si hay alguna nota de crédito que el CRM no tenga. Es lo primero, antes
+de pedir ningún informe: puede resolver el 90 % de la diferencia.
+
+Las otras 43 suman $1,56 M y valen una segunda pasada.
+
+**Si con eso no cierra**, ahí sí pedir el informe de **Cuenta Corriente de Clientes por cliente** al
+01/05, que permite cruzar cliente por cliente.
 
 ---
 
