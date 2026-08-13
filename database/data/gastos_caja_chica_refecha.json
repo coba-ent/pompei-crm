@@ -1,0 +1,104 @@
+{
+ "GASTO-2025-6295": {
+  "actual": "2025-09-01",
+  "correcta": "2025-01-09",
+  "monto": 58629.98,
+  "desc": null
+ },
+ "GASTO-2025-6296": {
+  "actual": "2025-09-01",
+  "correcta": "2025-01-09",
+  "monto": 1990.0,
+  "desc": null
+ },
+ "GASTO-2025-6297": {
+  "actual": "2025-09-01",
+  "correcta": "2025-01-09",
+  "monto": 3000.0,
+  "desc": null
+ },
+ "GASTO-2025-6298": {
+  "actual": "2025-09-01",
+  "correcta": "2025-01-09",
+  "monto": 10000.0,
+  "desc": "Sube"
+ },
+ "GASTO-2025-6488": {
+  "actual": "2025-07-02",
+  "correcta": "2025-02-07",
+  "monto": 83900.61,
+  "desc": null
+ },
+ "GASTO-2025-6489": {
+  "actual": "2025-07-02",
+  "correcta": "2025-02-07",
+  "monto": 7300.0,
+  "desc": null
+ },
+ "GASTO-2025-6997": {
+  "actual": "2025-08-05",
+  "correcta": "2025-05-08",
+  "monto": 16800.0,
+  "desc": "Trabajos soler"
+ },
+ "GASTO-2025-7010": {
+  "actual": "2025-09-05",
+  "correcta": "2025-05-09",
+  "monto": 29600.0,
+  "desc": null
+ },
+ "GASTO-2025-7011": {
+  "actual": "2025-09-05",
+  "correcta": "2025-05-09",
+  "monto": 20000.0,
+  "desc": "Sube"
+ },
+ "GASTO-2025-7012": {
+  "actual": "2025-09-05",
+  "correcta": "2025-05-09",
+  "monto": 80544.0,
+  "desc": null
+ },
+ "GASTO-2025-7013": {
+  "actual": "2025-09-05",
+  "correcta": "2025-05-09",
+  "monto": 1500.0,
+  "desc": null
+ },
+ "GASTO-2025-7132": {
+  "actual": "2025-02-06",
+  "correcta": "2025-06-02",
+  "monto": 20000.0,
+  "desc": "Sube"
+ },
+ "GASTO-2025-7133": {
+  "actual": "2025-02-06",
+  "correcta": "2025-06-02",
+  "monto": 9200.0,
+  "desc": null
+ },
+ "GASTO-2025-7134": {
+  "actual": "2025-02-06",
+  "correcta": "2025-06-02",
+  "monto": 55595.0,
+  "desc": null
+ },
+ "GASTO-2026-8183": {
+  "actual": "2026-06-01",
+  "correcta": "2026-01-06",
+  "monto": 20000.0,
+  "desc": "Sube"
+ },
+ "GASTO-2026-8184": {
+  "actual": "2026-06-01",
+  "correcta": "2026-01-06",
+  "monto": 77757.0,
+  "desc": null
+ },
+ "GASTO-2026-8185": {
+  "actual": "2026-06-01",
+  "correcta": "2026-01-06",
+  "monto": 3000.0,
+  "desc": "Pilas control"
+ }
+}

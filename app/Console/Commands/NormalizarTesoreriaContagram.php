@@ -98,6 +98,7 @@ class NormalizarTesoreriaContagram extends Command
                 $this->fusionarCuentas();
                 $this->renombrarYTipificar();
                 $this->borrarInexistentes();
+                $this->refecharGastos();
                 $this->reconstruirCajaChica();
                 $this->vincularNotas();
                 $this->recuperarNotasSinImporte();
@@ -211,6 +212,118 @@ class NormalizarTesoreriaContagram extends Command
      * export de Gastos trae la cuenta en `Medio de pago`), pero nunca se les generó el movimiento;
      * y el fondeo estaba registrado sólo del lado de la cuenta que transfiere.
      */
+    /**
+     * Corrige los gastos que quedaron con el día y el mes cambiados.
+     *
+     * En los Excel de `Gastos/` la fecha viene en formato **mes/día**, y cuando el día es ≤ 12 se
+     * interpretó al revés: el gasto 8184 ("Caja chica", $77.757) figura el 01/06/2026 y es del
+     * 06/01/2026. Se nota en el propio archivo: los "días" van sólo del 1 al 8 y los meses del 1 al
+     * 12, imposible en un año de gastos. Las filas con día > 12 no se pueden confundir y quedaron
+     * bien.
+     *
+     * La fecha correcta ya está en la base: el movimiento de tesorería del gasto se importó del
+     * extracto de la cuenta (`Cuentas/`), que sí trae la fecha como fecha. Por eso los bancos
+     * cierran a cualquier corte aunque el gasto tenga el día cambiado — son 945 de 9.095.
+     *
+     * Sólo se toca el gasto cuando el cruce es inequívoco: **un** movimiento de tipo `gasto` con
+     * ese Id de Contagram, el mismo importe, y una fecha que es exactamente la del gasto con día y
+     * mes intercambiados. Con eso no hay criterio inventado: si no calza, se deja como está.
+     *
+     * Corre antes de `reconstruirCajaChica()` a propósito: esa cuenta es la única sin extracto
+     * propio, se reconstruye desde `gastos` y por eso heredó las fechas malas. Los movimientos que
+     * ya estén creados los re-fecha después `resincronizarGastos()`.
+     */
+    private function refecharGastos(): void
+    {
+        // Se cruza en memoria y no con un JOIN: el vínculo vive dentro del `legacy_id` y sacarlo en
+        // SQL obliga a un LIKE por fila, que sobre 9.000 gastos × 25.000 movimientos no termina más.
+        $porId = [];
+
+        foreach (DB::table('movimientos_tesoreria')->whereNull('deleted_at')->where('tipo', 'gasto')
+            ->whereNotNull('legacy_id')->get(['legacy_id', 'fecha', 'monto']) as $m) {
+            if (! preg_match('/-GAS-(\d+)-/', $m->legacy_id, $c)) {
+                continue;
+            }
+
+            $porId[$c[1]][] = $m;
+        }
+
+        $corregidos = 0;
+
+        foreach (DB::table('gastos')->whereNull('deleted_at')->whereNotNull('legacy_id')
+            ->get(['id', 'legacy_id', 'fecha', 'monto']) as $g) {
+            $candidatos = $porId[substr($g->legacy_id, strrpos($g->legacy_id, '-') + 1)] ?? [];
+
+            // Un único movimiento con ese Id, mismo importe, y fecha = la del gasto con día y mes
+            // intercambiados. Si no calza exactamente, no se toca.
+            if (count($candidatos) !== 1) {
+                continue;
+            }
+
+            $m = $candidatos[0];
+
+            if (abs((float) $m->monto + (float) $g->monto) >= 0.005 || $m->fecha === $g->fecha) {
+                continue;
+            }
+
+            [$ay, $am, $ad] = explode('-', $g->fecha);
+            [$by, $bm, $bd] = explode('-', $m->fecha);
+
+            if ($ay !== $by || $am !== $bd || $ad !== $bm) {
+                continue;
+            }
+
+            $corregidos++;
+
+            if (! $this->dryRun) {
+                DB::table('gastos')->where('id', $g->id)->update(['fecha' => $m->fecha]);
+            }
+        }
+
+        if ($corregidos > 0) {
+            $this->line("  Gastos con día y mes cambiados, re-fechados contra el extracto: {$corregidos}");
+        }
+
+        $this->refecharGastosDeCajaChica();
+    }
+
+    /**
+     * Los 17 gastos de `Caja chica gastos` que arrastran el mismo día/mes cambiado.
+     *
+     * Esa cuenta es la única sin export propio, así que no tienen movimiento en ningún extracto y
+     * `refecharGastos()` no puede cruzarlos. Se corrigen por la regla del formato, que se validó
+     * contra los que **sí** tienen extracto: de 945 casos ambiguos, los 945 estaban invertidos y
+     * **cero** quedaron derechos. Sin contraejemplos.
+     *
+     * La lista va versionada y explícita —no se deduce en tiempo de ejecución— para que se pueda
+     * auditar gasto por gasto y para no depender de volver a leer los Excel.
+     */
+    private function refecharGastosDeCajaChica(): void
+    {
+        $archivo = base_path('database/data/gastos_caja_chica_refecha.json');
+
+        if (! is_file($archivo)) {
+            return;
+        }
+
+        $corregidos = 0;
+
+        foreach (json_decode(file_get_contents($archivo), true) as $legacy => $d) {
+            // Sólo si sigue como la dejó el import: si alguien ya la tocó, se respeta.
+            $afectadas = $this->dryRun
+                ? DB::table('gastos')->where('legacy_id', $legacy)->whereNull('deleted_at')
+                    ->where('fecha', $d['actual'])->count()
+                : DB::table('gastos')->where('legacy_id', $legacy)->whereNull('deleted_at')
+                    ->where('fecha', $d['actual'])->update(['fecha' => $d['correcta']]);
+
+            $corregidos += $afectadas;
+        }
+
+        if ($corregidos > 0) {
+            $this->line("  Gastos de Caja chica re-fechados por la regla del formato: {$corregidos}");
+        }
+    }
+
     private function reconstruirCajaChica(): void
     {
         $caja = CuentaTesoreria::where('nombre', 'Caja chica gastos')->first();
