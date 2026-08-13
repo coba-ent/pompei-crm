@@ -8,45 +8,45 @@ Lo demás está cerrado: tesorería, NC/ND, Cta Cte de Proveedores y los cobros 
 
 ---
 
-## 1. Seis notas de crédito de agosto que el CRM no tiene — $886.882,46
+## 1. Seis notas de crédito de agosto — RESUELTO (13/08/2026)
 
-**Resuelto el diagnóstico**: las tres ventas cuyo cobro "Contagram había borrado" no se borraron —
-se les **emitió nota de crédito** el 10/08/2026. Por eso desapareció el cobro del informe. Aparecen
-en el informe de NC/ND de 2026 (`public/imports/nc nd 2026/`).
+Las tres ventas cuyo cobro "Contagram había borrado" no se borraron: se les **emitió nota de
+crédito** el 10/08 y se anuló el cobro. Por eso desaparecían del informe y sus Ids quedaban como
+huecos en la numeración.
 
-| Id NC | Fecha | Venta | Cliente | Importe |
+Del informe de NC/ND de 2026 (`public/imports/nc nd 2026/`): de 155 notas, **148 están en los dos
+sistemas con el importe idéntico** y 6 estaban sólo en Contagram. **Ya se cargaron en el CRM**
+(`notasPosterioresAlCorte()`):
+
+| Id NC | Fecha | Venta CRM | Cliente | Importe |
 |---|---|---|---|---:|
-| 733 | 11/08 | 24395 | Jacinto 1157350697 | $227.357,99 |
-| 729 | 10/08 | 23756 | Paloma 1161840539 | $212.706,70 |
-| 731 | 10/08 | 24162 | Martín González | $176.611,63 |
-| 732 | 10/08 | 24159 | Emanuel Gutiérrez | $171.818,79 |
-| 730 | 10/08 | 23661 | Micaela Echeverría | $79.096,49 |
-| 728 | 07/08 | 24103 | CAROLINA 1158929779 | $19.290,86 |
+| 733 | 11/08 | 23756 | Jacinto 1157350697 | $227.357,99 |
+| 729 | 10/08 | 20758 | Paloma 1161840539 | $212.706,70 |
+| 731 | 10/08 | 20360 | Martín González | $176.611,63 |
+| 732 | 10/08 | 20363 | Emanuel Gutiérrez | $171.818,79 |
+| 730 | 10/08 | 20853 | Micaela Echeverría | $79.096,49 |
+| 728 | 07/08 | 20415 | CAROLINA 1158929779 | $19.290,86 |
 
-Todas posteriores al corte del 05/08, así que no afectan los saldos ya conciliados a esa fecha —
-pero **sí inflan la Cta Cte de Clientes de hoy en $886.882,46**.
+La Cta Cte de Clientes de hoy bajó **$886.882,46** (de $10.622.591,23 a $9.735.708,77). Al 01/05 y
+al 05/08 no cambió nada, porque son posteriores a esos cortes.
 
-Del resto del informe: **148 notas de 2026 están en ambos sistemas con el importe idéntico**, cero
-diferencias. El import de NC/ND está bien.
-
-**Qué hacer**: cargar esas seis notas de crédito en el CRM, contra su venta. Ojo que Jacinto y
-CAROLINA son los mismos nombres que aparecen en las diferencias de Caja del Local (punto 8), así que
-probablemente resuelvan las dos cosas a la vez.
+**Nada que revisar acá.** Queda como referencia de qué pasó.
 
 ---
 
-## 1b. Tres notas de crédito del CRM sin venta asociada — $549.433,50
+## 1b. Tres notas de crédito del CRM — verificado, están bien
 
-| Nota | Fecha | Importe | Estado |
-|---|---|---:|---|
-| 1 | 05/08 | $307.569,76 | sin venta |
-| 2 | 07/08 | $129.061,49 | sin venta |
-| 860 | 12/08 | $112.802,25 | sin venta — es la **Id 734 de Contagram** (JUAN 2257505195, venta 24396) |
+Están vinculadas a ventas propias del CRM (por eso mi primera consulta las mostraba "sin venta": esas
+ventas no tienen legacy de Contagram, se cargaron a mano después del corte).
 
-Una nota de crédito sin venta asociada **no descuenta de la cuenta corriente del cliente**. La 860
-sí existe en Contagram y está aplicada a la venta 24396; las otras dos hay que ver contra qué van.
+| Nota | Fecha | Importe | Venta | Cliente |
+|---|---|---:|---|---|
+| 1 | 05/08 | $307.569,76 | 1 | TANIA 1157822317 |
+| 2 | 07/08 | $129.061,49 | 8 | GRACIELA 1136562338 |
+| 860 | 12/08 | $112.802,25 | 23761 | JUAN 2257505195 |
 
-**Qué hacer**: vincular cada una a su venta.
+La 860 es la **Id 734 de Contagram** (venta 24396, mismo cliente y mismo importe): la misma
+operación cargada en los dos sistemas, cada uno contra su propia venta. Correcto.
 
 ---
 

@@ -1179,3 +1179,33 @@ Ninguna otra cuenta se movió, ni al 01/05 ni al 05/08.
 El cruce sólo alcanza a los gastos que tienen movimiento en un extracto. Los que no —además de los
 17 ya corregidos— quedan con la fecha del Excel: **no afectan tesorería**, pero sí los informes del
 módulo de Gastos. Si aparece otra cuenta sin export, revisar esto antes de reconstruirla.
+
+## 21. Las ventas "borradas" tenían nota de crédito — 13/08/2026
+
+Cierra el caso abierto en §18: los tres cobros de Mercado Pago que Contagram había perdido
+(Micaela Echeverría, Emanuel Gutiérrez, Martín González, $427.526,91) no se borraron por error. A
+las tres ventas se les **emitió nota de crédito el 10/08** y se anuló el cobro — por eso el cobro
+desaparecía del informe y su Id quedaba como hueco en la numeración.
+
+Salió del informe de NC/ND de 2026 (`public/imports/nc nd 2026/`, 155 notas). El resultado del
+cruce contra el CRM:
+
+- **148 notas en ambos sistemas con el importe idéntico** — cero diferencias. El import de NC/ND
+  está bien.
+- **6 sólo en Contagram**, todas emitidas entre el 07 y el 11/08, o sea después del corte. Ya
+  cargadas en el CRM por `notasPosterioresAlCorte()`.
+- **3 sólo en el CRM**, verificadas: están vinculadas a ventas propias del CRM. Una de ellas (la
+  860, JUAN 2257505195, $112.802,25) es la Id 734 de Contagram, la misma operación cargada de los
+  dos lados contra su propia venta.
+
+La de Jacinto además cierra una de las diferencias de `Caja del Local`: la venta es de $257.690,06
+y **$257.690,06 − $227.357,99 = $30.332,07**, exactamente lo que Contagram tenía cobrado.
+
+Efecto: la Cta Cte de Clientes de hoy baja $886.882,46 (a $9.735.708,77). Al 01/05 y al 05/08 no
+cambia nada.
+
+### Lección
+
+**Un cobro que desaparece de un informe no significa que se haya borrado la venta.** Antes de
+concluir que falta algo, mirar si hay una nota de crédito que lo explique — es la forma normal de
+revertir una venta ya cobrada, y no deja rastro en el informe de cobros.
