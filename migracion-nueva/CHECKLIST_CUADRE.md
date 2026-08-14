@@ -947,3 +947,65 @@ mano desde Configuración. Tiendanube no está en ese modo y sincroniza normal.
 Rollback, si alguna vez hiciera falta: restaurar `backup_contagram_pre_swap_20260814.sql` **y** volver
 el código a `0806a74`. Los dos juntos — con la base vieja y el código nuevo, `migrate` intenta
 recrear `configuracion_ventas`.
+
+
+## Una Venta puede venir de varias órdenes de ML (14/08/2026)
+
+Estado final: **141 órdenes, 137 vinculadas**, 3 ventas con dos órdenes cada una.
+
+### El problema que esto evitó
+
+Las órdenes o94, o101 y o123 habían quedado sin vincular por el índice **único** de `ml_ordenes.venta_id`.
+La marca de `requiere_atencion` que se les puso a mano **se borró sola**: `EvaluadorConvertibilidad`
+recalcula el estado en cada corrida, no encuentra nada malo en esas órdenes —están pagadas, con su
+publicación vinculada, moneda correcta— y las devuelve a `lista`.
+
+O sea que estaban **a un `creacion_automatica = true` de que el cron les creara tres Ventas duplicadas**, y
+el botón "Transformar todas en Venta" también las habría tomado. No es hipotético: se verificó que ya
+habían vuelto a `lista` solas.
+
+### Por qué el índice único estaba mal
+
+Modelaba una regla que no es cierta en este negocio. Contagram, cuando llegaban dos órdenes del mismo
+producto y el mismo comprador, convertía **una sola** en Venta y le ponía la cantidad total:
+
+```
+venta 24372   Botiquin triptico 80      cantidad 2   ← órdenes 93 + 94
+venta 24399   Botiquin 40 Recto Cubic   cantidad 2   ← órdenes 101 + 102
+venta 24420   Aro de conexión + Jabonera             ← órdenes 123 + 124
+```
+
+Las dos primeras son el patrón de **cantidad acumulada**. La tercera es distinto: dos productos distintos
+del mismo comprador en un solo comprobante. En los tres casos la orden sobrante figura "Pendiente" también
+en Contagram — el CRM no estaba peor que el origen, pero sí en riesgo.
+
+### La solución
+
+Migración `2026_08_21_060001_permitir_varias_ordenes_ml_por_venta.php`: se cambia el índice único por uno
+común. Con el vínculo cargado, la guarda que el evaluador **ya tenía** las protege sola y para siempre:
+
+```php
+if ($orden->venta_id) { return [EstadoConversion::Convertida, null, null]; }
+```
+
+Verificado tras el cambio: las tres evalúan `convertida`, que es terminal. No hay marca artificial que
+mantener.
+
+**La protección anti-duplicados no se debilita**: `ventas.ml_order_id` sigue siendo único, y la guarda por
+`venta_id` del conversor se evalúa **antes** que la que busca por `ml_order_id`, así que una orden ya
+vinculada se rechaza igual aunque su id no sea el que quedó grabado en la Venta.
+
+### Pendiente de decidir: qué pasa con las órdenes nuevas
+
+Esto arregla las tres históricas pero **no replica el comportamiento de Contagram hacia adelante**. Si
+entran dos órdenes iguales del mismo cliente, el CRM va a crear **dos Ventas separadas** en vez de una con
+cantidad 2 — stock correcto, pero dos comprobantes donde Contagram emitía uno. Tres caminos posibles:
+dejarlo así, agrupar a mano, o agrupar automáticamente. **Sin resolver, a la espera de la decisión del
+usuario.**
+
+### Nota sobre la spec 066
+
+Se descubrió tarde que la spec 066 (conversión manual obligatoria para órdenes en estado excepcional) **ya
+estaba implementada** en el commit `edc0950`, del 14/08 04:49. La cadena de specs que se corrió después
+quedó como documentación redundante. La migración de esa spec estaba **sin aplicar** en la base nueva y se
+aplicó ahora, junto con ésta.
