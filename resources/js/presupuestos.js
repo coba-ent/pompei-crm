@@ -88,6 +88,16 @@
         };
     }
 
+    /**
+     * Deja el buscador listo para cargar el ítem siguiente sin volver a hacer clic. Ver el comentario
+     * extendido en `ventas.js` — el campo de búsqueda de Select2 sólo existe con el desplegable
+     * abierto, y el `setTimeout` evita chocar con el cierre en curso.
+     */
+    function reabrirBuscador($el) {
+        if (!hasSelect2 || !$el || !$el.length) { return; }
+        setTimeout(function () { $el.select2('open'); }, 0);
+    }
+
     function iniciarSelect2Catalogo($el, opciones) {
         if (!hasSelect2 || !$el || !$el.length) { return; }
         const opts = opciones || {};
@@ -488,6 +498,7 @@
             });
             renderItems();
             $(this).val(null).trigger('change');
+            reabrirBuscador($(this));
         });
 
         // Refresco de fila al editar el producto desde el desplegable ▾ del detalle

@@ -42,6 +42,15 @@
             $el.trigger('change.select2');
         }
     }
+    /**
+     * Deja el buscador listo para cargar el ítem siguiente sin volver a hacer clic. Ver el comentario
+     * extendido en `ventas.js` — el campo de búsqueda de Select2 sólo existe con el desplegable
+     * abierto, y el `setTimeout` evita chocar con el cierre en curso.
+     */
+    function reabrirBuscador($el) {
+        if (!hasSelect2 || !$el || !$el.length) { return; }
+        setTimeout(function () { $el.select2('open'); }, 0);
+    }
     function money(v) {
         return '$ ' + (Number(v) || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
@@ -425,6 +434,7 @@
             items.unshift({ producto_id: producto.id, descripcion: producto.nombre, cantidad: 1, precio_unitario: producto.costo || 0, descuento_pct: null, iva_pct: ivaAuto, _precioCatalogoOriginal: producto.costo || 0 });
             renderItems();
             $(this).val(null).trigger('change');
+            reabrirBuscador($(this));
         });
 
         // Refresco de fila al editar el producto desde el desplegable ▾ del detalle

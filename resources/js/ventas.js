@@ -106,6 +106,19 @@
         };
     }
 
+    /**
+     * Deja el buscador listo para cargar el ítem siguiente sin volver a hacer clic.
+     *
+     * Al limpiar la selección el desplegable se cierra y Select2 devuelve el foco al contenedor, no
+     * al campo de búsqueda —que sólo existe mientras el desplegable está abierto—, así que la única
+     * forma de recuperar el foco es reabrirlo. El `setTimeout` es necesario: en el handler de
+     * `select2:select` el cierre todavía está en curso y abrir en el mismo tick no tiene efecto.
+     */
+    function reabrirBuscador($el) {
+        if (!hasSelect2 || !$el || !$el.length) { return; }
+        setTimeout(function () { $el.select2('open'); }, 0);
+    }
+
     function iniciarSelect2Catalogo($el, opciones) {
         if (!hasSelect2 || !$el || !$el.length) { return; }
         const opts = opciones || {};
@@ -647,6 +660,7 @@
             items.unshift({ producto_id: producto.id, descripcion: producto.nombre, cantidad: 1, precio_unitario: producto.precio || 0, descuento_pct: null, iva_pct: producto.iva_venta_pct || '21', _precioCatalogoOriginal: producto.precio || 0 });
             renderItems();
             $(this).val(null).trigger('change');
+            reabrirBuscador($(this));
         });
 
         // Refresco de fila al editar el producto desde el desplegable ▾ del detalle

@@ -96,6 +96,12 @@ No son sugerencias: toda spec, plan, task e implementación debe cumplirlas.
    `{data:[{id,nombre,codigo}]}`, ej. `productos.opciones`); tras setear value/opciones por código
    refrescar con `.trigger('change.select2')`. El alto/tipografía ya están alineados a los controles
    compactos en `public/css/contagram-custom.css` (regla global). Referencia: `resources/js/productos.js`.
+   **Carga en lote**: en un buscador que agrega ítems a un detalle (productos de Venta/Presupuesto/
+   Compra), tras agregar el ítem hay que **reabrir el desplegable** (`setTimeout(() => $el.select2('open'), 0)`)
+   para que el foco vuelva al buscador y se pueda cargar el siguiente sin volver a hacer clic — el
+   campo de búsqueda de Select2 sólo existe con el desplegable abierto, y el `setTimeout` es
+   imprescindible porque en el handler de `select2:select` el cierre todavía está en curso. Ver
+   `reabrirBuscador()` en `resources/js/ventas.js`.
 
 Consecuencias técnicas típicas: controladores que responden JSON para las operaciones AJAX,
 endpoints server-side para DataTables, validación que devuelve errores en JSON para mostrarlos en el
