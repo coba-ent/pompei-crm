@@ -35,6 +35,15 @@ class MapeadorComprobante
     /** Código `CondicionIVAReceptorId` por defecto para receptor sin CUIT/DNI identificado (Consumidor Final). */
     private const CONDICION_IVA_CONSUMIDOR_FINAL = 5;
 
+    /** Código `DocTipo` de ARCA por `tipo_documento` del cliente (tabla de tipos de documento de WSFEv1). */
+    private const DOC_TIPOS = [
+        'CUIT' => 80,
+        'CUIL' => 86,
+        'CDI' => 87,
+        'Pasaporte' => 94,
+        'DNI' => 96,
+    ];
+
     /** @return int|null Código ARCA para la alícuota, o null si no está soportada (FR-004). */
     public function codigoAlicuotaIva(float $ivaPct): ?int
     {
@@ -178,15 +187,25 @@ class MapeadorComprobante
         return count($bloques) === 1 ? $bloques[0] : $bloques;
     }
 
-    /** @return array{0: int, 1: string} [DocTipo, DocNro] — 80=CUIT, 96=DNI, 99=Consumidor Final sin identificar. */
+    /** @return array{0: int, 1: string} [DocTipo, DocNro] — 99=Consumidor Final sin identificar. */
     private function documentoReceptor(array $cliente): array
     {
+        // El cliente guarda todos los documentos en una misma columna (`clientes.cuit`) y es
+        // `tipo_documento` quien determina el DocTipo de ARCA. Mandar el número sin mirar el tipo
+        // hace que un DNI viaje como DocTipo 80 y ARCA lo rechace buscándolo en el padrón de CUIT.
+        $tipo = $cliente['tipo_documento'] ?? null;
+        $numero = preg_replace('/\D/', '', (string) ($cliente['documento'] ?? ''));
+
+        if ($numero !== '' && isset(self::DOC_TIPOS[$tipo])) {
+            return [self::DOC_TIPOS[$tipo], $numero];
+        }
+
         if (! empty($cliente['cuit'])) {
-            return [80, preg_replace('/\D/', '', $cliente['cuit'])];
+            return [self::DOC_TIPOS['CUIT'], preg_replace('/\D/', '', $cliente['cuit'])];
         }
 
         if (! empty($cliente['dni'])) {
-            return [96, preg_replace('/\D/', '', $cliente['dni'])];
+            return [self::DOC_TIPOS['DNI'], preg_replace('/\D/', '', $cliente['dni'])];
         }
 
         return [99, '0'];

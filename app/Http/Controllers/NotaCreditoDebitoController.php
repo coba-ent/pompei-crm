@@ -225,11 +225,7 @@ class NotaCreditoDebitoController extends Controller
             'tipo_comprobante' => $nota->tipo_comprobante,
             'tipo_nota' => $nota->tipo,
             'fecha' => $nota->fecha_emision,
-            'cliente' => [
-                'cuit' => $venta->cliente?->cuit,
-                'dni' => $venta->cliente?->tipo_documento === 'DNI' ? $venta->cliente?->cuit : null,
-                'condicion_iva_codigo' => $venta->cliente?->condicionIva?->codigo_afip,
-            ],
+            'cliente' => $venta->cliente?->datosFiscalesArca() ?? [],
             'neto' => round((float) $nota->monto / 1.21, 2),
             'iva' => round((float) $nota->monto - round((float) $nota->monto / 1.21, 2), 2),
             'total' => (float) $nota->monto,

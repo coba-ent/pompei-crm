@@ -1075,6 +1075,18 @@ contra ARCA (aprobado con CAE, o rechazado) se muestra en un **modal** persisten
 certificado configurado) se informa por **toast**, porque ahí ni siquiera se llegó a contactar a ARCA.
 Detalle completo en `specs/040-envio-manual-arca/`.
 
+**Corrección (14/08/2026 — DocTipo del receptor):** el Cliente guarda **todos los tipos de documento en
+una misma columna** (`clientes.cuit`: CUIT, CUIL, DNI, Pasaporte o CDI) y es `clientes.tipo_documento`
+quien determina cuál es. **El `DocTipo` que se envía a ARCA se deriva de `tipo_documento`, nunca del
+contenido de la columna**: CUIT→80, CUIL→86, CDI→87, Pasaporte→94, DNI→96, y 99 (Consumidor Final sin
+identificar) cuando no hay documento. Hasta esta corrección el payload informaba el número siempre como
+CUIT (DocTipo 80), por lo que **toda Factura B a consumidor final con DNI era rechazada** por ARCA con
+"DocNro … no se encuentra registrado en los padrones de AFIP" (caso real: Venta 24447 en el VPS,
+14/08/2026, DNI 27501362 enviado como DocTipo 80). El armado del payload del receptor está centralizado
+en `Cliente::datosFiscalesArca()` — Ventas y NC/ND lo consumen, no duplican la lógica. Si
+`tipo_documento` está vacío se asume CUIT (comportamiento histórico): **no se infiere el tipo por
+longitud del número**, para no emitir con un DocTipo adivinado.
+
 **Actualización (spec 039, 03/08/2026):** las Notas de Crédito/Débito con CAE ya tienen su propio
 documento imprimible ("Ver Detalle" en la sección de NC/ND del Detalle de Venta), mostrando su CAE,
 vencimiento de CAE, QR fiscal y una referencia visible al comprobante de Venta que ajustan (tipo,

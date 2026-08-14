@@ -63,6 +63,56 @@ class MapeadorComprobanteTest extends TestCase
         $this->assertSame(210.0, $detalle['Iva']['AlicIva']['Importe']);
     }
 
+    /**
+     * Regresión: el cliente guarda el DNI en la misma columna que el CUIT, y mandarlo como
+     * DocTipo 80 hace que ARCA lo rechace por no encontrarlo en el padrón de CUIT (venta 24447).
+     */
+    public function test_mapea_dni_como_doc_tipo_96_y_no_como_cuit(): void
+    {
+        $mapeador = new MapeadorComprobante();
+
+        $resultado = $mapeador->mapear([
+            'tipo_comprobante' => 'B',
+            'punto_venta' => 9,
+            'numero' => 7,
+            'fecha' => '2026-08-14',
+            'cliente' => ['tipo_documento' => 'DNI', 'documento' => '27501362', 'condicion_iva_codigo' => '5'],
+            'neto' => 64152.89,
+            'iva' => 13472.11,
+            'total' => 77625.0,
+        ]);
+
+        $detalle = $resultado['FeDetReq']['FECAEDetRequest'];
+        $this->assertSame(96, $detalle['DocTipo']);
+        $this->assertSame('27501362', $detalle['DocNro']);
+    }
+
+    public function test_mapea_cada_tipo_de_documento_a_su_doc_tipo_de_arca(): void
+    {
+        $mapeador = new MapeadorComprobante();
+
+        $docTipoPara = function (string $tipoDocumento) use ($mapeador): int {
+            $resultado = $mapeador->mapear([
+                'tipo_comprobante' => 'B',
+                'punto_venta' => 1,
+                'numero' => 1,
+                'fecha' => '2026-08-14',
+                'cliente' => ['tipo_documento' => $tipoDocumento, 'documento' => '20123456789'],
+                'neto' => 100.0,
+                'iva' => 21.0,
+                'total' => 121.0,
+            ]);
+
+            return $resultado['FeDetReq']['FECAEDetRequest']['DocTipo'];
+        };
+
+        $this->assertSame(80, $docTipoPara('CUIT'));
+        $this->assertSame(86, $docTipoPara('CUIL'));
+        $this->assertSame(87, $docTipoPara('CDI'));
+        $this->assertSame(94, $docTipoPara('Pasaporte'));
+        $this->assertSame(96, $docTipoPara('DNI'));
+    }
+
     public function test_mapea_consumidor_final_sin_documento(): void
     {
         $mapeador = new MapeadorComprobante();

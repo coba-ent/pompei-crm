@@ -80,7 +80,7 @@ ARCA/facturación esté fuera de alcance por ahora).
 | **— Bloque de facturación —** | | |
 | razon_social | string, nullable | razón social fiscal (puede diferir de `nombre`) |
 | tipo_documento | string, nullable | 'CUIT' (default) / 'CUIL' / 'DNI' / 'Pasaporte' / 'CDI' |
-| cuit | string, nullable, único (ignora NULL) | N° de documento fiscal. Validación de DV sólo si tipo_documento es CUIT/CUIL |
+| cuit | string, nullable, único (ignora NULL) | N° de documento fiscal, **cualquiera sea su tipo** (el nombre de la columna es histórico). Validación de DV sólo si tipo_documento es CUIT/CUIL. **`tipo_documento` es el único campo que determina qué es este número** — de él se deriva el `DocTipo` que se envía a ARCA (ver `Cliente::datosFiscalesArca()`); leer esta columna asumiendo CUIT hace que ARCA rechace el comprobante |
 | condicion_iva_id | FK → condiciones_iva, nullable | |
 | tipo_comprobante_defecto | string, nullable | A/B/C/E |
 | domicilio_fiscal, localidad_fiscal, provincia_fiscal, cp_fiscal | string, nullable | domicilio fiscal (separado del comercial) |

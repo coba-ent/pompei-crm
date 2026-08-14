@@ -634,11 +634,7 @@ class VentaController extends Controller
         $datos = [
             'tipo_comprobante' => $venta->tipo_comprobante,
             'fecha' => $venta->fecha_emision,
-            'cliente' => [
-                'cuit' => $venta->cliente?->cuit,
-                'dni' => $venta->cliente?->tipo_documento === 'DNI' ? $venta->cliente?->cuit : null,
-                'condicion_iva_codigo' => $venta->cliente?->condicionIva?->codigo_afip,
-            ],
+            'cliente' => $venta->cliente?->datosFiscalesArca() ?? [],
             'neto' => (float) $venta->subtotal_con_descuento,
             'iva' => round((float) $venta->total - (float) $venta->subtotal_con_descuento, 2),
             'total' => (float) $venta->total,

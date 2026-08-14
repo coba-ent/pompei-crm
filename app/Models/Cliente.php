@@ -63,6 +63,29 @@ class Cliente extends Model
         return $this->belongsTo(CondicionIva::class, 'condicion_iva_id');
     }
 
+    /**
+     * Datos del receptor para el payload de ARCA. La columna `cuit` guarda el documento cualquiera
+     * sea su tipo (CUIT, DNI, CUIL, Pasaporte, CDI) y `tipo_documento` es quien determina el DocTipo;
+     * por eso `cuit` sólo se informa cuando el documento realmente es un CUIT (ver
+     * MapeadorComprobante::documentoReceptor). Requiere `condicionIva` cargada.
+     *
+     * @return array{tipo_documento: string|null, documento: string|null, cuit: string|null, dni: string|null, condicion_iva_codigo: string|null}
+     */
+    public function datosFiscalesArca(): array
+    {
+        // Sin tipo_documento no se adivina por longitud: se mantiene el comportamiento histórico
+        // (tratarlo como CUIT) para no emitir un comprobante con un DocTipo inventado.
+        $esCuit = $this->tipo_documento === null || $this->tipo_documento === 'CUIT';
+
+        return [
+            'tipo_documento' => $this->tipo_documento,
+            'documento' => $this->cuit,
+            'cuit' => $esCuit ? $this->cuit : null,
+            'dni' => $this->tipo_documento === 'DNI' ? $this->cuit : null,
+            'condicion_iva_codigo' => $this->condicionIva?->codigo_afip,
+        ];
+    }
+
     public function categoria(): BelongsTo
     {
         return $this->belongsTo(Categoria::class, 'categoria_id');
