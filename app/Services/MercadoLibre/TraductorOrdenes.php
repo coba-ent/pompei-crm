@@ -81,10 +81,37 @@ class TraductorOrdenes
      */
     public function traducirDatosFiscales(array $billingInfo): array
     {
+        // Los datos vienen anidados bajo `buyer.billing_info`, no en la raíz de la respuesta.
+        // Leerlos de la raíz devolvía null en los tres campos —sin error, por los `??`—, así que el
+        // comprador quedaba sin CUIT ni condición de IVA y toda venta de ML se derivaba a Factura B
+        // aunque fuera Responsable Inscripto (incidente 14/08/2026, orden 2000017931860790). Se
+        // mantiene la raíz como fallback por si la API responde en formato plano.
+        $datos = $billingInfo['buyer']['billing_info'] ?? $billingInfo;
+
         return [
-            'comprador_doc_tipo' => $billingInfo['identification']['type'] ?? null,
-            'comprador_doc_numero' => $billingInfo['identification']['number'] ?? null,
-            'comprador_condicion_iva' => $billingInfo['taxes']['taxpayer_type']['description'] ?? null,
+            'comprador_doc_tipo' => $datos['identification']['type'] ?? null,
+            'comprador_doc_numero' => $datos['identification']['number'] ?? null,
+            'comprador_condicion_iva' => $datos['taxes']['taxpayer_type']['description'] ?? null,
+        ];
+    }
+
+    /**
+     * Razón social y domicilio fiscal del comprador, de la misma respuesta de billing-info. No se
+     * persisten en la orden (no hay columnas): los consume el Cliente al darse de alta.
+     *
+     * @param  array<string, mixed>  $billingInfo  Respuesta de `GET /orders/billing-info/{SITE_ID}/{ID}`.
+     * @return array{razon_social: ?string, domicilio_fiscal: ?string, localidad_fiscal: ?string, provincia_fiscal: ?string}
+     */
+    public function traducirDomicilioFiscal(array $billingInfo): array
+    {
+        $datos = $billingInfo['buyer']['billing_info'] ?? $billingInfo;
+        $direccion = $datos['address'] ?? [];
+
+        return [
+            'razon_social' => $datos['name'] ?? null,
+            'domicilio_fiscal' => $direccion['street_name'] ?? null,
+            'localidad_fiscal' => $direccion['city_name'] ?? null,
+            'provincia_fiscal' => $direccion['state']['name'] ?? null,
         ];
     }
 

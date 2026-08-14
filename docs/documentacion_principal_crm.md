@@ -1759,6 +1759,23 @@ historial, apartado MCP de esta pantalla) queda condicionada a una confirmación
 Historias 1 y 2 funcionan correctamente en producción** — no es un paso automático del mismo despliegue.
 Ver `specs/024-tiendanube-migracion-rest/`.
 
+**Corrección (14/08/2026 — datos fiscales del comprador de Mercado Libre):** la respuesta de
+`GET /orders/billing-info/{SITE_ID}/{ID}` trae los datos del comprador **anidados bajo
+`buyer.billing_info`** (`identification.type`/`identification.number`,
+`taxes.taxpayer_type.description`, `name`, `address.*`), **no en la raíz**. `TraductorOrdenes` los
+leía de la raíz, así que devolvía `null` en los tres campos **sin producir ningún error** (los `??
+null` absorbían el fallo). Consecuencia: el Cliente creado desde una orden de ML quedaba **sin CUIT,
+sin condición de IVA y sin razón social**, y como `DerivadorComprobante` deriva el tipo de comprobante
+de la condición de IVA, **toda venta de Mercado Libre se emitía como Factura B**, incluso cuando el
+comprador era Responsable Inscripto y ML indicaba explícitamente `seller.invoice_type: "Factura A"`.
+Caso real: orden 2000017931860790 → Venta 24489 (CUIT 20186597142, IVA Responsable Inscripto,
+`vat_discriminated_billing: True`, emitida como B). El test que cubría esta traducción **no detectó el
+defecto porque construía la respuesta a mano en formato plano**, distinto del que devuelve la API real;
+desde esta corrección el test usa la respuesta real capturada de producción. Se agregó además
+`TraductorOrdenes::traducirDomicilioFiscal()` para aprovechar razón social y domicilio fiscal, que ML
+también devuelve y antes se descartaban. **Pendiente al 14/08/2026: relevar y corregir las ventas de ML
+ya convertidas con el tipo de comprobante y los datos fiscales equivocados** (ver §7).
+
 *Fuente(s): `docs/informe_contagram_funciones_avanzadas.md` §3; documentación oficial de Mercado Libre
 Developers; `admin-mcp.tiendanube.com` (observado empíricamente, sin doc pública — ver
 `specs/019-tiendanube-conexion-mcp/research.md`); documentación pública de Tiendanube
@@ -2026,6 +2043,15 @@ salieron de esta lista:
   Ajusta", bloqueo total si la nota ya tiene CAE aprobado, reversión exacta de stock al
   editar/eliminar, y el PDF de NC/ND en **Compras** (hoy sólo existe en Ventas). Ya no aplica más
   como pendiente de esta lista.
+- **Reparación de las ventas de Mercado Libre convertidas con datos fiscales vacíos (detectado
+  14/08/2026, sin spec)** — hasta la corrección de `TraductorOrdenes` de esa fecha (ver §5.2), toda
+  orden de ML convertida a Venta creó/actualizó el Cliente **sin CUIT, sin condición de IVA y sin razón
+  social**, y derivó el comprobante a **Factura B** aunque el comprador fuera Responsable Inscripto.
+  El fix corrige las conversiones **futuras**; las ya convertidas quedaron con el tipo de comprobante y
+  los datos del Cliente equivocados. Pendiente: medir el alcance (cuántas ventas y cuántos clientes),
+  y definir el criterio de reparación distinguiendo las que **ya tienen CAE aprobado** —donde el
+  comprobante ya fue declarado al fisco y no se puede reescribir sin más— de las que todavía no se
+  emitieron.
 - **Notificaciones (módulo nuevo, todavía sin spec)** — no existe en Contagram real, sería una
   funcionalidad propia del negocio. Necesidad detectada el 02/08/2026: la cuenta de Mercado Libre quedó
   `desconectada` el 31/07 a las 22:30 (falló el cron `mercadolibre:sincronizar-stock` en ese momento) y

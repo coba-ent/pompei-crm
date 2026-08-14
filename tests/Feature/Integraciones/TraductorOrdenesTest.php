@@ -111,6 +111,7 @@ class TraductorOrdenesTest extends TestCase
         $this->assertNull($traducida['billing_info_id']);
     }
 
+    /** Formato plano — se mantiene soportado como fallback. */
     public function test_datos_fiscales_se_traducen_desde_billing_info(): void
     {
         $billingInfo = [
@@ -123,6 +124,65 @@ class TraductorOrdenesTest extends TestCase
         $this->assertSame('CUIT', $datos['comprador_doc_tipo']);
         $this->assertSame('20304050607', $datos['comprador_doc_numero']);
         $this->assertSame('Monotributo', $datos['comprador_condicion_iva']);
+    }
+
+    /**
+     * Respuesta REAL de `GET /orders/billing-info/MLA/{id}` (capturada de la orden 2000017931860790,
+     * 14/08/2026): los datos van anidados bajo `buyer.billing_info`. Leerlos de la raíz devolvía null
+     * en silencio y el comprador quedaba sin CUIT ni condición de IVA.
+     */
+    public function test_datos_fiscales_se_traducen_desde_la_respuesta_real_anidada(): void
+    {
+        $datos = $this->traductor()->traducirDatosFiscales($this->billingInfoReal());
+
+        $this->assertSame('CUIT', $datos['comprador_doc_tipo']);
+        $this->assertSame('20186597142', $datos['comprador_doc_numero']);
+        $this->assertSame('IVA Responsable Inscripto', $datos['comprador_condicion_iva']);
+    }
+
+    public function test_domicilio_fiscal_se_traduce_desde_la_respuesta_real(): void
+    {
+        $datos = $this->traductor()->traducirDomicilioFiscal($this->billingInfoReal());
+
+        $this->assertSame('BAHAMONDE BARRIA SERGIO RENE', $datos['razon_social']);
+        $this->assertSame('ZAPIOLA 1422', $datos['domicilio_fiscal']);
+        $this->assertSame('RIO GALLEGOS', $datos['localidad_fiscal']);
+        $this->assertSame('SANTA CRUZ', $datos['provincia_fiscal']);
+    }
+
+    public function test_billing_info_vacio_no_rompe(): void
+    {
+        $datos = $this->traductor()->traducirDatosFiscales([]);
+
+        $this->assertNull($datos['comprador_doc_tipo']);
+        $this->assertNull($datos['comprador_doc_numero']);
+        $this->assertNull($datos['comprador_condicion_iva']);
+    }
+
+    /** @return array<string, mixed> */
+    private function billingInfoReal(): array
+    {
+        return [
+            'id' => '876101808099729799',
+            'site_id' => 'MLA',
+            'buyer' => [
+                'cust_id' => '204859164',
+                'billing_info' => [
+                    'name' => 'BAHAMONDE BARRIA SERGIO RENE',
+                    'identification' => ['type' => 'CUIT', 'number' => '20186597142'],
+                    'taxes' => ['taxpayer_type' => ['id' => '01', 'description' => 'IVA Responsable Inscripto']],
+                    'address' => [
+                        'street_name' => 'ZAPIOLA 1422',
+                        'city_name' => 'RIO GALLEGOS',
+                        'state' => ['code' => 'Z', 'name' => 'SANTA CRUZ'],
+                        'zip_code' => '9400',
+                        'country_id' => 'AR',
+                    ],
+                    'attributes' => ['vat_discriminated_billing' => 'True'],
+                ],
+            ],
+            'seller' => ['cust_id' => '209860206', 'invoice_type' => 'Factura A'],
+        ];
     }
 
     public function test_orden_con_alerta_de_fraude_se_marca(): void

@@ -29,6 +29,14 @@ class DerivadorComprobante
         'Consumidor Final' => 'Consumidor Final',
     ];
 
+    /** Razón social y domicilio del comprador leídos de billing-info en esta derivación, si los hubo. */
+    private array $domicilioFiscal = [
+        'razon_social' => null,
+        'domicilio_fiscal' => null,
+        'localidad_fiscal' => null,
+        'provincia_fiscal' => null,
+    ];
+
     public function __construct(
         private readonly ClienteMercadoLibre $cliente,
         private readonly TraductorOrdenes $traductor,
@@ -52,10 +60,7 @@ class DerivadorComprobante
                 'doc_tipo' => $docTipo,
                 'doc_numero' => $docNumero,
                 'aproximado' => false,
-                'razon_social' => null,
-                'domicilio_fiscal' => null,
-                'localidad_fiscal' => null,
-                'provincia_fiscal' => null,
+                ...$this->domicilioFiscal,
             ];
         }
 
@@ -195,6 +200,7 @@ class DerivadorComprobante
 
         if ($facturacion->exito) {
             $orden->update($this->traductor->traducirDatosFiscales($facturacion->datos));
+            $this->domicilioFiscal = $this->traductor->traducirDomicilioFiscal($facturacion->datos);
         }
     }
 }
