@@ -73,7 +73,7 @@ class ResolutorCliente
             'nombre' => $orden->comprador_nombre ?: ($orden->comprador_apodo ?: 'Comprador Mercado Libre '.$orden->comprador_ml_id),
             'apodo_ml' => $orden->comprador_apodo,
             'ml_user_id' => $orden->comprador_ml_id,
-            'cuit' => $datosFiscales['doc_tipo'] === 'CUIT' ? $datosFiscales['doc_numero'] : null,
+            'cuit' => $this->documentoGuardable($datosFiscales['doc_numero'] ?? null),
             'tipo_documento' => $datosFiscales['doc_tipo'],
             'condicion_iva_id' => $this->condicionIvaId($datosFiscales['condicion_iva']),
             'tipo_comprobante_defecto' => $datosFiscales['tipo_comprobante'],
@@ -96,8 +96,8 @@ class ResolutorCliente
         if (empty($cliente->tipo_documento)) {
             $cambios['tipo_documento'] = $datosFiscales['doc_tipo'];
         }
-        if (empty($cliente->cuit) && $datosFiscales['doc_tipo'] === 'CUIT') {
-            $cambios['cuit'] = $datosFiscales['doc_numero'];
+        if (empty($cliente->cuit) && ($documento = $this->documentoGuardable($datosFiscales['doc_numero'] ?? null, $cliente->id))) {
+            $cambios['cuit'] = $documento;
         }
         if (empty($cliente->tipo_comprobante_defecto)) {
             $cambios['tipo_comprobante_defecto'] = $datosFiscales['tipo_comprobante'];
@@ -118,6 +118,29 @@ class ResolutorCliente
         if ($cambios) {
             $cliente->update($cambios);
         }
+    }
+
+    /**
+     * El documento del comprador —sea CUIT, DNI, CUIL, Pasaporte o CDI— va a `clientes.cuit`, que es
+     * la columna única de documento del CRM (ver `docs/modelo_datos.md`); `tipo_documento` es quien
+     * dice qué es. Hasta el 14/08/2026 sólo se guardaba cuando era CUIT, así que el comprador con DNI
+     * quedaba identificado como "DNI" pero sin número, y su Venta se enviaba a ARCA como Consumidor
+     * Final sin identificar (DocTipo 99) pese a que Mercado Libre sí había informado el documento.
+     *
+     * Devuelve null si el número ya lo tiene otro Cliente: la columna es única y una colisión haría
+     * fallar el alta entera de la Venta por un dato secundario.
+     */
+    private function documentoGuardable(?string $numero, ?int $exceptoClienteId = null): ?string
+    {
+        if (empty($numero)) {
+            return null;
+        }
+
+        $ocupado = Cliente::where('cuit', $numero)
+            ->when($exceptoClienteId, fn ($q) => $q->where('id', '!=', $exceptoClienteId))
+            ->exists();
+
+        return $ocupado ? null : $numero;
     }
 
     private function condicionIvaId(string $nombreCrm): ?int

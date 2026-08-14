@@ -1773,7 +1773,17 @@ Caso real: orden 2000017931860790 → Venta 24489 (CUIT 20186597142, IVA Respons
 defecto porque construía la respuesta a mano en formato plano**, distinto del que devuelve la API real;
 desde esta corrección el test usa la respuesta real capturada de producción. Se agregó además
 `TraductorOrdenes::traducirDomicilioFiscal()` para aprovechar razón social y domicilio fiscal, que ML
-también devuelve y antes se descartaban. **Pendiente al 14/08/2026: relevar y corregir las ventas de ML
+también devuelve y antes se descartaban.
+
+**Corrección asociada (14/08/2026 — el documento del comprador se guarda cualquiera sea su tipo):**
+`ResolutorCliente` guardaba el número de documento en `clientes.cuit` **sólo si era CUIT**, de modo que
+un comprador con DNI quedaba con `tipo_documento = 'DNI'` pero **sin número**, y su Venta se enviaba a
+ARCA como Consumidor Final sin identificar (DocTipo 99) pese a que Mercado Libre sí había informado el
+DNI. Ahora se guarda el documento sea CUIT, DNI, CUIL, Pasaporte o CDI —coherente con el modelo de
+datos, donde `clientes.cuit` es la columna única de documento y `tipo_documento` dice qué es—. Como esa
+columna tiene índice único, si el número ya pertenece a otro Cliente **no se asigna y se sigue
+adelante**: una colisión de documento no puede hacer fallar el alta de la Venta por un dato secundario.
+Se sigue respetando la regla de no pisar datos cargados a mano. **Pendiente al 14/08/2026: relevar y corregir las ventas de ML
 ya convertidas con el tipo de comprobante y los datos fiscales equivocados** (ver §7).
 
 *Fuente(s): `docs/informe_contagram_funciones_avanzadas.md` §3; documentación oficial de Mercado Libre
