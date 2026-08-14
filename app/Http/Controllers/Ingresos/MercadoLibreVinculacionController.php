@@ -40,9 +40,20 @@ class MercadoLibreVinculacionController extends Controller
         return view('ingresos.mercadolibre.vinculaciones', compact('CurrentPage'));
     }
 
-    public function datatable(): JsonResponse
+    public function datatable(Request $request): JsonResponse
     {
         $query = MercadoLibrePublicacionProducto::query()->with('producto:id,nombre,codigo');
+
+        // spec 065/FR-025: filtro server-side sobre la columna indexada, sin llamadas a la API.
+        // `sin_clasificar` es el único valor que no viene de Mercado Libre: representa el NULL
+        // de las publicaciones que todavía no pasaron por una corrida de clasificación.
+        if ($request->filled('logistic_type')) {
+            $logistica = $request->input('logistic_type');
+
+            $logistica === 'sin_clasificar'
+                ? $query->whereNull('logistic_type')
+                : $query->where('logistic_type', $logistica);
+        }
 
         // El stock que realmente se publica sale de UN depósito, no del total del
         // producto. Mostrar el total acá induce a error: se ve "17" en el CRM y "7"
@@ -64,6 +75,10 @@ class MercadoLibreVinculacionController extends Controller
 
                 return (int) max(0, $stockService->disponibilidad($v->producto, null, $depositoMl)) - (int) $v->ultimo_stock_publicado;
             })
+            // spec 065/FR-024: la traducción a español vive en el modelo; el JS sólo decide si
+            // la pinta como badge (Full) o como texto, según `es_full`.
+            ->addColumn('logistica_etiqueta', fn (MercadoLibrePublicacionProducto $v) => $v->logistica_etiqueta)
+            ->addColumn('es_full', fn (MercadoLibrePublicacionProducto $v) => $v->esFull())
             ->addColumn('acciones', fn (MercadoLibrePublicacionProducto $v) => view('ingresos.mercadolibre._row_actions_vinculacion', ['vinculacion' => $v])->render())
             ->addColumn('stock_estado', fn (MercadoLibrePublicacionProducto $v) => $this->stockEstado($v))
             ->addColumn('precio_estado', fn (MercadoLibrePublicacionProducto $v) => $this->precioEstado($v))

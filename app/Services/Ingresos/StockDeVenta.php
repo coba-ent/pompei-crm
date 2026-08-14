@@ -85,7 +85,12 @@ class StockDeVenta
     private function resolverDeposito(Venta $venta): Deposito
     {
         if ($venta->origen === 'mercadolibre') {
-            return MercadoLibreConfiguracion::actual()->depositoEfectivo();
+            // spec 065/FR-020b: manda el depósito YA imputado a la Venta, no un recálculo.
+            // Desde que una orden íntegramente Full se imputa al depósito Full, recalcular
+            // acá descontaría del depósito general una venta contabilizada en el Full.
+            // Sin depósito en la Venta (las anteriores a que existiera la columna) se cae
+            // al configurado, que es lo que se venía haciendo siempre.
+            return $venta->deposito ?? MercadoLibreConfiguracion::actual()->depositoEfectivo();
         }
 
         if ($venta->origen === 'tiendanube') {

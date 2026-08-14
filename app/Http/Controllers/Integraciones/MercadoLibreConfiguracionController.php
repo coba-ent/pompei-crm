@@ -11,6 +11,7 @@ use App\Models\Deposito;
 use App\Models\Integraciones\MercadoLibreConfiguracion;
 use App\Models\Integraciones\MercadoLibreCuenta;
 use App\Models\Integraciones\MercadoLibreOperacionLog;
+use App\Models\Integraciones\MercadoLibrePublicacionProducto;
 use App\Models\Vendedor;
 use App\Services\MercadoLibre\ClienteMercadoLibre;
 use App\Services\MercadoLibre\Excepciones\VinculacionRechazadaException;
@@ -42,8 +43,14 @@ class MercadoLibreConfiguracionController extends Controller
         $depositoPorDefecto = Deposito::porDefecto();
         $depositoEfectivo = MercadoLibreConfiguracion::actual()->depositoEfectivoONulo();
 
+        // spec 065/FR-026: hace falta saber si hay Full vinculadas para poder avisar
+        // cuando falta configurar su depósito — si no, su stock no se refleja en silencio.
+        $depositoFullEfectivo = MercadoLibreConfiguracion::actual()->depositoFullEfectivoONulo();
+        $publicacionesFull = MercadoLibrePublicacionProducto::soloFull()->count();
+
         return view('configuracion.mercadolibre.index', compact(
-            'CurrentPage', 'depositos', 'categoriasVenta', 'listasPrecio', 'depositoPorDefecto', 'depositoEfectivo', 'vendedores'
+            'CurrentPage', 'depositos', 'categoriasVenta', 'listasPrecio', 'depositoPorDefecto',
+            'depositoEfectivo', 'depositoFullEfectivo', 'publicacionesFull', 'vendedores'
         ));
     }
 

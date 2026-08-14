@@ -750,6 +750,43 @@ nuevas** — extiende las ya construidas por la spec 012.
   publicación — **sólo se sincroniza la cantidad disponible**. Tampoco se pausa ni cierra la publicación
   al llegar a cero: informar cantidad cero ya alcanza para que Mercado Libre deje de venderla.
 
+### 3.2.ter.bis Publicaciones **Full** (fulfillment) — spec 065 (implementada)
+
+Excepción estructural a todo §3.2.ter: **para las publicaciones en Full el stock viaja al revés**.
+
+**Por qué**. Mercado Libre lleva **dos existencias separadas** por producto: la del domicilio del
+vendedor y la del centro de distribución de Mercado Libre. La segunda —el stock Full— **no es
+escribible por la API**: sólo cambia cuando Mercado Libre recibe físicamente un envío del negocio o
+cuando vende. Verificado contra la cuenta real (13/08/2026). No es una decisión de diseño: del lado de
+Mercado Libre no existe destino de escritura.
+
+Reglas de negocio:
+
+- **Identificación**: una publicación es Full si su tipo de logística es `fulfillment`
+  (`ml_publicacion_producto.logistic_type`). Es el **único** indicador confiable: el identificador de
+  inventario aparece también en publicaciones de logística propia. Ante un valor desconocido, ausente
+  o nuevo, la publicación se trata como **no Full** — nunca se infiere Full.
+- **Depósito propio**: `ml_configuracion.deposito_full_id` designa el depósito del CRM que representa
+  la mercadería alojada en el centro de distribución de Mercado Libre. Es **opcional**, lo da de alta
+  el usuario a mano, y **debe ser distinto** del depósito general de Mercado Libre.
+- **CRM → Mercado Libre**: las publicaciones Full quedan **excluidas** del envío de stock de
+  §3.2.ter. El envío se limita a lo que Mercado Libre permite escribir.
+- **Mercado Libre → CRM**: el CRM **lee** la existencia vendible del centro de distribución y la
+  refleja en el depósito Full, deduplicando por inventario (publicaciones que comparten inventario
+  cuentan una sola vez). La existencia no vendible (dañada, en transferencia) no se computa. A
+  diferencia del envío, **este reflejo NO se bloquea por el modo sólo lectura**: es una lectura, y ese
+  modo restringe escrituras hacia Mercado Libre.
+- **Ventas**: una orden cuyas líneas sean **todas** Full imputa la Venta al depósito Full. Si mezcla
+  Full con logística propia, va al general (una Venta tiene un único depósito). Sin depósito Full
+  configurado, va al general. **La conversión de una orden nunca se traba por esta configuración.**
+- **Reposición hacia Full**: **manual**, por decisión del negocio y porque Mercado Libre no la expone
+  por API. El CRM no la automatiza; si se quiere dejar registro, se usa un movimiento entre depósitos.
+
+**Qué problema resuelve**. Hoy el CRM suma ambas existencias en un solo depósito. Caso real: un
+producto con 4 unidades en el centro de distribución de Mercado Libre y 3 en el depósito propio se ve
+como "7 en un solo lugar", sin poder distinguir cuáles puede despachar el negocio por sus propios
+medios. Ver `specs/065-ml-deposito-full/`.
+
 > **Nota — Compras también mueven stock** (spec 030, §6.2): el disparo reacciona a *cualquier* movimiento
 > de stock, y desde spec 030 las Compras generan los suyos igual que Ventas y ajustes — quedan cubiertas
 > por este mecanismo sin cambios adicionales.

@@ -35,9 +35,15 @@ class ComprobantesContagram
         '21' => 'IVA - 21%', '27' => 'IVA - 27%',
     ];
 
+    /**
+     * @param  list<string>  $extraPorItem  Archivos por-ítem adicionales (ver delAnio()).
+     * @param  list<string>  $extraResumen  Archivos de resumen adicionales.
+     */
     public function __construct(
         private readonly LectorExcelContagram $lector,
         private readonly string $base,
+        private readonly array $extraPorItem = [],
+        private readonly array $extraResumen = [],
     ) {}
 
     /**
@@ -49,6 +55,27 @@ class ComprobantesContagram
     {
         $porItem = $this->lector->leer("{$this->base}/Ventas/Ventas {$anio}.xlsx", $headerCanonico);
         $resumen = $this->indexarResumen($anio);
+
+        // Tramo final de 2026: los export por año cortan el 05/08 y los últimos días llegaron en
+        // archivos aparte (el "Informe de Ventas Detallado", que trae **exactamente las mismas 44
+        // columnas** que el por-ítem, sólo que con el encabezado en la fila 10 — el lector lo ubica
+        // solo porque busca en las primeras 15). Se concatenan acá para que todo lo demás —el
+        // agrupado por Id+familia, el arbitraje del total, el IVA, los ítems— sea el mismo código
+        // ya probado en los seis años.
+        foreach ($this->extraPorItem as $path) {
+            foreach ($this->lector->leer($path)['filas'] as $fila) {
+                $porItem['filas'][] = $fila;
+            }
+        }
+
+        foreach ($this->extraResumen as $path) {
+            foreach ($this->lector->leer($path)['filas'] as $fila) {
+                $id = $this->lector->texto($fila['Id'] ?? null);
+                if ($id !== null) {
+                    $resumen[$id.'|'.$this->familia($fila)] = $fila;
+                }
+            }
+        }
 
         $grupos = [];
         foreach ($porItem['filas'] as $fila) {
@@ -277,6 +304,22 @@ class ComprobantesContagram
      */
     public function dentroDelCorte(?CarbonImmutable $fecha): bool
     {
-        return $fecha !== null && $fecha->format('Y-m-d') <= self::CORTE;
+        return $fecha !== null && $fecha->format('Y-m-d') <= $this->corte;
     }
+
+    /**
+     * Corre el corte más allá del 05/08.
+     *
+     * `CORTE` quedó en esa fecha porque era hasta donde llegaban los export cuando se armó el
+     * import del VPS. En la base nueva el corte es el día del pase a producción, y los últimos días
+     * llegan en los archivos extra (ver delAnio()).
+     */
+    public function conCorte(string $fecha): static
+    {
+        $this->corte = $fecha;
+
+        return $this;
+    }
+
+    private string $corte = self::CORTE;
 }

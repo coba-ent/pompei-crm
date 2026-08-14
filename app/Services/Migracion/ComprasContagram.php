@@ -41,9 +41,28 @@ class ComprasContagram
         'Imp. Internos' => ['impuesto_interno', 'Impuestos Internos'],
     ];
 
+    private string $corte = self::CORTE;
+
+    /** Corre el corte más allá del 05/08; ver el equivalente en ComprobantesContagram. */
+    public function conCorte(string $fecha): static
+    {
+        $this->corte = $fecha;
+
+        return $this;
+    }
+
+    /**
+     * @param  list<string>  $extraPorItem  Archivos por-ítem extra (tramo final de 2026).
+     * @param  bool  $extraConFechasDirectas  Los export por año de `Compras/` traen el día y el mes
+     *      cambiados, pero los "Informe de Compras" exportados por rango en agosto de 2026 vienen
+     *      bien. Invertir estos últimos manda el 10/08 a octubre y el 12/08 a diciembre, y el corte
+     *      los descarta: así se perdieron 4 compras por $3.788.556,39 en la primera corrida.
+     */
     public function __construct(
         private readonly LectorExcelContagram $lector,
         private readonly string $base,
+        private readonly array $extraPorItem = [],
+        private readonly bool $extraConFechasDirectas = false,
     ) {}
 
     /** @return array<string, array<string, mixed>> indexado por legacy_id */
@@ -51,6 +70,16 @@ class ComprasContagram
     {
         $porItem = $this->lector->leer("{$this->base}/Compras/{$anio} Compras.xlsx");
         $resumen = $this->indexarResumen($anio);
+
+        // Igual que en ventas: el export por año corta el 05/08 y los últimos días llegaron en un
+        // "Informe de Compras" aparte, con las mismas 35 columnas y el encabezado en la fila 7.
+        foreach ($this->extraPorItem as $path) {
+            foreach ($this->lector->leer($path)['filas'] as $fila) {
+                // Marca la fila para que armar() sepa cómo leerle la fecha.
+                $fila['__fechas_directas'] = $this->extraConFechasDirectas;
+                $porItem['filas'][] = $fila;
+            }
+        }
 
         $grupos = [];
         foreach ($porItem['filas'] as $fila) {
@@ -133,8 +162,11 @@ class ComprasContagram
             $subCon = round(array_sum(array_column($items, 'subtotal')), 2);
         }
 
-        // `invertida: true` — Compras arrastra el defecto de día/mes cambiados (§3.1).
-        $fecha = $L->fecha($cab['Emisión'] ?? $cab['Fecha'] ?? null, true);
+        // Compras arrastra el defecto de día/mes cambiados (§3.1) **en los export por año**; los
+        // informes por rango de agosto de 2026 vienen bien y la fila viene marcada desde delAnio().
+        // La cabecera puede venir del `c/ pago`, que no lleva la marca: se mira también el renglón.
+        $invertida = ! (($cab['__fechas_directas'] ?? false) || ($filas[0]['__fechas_directas'] ?? false));
+        $fecha = $L->fecha($cab['Emisión'] ?? $cab['Fecha'] ?? null, $invertida);
 
         return [
             // Prefijo `COMPRA-` obligatorio: las notas de crédito/débito de compras y de ventas
@@ -150,9 +182,9 @@ class ComprasContagram
             'tiene_resumen' => $resumen !== null,
 
             'fecha_emision' => $fecha,
-            'fecha_vto_pago' => $L->fecha($cab['Vencimiento'] ?? null, true),
-            'servicio_desde' => $L->fecha($cab['Servicio Desde'] ?? null, true),
-            'servicio_hasta' => $L->fecha($cab['Servicio Hasta'] ?? null, true),
+            'fecha_vto_pago' => $L->fecha($cab['Vencimiento'] ?? null, $invertida),
+            'servicio_desde' => $L->fecha($cab['Servicio Desde'] ?? null, $invertida),
+            'servicio_hasta' => $L->fecha($cab['Servicio Hasta'] ?? null, $invertida),
 
             'proveedor' => $L->normalizarNombre($cab['Proveedor'] ?? ''),
             'cuit' => $L->texto($cab['CUIT'] ?? $cab['CUIT / DNI'] ?? null),
@@ -284,6 +316,6 @@ class ComprasContagram
 
     public function dentroDelCorte(?CarbonImmutable $fecha): bool
     {
-        return $fecha !== null && $fecha->format('Y-m-d') <= self::CORTE;
+        return $fecha !== null && $fecha->format('Y-m-d') <= $this->corte;
     }
 }

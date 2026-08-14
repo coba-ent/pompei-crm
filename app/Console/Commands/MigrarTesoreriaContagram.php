@@ -31,12 +31,18 @@ class MigrarTesoreriaContagram extends Command
     protected $signature = 'migracion:tesoreria
         {--dry-run : No escribe nada; sólo reporta y verifica saldos}
         {--cuenta= : Procesar un solo archivo (ej. "Caja local")}
-        {--excluir= : JSON con los legacy_id de ventas de ML ya cargadas en el CRM}';
+        {--excluir= : JSON con los legacy_id de ventas de ML ya cargadas en el CRM}
+        {--dir=* : Carpeta(s) con los extractos (por defecto public/imports/Cuentas)}
+        {--corte= : Fecha de corte (por defecto 2026-08-05)}
+        {--fechas-directas : Los extractos traen la fecha bien y NO hay que invertir día/mes}';
 
     protected $description = 'Importa los movimientos de tesorería históricos de Contagram';
 
     /** Mismo corte que ventas y compras: del 06/08 en adelante el negocio ya operaba en el CRM. */
     private const CORTE = '2026-08-05';
+
+    /** Corte efectivo; `--corte` lo corre al día del pase a producción en la base nueva. */
+    private string $corte = self::CORTE;
 
     /** Operación de Contagram => `tipo` del enum de movimientos_tesoreria. */
     private const TIPOS = [
@@ -53,13 +59,59 @@ class MigrarTesoreriaContagram extends Command
         'movimiento_entre_cuentas' => 'MOV', 'saldo_inicial' => 'SAL', 'ingreso' => 'ING',
     ];
 
+    /**
+     * Violaciones del orden descendente por fecha, que es como vienen los extractos.
+     *
+     * Es el test que validó la regla de fechas invertidas en su momento (plan §3.1): con la
+     * corrección aplicada, los 25 archivos de `Cuentas/` quedan en 0. Acá se usa como red de
+     * seguridad: si el modo elegido deja el archivo desordenado, se avisa.
+     *
+     * @param  array<int, array<string, mixed>>  $filas
+     */
+    private function violacionesDeOrden(LectorExcelContagram $lector, array $filas, bool $invertida): int
+    {
+        $previa = null;
+        $malas = 0;
+
+        foreach ($filas as $fila) {
+            $f = $lector->fecha($fila['Fecha'] ?? null, $invertida);
+
+            if ($f === null) {
+                continue;
+            }
+            if ($previa !== null && $f->gt($previa)) {
+                $malas++;
+            }
+            $previa = $f;
+        }
+
+        return $malas;
+    }
+
     public function handle(LectorExcelContagram $lector): int
     {
         $dryRun = (bool) $this->option('dry-run');
-        $dir = public_path('imports/Cuentas');
         $cuentas = new CuentasDeTesoreria();
 
-        $archivos = glob("{$dir}/*.xlsx");
+        // Los export de `Cuentas/` traen el día y el mes cambiados (plan §3.1) y hay que
+        // corregirlos; los extractos exportados por rango en agosto de 2026 vienen bien y
+        // corregirlos los rompería (05/08 pasaría a 08/05). Se declara explícitamente en vez de
+        // adivinarlo: en un archivo de uno o dos movimientos las dos lecturas son indistinguibles,
+        // y equivocarse ahí corrompe fechas en silencio. El control de orden de abajo avisa si la
+        // elección fue la incorrecta.
+        $invertir = ! $this->option('fechas-directas');
+
+        if ($corte = $this->option('corte')) {
+            $this->corte = $corte;
+            $this->info("Corte: {$corte}");
+        }
+
+        $dirs = $this->option('dir') ?: [public_path('imports/Cuentas')];
+        $archivos = [];
+        foreach ($dirs as $d) {
+            $archivos = array_merge($archivos, glob(rtrim($d, '/\\').'/*.xlsx') ?: []);
+        }
+
         if ($filtro = $this->option('cuenta')) {
             $archivos = array_filter($archivos, fn ($a) => str_contains(basename($a), $filtro));
         }
@@ -73,13 +125,28 @@ class MigrarTesoreriaContagram extends Command
 
         foreach ($archivos as $path) {
             $archivo = basename($path, '.xlsx');
+            // Los extractos del tramo final llegaron con el nombre completo del export
+            // ("Caja del Local Movimientos 13-08-2026 2302 Hs"): la cuenta es lo que va antes de
+            // " Movimientos ". Los de `Cuentas/` traen sólo el nombre y no cambian.
+            $nombreContagram = preg_split('/ Movimientos \d/', $archivo)[0];
             // Mercado Pago viene partido por año pero es una sola cuenta.
-            $nombreContagram = preg_match('/^20\d\d MP$/', $archivo) ? 'MP' : $archivo;
+            if (preg_match('/^20\d\d MP$/', $nombreContagram)) {
+                $nombreContagram = 'MP';
+            }
+
+            // Un archivo que no corresponde a una cuenta (informes de ventas, compras o gastos
+            // dejados en la misma carpeta) se saltea en vez de crear una cuenta fantasma.
+            if (! $cuentas->existe($nombreContagram)) {
+                continue;
+            }
             $cuentaId = $cuentas->resolver($nombreContagram);
             $nombreCrm = $cuentas->nombreEnElCrm($nombreContagram);
 
             $filas = $lector->leer($path)['filas'];
-            $this->line(sprintf('%-26s -> %-24s %5d movimientos', $archivo, $nombreCrm, count($filas)));
+            $desorden = $this->violacionesDeOrden($lector, $filas, $invertir);
+            $this->line(sprintf('%-26s -> %-24s %5d movimientos%s%s', $archivo, $nombreCrm,
+                count($filas), $invertir ? '' : '  [fechas directas]',
+                $desorden > 0 ? "  ⚠ {$desorden} fuera de orden" : ''));
 
             $suma = 0.0;
             $saldoDeclarado = null;
@@ -96,13 +163,13 @@ class MigrarTesoreriaContagram extends Command
                 $monto = (float) ($lector->numero($fila['Ingreso'] ?? null) ?? 0)
                        + (float) ($lector->numero($fila['Egreso'] ?? null) ?? 0);
 
-                // `Fecha` invertida: Cuentas/ arrastra el defecto de día/mes cambiados (plan §3.1).
-                $fecha = $lector->fecha($fila['Fecha'] ?? null, true);
+                // `Fecha` invertida sólo donde corresponde: ver necesitaInvertirFechas().
+                $fecha = $lector->fecha($fila['Fecha'] ?? null, $invertir);
 
                 // Del 06/08 en adelante manda el CRM: importar esos movimientos duplica los que la
                 // app ya generó. Sin este corte entraban 31 de más, uno con fecha 24/08 (un cheque
                 // propio a vencer, o sea del futuro).
-                if ($fecha === null || $fecha->format('Y-m-d') > self::CORTE) {
+                if ($fecha === null || $fecha->format('Y-m-d') > $this->corte) {
                     $stats['fuera_de_corte']++;
 
                     continue;

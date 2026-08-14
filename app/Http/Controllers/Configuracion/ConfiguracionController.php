@@ -33,6 +33,10 @@ class ConfiguracionController extends Controller
 
         // Tab Mercado Libre
         $depositoEfectivoMl = MercadoLibreConfiguracion::actual()->depositoEfectivoONulo();
+        // spec 065/FR-026: mismos datos que la pantalla dedicada, porque el selector de
+        // depósito Full está duplicado en las dos vistas y tienen que decir lo mismo.
+        $depositoFullEfectivo = MercadoLibreConfiguracion::actual()->depositoFullEfectivoONulo();
+        $publicacionesFull = \App\Models\Integraciones\MercadoLibrePublicacionProducto::soloFull()->count();
 
         // Tab Tiendanube
         $cuentasTesoreria = CuentaTesoreria::visibles()->orderBy('nombre')->get();
@@ -56,6 +60,8 @@ class ConfiguracionController extends Controller
             'vendedores',
             'depositoPorDefecto',
             'depositoEfectivoMl',
+            'depositoFullEfectivo',
+            'publicacionesFull',
             'cuentasTesoreria',
             'depositoEfectivoTn',
             'certificado',

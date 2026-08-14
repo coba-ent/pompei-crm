@@ -39,6 +39,10 @@ class MigrarVentasContagram extends Command
         {--dry-run : No escribe nada; sólo reporta las cifras y los problemas}
         {--anio= : Procesar un solo año}
         {--excluir= : JSON con los legacy_id a excluir (duplicados de Mercado Libre)}
+        {--preservar-id : Usa el Id de Contagram como `ventas.id` (sólo en una base nueva y vacía)}
+        {--extra-item=* : Archivos por-ítem extra (tramo final de 2026, ver ComprobantesContagram)}
+        {--extra-resumen=* : Archivos de resumen extra, mismo caso}
+        {--corte= : Fecha de corte (por defecto 2026-08-05, el del import del VPS)}
         {--force : Corre aunque existan ventas del import viejo (LEER el aviso antes)}';
 
     protected $description = 'Migra las ventas históricas de Contagram 2021-2026 (idempotente, no mueve stock)';
@@ -68,14 +72,29 @@ class MigrarVentasContagram extends Command
 
     private array $problemas = [];
 
+    /** Ver `--preservar-id`: sólo tiene sentido en una base nueva donde nadie más asignó ids. */
+    private bool $preservarId = false;
+
     /** legacy_id => timestamp de creación reconstruido (ver calcularTimestamps). */
     private array $timestamps = [];
 
     public function handle(LectorExcelContagram $lector): int
     {
         $dryRun = (bool) $this->option('dry-run');
+        $this->preservarId = (bool) $this->option('preservar-id');
         $base = public_path('imports');
-        $servicio = new ComprobantesContagram($lector, $base);
+        $servicio = new ComprobantesContagram($lector, $base,
+            $this->expandir($this->option('extra-item')),
+            $this->expandir($this->option('extra-resumen')));
+
+        if ($corte = $this->option('corte')) {
+            $servicio->conCorte($corte);
+            $this->info("Corte: {$corte}");
+        }
+
+        if ($this->preservarId && ! $this->baseAptaParaPreservarId()) {
+            return self::FAILURE;
+        }
 
         $this->stats = array_fill_keys([
             'ventas_creadas', 'ventas_ya_existian', 'items_creados', 'nc_creadas', 'nd_creadas',
@@ -197,6 +216,60 @@ class MigrarVentasContagram extends Command
         return false;
     }
 
+    /**
+     * `--preservar-id` sólo es seguro en una base donde nadie más asignó ids de venta.
+     *
+     * Con ventas nacidas en el CRM (conversión de una orden de Mercado Libre, alta manual) el
+     * auto_increment ya repartió ids en el mismo rango que usa Contagram, así que forzar el Id del
+     * export pisaría una venta real o abortaría por clave duplicada a mitad del import.
+     */
+    private function baseAptaParaPreservarId(): bool
+    {
+        $propias = Venta::withTrashed()->whereNull('legacy_id')->count();
+
+        if ($propias === 0) {
+            return true;
+        }
+
+        $this->error("--preservar-id: hay {$propias} ventas propias del CRM (sin legacy_id).");
+        $this->line('Sus ids los asignó el auto_increment y pueden chocar con los Id de Contagram.');
+        $this->line('Usar esta opción sólo sobre una base nueva, antes de que la app cree ventas.');
+
+        return false;
+    }
+
+    /**
+     * Acepta rutas sueltas o patrones glob, para no tener que listar archivo por archivo un tramo
+     * que llegó partido en tandas.
+     *
+     * @param  list<string>  $patrones
+     * @return list<string>
+     */
+    private function expandir(array $patrones): array
+    {
+        $paths = [];
+
+        foreach ($patrones as $patron) {
+            $encontrados = glob($patron) ?: [];
+
+            if ($encontrados === [] && is_file($patron)) {
+                $encontrados = [$patron];
+            }
+
+            if ($encontrados === []) {
+                $this->warn("Sin coincidencias para \"{$patron}\".");
+            }
+
+            $paths = array_merge($paths, $encontrados);
+        }
+
+        if ($paths !== []) {
+            $this->info('Archivos extra: '.count($paths));
+        }
+
+        return $paths;
+    }
+
     private function precargarCaches(): void
     {
         foreach (Cliente::pluck('id', 'nombre') as $nombre => $id) {
@@ -257,6 +330,15 @@ class MigrarVentasContagram extends Command
             $venta = new Venta($datos);
             $venta->created_at = $ts;
             $venta->updated_at = $ts;
+            if ($this->preservarId) {
+                // MySQL acepta un auto_increment explícito, así que basta con setearlo antes del
+                // insert. Verificado sobre los 6 años de export: el `Id` de las facturas es una
+                // serie global y correlativa, con 23.563 valores distintos y **cero repetidos**
+                // entre años (max 24.301). Las NC/ND tienen su propia serie —por eso el mismo
+                // número aparece en las dos familias— y por eso no se les preserva el Id: 46
+                // valores existen como NC y como ND a la vez, y comparten tabla.
+                $venta->id = (int) $c['id_excel'];
+            }
             $venta->save();
 
             foreach ($c['items'] as $item) {

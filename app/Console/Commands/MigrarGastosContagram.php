@@ -26,7 +26,9 @@ class MigrarGastosContagram extends Command
 {
     protected $signature = 'migracion:gastos
         {--dry-run : No escribe nada; sólo reporta}
-        {--anio= : Procesar un solo año}';
+        {--anio= : Procesar un solo año}
+        {--extra=* : Archivos de gastos extra (tramo final de 2026)}
+        {--corte= : Fecha de corte (por defecto 2026-08-05)}';
 
     protected $description = 'Migra los gastos históricos de Contagram (no toca tesorería)';
 
@@ -38,7 +40,20 @@ class MigrarGastosContagram extends Command
     public function handle(LectorExcelContagram $lector): int
     {
         $dryRun = (bool) $this->option('dry-run');
-        $servicio = new GastosContagram($lector, public_path('imports'));
+        $extra = [];
+        foreach ((array) $this->option('extra') as $patron) {
+            $extra = array_merge($extra, glob($patron) ?: (is_file($patron) ? [$patron] : []));
+        }
+
+        $servicio = new GastosContagram($lector, public_path('imports'), $extra);
+
+        if ($corte = $this->option('corte')) {
+            $servicio->conCorte($corte);
+        }
+
+        if ($extra !== []) {
+            $this->info('Archivos extra: '.count($extra));
+        }
         $anios = $this->option('anio') ? [$this->option('anio')] : GastosContagram::ANIOS;
 
         $this->info($dryRun ? '— DRY RUN: no se escribe nada —' : '— IMPORTANDO GASTOS —');

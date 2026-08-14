@@ -50,7 +50,14 @@ class SincronizadorTiposPublicacion
         return ['actualizados' => $actualizados, 'con_error' => $conError];
     }
 
-    /** Clasifica un único vínculo recién creado (FR-003, US3 escenario 1). */
+    /**
+     * Clasifica un único vínculo recién creado.
+     *
+     * ⚠️ spec 065/T007a: **nadie lo invoca**. El único punto que crea vínculos es
+     * `VinculadorAutomatico`, que resuelve `listing_type_id`, `logistic_type` e
+     * `inventory_id` del multiget que ya hace de por sí, sin una llamada extra por
+     * publicación. Se conserva por si hace falta reclasificar un vínculo suelto a mano.
+     */
     public function sincronizarUno(MercadoLibrePublicacionProducto $vinculo): bool
     {
         $resultado = $this->consultarYPersistir([$vinculo->ml_item_id]);
@@ -90,7 +97,19 @@ class SincronizadorTiposPublicacion
                 continue;
             }
 
-            $filas = MercadoLibrePublicacionProducto::where('ml_item_id', $itemId)->update([
+            // spec 065/FR-001: el tipo de logística y el inventario viajan en ESTE mismo body,
+            // así que clasificar Full no cuesta ninguna llamada nueva (research R8). Igual que
+            // con listing_type_id, un campo ausente conserva el último valor conocido en vez de
+            // pisarse con null (FR-004): una publicación mal clasificada como no-Full recibiría
+            // stock que Mercado Libre no puede escribir.
+            $logisticType = $entrada['body']['shipping']['logistic_type'] ?? null;
+            $inventoryId = $entrada['body']['inventory_id'] ?? null;
+
+            $filas = MercadoLibrePublicacionProducto::where('ml_item_id', $itemId)->update(array_filter([
+                'logistic_type' => $logisticType,
+                'inventory_id' => $inventoryId,
+                'logistica_sincronizada_en' => $logisticType ? now() : null,
+            ], static fn ($valor) => $valor !== null) + [
                 'listing_type_id' => $listingTypeId,
                 'listing_type_sincronizado_en' => now(),
             ]);

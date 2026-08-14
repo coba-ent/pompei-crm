@@ -135,6 +135,11 @@
                         El stock cargado en otros depósitos no se publica.
                     </div>
                 </div>
+                @include('configuracion.mercadolibre._deposito_full', [
+                    'depositos' => $depositos,
+                    'depositoFullEfectivo' => $depositoFullEfectivo,
+                    'publicacionesFull' => $publicacionesFull,
+                ])
                 <div class="col-md-6">
                     <label class="form-label d-flex align-items-center gap-1">
                         <span class="flex-grow-1">Categoría de las Ventas</span>

@@ -103,7 +103,7 @@
                 dropdownParent: $modalCredenciales,
                 data: sitios.map(function (s) { return { id: s.id, text: s.texto }; }),
             });
-            $('#ml-deposito-id, #ml-lista-precio-id, #ml-lista-precio-id-premium').select2({ width: '100%', theme: 'default', allowClear: true });
+            $('#ml-deposito-id, #ml-deposito-full-id, #ml-lista-precio-id, #ml-lista-precio-id-premium').select2({ width: '100%', theme: 'default', allowClear: true });
         } else {
             const $select = $('#ml-cred-site-id');
             sitios.forEach(function (s) {
@@ -376,6 +376,8 @@
             $('#ml-dias-primera-sync').val(conf.dias_primera_sync || 30);
             if ($('#ml-deposito-id').val() !== undefined) {
                 $('#ml-deposito-id').val(conf.deposito_id || '').trigger('change.select2');
+                // spec 065/FR-015: sin opción "por defecto" — el depósito Full no tiene fallback.
+                $('#ml-deposito-full-id').val(conf.deposito_full_id || '').trigger('change.select2');
             }
             if ($('#ml-categoria-venta-id').val() !== undefined) {
                 renderCategorias(conf.categoria_venta_id || '');
@@ -459,6 +461,7 @@
                 creacion_automatica: $('#ml-creacion-automatica').is(':checked') ? 1 : 0,
                 frecuencia_sync_minutos: $('#ml-frecuencia-sync').val(),
                 deposito_id: $('#ml-deposito-id').val() || null,
+                deposito_full_id: $('#ml-deposito-full-id').val() || null,
                 categoria_venta_id: $('#ml-categoria-venta-id').val() || null,
                 lista_precio_id: $('#ml-lista-precio-id').val() || null,
                 lista_precio_id_premium: $('#ml-lista-precio-id-premium').val() || null,
@@ -466,7 +469,10 @@
                 dias_primera_sync: $('#ml-dias-primera-sync').val(),
             };
 
+            const $errorDepositoFull = $('#error-ml-deposito-full-id');
+
             window.AppBtn.loading('#btn-guardar-ventas-ml', true);
+            $errorDepositoFull.addClass('d-none').text('');
             $.ajax({ url: rutas.guardarVentas, method: 'PATCH', dataType: 'json', data: datos })
                 .done(function (resp) {
                     toast('success', resp.mensaje);
@@ -474,7 +480,14 @@
                 })
                 .fail(function (xhr) {
                     const resp = xhr.responseJSON || {};
-                    toast('error', resp.message || 'No se pudo guardar la configuración de ventas.');
+                    // spec 065/FR-017/FR-019: el 422 de "mismo depósito" explica el motivo, así que
+                    // se muestra junto al campo además del toast — en el toast solo se pierde.
+                    const errorFull = resp.errors && resp.errors.deposito_full_id;
+                    if (errorFull) {
+                        $errorDepositoFull.text(errorFull[0]).removeClass('d-none');
+                    }
+
+                    toast('error', errorFull ? errorFull[0] : (resp.message || 'No se pudo guardar la configuración de ventas.'));
                 })
                 .always(function () { window.AppBtn.loading('#btn-guardar-ventas-ml', false); });
         });

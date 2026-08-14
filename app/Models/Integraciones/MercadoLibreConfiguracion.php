@@ -17,7 +17,7 @@ class MercadoLibreConfiguracion extends Model
 
     protected $fillable = [
         'client_id', 'client_secret', 'site_id', 'modo_solo_lectura', 'actualizada_por',
-        'creacion_automatica', 'frecuencia_sync_minutos', 'deposito_id', 'categoria_venta_id',
+        'creacion_automatica', 'frecuencia_sync_minutos', 'deposito_id', 'deposito_full_id', 'categoria_venta_id',
         'dias_primera_sync', 'ultima_sync_en', 'ultima_sync_resultado',
         'stock_ultima_sync_en', 'stock_ultima_sync_resultado', 'lista_precio_id', 'vendedor_id',
         'lista_precio_id_premium', 'tipo_publicacion_ultima_sync_en',
@@ -68,6 +68,28 @@ class MercadoLibreConfiguracion extends Model
         }
 
         return Deposito::porDefecto();
+    }
+
+    /** Depósito que representa la mercadería alojada en el centro de distribución de ML (spec 065). */
+    public function depositoFull(): BelongsTo
+    {
+        return $this->belongsTo(Deposito::class, 'deposito_full_id');
+    }
+
+    /**
+     * Depósito Full configurado, sólo si existe y está activo; `null` en cualquier otro caso.
+     *
+     * A diferencia de depositoEfectivoONulo(), **no cae a Deposito::porDefecto()** a propósito
+     * (spec 065, data-model §ml_configuracion): ese fallback escribiría las existencias del
+     * centro de distribución de Mercado Libre sobre un depósito físico real del negocio. Sin
+     * configuración, la funcionalidad de Full simplemente no opera (FR-014) y las Ventas se
+     * imputan al depósito general (FR-021).
+     */
+    public function depositoFullEfectivoONulo(): ?Deposito
+    {
+        $deposito = $this->deposito_full_id ? Deposito::find($this->deposito_full_id) : null;
+
+        return $deposito && $deposito->activo ? $deposito : null;
     }
 
     public function categoriaVenta(): BelongsTo

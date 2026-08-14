@@ -156,7 +156,7 @@
                                     <td>{{ optional($remitoVenta->transportista)->nombre ?: '-' }}</td>
                                     <td>{{ $remitoVenta->nota ?: '-' }}</td>
                                     <td>{{ rtrim(rtrim(number_format($remitoVenta->totalBultos(), 3, ',', '.'), '0'), ',') }}</td>
-                                    <td><a href="#" class="js-ver-remito" data-url="{{ route('remitos.pdf', $remitoVenta) }}">Ver Remito</a></td>
+                                    <td><a href="#" class="js-ver-remito" data-url="{{ route('remitos.pdf', $remitoVenta) }}"><i class="fas fa-eye me-1"></i>Ver Remito</a></td>
                                     <td><a href="{{ route('ventas.remitos.edit', [$venta, $remitoVenta]) }}" title="Editar"><i class="fas fa-pencil-alt"></i></a></td>
                                 </tr>
                             @empty

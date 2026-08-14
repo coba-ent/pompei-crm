@@ -38,39 +38,44 @@ class CuentasDeTesoreria
         'banco credicoop' => 'Banco Credicoop',
         'banco santander rio' => 'Banco Santander Río',
         'galicia' => 'Banco Galicia',
-        'visa' => 'VISA',
+        // Nombres canónicos: los de la **ficha** de cada cuenta en Contagram, que es la regla que
+        // quedó de §10 (el panel de Saldos los recorta). Las de tarjeta/valores llevan sufijo.
+        'visa' => 'Visa a Cobrar',
         'amex' => 'AMEX',
-        'mastercard' => 'Mastercard',
-        'qr' => 'PAYWAY QR',
+        'mastercard' => 'Mastercard a Cobrar',
+        'qr' => 'PAYWAY QR a Cobrar',
         'cheque de terceros' => 'Cheque de Terceros',
         'cheque propio' => 'Cheque Propio',
-        'usd local_' => 'USD Local',
+        // `USD Local` resultó ser la misma cuenta que `Juan USD Personal`, confirmado por los Id de
+        // Contagram de sus movimientos contra la ficha (§10).
+        'usd local_' => 'Juan USD Personal',
+        'usd local' => 'Juan USD Personal',
         'usd online' => 'USD Online',
-        'cabal a pagar' => 'Cabal A Pagar',
-        'visa credicoop a pagar' => 'Visa Credicoop A Pagar',
+        'cabal a pagar' => 'Cabal Credicoop a Pagar',
+        'visa credicoop a pagar' => 'Visa Credicoop a Pagar',
 
         // --- medios de cobro/pago de los Excel de ventas y compras ---
         'caja del local' => 'Caja del Local',
         'mercado pago' => 'Mercado Pago',
         'payway qr' => 'PAYWAY QR',
         'juan usd personal' => 'Juan USD Personal',
-        'cabal acreditaciones' => 'Cabal Acreditaciones',
+        'cabal acreditaciones' => 'Cabal Acreditaciones a Cobrar',
         'caja general abajo' => 'Caja General Abajo',
         'caja chica gastos' => 'Caja chica gastos',
-        'cabal credicoop' => 'Cabal Credicoop',
-        'visa credicoop' => 'Visa Credicoop',
+        'cabal credicoop' => 'Cabal Credicoop a Pagar',
+        'visa credicoop' => 'Visa Credicoop a Pagar',
         'usd online ' => 'USD Online',
         'maestro' => 'Maestro',
-        'nulo' => 'Nulo',
-        'cabal' => 'Cabal',
+        'nulo' => 'Nulo a Cobrar',
+        'cabal' => 'Cabal Acreditaciones a Cobrar',
         'retenciones' => 'Retenciones',
 
         // --- medios de pago que sólo aparecen en Gastos ---
         // Contagram le agrega al nombre el tipo de cuenta. `Mastercard A Cobrar` es la Mastercard
         // del CRM, que ya es de tipo `a_cobrar`. `Cabal Credicoop A Pagar`, en cambio, NO es la
         // `Cabal Credicoop` existente: son cuentas de distinto tipo y se dejan separadas.
-        'mastercard a cobrar' => 'Mastercard',
-        'cabal credicoop a pagar' => 'Cabal Credicoop A Pagar',
+        'mastercard a cobrar' => 'Mastercard a Cobrar',
+        'cabal credicoop a pagar' => 'Cabal Credicoop a Pagar',
     ];
 
     /** Tipo con que se crean las cuentas que todavía no existen. */
@@ -94,6 +99,9 @@ class CuentasDeTesoreria
     /** @var array<string,int> nombre del CRM => id */
     private array $cache = [];
 
+    /** Ver `permitirCrear()`. Por defecto no se crean cuentas: se corta y se avisa. */
+    private bool $crearFaltantes = false;
+
     public function __construct()
     {
         $this->cache = CuentaTesoreria::pluck('id', 'nombre')->all();
@@ -108,12 +116,62 @@ class CuentasDeTesoreria
             return $this->cache[$nombre];
         }
 
+        // Segunda pasada tolerante a mayúsculas y espacios: el catálogo puede tener el nombre
+        // canónico de la ficha de Contagram ("Visa a Cobrar") donde el archivo trae el corto.
+        $clave = mb_strtolower(preg_replace('/\s+/u', ' ', trim($nombre)));
+        foreach ($this->cache as $existente => $id) {
+            if (mb_strtolower(preg_replace('/\s+/u', ' ', trim((string) $existente))) === $clave) {
+                return $this->cache[$nombre] = $id;
+            }
+        }
+
+        if (! $this->crearFaltantes) {
+            throw new \RuntimeException(
+                "La cuenta de tesorería \"{$nombre}\" no existe en el CRM. Crearla en silencio parte ".
+                'el saldo de una cuenta real en dos (pasó con `Visa` junto a `VISA`, 3.990 cobros del '.
+                'lado equivocado). Agregá el alias en CuentasDeTesoreria::MAPEO o creá la cuenta a mano.'
+            );
+        }
+
         return $this->cache[$nombre] = CuentaTesoreria::create([
             'nombre' => $nombre,
             'tipo' => self::TIPOS[$nombre] ?? 'efectivo',
             'visible' => true,
             'saldo_inicial' => 0,
         ])->id;
+    }
+
+    /** ¿El nombre resuelve a una cuenta existente? Sirve para saltear archivos que no son de cuenta. */
+    public function existe(?string $nombreContagram): bool
+    {
+        $nombre = $this->nombreEnElCrm($nombreContagram);
+
+        if (isset($this->cache[$nombre])) {
+            return true;
+        }
+
+        $clave = mb_strtolower(preg_replace('/\s+/u', ' ', trim($nombre)));
+
+        foreach (array_keys($this->cache) as $existente) {
+            if (mb_strtolower(preg_replace('/\s+/u', ' ', trim((string) $existente))) === $clave) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Crear una cuenta que no existe es la vía rápida a un catálogo duplicado, así que por defecto
+     * se corta con una excepción. El comportamiento viejo —crear en silencio— dejó 12 cuentas
+     * duplicadas sobre las existentes, y un catálogo duplicado no es cosmético: parte el saldo de
+     * una misma cuenta real en dos y la caja deja de cerrar.
+     */
+    public function permitirCrear(bool $permitir = true): static
+    {
+        $this->crearFaltantes = $permitir;
+
+        return $this;
     }
 
     /** Nombre de la cuenta del CRM, sin tocar la base. Útil para previsualizar el mapeo. */

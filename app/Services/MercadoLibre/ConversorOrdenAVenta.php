@@ -6,8 +6,10 @@ use App\Enums\MercadoLibre\EstadoConversion;
 use App\Enums\MercadoLibre\EstadoOrden;
 use App\Models\Cliente;
 use App\Models\CuentaTesoreria;
+use App\Models\Deposito;
 use App\Models\FuncionAvanzada;
 use App\Models\Integraciones\MercadoLibreConfiguracion;
+use App\Models\Integraciones\MercadoLibreOperacionLog;
 use App\Models\Integraciones\MercadoLibreOrden;
 use App\Models\Integraciones\MercadoLibreOrdenItem;
 use App\Models\Integraciones\MercadoLibrePublicacionProducto;
@@ -230,7 +232,7 @@ class ConversorOrdenAVenta
                     // sólo en el movimiento: sin esto la Venta queda con `deposito_id` en NULL y al
                     // editarla el selector cae en el primer depósito de la lista, que puede no ser
                     // el que despachó. Es el mismo que usa el descuento de stock, más abajo.
-                    'deposito_id' => MercadoLibreConfiguracion::actual()->depositoEfectivo()->id,
+                    'deposito_id' => $this->resolverDeposito($orden)->id,
                     'fecha_emision' => $fechaEmision,
                     'tipo_comprobante' => $tipoComprobante,
                     'nro_comprobante' => Venta::siguienteNroComprobante($tipoComprobante),
@@ -290,6 +292,60 @@ class ConversorOrdenAVenta
      *
      * @return array{items: array, subtotal_sin_descuento: float, descuento: float, subtotal_con_descuento: float, total: float, producto_ids: array<int, ?int>}
      */
+    /**
+     * spec 065/FR-020..FR-023: a qué depósito se imputa la Venta de esta orden.
+     *
+     * El depósito Full se usa **sólo si todas** las líneas mapean a vínculos Full. Una orden
+     * mixta va al general (FR-020a): una Venta tiene un único depósito, y descontar de Full
+     * mercadería que salió del domicilio del vendedor sería peor que la imprecisión de
+     * imputar todo al general, donde al menos el stock físico existe.
+     *
+     * `GET /orders/{id}` no trae el tipo de logística (contracts §Nota), así que se resuelve
+     * contra el `logistic_type` ya persistido de cada vínculo, sin llamadas extra.
+     *
+     * FR-022: esto nunca puede impedir que la orden se convierta — ante cualquier duda cae al
+     * depósito general.
+     */
+    private function resolverDeposito(MercadoLibreOrden $orden): Deposito
+    {
+        $configuracion = MercadoLibreConfiguracion::actual();
+        $depositoFull = $configuracion->depositoFullEfectivoONulo();
+
+        if (! $depositoFull) {
+            return $configuracion->depositoEfectivo();
+        }
+
+        $itemIds = $orden->items->pluck('ml_item_id')->filter()->unique();
+
+        if ($itemIds->isEmpty()) {
+            return $configuracion->depositoEfectivo();
+        }
+
+        $vinculos = MercadoLibrePublicacionProducto::whereIn('ml_item_id', $itemIds)->get()->keyBy('ml_item_id');
+
+        // Una publicación sin vincular no se puede clasificar, así que cuenta como no-Full:
+        // el sistema nunca asume Full ante la duda (FR-005).
+        $todasFull = $itemIds->every(fn (string $itemId) => $vinculos->get($itemId)?->esFull() === true);
+
+        $deposito = $todasFull ? $depositoFull : $configuracion->depositoEfectivo();
+
+        // FR-023: queda registrado el criterio aplicado, para poder responder después por qué
+        // una Venta descontó de un depósito y no del otro.
+        MercadoLibreOperacionLog::registrar([
+            'operacion' => 'imputar_deposito_venta',
+            'metodo' => 'INTERNO',
+            'endpoint' => '-',
+            'sentido' => 'interno',
+            'resultado' => 'ok',
+            'usuario_id' => auth()->id(),
+            'payload_bloqueado' => "Orden {$orden->ml_order_id}: ".($todasFull
+                ? "íntegramente Full → depósito \"{$deposito->nombre}\"."
+                : "no es íntegramente Full → depósito general \"{$deposito->nombre}\"."),
+        ]);
+
+        return $deposito;
+    }
+
     private function armarLineas(MercadoLibreOrden $orden): array
     {
         $items = $orden->items;

@@ -201,13 +201,31 @@
                 paginate: { first: 'Primero', last: 'Último', next: 'Siguiente', previous: 'Anterior' },
                 processing: 'Cargando...',
             },
-            ajax: { url: rutas.datatable },
+            // spec 065/FR-025: el filtro viaja al endpoint server-side en cada recarga.
+            ajax: {
+                url: rutas.datatable,
+                data: (d) => { d.logistic_type = $('#filtro-logistica').val() || ''; },
+            },
             columns: [
                 { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
                 { data: 'ml_item_id', name: 'ml_item_id' },
                 { data: 'titulo_ml', name: 'titulo_ml' },
                 { data: 'producto_nombre', name: 'producto.nombre' },
                 { data: 'created_at', name: 'created_at' },
+                {
+                    // spec 065/FR-024: Full va destacada porque cambia el comportamiento del
+                    // sistema (no recibe stock); el resto es informativo y va como texto.
+                    data: 'logistica_etiqueta', name: 'logistic_type', searchable: false,
+                    render: (data, type, row) => {
+                        if (row.es_full) {
+                            return '<span class="badge bg-warning text-dark fw-bold">FULL</span>';
+                        }
+
+                        return row.logistic_type
+                            ? '<span>' + data + '</span>'
+                            : '<span class="text-muted">' + data + '</span>';
+                    },
+                },
                 {
                     // Unidades del depósito que publica ML — es el número que tiene que
                     // coincidir con el de la publicación, no el stock total del producto.
@@ -247,6 +265,11 @@
         $tabla.one('init.dt', function () {
             tabla.buttons().container().appendTo('#dt-buttons-ml-vinculaciones');
         });
+
+        // Regla obligatoria #5: select de datos dinámicos con Select2. Cambiar el filtro
+        // recarga sólo la tabla (regla #2), nunca la página.
+        $('#filtro-logistica').select2({ width: '100%', minimumResultsForSearch: -1 })
+            .on('change', function () { tabla.ajax.reload(); });
     }
 
     const ESTADOS_STOCK = {

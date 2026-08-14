@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\Integraciones\MercadoLibreConfiguracion;
 use App\Services\MercadoLibre\SincronizadorPrecios;
 use App\Services\MercadoLibre\SincronizadorStock;
+use App\Services\MercadoLibre\SincronizadorStockFull;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -32,8 +33,11 @@ class SincronizacionForzadaMercadoLibre implements ShouldQueue
 
     public int $tries = 1;
 
-    public function handle(SincronizadorStock $sincronizadorStock, SincronizadorPrecios $sincronizadorPrecios): void
-    {
+    public function handle(
+        SincronizadorStock $sincronizadorStock,
+        SincronizadorPrecios $sincronizadorPrecios,
+        SincronizadorStockFull $sincronizadorStockFull,
+    ): void {
         try {
             $resultadoStock = $sincronizadorStock->sincronizarTodos();
 
@@ -47,6 +51,11 @@ class SincronizacionForzadaMercadoLibre implements ShouldQueue
                 return;
             }
 
+            // spec 065/T028: reflejo ML → CRM encadenado después del push. Su resultado se
+            // suma al mensaje pero nunca marca la corrida como fallida (FR-014): que falte
+            // configurar el depósito Full no invalida un push de stock que salió bien.
+            $resultadoFull = $sincronizadorStockFull->ejecutar();
+
             $configuracion = MercadoLibreConfiguracion::actual();
             $resultadoPrecio = null;
 
@@ -56,10 +65,14 @@ class SincronizacionForzadaMercadoLibre implements ShouldQueue
 
             $precioBloqueado = $resultadoPrecio && ! ($resultadoPrecio['ok'] ?? false);
 
+            // SC-007: sin publicaciones Full vinculadas el tramo de Full no aporta nada al
+            // mensaje, así que queda idéntico al de antes de la spec 065.
+            $tramoFull = $this->tramoFull($resultadoFull);
+
             $mensaje = match (true) {
-                $precioBloqueado => "{$resultadoStock['mensaje']} (stock) — precio no sincronizado: {$resultadoPrecio['mensaje']}",
-                (bool) $resultadoPrecio => "{$resultadoStock['mensaje']} (stock) — {$resultadoPrecio['mensaje']} (precio)",
-                default => "{$resultadoStock['mensaje']} (stock) — sin lista de precios configurada, precio no sincronizado.",
+                $precioBloqueado => "{$resultadoStock['mensaje']} (stock){$tramoFull} — precio no sincronizado: {$resultadoPrecio['mensaje']}",
+                (bool) $resultadoPrecio => "{$resultadoStock['mensaje']} (stock){$tramoFull} — {$resultadoPrecio['mensaje']} (precio)",
+                default => "{$resultadoStock['mensaje']} (stock){$tramoFull} — sin lista de precios configurada, precio no sincronizado.",
             };
 
             Cache::put(self::ESTADO_CACHE_KEY, [
@@ -76,5 +89,24 @@ class SincronizacionForzadaMercadoLibre implements ShouldQueue
 
             throw $e;
         }
+    }
+
+    /**
+     * Tramo de Full del mensaje de estado (contracts §3). Devuelve cadena vacía cuando no
+     * hay nada que contar —ni publicaciones Full ni un aviso de configuración faltante—
+     * para no alterar el mensaje de una cuenta sin Full (SC-007).
+     */
+    private function tramoFull(array $resultadoFull): string
+    {
+        if (! $resultadoFull['ok']) {
+            return " — {$resultadoFull['mensaje']}";
+        }
+
+        $huboActividad = $resultadoFull['actualizados'] > 0
+            || $resultadoFull['sin_cambios'] > 0
+            || $resultadoFull['con_error'] > 0
+            || $resultadoFull['conflictos'] > 0;
+
+        return $huboActividad ? " — {$resultadoFull['mensaje']}" : '';
     }
 }

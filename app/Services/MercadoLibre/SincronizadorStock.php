@@ -36,7 +36,7 @@ class SincronizadorStock
     }
 
     /**
-     * @return array{ok: bool, tipo?: string, mensaje: string, actualizados?: int, con_error?: int}
+     * @return array{ok: bool, tipo?: string, mensaje: string, actualizados?: int, con_error?: int, omitidos?: int}
      */
     public function ejecutar(): array
     {
@@ -64,7 +64,7 @@ class SincronizadorStock
      * `self::LOCK_KEY`, así que no pueden correr en paralelo entre sí ni con
      * el cron/"Sincronizar ahora".
      *
-     * @return array{ok: bool, tipo?: string, mensaje: string, actualizados?: int, con_error?: int}
+     * @return array{ok: bool, tipo?: string, mensaje: string, actualizados?: int, con_error?: int, omitidos?: int}
      */
     public function sincronizarTodos(): array
     {
@@ -87,16 +87,19 @@ class SincronizadorStock
                 $depositoMl
             );
 
+            $mensajes = $this->mensajes($resultado);
+
             $configuracion->update([
                 'stock_ultima_sync_en' => now(),
-                'stock_ultima_sync_resultado' => "OK: {$resultado['actualizados']} productos actualizados, {$resultado['con_error']} con error.",
+                'stock_ultima_sync_resultado' => $mensajes['historial'],
             ]);
 
             return [
                 'ok' => true,
-                'mensaje' => "{$resultado['actualizados']} productos actualizados en Mercado Libre.",
+                'mensaje' => $mensajes['mensaje'],
                 'actualizados' => $resultado['actualizados'],
                 'con_error' => $resultado['con_error'],
+                'omitidos' => $resultado['omitidos'],
             ];
         } finally {
             $lock->release();
@@ -150,16 +153,19 @@ class SincronizadorStock
             $depositoMl
         );
 
+        $mensajes = $this->mensajes($resultado);
+
         $configuracion->update([
             'stock_ultima_sync_en' => now(),
-            'stock_ultima_sync_resultado' => "OK: {$resultado['actualizados']} productos actualizados, {$resultado['con_error']} con error.",
+            'stock_ultima_sync_resultado' => $mensajes['historial'],
         ]);
 
         return [
             'ok' => true,
-            'mensaje' => "{$resultado['actualizados']} productos actualizados en Mercado Libre.",
+            'mensaje' => $mensajes['mensaje'],
             'actualizados' => $resultado['actualizados'],
             'con_error' => $resultado['con_error'],
+            'omitidos' => $resultado['omitidos'],
         ];
     }
 
@@ -170,14 +176,28 @@ class SincronizadorStock
      * puntual (FR-014/FR-015).
      *
      * @param  iterable<MercadoLibrePublicacionProducto>  $vinculos
-     * @return array{actualizados: int, con_error: int}
+     * @return array{actualizados: int, con_error: int, omitidos: int}
      */
     private function procesarVinculos(iterable $vinculos, Deposito $depositoMl): array
     {
         $actualizados = 0;
         $conError = 0;
 
+        $omitidos = 0;
+
         foreach ($vinculos as $vinculo) {
+            // spec 065/FR-006: en una publicación Full, `available_quantity` refleja la
+            // existencia del centro de distribución de Mercado Libre, que NO es escribible
+            // por API. No es prudencia: del otro lado no hay destino de escritura. Se limpia
+            // el pendiente (FR-007) para que no quede reintentándose eternamente ni contando
+            // como error, y el reflejo inverso lo hace SincronizadorStockFull.
+            if ($vinculo->esFull()) {
+                $omitidos++;
+                $vinculo->update(['stock_pendiente' => false]);
+
+                continue;
+            }
+
             if (! $vinculo->producto) {
                 // Producto eliminado: nada que calcular, se limpia el pendiente para no reintentar en vano.
                 $vinculo->update(['stock_pendiente' => false]);
@@ -228,6 +248,26 @@ class SincronizadorStock
             ]);
         }
 
-        return ['actualizados' => $actualizados, 'con_error' => $conError];
+        return ['actualizados' => $actualizados, 'con_error' => $conError, 'omitidos' => $omitidos];
+    }
+
+    /**
+     * spec 065/FR-008 y SC-007: los sufijos de Full sólo aparecen si hubo algo que omitir.
+     * Sin publicaciones Full vinculadas, los mensajes quedan **idénticos** a los de antes
+     * de esta feature — es el criterio de no-regresión más importante.
+     *
+     * @param  array{actualizados: int, con_error: int, omitidos: int}  $resultado
+     * @return array{mensaje: string, historial: string}
+     */
+    private function mensajes(array $resultado): array
+    {
+        $sufijo = $resultado['omitidos'] > 0
+            ? ", {$resultado['omitidos']} omitidos por estar en Full"
+            : '';
+
+        return [
+            'mensaje' => "{$resultado['actualizados']} productos actualizados en Mercado Libre{$sufijo}.",
+            'historial' => "OK: {$resultado['actualizados']} productos actualizados, {$resultado['con_error']} con error{$sufijo}.",
+        ];
     }
 }

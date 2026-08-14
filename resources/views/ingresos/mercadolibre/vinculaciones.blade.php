@@ -28,6 +28,23 @@
 
         <div class="card">
             <div class="card-body">
+                {{-- spec 065/FR-025: filtro server-side por tipo de logística. Select2 por regla
+                     obligatoria #5 (select de datos dinámicos), sin recargar la página (#2). --}}
+                <div class="row g-2 mb-3">
+                    <div class="col-12 col-md-4 col-lg-3">
+                        <label for="filtro-logistica" class="form-label mb-1">Tipo de logística</label>
+                        <select id="filtro-logistica" class="form-select">
+                            <option value="">Todas</option>
+                            <option value="fulfillment">Full</option>
+                            <option value="xd_drop_off">Colecta</option>
+                            <option value="self_service">Flex</option>
+                            <option value="custom">A cargo del vendedor</option>
+                            <option value="not_specified">Sin especificar</option>
+                            <option value="sin_clasificar">Sin clasificar</option>
+                        </select>
+                    </div>
+                </div>
+
                 <div class="table-responsive">
                     <table id="tabla-ml-vinculaciones" class="table table-hover display nowrap" style="width:100%">
                         <thead>
@@ -37,6 +54,9 @@
                                 <th>Título</th>
                                 <th>Producto</th>
                                 <th>Fecha</th>
+                                <th title="Cómo despacha Mercado Libre esta publicación. Las que están en Full las despacha Mercado Libre desde su propio centro de distribución: el CRM no les envía stock.">
+                                    Logística
+                                </th>
                                 <th title="Unidades disponibles en el depósito que publica Mercado Libre. NO es el stock total del producto sumando todos los depósitos.">
                                     Stock publicado
                                 </th>

@@ -35,7 +35,12 @@ class MigrarComprasContagram extends Command
 {
     protected $signature = 'migracion:compras
         {--dry-run : No escribe nada; sólo reporta}
-        {--anio= : Procesar un solo año}';
+        {--anio= : Procesar un solo año}
+        {--sin-pagos : No crea los pagos; se importan del informe de Movimientos de Proveedores}
+        {--preservar-id : Usa el Id de Contagram como `compras.id` (sólo en una base nueva y vacía)}
+        {--extra-item=* : Archivos por-ítem extra (tramo final de 2026)}
+        {--corte= : Fecha de corte (por defecto 2026-08-05)}
+        {--extra-fechas-directas : Los archivos de --extra-item traen la fecha bien (no invertir)}';
 
     protected $description = 'Migra las compras históricas de Contagram 2021-2026 (no mueve stock)';
 
@@ -47,11 +52,45 @@ class MigrarComprasContagram extends Command
     private array $tiposProducto = [];
     private array $timestamps = [];
 
+    /**
+     * Ver `--sin-pagos`. El pago que arma este comando sale del `Pagado` acumulado de la compra:
+     * queda uno solo, fechado con la emisión del comprobante y asignado al primer medio de la
+     * lista. Es el mismo defecto que tenían los cobros y que hacía envejecer mal la Cuenta
+     * Corriente. El informe de Movimientos de Proveedores trae el desglose real, con fecha y medio
+     * por pago, así que en la base nueva conviene saltearlos acá e importarlos de ahí.
+     */
+    private bool $sinPagos = false;
+
+    /** Ver `--preservar-id`: sólo en una base donde nadie más asignó ids de compra. */
+    private bool $preservarId = false;
+
 
     public function handle(LectorExcelContagram $lector): int
     {
         $dryRun = (bool) $this->option('dry-run');
-        $servicio = new ComprasContagram($lector, public_path('imports'));
+        $this->sinPagos = (bool) $this->option('sin-pagos');
+        $this->preservarId = (bool) $this->option('preservar-id');
+        $extra = [];
+        foreach ((array) $this->option('extra-item') as $patron) {
+            $extra = array_merge($extra, glob($patron) ?: (is_file($patron) ? [$patron] : []));
+        }
+        if ($extra !== []) {
+            $this->info('Archivos extra: '.count($extra));
+        }
+
+        $servicio = new ComprasContagram($lector, public_path('imports'), $extra,
+            (bool) $this->option('extra-fechas-directas'));
+
+        if ($corte = $this->option('corte')) {
+            $servicio->conCorte($corte);
+            $this->info("Corte: {$corte}");
+        }
+
+        if ($this->preservarId && ($propias = Compra::whereNull('legacy_id')->count()) > 0) {
+            $this->error("--preservar-id: hay {$propias} compras propias del CRM (sin legacy_id), sus ids pueden chocar.");
+
+            return self::FAILURE;
+        }
         $anios = $this->option('anio') ? [$this->option('anio')] : ComprasContagram::ANIOS;
 
         $this->stats = array_fill_keys([
@@ -131,7 +170,7 @@ class MigrarComprasContagram extends Command
                 $this->producto($item, $dryRun);
             }
             $this->proveedor($c['proveedor'], $dryRun);
-            if (abs($c['pagado']) > 0.005) {
+            if (! $this->sinPagos && abs($c['pagado']) > 0.005) {
                 $this->stats['pagos_creados']++;
             }
 
@@ -159,6 +198,13 @@ class MigrarComprasContagram extends Command
             ]);
             $compra->created_at = $ts;
             $compra->updated_at = $ts;
+            if ($this->preservarId) {
+                // Igual que en ventas: el `Id` de las compras es una serie global y correlativa.
+                // Verificado sobre el informe de Movimientos de Proveedores, que trae los 6 años en
+                // un solo archivo: 2.386 Ids distintos y **cero** repetidos entre años (max 2.429).
+                // Las NC/ND no lo preservan porque comparten tabla con las de venta.
+                $compra->id = (int) $c['id_excel'];
+            }
             $compra->save();
 
             foreach ($c['items'] as $item) {
@@ -180,7 +226,7 @@ class MigrarComprasContagram extends Command
             // El pago va acá y no en un comando aparte: a diferencia de los cobros —que se imputan
             // por cliente y necesitaban las ventas ya cargadas—, el `Pagado` viene en la misma fila
             // de la compra, así que separarlos obligaría a releer los Excel sin ganar nada.
-            if (abs($c['pagado']) > 0.005) {
+            if (! $this->sinPagos && abs($c['pagado']) > 0.005) {
                 $medio = $c['medios_pago'][0] ?? null;
                 $pago = new Pago([
                     'compra_id' => $compra->id,

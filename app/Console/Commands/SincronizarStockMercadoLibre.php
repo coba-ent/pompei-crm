@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Integraciones\MercadoLibreConfiguracion;
 use App\Services\MercadoLibre\SincronizadorStock;
+use App\Services\MercadoLibre\SincronizadorStockFull;
 use Illuminate\Console\Command;
 
 /**
@@ -17,6 +18,11 @@ class SincronizarStockMercadoLibre extends Command
     protected $signature = 'mercadolibre:sincronizar-stock {--forzar : Ignora la frecuencia configurada, pero no los bloqueos}';
 
     protected $description = 'Empuja hacia Mercado Libre el stock de los productos vinculados con cambios pendientes';
+
+    public function __construct(private readonly SincronizadorStockFull $sincronizadorFull)
+    {
+        parent::__construct();
+    }
 
     public function handle(SincronizadorStock $sincronizador): int
     {
@@ -37,6 +43,13 @@ class SincronizarStockMercadoLibre extends Command
         }
 
         $this->info($resultado['mensaje']);
+
+        // spec 065/T028: el reflejo ML → CRM va DESPUÉS del push, para que el push trabaje
+        // con el stock que el CRM tenía y no con el que se acaba de traer de Mercado Libre.
+        // No cambia el código de salida: que el reflejo Full no opere (por ejemplo, por
+        // falta de depósito) no convierte en fallida una corrida de stock que salió bien.
+        $resultadoFull = $this->sincronizadorFull->ejecutar();
+        $resultadoFull['ok'] ? $this->info($resultadoFull['mensaje']) : $this->warn($resultadoFull['mensaje']);
 
         return self::SUCCESS;
     }

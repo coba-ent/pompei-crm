@@ -24,7 +24,24 @@ class MercadoLibrePublicacionProducto extends Model
         'stock_intentos_fallidos', 'stock_error_desde', 'stock_requiere_intervencion', 'ultimo_stock_publicado',
         'precio_pendiente', 'precio_sincronizado_en', 'precio_error', 'precio_error_en',
         'listing_type_id', 'listing_type_sincronizado_en',
+        'logistic_type', 'inventory_id', 'logistica_sincronizada_en',
     ];
+
+    /**
+     * Traducción a español del tipo de logística crudo de Mercado Libre (spec 065,
+     * contracts/rutas-internas.md §1). Vive en el modelo porque es presentación pura:
+     * el dominio nunca compara contra estas etiquetas, sólo contra el valor crudo.
+     */
+    public const ETIQUETAS_LOGISTICA = [
+        'fulfillment' => 'Full',
+        'xd_drop_off' => 'Colecta',
+        'self_service' => 'Flex',
+        'custom' => 'A cargo del vendedor',
+        'not_specified' => 'Sin especificar',
+    ];
+
+    /** Valor crudo de `shipping.logistic_type` que identifica a Full (spec 065, research R1). */
+    public const LOGISTICA_FULL = 'fulfillment';
 
     protected $casts = [
         'stock_pendiente' => 'boolean',
@@ -38,6 +55,7 @@ class MercadoLibrePublicacionProducto extends Model
         'precio_sincronizado_en' => 'datetime',
         'precio_error_en' => 'datetime',
         'listing_type_sincronizado_en' => 'datetime',
+        'logistica_sincronizada_en' => 'datetime',
     ];
 
     public function producto(): BelongsTo
@@ -80,5 +98,51 @@ class MercadoLibrePublicacionProducto extends Model
     public function esPremium(): bool
     {
         return $this->listing_type_id === 'gold_pro';
+    }
+
+    /**
+     * Único lugar de la app que traduce el tipo de logística crudo a "está en Full"
+     * (spec 065, data-model §Reglas de derivación). Cualquier otro valor —incluido
+     * `null`, sin clasificar todavía— es no-Full: ante la duda nunca se asume Full,
+     * porque asumirlo de más frenaría el envío de stock de una publicación que sí
+     * lo necesita (FR-005).
+     */
+    public function esFull(): bool
+    {
+        return $this->logistic_type === self::LOGISTICA_FULL;
+    }
+
+    /**
+     * Vínculos alojados en el centro de distribución de Mercado Libre (spec 065).
+     *
+     * Se llama `soloFull` y no `esFull` a propósito: un `scopeEsFull` nunca sería
+     * alcanzable, porque `Model::esFull()` resuelve primero al método de instancia
+     * de arriba y explota con "cannot be called statically".
+     */
+    public function scopeSoloFull(Builder $query): Builder
+    {
+        return $query->where('logistic_type', self::LOGISTICA_FULL);
+    }
+
+    /** Vínculos de logística propia o todavía sin clasificar — `null` cuenta acá (FR-005). */
+    public function scopeNoFull(Builder $query): Builder
+    {
+        return $query->where(function (Builder $q): void {
+            $q->where('logistic_type', '!=', self::LOGISTICA_FULL)->orWhereNull('logistic_type');
+        });
+    }
+
+    /**
+     * Etiqueta legible del tipo de logística (FR-024). Un valor que Mercado Libre
+     * agregue en el futuro se muestra **tal cual** en vez de descartarse (FR-005a):
+     * es preferible un texto crudo visible a una publicación que parece sin clasificar.
+     */
+    public function getLogisticaEtiquetaAttribute(): string
+    {
+        if ($this->logistic_type === null || $this->logistic_type === '') {
+            return 'Sin clasificar';
+        }
+
+        return self::ETIQUETAS_LOGISTICA[$this->logistic_type] ?? $this->logistic_type;
     }
 }

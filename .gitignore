@@ -71,3 +71,11 @@ __pycache__/
 
 # Scratch de trabajo (mapeo de SKUs), no código
 /skus.txt
+
+# Certificados ARCA en la ruta privada de Laravel (idem /storage/app/arca)
+/storage/app/private/arca
+
+# Migración a la base nueva: la documentación sí se versiona, los datos no
+/migracion-nueva/backup-vps
+/migracion-nueva/excel-origen
+/migracion-nueva/scripts-import

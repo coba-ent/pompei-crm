@@ -213,7 +213,7 @@
                                     <td>{{ optional($remitoCompra->transportista)->nombre ?: '-' }}</td>
                                     <td>{{ $remitoCompra->nota ?: '-' }}</td>
                                     <td>{{ rtrim(rtrim(number_format($remitoCompra->totalBultos(), 3, ',', '.'), '0'), ',') }}</td>
-                                    <td><a href="#" class="js-ver-remito" data-url="{{ route('remitos.pdf', $remitoCompra) }}">Ver Remito</a></td>
+                                    <td><a href="#" class="js-ver-remito" data-url="{{ route('remitos.pdf', $remitoCompra) }}"><i class="fas fa-eye me-1"></i>Ver Remito</a></td>
                                     <td><a href="{{ route('compras.remitos.edit', [$compra, $remitoCompra]) }}" title="Editar"><i class="fas fa-pencil-alt"></i></a></td>
                                 </tr>
                             @empty

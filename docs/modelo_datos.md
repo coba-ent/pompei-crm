@@ -855,6 +855,23 @@ publicaciones vinculadas, no sólo hacia una — ver `specs/036-vinculacion-mult
 > diaria, independiente de la de stock) y completado al vincular una publicación nueva. Detalle
 > completo en `specs/050-lista-precio-premium-ml/data-model.md`.
 
+> **Columnas nuevas (spec 065, implementada)** — tipo de logística por vínculo, para distinguir las
+> publicaciones **Full** (mercadería en el centro de distribución de Mercado Libre) de las de
+> logística propia: `logistic_type` (string(40), nullable, indexada — valor crudo de
+> `shipping.logistic_type` del body de `GET /items`: `fulfillment` = Full, `xd_drop_off` = colecta,
+> `self_service` = Flex, `custom`, `not_specified`; `null` hasta la primera consulta exitosa),
+> `inventory_id` (string(40), nullable, indexada — identificador de inventario de Mercado Libre) y
+> `logistica_sincronizada_en` (datetime, nullable). Método `esFull(): bool` en el modelo, único lugar
+> que traduce el valor crudo (compara contra `fulfillment`); **cualquier otro valor, incluido `null` y
+> los tipos desconocidos, es no-Full — nunca se infiere Full**. Mantenidas por el mismo multiget de
+> `SincronizadorTiposPublicacion` que ya trae `listing_type_id`, sin llamadas adicionales; ante fallo
+> se conserva el último valor conocido.
+>
+> ⚠️ **`inventory_id` NO distingue Full**: verificado contra la cuenta real que también aparece en
+> publicaciones `xd_drop_off`. Se usa **exclusivamente** como clave de deduplicación de existencias
+> (publicaciones que comparten inventario computan una sola vez). El único indicador de Full es
+> `logistic_type`. Detalle completo en `specs/065-ml-deposito-full/data-model.md`.
+
 ### `ml_configuracion` (columnas nuevas)
 `creacion_automatica` (bool, default false), `frecuencia_sync_minutos` (default 15),
 `deposito_id` (FK → depositos, nullable — null usa el depósito por defecto), `categoria_venta_id`
@@ -885,6 +902,21 @@ publicaciones vinculadas, no sólo hacia una — ver `specs/036-vinculacion-mult
 > configurable, a diferencia de `frecuencia_sync_minutos`). Ver `ml_publicacion_producto.listing_type_id`
 > abajo para la clasificación por vínculo. Detalle completo en
 > `specs/050-lista-precio-premium-ml/data-model.md`.
+
+> **Columna nueva (spec 065, implementada)**: `deposito_full_id` (FK → `depositos`, nullable,
+> `nullOnDelete`). Depósito que representa la mercadería del negocio alojada en el **centro de
+> distribución de Mercado Libre (Full)**. Convive con `deposito_id` sin reemplazarlo: `deposito_id`
+> gobierna las publicaciones de logística propia, `deposito_full_id` las Full.
+>
+> Dos reglas que lo diferencian de `deposito_id`:
+> 1. **Sin fallback**. A diferencia de `deposito_id`, no cae a `Deposito::porDefecto()` cuando está
+>    vacío: si no está configurado, la funcionalidad de Full no opera y las Ventas Full caen al
+>    depósito general. Caer a un depósito por defecto escribiría existencias de Mercado Libre sobre un
+>    depósito físico real. Mismo criterio que `lista_precio_id` (spec 016).
+> 2. **Debe ser distinto de `deposito_id`** (validación `different`). Si coincidieran, el reflejo de
+>    stock ML → CRM sobrescribiría el stock real del negocio, y se abriría un ciclo de sincronización.
+>
+> Detalle completo en `specs/065-ml-deposito-full/data-model.md`.
 
 > **Columna nueva (spec 020, implementada)**: `vendedor_id` (FK →
 > `vendedores`, nullable, `restrictOnDelete`). "Vendedor por defecto" asignado a las Ventas que se

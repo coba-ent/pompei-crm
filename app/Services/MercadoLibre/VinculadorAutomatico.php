@@ -108,7 +108,7 @@ class VinculadorAutomatico
      * detalle mínimo para resolver el SKU (research.md R3).
      *
      * @param  array<int, string>  $ids
-     * @return array<int, array{ml_item_id: string, sku: ?string, titulo: ?string}|null>
+     * @return array<int, array{ml_item_id: string, sku: ?string, titulo: ?string, listing_type_id: ?string, logistic_type: ?string, inventory_id: ?string}|null>
      */
     private function detalleDePublicaciones(array $ids): array
     {
@@ -142,13 +142,20 @@ class VinculadorAutomatico
                     // spec 050, FR-003: el multiget ya trae listing_type_id en el
                     // mismo body — se persiste acá sin una segunda consulta a ML.
                     'listing_type_id' => $item['listing_type_id'] ?? null,
+                    // spec 065, FR-003: mismo criterio para el tipo de logística. Se toma de
+                    // ESTE body en vez de llamar a SincronizadorTiposPublicacion::sincronizarUno(),
+                    // que costaría un GET /items extra por publicación para traer datos que ya
+                    // están acá. Sin esto, una publicación Full recién vinculada quedaría sin
+                    // clasificar hasta la corrida diaria y recibiría stock indebidamente (FR-006).
+                    'logistic_type' => $item['shipping']['logistic_type'] ?? null,
+                    'inventory_id' => $item['inventory_id'] ?? null,
                 ];
             })
             ->all();
     }
 
     /**
-     * @param  array{ml_item_id: string, sku: ?string, titulo: ?string, listing_type_id: ?string}  $detalle
+     * @param  array{ml_item_id: string, sku: ?string, titulo: ?string, listing_type_id: ?string, logistic_type: ?string, inventory_id: ?string}  $detalle
      * @return array{referencia: string, motivo: string, detalle?: string}|null null = vinculado con éxito.
      */
     private function procesar(array $detalle, ?User $usuario): ?array
@@ -177,6 +184,9 @@ class VinculadorAutomatico
             'vinculada_por' => $usuario?->id,
             'listing_type_id' => $detalle['listing_type_id'],
             'listing_type_sincronizado_en' => $detalle['listing_type_id'] ? now() : null,
+            'logistic_type' => $detalle['logistic_type'],
+            'inventory_id' => $detalle['inventory_id'],
+            'logistica_sincronizada_en' => $detalle['logistic_type'] ? now() : null,
         ]);
 
         return null;

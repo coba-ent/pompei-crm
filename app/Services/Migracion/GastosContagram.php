@@ -29,15 +29,42 @@ class GastosContagram
 
     public const CORTE = '2026-08-05';
 
+    private string $corte = self::CORTE;
+
+    /** Corre el corte más allá del 05/08; ver el equivalente en ComprobantesContagram. */
+    public function conCorte(string $fecha): static
+    {
+        $this->corte = $fecha;
+
+        return $this;
+    }
+
+    /** @param  list<string>  $extra  Archivos de gastos adicionales (tramo final de 2026). */
     public function __construct(
         private readonly LectorExcelContagram $lector,
         private readonly string $base,
+        private readonly array $extra = [],
     ) {}
 
     /** @return array<int, array<string, mixed>> */
     public function delAnio(string $anio): array
     {
-        $path = "{$this->base}/Gastos/{$anio} Gastos.xlsx";
+        $gastos = $this->leerArchivo("{$this->base}/Gastos/{$anio} Gastos.xlsx", $anio);
+
+        // El export del año corta el 05/08; los últimos días llegaron en un "Informe de Gastos"
+        // aparte, en el formato agrupado (el mismo de 2021-2024).
+        foreach ($this->extra as $path) {
+            foreach ($this->leerArchivo($path, $anio) as $g) {
+                $gastos[] = $g;
+            }
+        }
+
+        return $gastos;
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function leerArchivo(string $path, string $anio): array
+    {
         $reader = IOFactory::createReaderForFile($path);
         $reader->setReadDataOnly(true);
         $matriz = $reader->load($path)->getActiveSheet()->toArray(null, false, false, false);
@@ -69,6 +96,12 @@ class GastosContagram
                 // El importe se llama `Monto` en el formato plano y `Total` en el agrupado.
                 $fila[$col['Monto'] ?? $col['Total'] ?? -1] ?? null,
                 $fila[$col['Estado']] ?? null,
+                // Este formato SÍ arrastra el día/mes invertido, el agrupado no. Medido sobre 2026,
+                // donde el archivo corta el 05/08: leído directo deja 165 gastos entre septiembre y
+                // diciembre —imposible— y leído invertido no queda ninguno después de agosto. El
+                // control en el otro sentido lo da 2021, que es agrupado: directo cae en junio (el
+                // negocio arrancó el 18/06/2021) y invertido inventaría 20 gastos en enero.
+                invertida: true,
             );
         }
 
@@ -138,13 +171,15 @@ class GastosContagram
     private function armar(
         string $anio, string $id, mixed $fecha, ?string $categoria, ?string $subcategoria,
         ?string $descripcion, ?string $medioPago, mixed $total, ?string $estado,
+        bool $invertida = false,
     ): array {
         return [
             'legacy_id' => "GASTO-{$anio}-{$id}",
             'anio' => $anio,
             'id_excel' => $id,
-            // `invertida: false`: Gastos no arrastra el defecto de día/mes de Cuentas/ y Compras/.
-            'fecha' => $this->lector->fecha($fecha),
+            // El día/mes invertido depende del formato: lo trae el plano, no el agrupado.
+            // La evidencia de cada uno está en leerPlano().
+            'fecha' => $this->lector->fecha($fecha, $invertida),
             'categoria' => $this->lector->texto($categoria),
             'subcategoria' => $this->lector->texto($subcategoria),
             'descripcion' => $this->lector->texto($descripcion),
@@ -156,6 +191,6 @@ class GastosContagram
 
     public function dentroDelCorte(?CarbonImmutable $fecha): bool
     {
-        return $fecha !== null && $fecha->format('Y-m-d') <= self::CORTE;
+        return $fecha !== null && $fecha->format("Y-m-d") <= $this->corte;
     }
 }
