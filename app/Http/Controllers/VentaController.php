@@ -123,14 +123,6 @@ class VentaController extends Controller
         ];
     }
 
-    /** Número que el comprobante tenía en Contagram: de `2021-FC-2140` devuelve `2140`. */
-    private function numeroContagram(string $legacyId): string
-    {
-        $partes = explode('-', $legacyId);
-
-        return end($partes);
-    }
-
     /**
      * Panel de Filtros de Ventas (informe §3.5 `[90]` + captura real 06/08/2026 con 20 campos).
      * Transportista no tiene tabla/columna propia en el CRM — se omite (brecha documentada en
@@ -288,13 +280,8 @@ class VentaController extends Controller
                 default => 'Venta',
             })
             ->addColumn('cliente', fn (Venta $v) => optional($v->cliente)->nombre)
-            // Las migradas muestran el número que tenían en Contagram junto al id del CRM: es el
-            // dato por el que se las busca cuando llega un comprobante viejo en papel.
             ->editColumn('id', function (Venta $v) {
-                $html = $v->legacy_id === null
-                    ? (string) $v->id
-                    : $v->id.' <span class="badge bg-light text-muted" title="Número en Contagram">'
-                        .e($this->numeroContagram($v->legacy_id)).'</span>';
+                $html = (string) $v->id;
 
                 // spec 063 (T015, FR-008): indicador de aviso pendiente (cancelación/reembolso
                 // parcial/mediación posterior a la conversión) en el listado de Ventas.
