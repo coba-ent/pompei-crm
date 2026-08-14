@@ -704,6 +704,52 @@ table.dataTable > thead > tr > td {
 .widget-stat .media .media-body .h4 {
     font-size: 1.05rem;
 }
+/* ---------------------------------------------------------------------------
+ * Sidebar — fuente e íconos más grandes (pedido del cliente). Sube tanto los
+ * ítems de primer nivel como los de submenú (dropdown), el botón "+" que crea
+ * y abre el modal de alta, y los SVG de cada ítem. El template fija el
+ * width/height del SVG como atributo HTML (no CSS): una regla de ancho/alto
+ * en CSS le gana igual, porque los atributos de presentación tienen la
+ * especificidad más baja de la cascada.
+ * ------------------------------------------------------------------------ */
+[data-sidebar-style="full"][data-layout="vertical"] .deznav .metismenu > li > a {
+    font-size: 0.95rem;
+}
+.deznav .metismenu ul a {
+    font-size: 0.9rem;
+}
+.deznav .metismenu .menu-icon svg {
+    width: 27px;
+    height: 27px;
+}
+.deznav .metismenu ul li .menu-crear-btn i {
+    font-size: 0.85rem;
+}
+
+/* ---------------------------------------------------------------------------
+ * Botón "Acciones" de las tablas (dropdown que reusa el color del estado de
+ * la fila, ej. `btn-outline-{{ $badge }}`): pedido del cliente, que se vean
+ * siempre "rellenos" (como al hacer hover), no en outline.
+ *
+ * No alcanza con las variables `--bs-btn-*`: `.btn-outline-primary` tiene,
+ * más abajo en `style.css` (línea ~29366), una regla APARTE que fija
+ * `color: var(--primary)` / `border-color: var(--primary)` en el estado
+ * NORMAL sin pasar por ninguna variable `--bs-btn-*` — y este proyecto
+ * redefine `--primary` a #0F1237 (navy oscuro), que es el texto ilegible que
+ * se vio sobre el fondo azul. Esa regla sólo existe para "primary" (las
+ * demás variantes sí son 100% var-driven), así que acá se fuerza `color` y
+ * `border-color` en valor final (no variable) para blindarse contra
+ * cualquier literal que la gane por especificidad — no sólo por primary.
+ * Selector por atributo (no lista cada color) para no repetir esta regla por
+ * cada variante; no hay otro `.dropdown-toggle` con `btn-outline-*` en el
+ * resto de la app (verificado), así que no impacta dropdowns de otro tipo.
+ * ------------------------------------------------------------------------ */
+.dropdown-toggle[class*="btn-outline-"] {
+    background-color: var(--bs-btn-hover-bg) !important;
+    border-color: var(--bs-btn-hover-border-color) !important;
+    color: #fff !important;
+}
+
 .widget-stat .media .media-body p {
     font-size: 0.75rem;
 }
