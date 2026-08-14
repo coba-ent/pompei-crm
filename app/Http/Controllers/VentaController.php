@@ -553,11 +553,73 @@ class VentaController extends Controller
     public function show(Venta $venta)
     {
         $CurrentPage = 'ventas';
-        $venta->load(['items', 'conceptos', 'cliente.condicionIva', 'categoria', 'listaPrecio', 'vendedor', 'etiquetas', 'cobros.cuentaTesoreria', 'comprobanteFiscal', 'notasCreditoDebito.comprobanteFiscal', 'notasCreditoDebito.notaAjustada.comprobanteFiscal', 'remitos.transportista', 'remitos.items', 'mlOrden']);
+        $venta->load(['items', 'conceptos', 'cliente.condicionIva', 'categoria', 'listaPrecio', 'vendedor', 'etiquetas', 'cobros.cuentaTesoreria', 'comprobanteFiscal', 'notasCreditoDebito.comprobanteFiscal', 'notasCreditoDebito.notaAjustada.comprobanteFiscal', 'remitos.transportista', 'remitos.items', 'mlOrden.items', 'movimientosStock.deposito']);
         $cuentas = CuentaTesoreria::visibles()->paraCobrar()->orderBy('orden')->orderBy('nombre')->get();
         $depositos = Deposito::activos()->orderBy('nombre')->get();
 
-        return view('ventas.detalle', compact('CurrentPage', 'venta', 'cuentas', 'depositos'));
+        // Depósitos de los que salió el stock de esta Venta (normalmente uno solo).
+        $depositosDescontados = $venta->movimientosStock
+            ->where('tipo', 'salida')
+            ->map(fn ($m) => $m->deposito?->nombre)
+            ->filter()
+            ->unique()
+            ->values();
+
+        $descuentoMl = $this->descuentoMercadoLibre($venta);
+
+        return view('ventas.detalle', compact('CurrentPage', 'venta', 'cuentas', 'depositos', 'depositosDescontados', 'descuentoMl'));
+    }
+
+    /**
+     * Cascada de precios de una Venta que vino de Mercado Libre: precio de lista de la publicación,
+     * aporte del vendedor a la promoción, precio registrado en la Venta, aporte de ML (cupón) y lo que
+     * terminó pagando el comprador. Todo sale de lo ya sincronizado (`ml_orden_items` + el payload
+     * crudo de la orden): no se consulta la API, así que también funciona para órdenes viejas.
+     *
+     * Sirve para explicar por qué el total de la Venta no coincide con el precio publicado — el nombre
+     * y los porcentajes de la promoción NO se pueden reconstruir hacia atrás (viven en el ítem, no en
+     * la orden, y reflejan la promoción vigente hoy), por eso sólo se muestran importes.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function descuentoMercadoLibre(Venta $venta): ?array
+    {
+        $orden = $venta->mlOrden;
+
+        if (! $orden || $orden->items->isEmpty()) {
+            return null;
+        }
+
+        $precioLista = (float) $orden->items->sum(fn ($i) => (float) ($i->precio_bruto ?? 0) * (float) $i->cantidad);
+        $precioVenta = (float) $orden->items->sum(fn ($i) => (float) $i->precio_unitario * (float) $i->cantidad);
+        $comision = (float) $orden->items->sum(fn ($i) => (float) ($i->comision_ml ?? 0));
+
+        if ($precioLista <= 0) {
+            return null;
+        }
+
+        $payload = is_array($orden->payload) ? $orden->payload : (json_decode((string) $orden->payload, true) ?: []);
+        $pago = $payload['payments'][0] ?? [];
+        $aporteMl = (float) ($pago['coupon_amount'] ?? 0);
+
+        $aporteVendedor = round($precioLista - $precioVenta, 2);
+
+        // Sin diferencia de precio ni cupón no hay nada que explicar.
+        if (abs($aporteVendedor) < 0.01 && $aporteMl < 0.01) {
+            return null;
+        }
+
+        return [
+            'precio_lista' => $precioLista,
+            'aporte_vendedor' => $aporteVendedor,
+            'precio_venta' => $precioVenta,
+            'aporte_ml' => $aporteMl,
+            'pago_comprador' => round($precioVenta - $aporteMl, 2),
+            'comision_ml' => $comision,
+            'neto_vendedor' => round($precioVenta - $comision, 2),
+            'total_pagado_comprador' => isset($pago['total_paid_amount']) ? (float) $pago['total_paid_amount'] : null,
+            'cuotas' => $pago['installments'] ?? null,
+        ];
     }
 
     public function pdf(Venta $venta)

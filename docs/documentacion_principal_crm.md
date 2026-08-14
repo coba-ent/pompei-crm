@@ -1775,6 +1775,33 @@ desde esta corrección el test usa la respuesta real capturada de producción. S
 `TraductorOrdenes::traducirDomicilioFiscal()` para aprovechar razón social y domicilio fiscal, que ML
 también devuelve y antes se descartaban.
 
+**Agregado (14/08/2026 — bloque "Precios de Mercado Libre" en el Detalle de Venta):** cuando la Venta
+vino de una orden de ML con descuento, el Detalle muestra la cascada completa de precios, que explica
+por qué el total de la Venta **no coincide con el precio publicado**:
+
+```
+Precio de lista de la publicación   (ml_orden_items.precio_bruto)
+− Descuento aportado por el vendedor
+= Precio registrado en esta Venta   (ml_orden_items.precio_unitario)  ← es el importe que se factura
+− Descuento aportado por ML (cupón) (payload.payments[].coupon_amount)
+= Precio que pagó el comprador
+```
+
+…más, en paralelo, el neto del vendedor (precio registrado − comisión de ML) y el total financiado al
+comprador con su cantidad de cuotas. **Todo sale de datos ya sincronizados** (`ml_orden_items` + el
+`payload` crudo de la orden): no se llama a la API, así que funciona retroactivamente para las órdenes
+viejas. **El nombre y los porcentajes de la promoción NO se muestran a propósito**: viven en el ítem
+(`/seller-promotions`), no en la orden, y ese endpoint devuelve la promoción **vigente hoy**, que para
+una venta pasada puede ser otra o ninguna — sólo se muestran importes, que sí quedan congelados en el
+payload. **Decisión explícita: esto NO va al PDF de la Venta**, que es un comprobante fiscal — el
+descuento de ML no forma parte de la base imponible ni del ingreso del vendedor, y exponer tres precios
+distintos en una factura invita a un reclamo del comprador.
+
+**Agregado (14/08/2026 — Detalle de Venta):** el encabezado muestra el **Id de la Venta** a la
+izquierda, alineado con los botones de Remito/ARCA, y el bloque de datos generales muestra el
+**Depósito** del que salió el stock (derivado de los movimientos de stock de tipo `salida` de la Venta;
+si no hubo movimiento, se informa explícitamente en vez de dejar el campo vacío).
+
 **Corrección asociada (14/08/2026 — el documento del comprador se guarda cualquiera sea su tipo):**
 `ResolutorCliente` guardaba el número de documento en `clientes.cuit` **sólo si era CUIT**, de modo que
 un comprador con DNI quedaba con `tipo_documento = 'DNI'` pero **sin número**, y su Venta se enviaba a

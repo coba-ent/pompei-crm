@@ -16,6 +16,7 @@
                 <a href="{{ route('ventas.index') }}" class="btn btn-light btn-sm">
                     <i class="fas fa-arrow-left me-1"></i> Volver
                 </a>
+                <span class="badge bg-dark ms-2 align-middle">Venta #{{ $venta->id }}</span>
                 @if ($venta->origen === 'mercadolibre' && $venta->mlOrden && \Illuminate\Support\Facades\Route::has('ingresos.mercadolibre.index'))
                     <span class="badge bg-warning text-dark ms-2">
                         <i class="fas fa-store me-1"></i> Origen: Mercado Libre — orden {{ $venta->mlOrden->ml_order_id }}
@@ -95,6 +96,80 @@
                 </div>
             </div>
         </div>
+
+        {{-- Cascada de precios de Mercado Libre: explica por qué el total de la Venta no coincide
+             con el precio publicado (promoción compartida + cupón de ML). Sólo datos ya
+             sincronizados, no se consulta la API. --}}
+        @if ($descuentoMl)
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="mb-3">
+                        <i class="fas fa-tags me-1 text-warning"></i> Precios de Mercado Libre
+                    </h5>
+                    <div class="row">
+                        <div class="col-md-7">
+                            <table class="table table-sm mb-0">
+                                <tr>
+                                    <td>Precio de lista de la publicación</td>
+                                    <td class="text-end">$ {{ number_format($descuentoMl['precio_lista'], 2, ',', '.') }}</td>
+                                </tr>
+                                @if (abs($descuentoMl['aporte_vendedor']) >= 0.01)
+                                    <tr class="text-danger">
+                                        <td>− Descuento aportado por el vendedor</td>
+                                        <td class="text-end">-$ {{ number_format($descuentoMl['aporte_vendedor'], 2, ',', '.') }}</td>
+                                    </tr>
+                                @endif
+                                <tr class="fw-bold border-top">
+                                    <td>= Precio registrado en esta Venta</td>
+                                    <td class="text-end">$ {{ number_format($descuentoMl['precio_venta'], 2, ',', '.') }}</td>
+                                </tr>
+                                @if ($descuentoMl['aporte_ml'] >= 0.01)
+                                    <tr class="text-muted">
+                                        <td>− Descuento aportado por Mercado Libre (cupón)</td>
+                                        <td class="text-end">-$ {{ number_format($descuentoMl['aporte_ml'], 2, ',', '.') }}</td>
+                                    </tr>
+                                    <tr class="text-muted">
+                                        <td>= Precio que pagó el comprador</td>
+                                        <td class="text-end">$ {{ number_format($descuentoMl['pago_comprador'], 2, ',', '.') }}</td>
+                                    </tr>
+                                @endif
+                            </table>
+                        </div>
+                        <div class="col-md-5">
+                            <table class="table table-sm mb-0">
+                                <tr>
+                                    <td>Precio registrado en esta Venta</td>
+                                    <td class="text-end">$ {{ number_format($descuentoMl['precio_venta'], 2, ',', '.') }}</td>
+                                </tr>
+                                <tr class="text-danger">
+                                    <td>− Comisión de Mercado Libre</td>
+                                    <td class="text-end">-$ {{ number_format($descuentoMl['comision_ml'], 2, ',', '.') }}</td>
+                                </tr>
+                                <tr class="fw-bold border-top">
+                                    <td>= Neto antes de envío</td>
+                                    <td class="text-end">$ {{ number_format($descuentoMl['neto_vendedor'], 2, ',', '.') }}</td>
+                                </tr>
+                                @if ($descuentoMl['total_pagado_comprador'])
+                                    <tr class="text-muted small">
+                                        <td>
+                                            Total financiado al comprador
+                                            @if ($descuentoMl['cuotas']) ({{ $descuentoMl['cuotas'] }} cuotas) @endif
+                                        </td>
+                                        <td class="text-end">$ {{ number_format($descuentoMl['total_pagado_comprador'], 2, ',', '.') }}</td>
+                                    </tr>
+                                @endif
+                            </table>
+                        </div>
+                    </div>
+                    <div class="small text-muted mt-2">
+                        <i class="fas fa-circle-info me-1"></i>
+                        El importe facturado es el <strong>precio registrado en esta Venta</strong>. El descuento que
+                        aporta Mercado Libre no forma parte de tu ingreso ni de la base imponible, y el costo
+                        financiero de las cuotas lo paga el comprador.
+                    </div>
+                </div>
+            </div>
+        @endif
 
         {{-- Cobranzas --}}
         <div class="card mb-3">
@@ -195,6 +270,14 @@
                             <div><strong>Condición IVA:</strong> {{ optional(optional($venta->cliente)->condicionIva)->nombre ?: '-' }}</div>
                             <div><strong>Categoría:</strong> {{ optional($venta->categoria)->nombre ?: '-' }}</div>
                             <div><strong>Vendedor:</strong> {{ optional($venta->vendedor)->nombre ?: '-' }}</div>
+                            <div>
+                                <strong>Depósito:</strong>
+                                @if ($depositosDescontados->isNotEmpty())
+                                    {{ $depositosDescontados->implode(', ') }}
+                                @else
+                                    <span class="text-muted">sin movimiento de stock</span>
+                                @endif
+                            </div>
                         </div>
                     </div>
                 </div>
