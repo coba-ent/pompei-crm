@@ -76,6 +76,10 @@ class MercadoLibreConfiguracionController extends Controller
                 'creacion_automatica' => $configuracion->creacion_automatica,
                 'frecuencia_sync_minutos' => $configuracion->frecuencia_sync_minutos,
                 'deposito_id' => $configuracion->deposito_id,
+                // spec 065: sin esto el valor se guarda pero el formulario lo pierde. El JS repuebla
+                // con `conf.deposito_full_id || ''`, así que un campo ausente vacía el selector al
+                // recargar el estado — y parece que el guardado no funcionó, cuando sí funcionó.
+                'deposito_full_id' => $configuracion->deposito_full_id,
                 'categoria_venta_id' => $configuracion->categoria_venta_id,
                 'lista_precio_id' => $configuracion->lista_precio_id,
                 'lista_precio_id_premium' => $configuracion->lista_precio_id_premium,

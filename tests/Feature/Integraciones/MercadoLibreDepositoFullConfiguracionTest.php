@@ -155,4 +155,22 @@ class MercadoLibreDepositoFullConfiguracionTest extends TestCase
         app(StockService::class)->ajustar($producto, null, $this->general, 3, 'carga normal');
         $this->assertTrue($vinculoPropio->fresh()->stock_pendiente);
     }
+
+    /**
+     * Regresión de un bug reportado en producción: el depósito Full se guardaba bien pero el
+     * formulario lo perdía y parecía que no se había guardado.
+     *
+     * El endpoint de estado no devolvía `deposito_full_id`, y el front repuebla el selector con
+     * `conf.deposito_full_id || ''` — un campo ausente lo vacía. Guardar bien no alcanza si lo
+     * guardado no se puede volver a leer: los tests de arriba pasaban igual porque ninguno miraba
+     * el camino de lectura.
+     */
+    public function test_el_estado_devuelve_el_deposito_full_configurado(): void
+    {
+        $this->guardar(['deposito_full_id' => $this->full->id])->assertOk();
+
+        $this->getJson(route('configuracion.mercadolibre.estado'))
+            ->assertOk()
+            ->assertJsonPath('configuracion.deposito_full_id', $this->full->id);
+    }
 }
