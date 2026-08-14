@@ -35,6 +35,10 @@ class ConvertirOrdenRequest extends FormRequest
             'submit_token' => ['required', 'string'],
             'cliente_id' => ['nullable', 'exists:clientes,id'],
             'tipo_comprobante' => ['nullable', 'in:A,B,C,E'],
+            // spec 066 (FR-010): confirmación explícita para convertir una orden en estado
+            // excepcional. Que llegue no alcanza — el controlador igual verifica el estado
+            // contra la base, porque este endpoint se puede llamar sin pasar por la interfaz.
+            'forzar_conversion' => ['nullable', 'boolean'],
             'vinculaciones_inline' => ['nullable', 'array'],
             'vinculaciones_inline.*.ml_item_id' => ['required_with:vinculaciones_inline', 'string'],
             'vinculaciones_inline.*.producto_id' => ['required_with:vinculaciones_inline', 'exists:productos,id'],

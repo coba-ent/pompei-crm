@@ -887,3 +887,63 @@ Respaldo del dump: `scripts-import/certificado_fiscal_vps_20260814.sql`.
 **Pendiente al retomar**: los 14 CAE reales (A hasta `0009-00000008`, B hasta `0009-00000006` más 1 NC).
 La numeración tiene que continuar en **A 0009-00000009** y **B 0009-00000007**. De los 14, 8 matchean
 ventas importadas y 5 son ventas que sólo existen en el CRM.
+
+
+## SWAP AL VPS EJECUTADO — 14/08/2026 03:50
+
+La base de producción del VPS **fue reemplazada** por la base nueva. Salió bien.
+
+### Orden en que se hizo
+
+1. **Cron pausado** antes que nada (comentado en el crontab; original en `/root/crontab_backup_20260814.txt`).
+2. **Backup de lo que estaba**: `mysqldump` (61 MB) + `tar` de `storage` (10 MB), bajados a
+   `migracion-nueva/backup-vps/`. Verificados por md5 en los dos lados (`33cff484…`).
+3. **Commit y push** `15a5e6b` con los 4 renombres de migraciones, `add_logistica_full_mercadolibre`
+   y los comandos de migración. Decisión del usuario: subir todo lo que había local.
+4. **Stock recuperado del backup** antes de generar el dump final — ver abajo.
+5. `git pull` en el VPS (sin migrate).
+6. **DROP + CREATE + import** del dump (`696a2834…`, verificado por md5 antes de ejecutar).
+7. **`migrate --force` → "Nothing to migrate"**. Esa es la prueba de que código y base quedaron
+   alineados; era justo lo que el desfasaje de nombres podía romper.
+8. `optimize:clear`, `config:cache`, `route:cache`, permisos a `www-data`.
+9. Cron reactivado y verificado en vivo.
+
+### Verificación posterior
+
+| | |
+|---|---:|
+| Ventas / ítems | 23.736 / 36.454 |
+| Cobros / Pagos | 25.261 / 3.339 |
+| Compras / Gastos | 2.390 / 9.442 |
+| Tesorería | 48.634 |
+| Notas | 850 |
+| Clientes / Productos | 19.592 / 9.630 |
+| Órdenes ML vinculadas | 134 |
+| Certificado ARCA | presente y encontrado por `Storage` |
+| Stock Local / Full | 7.502 / 8 |
+
+`https://pompeisanitarioscontable.cloud/login` responde **HTTP 200 en 0,41 s**. Tiendanube
+sincronizó sola a las 03:54 ("0 nuevas, 4 actualizadas").
+
+### Stock: se recuperó del backup, no se perdió
+
+El catálogo de la base nueva se había copiado el 13/08 a las 18:20, así que **no traía los
+movimientos posteriores**. Antes de generar el dump final se restauró el backup del VPS en una base
+temporal local (`contagram_viejo`) y se copiaron las cantidades de **Local** y **Full**.
+
+Sólo **3 productos** diferían, y el depósito **Full quedó idéntico**. Para Local se comparó contra la
+**suma de los depósitos 5 y 7**, porque el `Depósito Tiendanube` existe en el backup —se borró
+después— y su stock ya se había fusionado en Local. Verificación final: **0 diferencias** en ambos
+depósitos.
+
+### Observación
+
+A las 03:53, justo después del import, el **usuario activó el modo sólo lectura de Mercado Libre**
+desde la app (`ml_configuracion.modo_solo_lectura = 1`, `actualizada_por = 2`). Por eso
+`mercadolibre:sincronizar-ordenes` responde *"Bloqueada por el modo sólo lectura"* y `ultima_sync_en`
+sigue en 13/08 20:54. **No es una falla**: nada en el código lo activa solo, se prende y se apaga a
+mano desde Configuración. Tiendanube no está en ese modo y sincroniza normal.
+
+Rollback, si alguna vez hiciera falta: restaurar `backup_contagram_pre_swap_20260814.sql` **y** volver
+el código a `0806a74`. Los dos juntos — con la base vieja y el código nuevo, `migrate` intenta
+recrear `configuracion_ventas`.

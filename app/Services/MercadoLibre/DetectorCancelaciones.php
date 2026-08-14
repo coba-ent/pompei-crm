@@ -3,7 +3,6 @@
 namespace App\Services\MercadoLibre;
 
 use App\Enums\MercadoLibre\EstadoConversion;
-use App\Enums\MercadoLibre\EstadoOrden;
 use App\Enums\MercadoLibre\MotivoRequiereAtencion;
 use App\Models\Integraciones\MercadoLibreOrden;
 use Carbon\Carbon;
@@ -68,6 +67,22 @@ class DetectorCancelaciones
 
         $motivo = $this->determinarMotivo($orden, $ordenCruda);
 
+        // spec 066 (FR-018): si el motivo detectado es exactamente el que la persona ya
+        // asumió al forzar la conversión, no hay nada nuevo que avisar — avisarlo sería
+        // devolverle como novedad la decisión que acaba de tomar. La comparación es contra
+        // el motivo forzado siempre, sin importar por qué motivos haya pasado en el medio
+        // (Edge Case de la spec): un motivo distinto sí avisa (FR-019).
+        //
+        // OJO: se devuelve [Convertida, null, null] explícito, NO null. Devolver null acá
+        // haría que SincronizadorOrdenes usara el estado crudo de EvaluadorConvertibilidad,
+        // que para una orden cancelada es "Cancelada" aunque tenga Venta (ese caso normalmente
+        // lo corrige este mismo método devolviendo RequiereAtencion) — sin este retorno
+        // explícito, una orden forzada revertiría a "Cancelada" perdiendo su condición de
+        // convertida cada vez que se re-sincroniza.
+        if ($motivo !== null && $orden->forzada_motivo === $motivo->value) {
+            return [EstadoConversion::Convertida, null, null];
+        }
+
         $yaMarcada = $estadoConversionPrevio === EstadoConversion::RequiereAtencion
             && in_array($motivoPrevio, MotivoRequiereAtencion::motivosDeCancelacionPosterior(), true);
 
@@ -95,19 +110,22 @@ class DetectorCancelaciones
         ];
     }
 
+    /**
+     * spec 066 (T004): la precedencia mediación → cancelada → reembolso parcial vive en
+     * MotivoExcepcional, compartida con EvaluadorConvertibilidad. Acá se lee la mediación
+     * del payload crudo porque durante la sincronización la columna `en_mediacion` puede
+     * no estar escrita todavía.
+     *
+     * La alerta de fraude que MotivoExcepcional también contempla no aplica a este
+     * detector: es un aviso PREVIO a convertir, no una cancelación posterior (spec 063).
+     */
     private function determinarMotivo(MercadoLibreOrden $orden, array $ordenCruda): ?MotivoRequiereAtencion
     {
-        // FR-004: la mediación se lee del pago, no del estado de la orden — se evalúa primero
-        // porque puede convivir con cualquier estado de orden reportado.
-        if ($this->traductor->tieneMediacion($ordenCruda)) {
-            return MotivoRequiereAtencion::OrdenEnMediacion;
-        }
+        $motivo = MotivoExcepcional::de($orden, $this->traductor->tieneMediacion($ordenCruda));
 
-        return match ($orden->estado_orden) {
-            EstadoOrden::Cancelada => MotivoRequiereAtencion::OrdenCancelada,
-            EstadoOrden::ReembolsoParcial => MotivoRequiereAtencion::OrdenReembolsoParcial,
-            default => null,
-        };
+        return in_array($motivo, MotivoRequiereAtencion::motivosDeCancelacionPosterior(), true)
+            ? $motivo
+            : null;
     }
 
     private function construirDetalle(

@@ -39,4 +39,22 @@ enum MotivoRequiereAtencion: string
     {
         return [self::OrdenCancelada, self::OrdenReembolsoParcial, self::OrdenEnMediacion];
     }
+
+    /**
+     * Motivos que frenan una conversión y sólo se pueden salvar a mano (spec 066, FR-001).
+     *
+     * OJO: NO es lo mismo que motivosDeCancelacionPosterior(), aunque se parezcan.
+     * Aquel responde "qué avisos existen después de convertir" y no incluye la alerta
+     * de fraude; éste responde "qué frena una conversión" y sí la incluye. Unificarlos
+     * rompe la spec 063.
+     */
+    public static function motivosExcepcionales(): array
+    {
+        return [self::OrdenEnMediacion, self::OrdenCancelada, self::OrdenReembolsoParcial, self::AlertaFraude];
+    }
+
+    public function esExcepcional(): bool
+    {
+        return in_array($this, self::motivosExcepcionales(), true);
+    }
 }

@@ -45,7 +45,12 @@ class ConversorOrdenAVenta
     /**
      * @param  ?int  $clienteIdOverride  Corrección manual del Cliente resuelto (p. ej. para desambiguar, FR-038).
      * @param  ?string  $tipoComprobanteOverride  Corrección manual del comprobante derivado (FR-043).
-     * @return array{ok: bool, venta?: Venta, mensaje?: string, motivo?: string, venta_id?: int}
+     * @param  bool  $forzada  spec 066: la persona confirmó explícitamente convertir una orden en
+     *                         estado excepcional. Cerrado por defecto — el cron, el lote y la
+     *                         conversión normal no lo pasan nunca. Saltea ÚNICAMENTE las guardas
+     *                         de estado excepcional; no saltea problemas de datos (FR-013), ni
+     *                         una orden pendiente de pago, ni los cortes globales (FR-014).
+     * @return array{ok: bool, venta?: Venta, mensaje?: string, motivo?: string, venta_id?: int, forzada?: bool}
      */
     public function convertir(
         MercadoLibreOrden $orden,
@@ -53,6 +58,7 @@ class ConversorOrdenAVenta
         bool $automatica = false,
         ?int $clienteIdOverride = null,
         ?string $tipoComprobanteOverride = null,
+        bool $forzada = false,
     ): array {
         $lock = Cache::lock("ml:convertir_orden:{$orden->id}", 30);
 
@@ -61,7 +67,7 @@ class ConversorOrdenAVenta
         }
 
         try {
-            return $this->convertirBajoCandado($orden, $usuarioId, $automatica, $clienteIdOverride, $tipoComprobanteOverride);
+            return $this->convertirBajoCandado($orden, $usuarioId, $automatica, $clienteIdOverride, $tipoComprobanteOverride, $forzada);
         } finally {
             $lock->release();
         }
@@ -74,7 +80,7 @@ class ConversorOrdenAVenta
      * idénticos a `SincronizadorOrdenes::verificarCortes()` (función avanzada +
      * modo sólo lectura) — si alguno bloquea, no toca ninguna orden.
      *
-     * @return array{ok: bool, tipo?: string, mensaje: string, total?: int, convertidas?: int, fallidas?: int, detalle_fallidas?: array}
+     * @return array{ok: bool, tipo?: string, mensaje: string, total?: int, convertidas?: int, fallidas?: int, excluidas?: int, detalle_fallidas?: array, detalle_excluidas?: array}
      */
     public function convertirTodasLasListas(?int $usuarioId): array
     {
@@ -87,8 +93,22 @@ class ConversorOrdenAVenta
         $total = $ordenes->count();
         $convertidas = 0;
         $detalleFallidas = [];
+        $detalleExcluidas = [];
 
         foreach ($ordenes as $orden) {
+            // spec 066 (FR-003): una orden que quedó en estado excepcional entre que se armó
+            // el listado y le llegó el turno se excluye sin intentar convertirla. El lote nunca
+            // fuerza: forzar es una decisión por orden y con confirmación (FR-008).
+            if ($motivoExcepcional = $orden->motivoExcepcional()) {
+                $detalleExcluidas[] = [
+                    'orden' => $orden->ml_order_id,
+                    'motivo' => $motivoExcepcional->value,
+                    'motivo_detalle' => $motivoExcepcional->etiqueta(),
+                ];
+
+                continue;
+            }
+
             $resultado = $this->convertir($orden, $usuarioId, automatica: false);
 
             if ($resultado['ok']) {
@@ -97,14 +117,30 @@ class ConversorOrdenAVenta
                 continue;
             }
 
+            $fresca = $orden->fresh();
+
+            // Si el rechazo fue por un motivo excepcional detectado recién dentro del
+            // conversor (bajo candado, con la orden refrescada), cuenta como exclusión y
+            // no como falla: el sistema hizo lo que se le pidió.
+            if ($fresca?->motivo?->esExcepcional()) {
+                $detalleExcluidas[] = [
+                    'orden' => $orden->ml_order_id,
+                    'motivo' => $fresca->motivo->value,
+                    'motivo_detalle' => $fresca->motivo->etiqueta(),
+                ];
+
+                continue;
+            }
+
             $detalleFallidas[] = [
                 'orden' => $orden->ml_order_id,
-                'motivo' => $orden->fresh()->motivo?->etiqueta() ?? $resultado['mensaje'],
-                'motivo_detalle' => $orden->fresh()->motivo_detalle,
+                'motivo' => $fresca?->motivo?->etiqueta() ?? $resultado['mensaje'],
+                'motivo_detalle' => $fresca?->motivo_detalle,
             ];
         }
 
-        $fallidas = $total - $convertidas;
+        $excluidas = count($detalleExcluidas);
+        $fallidas = $total - $convertidas - $excluidas;
 
         return [
             'ok' => true,
@@ -112,7 +148,9 @@ class ConversorOrdenAVenta
             'total' => $total,
             'convertidas' => $convertidas,
             'fallidas' => $fallidas,
+            'excluidas' => $excluidas,
             'detalle_fallidas' => $detalleFallidas,
+            'detalle_excluidas' => $detalleExcluidas,
         ];
     }
 
@@ -161,6 +199,7 @@ class ConversorOrdenAVenta
         bool $automatica,
         ?int $clienteIdOverride = null,
         ?string $tipoComprobanteOverride = null,
+        bool $forzada = false,
     ): array {
         $orden->refresh(); // revalidación bajo candado (FR-032a): puede haber cambiado desde que se leyó.
 
@@ -174,12 +213,30 @@ class ConversorOrdenAVenta
             return $this->rechazo('Esta orden ya tiene una Venta asociada.');
         }
 
-        if ($orden->estado_orden === EstadoOrden::Cancelada) {
-            return $this->rechazo('La orden está cancelada en Mercado Libre y no puede convertirse.');
+        // spec 066 (FR-008/FR-010): las guardas de estado excepcional. Sin confirmación
+        // explícita se rechaza igual que antes; con confirmación se saltean SÓLO éstas.
+        $motivoExcepcional = MotivoExcepcional::de($orden);
+
+        if ($motivoExcepcional && ! $forzada) {
+            return $this->rechazo(
+                MotivoExcepcional::detalle($motivoExcepcional),
+                null,
+                $motivoExcepcional->value,
+            );
         }
 
-        if ($orden->estado_orden !== EstadoOrden::Pagada) {
-            return $this->rechazo('La orden todavía no está pagada en Mercado Libre.');
+        // CUIDADO al tocar esto: la exigencia de "Pagada" cubre DOS casos distintos que
+        // comparten la misma condición. Una orden cancelada o con reembolso parcial tampoco
+        // está "Pagada", y ésas sí se pueden forzar. Una orden simplemente PENDIENTE de pago
+        // NO se puede forzar nunca (FR-014): todavía no entró la plata, y facturarla sería
+        // inventar un cobro. Por eso la excepción se condiciona a que haya motivo excepcional,
+        // no sólo a $forzada.
+        $salteaExigenciaDePago = $forzada && $motivoExcepcional !== null;
+
+        if ($orden->estado_orden !== EstadoOrden::Pagada && ! $salteaExigenciaDePago) {
+            return $this->rechazo($orden->estado_orden === EstadoOrden::Cancelada
+                ? 'La orden está cancelada en Mercado Libre y no puede convertirse.'
+                : 'La orden todavía no está pagada en Mercado Libre.');
         }
 
         $orden->load('items.producto');
@@ -192,7 +249,17 @@ class ConversorOrdenAVenta
         $clienteFinal = $clienteIdOverride ? Cliente::find($clienteIdOverride) : $resolucionCliente['cliente'];
         $clienteAmbiguo = $clienteIdOverride ? false : $resolucionCliente['ambiguo'];
 
-        [$estado, $motivo, $detalle] = $this->evaluador->evaluar($orden, $clienteAmbiguo);
+        // spec 066 (FR-013): en el camino forzado se le pide al evaluador el veredicto sobre
+        // los DATOS, salteando las guardas de estado que la persona ya confirmó. Forzar nunca
+        // saltea publicación sin vincular, producto inexistente, variantes, cliente ambiguo ni
+        // moneda distinta: eso no es algo que se pueda "asumir", la Venta saldría mal.
+        $forzadaEfectiva = $forzada && $motivoExcepcional !== null;
+
+        [$estado, $motivo, $detalle] = $this->evaluador->evaluar(
+            $orden,
+            $clienteAmbiguo,
+            ignorarExcepcionales: $forzadaEfectiva,
+        );
 
         if ($estado !== EstadoConversion::Lista) {
             $orden->update(['estado_conversion' => $estado->value, 'motivo' => $motivo?->value, 'motivo_detalle' => $detalle]);
@@ -213,7 +280,7 @@ class ConversorOrdenAVenta
         $tipoComprobante = $tipoComprobanteOverride ?: $datosFiscales['tipo_comprobante'];
 
         try {
-            $venta = DB::transaction(function () use ($orden, $clienteFinal, $tipoComprobante, $cuentaMercadoPago, $usuarioId, $automatica) {
+            $venta = DB::transaction(function () use ($orden, $clienteFinal, $tipoComprobante, $cuentaMercadoPago, $usuarioId, $automatica, $forzadaEfectiva, $motivoExcepcional) {
                 $lineas = $this->armarLineas($orden);
 
                 // Las fechas de la orden se guardan en UTC. El día hay que sacarlo en hora local,
@@ -266,6 +333,14 @@ class ConversorOrdenAVenta
                     'creacion_automatica' => $automatica,
                     'convertida_en' => now(),
                     'convertida_por' => $automatica ? null : $usuarioId,
+                    // spec 066 (FR-011/FR-018): los tres se escriben juntos o no se escribe
+                    // ninguno. `forzada_motivo` además es contra lo que compara el detector de
+                    // la spec 063 para no devolver como aviso la decisión recién tomada.
+                    ...($forzadaEfectiva ? [
+                        'forzada_motivo' => $motivoExcepcional->value,
+                        'forzada_por_id' => $usuarioId,
+                        'forzada_en' => now(),
+                    ] : []),
                 ]);
 
                 foreach ($orden->items as $index => $ordenItem) {
@@ -282,7 +357,27 @@ class ConversorOrdenAVenta
             return $this->rechazo('Esta orden ya tiene una Venta asociada.', $orden->fresh()->venta_id);
         }
 
-        return ['ok' => true, 'venta' => $venta];
+        if ($forzadaEfectiva) {
+            // FR-011: la fuente de verdad de "quién forzó qué" es la bitácora, no la columna
+            // de la orden — ésta queda en null si el usuario se elimina, el registro no.
+            MercadoLibreOperacionLog::registrar([
+                'operacion' => 'convertir_orden_forzada',
+                'metodo' => 'INTERNO',
+                'endpoint' => '-',
+                'sentido' => 'escritura',
+                'resultado' => 'ok',
+                'usuario_id' => $usuarioId,
+                'payload_bloqueado' => "Orden {$orden->ml_order_id} convertida a mano pese a estar en estado excepcional ".
+                    "(\"{$motivoExcepcional->etiqueta()}\"). Venta {$venta->nro_comprobante} creada sin emitir el comprobante.",
+            ]);
+        }
+
+        return [
+            'ok' => true,
+            'venta' => $venta,
+            'forzada' => $forzadaEfectiva,
+            'motivo' => $forzadaEfectiva ? $motivoExcepcional->value : null,
+        ];
     }
 
     /**

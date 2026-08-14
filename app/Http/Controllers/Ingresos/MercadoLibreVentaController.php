@@ -149,14 +149,28 @@ class MercadoLibreVentaController extends Controller
     {
         $CurrentPage = 'ingresos-mercadolibre';
 
-        if (! $orden->estado_conversion->habilitaCrearVenta()) {
+        // spec 066 (FR-020): una orden en estado excepcional SÍ abre el formulario — es
+        // justamente el caso que la persona tiene que poder resolver a mano. Lo que se sigue
+        // rechazando son los problemas de datos (publicación sin vincular, etc.): ahí no hay
+        // nada que confirmar, hay algo que arreglar antes.
+        $motivoExcepcional = $orden->motivoExcepcional();
+
+        if (! $orden->estado_conversion->habilitaCrearVenta() && ! $motivoExcepcional) {
             abort(409, 'Esta orden no está lista para convertir: '.($orden->motivo_detalle ?? 'revisá su estado.'));
         }
 
         $preview = $this->conversor->previsualizar($orden);
         $submitToken = (string) Str::uuid();
 
-        return view('ingresos.mercadolibre.convertir', compact('CurrentPage', 'orden', 'preview', 'submitToken'));
+        return view('ingresos.mercadolibre.convertir', [
+            'CurrentPage' => $CurrentPage,
+            'orden' => $orden,
+            'preview' => $preview,
+            'submitToken' => $submitToken,
+            'requiere_confirmacion' => $motivoExcepcional !== null,
+            'motivo_excepcional' => $motivoExcepcional?->value,
+            'motivo_etiqueta' => $motivoExcepcional?->etiqueta(),
+        ]);
     }
 
     /**
@@ -228,12 +242,31 @@ class MercadoLibreVentaController extends Controller
             ], 422);
         }
 
+        // spec 066 (FR-010/FR-015): la barrera vive acá, en el servidor, no en el modal. Este
+        // endpoint se puede llamar directo sin pasar por la interfaz, así que el estado se
+        // evalúa CONTRA LA BASE en este momento — no contra lo que la pantalla vio cuando se
+        // abrió. Si la orden entró en mediación entre que se mostró el aviso y se confirmó,
+        // el pedido se rechaza y la persona vuelve a decidir con la información nueva.
+        $motivoExcepcional = $orden->fresh()->motivoExcepcional();
+        $forzar = (bool) ($datos['forzar_conversion'] ?? false);
+
+        if ($motivoExcepcional && ! $forzar) {
+            return response()->json([
+                'ok' => false,
+                'mensaje' => 'Esta orden está en un estado que requiere tu decisión: '.
+                    lcfirst($motivoExcepcional->etiqueta()).'. Confirmá la conversión para continuar.',
+                'requiere_confirmacion' => true,
+                'motivo' => $motivoExcepcional->value,
+            ], 409);
+        }
+
         $resultado = $this->conversor->convertir(
             $orden,
             $request->user()->id,
             automatica: false,
             clienteIdOverride: $datos['cliente_id'] ?? null,
             tipoComprobanteOverride: $datos['tipo_comprobante'] ?? null,
+            forzada: $forzar,
         );
 
         if (! $resultado['ok']) {
@@ -244,6 +277,11 @@ class MercadoLibreVentaController extends Controller
             'ok' => true,
             'mensaje' => 'Venta '.$resultado['venta']->nro_comprobante.' creada con éxito.',
             'redirect' => route('ventas.show', $resultado['venta']),
+            'forzada' => $resultado['forzada'] ?? false,
+            'motivo' => $resultado['motivo'] ?? null,
+            // FR-021: la Venta forzada nace SIN comprobante emitido. Emitir sobre una orden
+            // cancelada es una decisión aparte y deliberada, no un efecto de convertir.
+            'comprobante_emitido' => false,
         ], 201);
     }
 }

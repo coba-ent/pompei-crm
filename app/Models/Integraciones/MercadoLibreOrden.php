@@ -7,6 +7,7 @@ use App\Enums\MercadoLibre\EstadoOrden;
 use App\Enums\MercadoLibre\MotivoRequiereAtencion;
 use App\Models\User;
 use App\Models\Venta;
+use App\Services\MercadoLibre\MotivoExcepcional;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -25,8 +26,9 @@ class MercadoLibreOrden extends Model
         'fecha_creada', 'fecha_cerrada', 'total', 'moneda',
         'comprador_ml_id', 'comprador_apodo', 'comprador_nombre', 'billing_info_id',
         'comprador_doc_tipo', 'comprador_doc_numero', 'comprador_condicion_iva', 'cliente_nuevo',
-        'es_prueba', 'tiene_alerta_fraude', 'datos_faltantes',
+        'es_prueba', 'tiene_alerta_fraude', 'en_mediacion', 'datos_faltantes',
         'venta_id', 'creacion_automatica', 'convertida_en', 'convertida_por',
+        'forzada_motivo', 'forzada_por_id', 'forzada_en',
         'payload', 'sincronizada_en',
     ];
 
@@ -40,8 +42,10 @@ class MercadoLibreOrden extends Model
         'es_prueba' => 'boolean',
         'cliente_nuevo' => 'boolean',
         'tiene_alerta_fraude' => 'boolean',
+        'en_mediacion' => 'boolean',
         'creacion_automatica' => 'boolean',
         'convertida_en' => 'datetime',
+        'forzada_en' => 'datetime',
         'payload' => 'array',
         'sincronizada_en' => 'datetime',
     ];
@@ -74,6 +78,21 @@ class MercadoLibreOrden extends Model
     public function estaConvertida(): bool
     {
         return $this->estado_conversion === EstadoConversion::Convertida;
+    }
+
+    /**
+     * ¿Está en uno de los cuatro estados que exigen una decisión humana antes de
+     * convertir (spec 066, FR-001)? Delega en la definición compartida para que
+     * exista una sola.
+     */
+    public function enEstadoExcepcional(): bool
+    {
+        return $this->motivoExcepcional() !== null;
+    }
+
+    public function motivoExcepcional(): ?MotivoRequiereAtencion
+    {
+        return MotivoExcepcional::de($this);
     }
 
     /** ¿Tiene una Venta asociada? Bloquea la eliminación física (spec 038). */

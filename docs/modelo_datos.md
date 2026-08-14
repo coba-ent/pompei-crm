@@ -793,6 +793,25 @@ del CRM (§5).
 `creacion_automatica`, `convertida_en`, `convertida_por`, `payload` (json, sin datos sensibles),
 `sincronizada_en`. **Sin soft delete ni purga** — es respaldo de documentos contables.
 
+> **Conversión manual obligatoria para estados excepcionales (spec 066)**. Cuatro columnas nuevas:
+> `en_mediacion` (boolean, default `false`) y el trío `forzada_motivo` (varchar 40, valor de
+> `MotivoRequiereAtencion`) + `forzada_por_id` (FK → `users`, `nullOnDelete`) + `forzada_en` (timestamp),
+> que se escriben juntos o quedan los tres en `null`.
+>
+> `en_mediacion` existe porque **la mediación no viene en el estado de la orden sino en el de los pagos**
+> (`payments[].status = in_mediation`) y hasta ahora ese dato se perdía después de la sincronización: el
+> evaluador de convertibilidad recibe el modelo, no el payload crudo, así que sin persistirlo no podía
+> frenar una orden en mediación antes de convertirla.
+>
+> El trío `forzada_*` sostiene dos cosas: la auditoría de quién forzó la conversión y la comparación que
+> evita duplicar el aviso de la spec 063 (no se avisa por el mismo motivo que la persona ya asumió). **La
+> fuente de verdad de la auditoría es `ml_operaciones_log`**, no estas columnas: `forzada_por_id` es
+> `nullOnDelete` y quedaría en `null` si se borra el usuario, mientras que la bitácora conserva el registro.
+>
+> **Sin backfill**: las órdenes existentes quedan en `en_mediacion = false` y se corrigen solas en la
+> sincronización siguiente, que reevalúa toda su ventana. `estado_conversion` **no suma un sexto valor**:
+> los casos excepcionales se expresan con `requiere_atencion` + motivo, o con `cancelada`, que ya existen.
+
 > **Cancelación posterior a la conversión (spec 063, pendiente de implementar)**. Una orden ya
 > convertida que después se cancela vuelve a `estado_conversion = requiere_atencion`, con uno de tres
 > motivos nuevos: `orden_cancelada`, `orden_reembolso_parcial` u `orden_en_mediacion`. **El aviso vive

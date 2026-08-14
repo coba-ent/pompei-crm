@@ -208,6 +208,10 @@ class SincronizadorOrdenes
                 ['ml_order_id' => $datosOrden['ml_order_id']],
                 array_merge($datosOrden, [
                     'estado_conversion' => $estadoPrevio->value,
+                    // spec 066 (FR-004/FR-005): la mediación vive en `payments[].status` del
+                    // payload crudo. Sin persistirla acá, el evaluador no la ve y el cron
+                    // convierte órdenes con un reclamo abierto.
+                    'en_mediacion' => $this->traductor->tieneMediacion($ordenCruda),
                     'sincronizada_en' => now(),
                 ])
             );

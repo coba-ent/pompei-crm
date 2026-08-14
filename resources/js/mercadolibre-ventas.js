@@ -175,7 +175,10 @@
                 .done((resp) => {
                     toast('success', resp.mensaje || 'Transformación en Venta ejecutada.');
 
-                    if (resp.fallidas > 0 && modal) {
+                    // spec 066: "excluidas" (órdenes frenadas por estar en un estado
+                    // excepcional) se muestra aparte de "fallidas" — es el sistema
+                    // comportándose como se le pidió, no un error.
+                    if ((resp.fallidas > 0 || resp.excluidas > 0) && modal) {
                         $('#resultado-transformar-venta-ml-body').html(renderResultadoTransformarEnVenta(resp));
                         modal.show();
                     }
@@ -193,15 +196,31 @@
     }
 
     function renderResultadoTransformarEnVenta(resp) {
-        const filas = (resp.detalle_fallidas || []).map((f) => (
+        const filaDetalle = (f) => (
             '<tr><td>' + $('<div>').text(f.orden).html() + '</td><td>'
             + $('<div>').text(f.motivo).html() + '</td><td>'
             + $('<div>').text(f.motivo_detalle || '').html() + '</td></tr>'
-        )).join('');
+        );
 
-        return '<p>' + resp.convertidas + ' de ' + resp.total + ' órdenes convertidas.</p>'
-            + '<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Orden</th><th>Motivo</th><th>Detalle</th></tr></thead><tbody>'
-            + filas + '</tbody></table></div>';
+        let html = '<p>' + resp.convertidas + ' de ' + resp.total + ' órdenes convertidas.</p>';
+
+        if (resp.fallidas > 0) {
+            const filasFallidas = (resp.detalle_fallidas || []).map(filaDetalle).join('');
+            html += '<h6 class="text-danger">Fallidas (' + resp.fallidas + ')</h6>'
+                + '<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Orden</th><th>Motivo</th><th>Detalle</th></tr></thead><tbody>'
+                + filasFallidas + '</tbody></table></div>';
+        }
+
+        // spec 066: categoría propia, separada de "fallidas" — son órdenes en estado
+        // excepcional que el lote dejó pasar a propósito, para forzarlas a mano si corresponde.
+        if (resp.excluidas > 0) {
+            const filasExcluidas = (resp.detalle_excluidas || []).map(filaDetalle).join('');
+            html += '<h6 class="text-warning">Excluidas — requieren decisión manual (' + resp.excluidas + ')</h6>'
+                + '<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Orden</th><th>Motivo</th><th>Detalle</th></tr></thead><tbody>'
+                + filasExcluidas + '</tbody></table></div>';
+        }
+
+        return html;
     }
 
     /** spec 063 (T013/T014): "Descartar aviso" — modal de confirmación + AJAX + toast, sin recarga. */

@@ -17,6 +17,23 @@
             </div>
         </div>
 
+        {{-- spec 066 (FR-009): la orden está frenada a propósito. El aviso dice QUÉ pasa y qué
+             implica seguir, para que confirmar sea una decisión y no un clic reflejo. --}}
+        @if ($requiere_confirmacion)
+            <div class="alert alert-warning d-flex align-items-start gap-2" role="alert">
+                <i class="fas fa-triangle-exclamation mt-1"></i>
+                <div>
+                    <strong>Esta orden requiere tu decisión: {{ $motivo_etiqueta }}.</strong>
+                    <div class="mt-1">
+                        El sistema no la convierte solo. Si la convertís igual, se va a crear la Venta con
+                        su cobro y su descuento de stock, y va a quedar registrado que lo decidiste vos.
+                        El comprobante fiscal <strong>no</strong> se emite automáticamente: eso queda como
+                        un paso aparte.
+                    </div>
+                </div>
+            </div>
+        @endif
+
         <form id="form-convertir-orden">
             <input type="hidden" id="submit_token" value="{{ $submitToken }}">
 
@@ -97,6 +114,33 @@
 
     </div>
 </div>
+
+@if ($requiere_confirmacion)
+    <div class="modal fade" id="modal-confirmar-forzada" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirmar conversión</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2">
+                        <strong>{{ $motivo_etiqueta }}.</strong>
+                    </p>
+                    <p class="mb-0">
+                        Vas a crear la Venta de la orden <strong>{{ $orden->ml_order_id }}</strong> por
+                        <strong>$ {{ number_format((float) $orden->total, 2, ',', '.') }}</strong> igual, asumiendo
+                        esa situación. Se va a registrar tu nombre y la fecha. ¿Seguimos?
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">No, volver</button>
+                    <button type="button" class="btn btn-warning" id="btn-confirmar-forzada">Sí, crear la Venta</button>
+                </div>
+            </div>
+        </div>
+    </div>
+@endif
 @endsection
 
 @section('local-js')
@@ -129,8 +173,21 @@
             $('#cliente_id').select2({ width: '100%' });
         }
 
+        // spec 066: la orden está en estado excepcional. El modal es comodidad — la barrera
+        // real está en el servidor, que rechaza con 409 cualquier POST sin la confirmación.
+        const requiereConfirmacion = @json($requiere_confirmacion);
+        let confirmada = false;
+
         $('#form-convertir-orden').on('submit', function (e) {
             e.preventDefault();
+
+            if (requiereConfirmacion && !confirmada) {
+                const modalEl = document.getElementById('modal-confirmar-forzada');
+                if (modalEl && window.bootstrap) {
+                    window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+                    return;
+                }
+            }
 
             const vinculaciones = [];
             $('.select2-vinculacion-inline').each(function () {
@@ -151,14 +208,32 @@
                     cliente_id: $('#cliente_id').val(),
                     tipo_comprobante: $('#tipo_comprobante').val(),
                     vinculaciones_inline: vinculaciones,
+                    // 1/0, no true/false: el patrón hidden+checkbox manda "true" como string
+                    // y la validación `boolean` de Laravel lo rechaza con 422.
+                    forzar_conversion: (requiereConfirmacion && confirmada) ? 1 : 0,
                 },
             }).done((resp) => {
                 if (window.toastr) { window.toastr.success(resp.mensaje || 'Venta creada.'); }
                 window.location.href = resp.redirect;
             }).fail((xhr) => {
                 const resp = xhr.responseJSON || {};
+                // El servidor puede pedir la confirmación aunque la pantalla no la esperara:
+                // la orden pudo entrar en un estado excepcional mientras el formulario estaba
+                // abierto (FR-015). Se reabre la decisión en vez de reenviar a ciegas.
+                confirmada = false;
                 if (window.toastr) { window.toastr.error(resp.mensaje || resp.message || 'No se pudo crear la Venta.'); }
             });
+        });
+
+        $('#btn-confirmar-forzada').on('click', function () {
+            confirmada = true;
+
+            const modalEl = document.getElementById('modal-confirmar-forzada');
+            if (modalEl && window.bootstrap) {
+                window.bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+            }
+
+            $('#form-convertir-orden').trigger('submit');
         });
     })();
 </script>

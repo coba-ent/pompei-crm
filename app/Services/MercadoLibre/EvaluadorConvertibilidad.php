@@ -18,11 +18,23 @@ use App\Models\Integraciones\MercadoLibrePublicacionProducto;
 class EvaluadorConvertibilidad
 {
     /**
+     * @param  bool  $ignorarExcepcionales  spec 066 (FR-013): la persona ya confirmó el estado
+     *                                      excepcional, así que se saltean esas guardas y queda
+     *                                      sólo el veredicto sobre los DATOS. Sin esto, una
+     *                                      conversión forzada volvería con el motivo excepcional
+     *                                      y nunca llegaría a revisar si la publicación está
+     *                                      vinculada, el producto existe o el cliente es ambiguo
+     *                                      — es decir, forzar saltearía silenciosamente todas las
+     *                                      validaciones, que es justo lo que la spec prohíbe.
+     *                                      Sólo lo pasa ConversorOrdenAVenta en el camino forzado.
      * @return array{0: EstadoConversion, 1: ?MotivoRequiereAtencion, 2: ?string}
      */
-    public function evaluar(MercadoLibreOrden $orden, bool $clienteEsAmbiguo = false): array
-    {
-        if ($orden->estado_orden === EstadoOrden::Cancelada) {
+    public function evaluar(
+        MercadoLibreOrden $orden,
+        bool $clienteEsAmbiguo = false,
+        bool $ignorarExcepcionales = false,
+    ): array {
+        if ($orden->estado_orden === EstadoOrden::Cancelada && ! $ignorarExcepcionales) {
             return [EstadoConversion::Cancelada, null, null];
         }
 
@@ -32,15 +44,43 @@ class EvaluadorConvertibilidad
             return [EstadoConversion::Convertida, null, null];
         }
 
-        if ($orden->estado_orden !== EstadoOrden::Pagada) {
+        // spec 066 (FR-002/FR-003): los estados excepcionales se evalúan ANTES de la exigencia
+        // de "Pagada" y antes de las validaciones de datos. Un reembolso parcial no está
+        // "pagado" en el sentido de Mercado Libre, y sin esto caería en PendientePago —
+        // invisible para la persona y sin motivo que explique por qué no se convierte.
+        //
+        // La precedencia (mediación → cancelada → reembolso parcial → alerta de fraude) es la
+        // de MotivoExcepcional, compartida con DetectorCancelaciones. La cancelación ya salió
+        // arriba con su propio estado, así que acá sólo llegan los otros tres.
+        //
+        // OJO: esto NO habilita las órdenes pendientes de pago, que siguen cayendo en
+        // PendientePago abajo. Son cosas distintas y confundirlas rompería FR-014.
+        //
+        // La alerta de fraude queda deliberadamente FUERA de este bloque temprano y conserva
+        // su posición histórica más abajo: adelantarla cambiaría el estado de las órdenes con
+        // alerta que además no están pagadas (hoy PendientePago), y eso no lo pide la spec.
+        $motivoExcepcional = MotivoExcepcional::de($orden);
+
+        if (! $ignorarExcepcionales && $motivoExcepcional && $motivoExcepcional !== MotivoRequiereAtencion::AlertaFraude) {
+            return [
+                EstadoConversion::RequiereAtencion,
+                $motivoExcepcional,
+                MotivoExcepcional::detalle($motivoExcepcional),
+            ];
+        }
+
+        // La exigencia de pago la resuelve el conversor en el camino forzado, distinguiendo
+        // "cancelada" (forzable) de "pendiente de pago" (nunca forzable). Acá se saltea para
+        // no rechazar una cancelada que ya viene confirmada.
+        if ($orden->estado_orden !== EstadoOrden::Pagada && ! $ignorarExcepcionales) {
             return [EstadoConversion::PendientePago, null, null];
         }
 
-        if ($orden->tiene_alerta_fraude) {
+        if ($orden->tiene_alerta_fraude && ! $ignorarExcepcionales) {
             return [
                 EstadoConversion::RequiereAtencion,
                 MotivoRequiereAtencion::AlertaFraude,
-                'Mercado Libre marcó esta orden con alerta de fraude: no debe despacharse ni convertirse.',
+                MotivoExcepcional::detalle(MotivoRequiereAtencion::AlertaFraude),
             ];
         }
 

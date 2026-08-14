@@ -665,12 +665,34 @@ Ver §5.2 para la divergencia deliberada de todo el módulo (aplicación propia 
   > fecha de detección original si sólo cambió el motivo (ej. una mediación que termina en
   > cancelación). El listado de Ventas muestra un indicador para las que tienen aviso pendiente. Ver
   > `specs/063-ml-cancelaciones-avisos/`.
+  > 🛑 **Órdenes en estado excepcional: conversión manual obligatoria (spec 066)**: una orden
+  > **cancelada**, con un **reclamo en mediación**, con **reembolso parcial** o con **alerta de fraude**
+  > NUNCA se convierte en Venta automáticamente — ni por la creación automática del cron ni por el botón
+  > "Transformar todas en Venta". Sólo se puede convertir **a mano, orden por orden**, y con una
+  > **confirmación explícita** que indica el motivo por el que está frenada; la confirmación se valida en
+  > el servidor, no alcanza con el modal. Queda registrado quién la forzó, cuándo y con qué motivo.
+  >
+  > Cierra un agujero real: la **mediación no viene en el estado de la orden** sino en el de los pagos
+  > (`payments[].status = in_mediation`), y hasta esta spec sólo se miraba en órdenes **ya convertidas**
+  > (spec 063), así que una orden que entraba en mediación **antes** de convertirse el cron la convertía
+  > igual. También habilita algo que antes era imposible por cualquier vía: **facturar una orden
+  > cancelada** cuando el negocio lo necesita.
+  >
+  > **La Venta forzada se crea sin emitir el comprobante fiscal**: la emisión queda como un paso posterior
+  > y deliberado, porque facturar una operación cancelada o en disputa tiene consecuencias impositivas y no
+  > debe pasar como efecto colateral de convertir. La derivación del tipo (A/B/C/E) no cambia.
+  >
+  > Para no duplicar avisos, el aviso posterior de la spec 063 **no se genera por el mismo motivo** que la
+  > persona asumió al forzar; sí se genera si después aparece un motivo distinto. Una orden cuyo reclamo se
+  > resuelve a favor del negocio vuelve sola al circuito normal. Alcance: **sólo Mercado Libre** — Tiendanube
+  > tiene el mismo hueco y queda para una spec aparte. Ver `specs/066-ml-conversion-manual-excepciones/`.
   > 📋 **Transformar todas en Venta (spec 025, implementada)**: botón siempre visible en el listado,
   > independiente de que la creación automática esté activa o no. Convierte en un único request
   > síncrono todas las órdenes en estado "Lista para convertir" de la conexión (ignorando filtros de
   > la tabla), reusando exactamente las mismas reglas de conversión que el flujo manual individual. Al
-  > terminar muestra un modal con el resumen (total/convertidas/fallidas) y, si hubo fallidas, el
-  > detalle por orden (motivo y explicación ya persistidos). Sirve tanto para ponerse al día cuando la
+  > terminar muestra un modal con el resumen (total/convertidas/fallidas/**excluidas**, spec 066 — una
+  > exclusión por estado excepcional no es una falla y se informa aparte) y, si hubo fallidas o excluidas,
+  > el detalle por orden (motivo y explicación ya persistidos). Sirve tanto para ponerse al día cuando la
   > creación automática estuvo apagada como para forzar la conversión inmediata sin esperar a la
   > próxima corrida programada. Ver `specs/025-conversion-manual-lote-ordenes/`.
 
