@@ -1087,6 +1087,34 @@ en `Cliente::datosFiscalesArca()` — Ventas y NC/ND lo consumen, no duplican la
 `tipo_documento` está vacío se asume CUIT (comportamiento histórico): **no se infiere el tipo por
 longitud del número**, para no emitir con un DocTipo adivinado.
 
+**Corrección (14/08/2026 — REGLA CRÍTICA: una Venta/Compra/NC-ND puede tener VARIOS comprobantes
+fiscales):** cada intento contra ARCA persiste su propio `ComprobanteFiscal` — los rechazos **se
+conservan** (con `numero`, `cae` y `cae_vencimiento` en NULL, más su `motivo_rechazo` y su registro en
+`arca_logs_auditoria`) porque son la evidencia de lo que ARCA respondió. Un reintento exitoso **agrega**
+un segundo registro, aprobado, **no reemplaza al rechazado**. En consecuencia:
+
+- **`Venta::comprobanteFiscal()` (y sus gemelas en `Compra` y `NotaCreditoDebito`) devuelve el
+  comprobante VIGENTE: el aprobado si existe, y sólo si no hay ninguno aprobado, el último intento.**
+  Está implementado como `morphOne` con orden explícito (`CASE WHEN estado = 'aprobado' THEN 0 ELSE 1
+  END`, luego `id DESC`), no como un `morphOne` pelado. **Nunca volver a declarar esta relación sin ese
+  orden**: un `morphOne` sin ordenar devuelve un intento arbitrario —en la práctica el rechazo más
+  viejo— y de esta relación dependen `estaFacturada()`, `puedeEnviarseAArca()`, el PDF de la Venta
+  (CAE, vencimiento y QR fiscal) y el modal de resultado del envío.
+- **Para consultar el historial completo** (filtros del listado por Estado de Factura, búsqueda por
+  número, cualquier `whereHas`/`whereDoesntHave`) usar la relación `comprobantesFiscales()`
+  (`morphMany`), **no** `comprobanteFiscal()`. Consecuencia conocida y aceptada: una Venta rechazada y
+  luego aprobada aparece bajo los filtros "Rechazado" **y** "Aprobado", igual que antes de esta
+  corrección.
+
+**Incidente que originó la regla (14/08/2026, Venta 24447 en producción):** tras corregir el DocTipo, el
+reintento obtuvo CAE real (`0009-00000007`, CAE 86338366473746), pero la Venta quedó con dos
+comprobantes (id 1 rechazado + id 5 aprobado) y la relación devolvía el rechazado. Efectos observados:
+el modal mostró "CAE obtenido correctamente" con CAE/Vencimiento/Número en "-", el PDF salió sin CAE ni
+QR (con el watermark de comprobante no válido), el botón "Enviar a ARCA" **siguió habilitado** —con
+riesgo real de emitir una segunda factura ante el fisco— y la Venta siguió siendo editable pese a tener
+CAE aprobado. No fue una regresión del fix de DocTipo: el defecto existía desde spec 034 y quedó latente
+porque hasta entonces ninguna Venta había acumulado un rechazo y una aprobación.
+
 **Actualización (spec 039, 03/08/2026):** las Notas de Crédito/Débito con CAE ya tienen su propio
 documento imprimible ("Ver Detalle" en la sección de NC/ND del Detalle de Venta), mostrando su CAE,
 vencimiento de CAE, QR fiscal y una referencia visible al comprobante de Venta que ajustan (tipo,

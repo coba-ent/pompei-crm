@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -49,9 +50,18 @@ class NotaCreditoDebito extends Model
         return $this->hasMany(NotaCreditoDebitoItem::class);
     }
 
+    /** Comprobante fiscal vigente: el aprobado si existe, si no el último intento (ver Venta::comprobanteFiscal()). */
     public function comprobanteFiscal(): MorphOne
     {
-        return $this->morphOne(ComprobanteFiscal::class, 'comprobantable');
+        return $this->morphOne(ComprobanteFiscal::class, 'comprobantable')
+            ->orderByRaw("CASE WHEN estado = 'aprobado' THEN 0 ELSE 1 END")
+            ->orderByDesc('id');
+    }
+
+    /** Historial completo de intentos contra ARCA, incluidos los rechazados. */
+    public function comprobantesFiscales(): MorphMany
+    {
+        return $this->morphMany(ComprobanteFiscal::class, 'comprobantable');
     }
 
     /** "Documento que Ajusta" cuando apunta a otra NC/ND en vez del comprobante original (FR-013). */

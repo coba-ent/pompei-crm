@@ -732,6 +732,16 @@ Resumen de entidades:
 `tipo_comprobante`/`nro_comprobante` existentes quedan como fallback sin validez fiscal (spec 008/030)
 cuando no hay `ComprobanteFiscal` aprobado asociado — no se duplican columnas de CAE ahí.
 
+> **Cardinalidad real (corrección 14/08/2026): es 1→N, no 1→1.** Cada intento contra ARCA persiste su
+> propia fila en `comprobantes_fiscales` y **los rechazos se conservan** (`numero`/`cae`/
+> `cae_vencimiento` en NULL + `motivo_rechazo`), así que una Venta reintentada con éxito termina con
+> un registro rechazado **y** uno aprobado. Por eso el `morphOne` `comprobanteFiscal()` lleva un orden
+> explícito (`CASE WHEN estado = 'aprobado' THEN 0 ELSE 1 END`, luego `id DESC`) para devolver el
+> **vigente** — sin ese orden devuelve el rechazo más viejo y el sistema se comporta como si la Venta
+> no tuviera CAE (ver el incidente de la Venta 24447 en `documentacion_principal_crm.md`). El
+> historial completo se consulta con la relación `comprobantesFiscales()` (`morphMany`), que es la que
+> deben usar los filtros y cualquier `whereHas`.
+
 > **Nota (spec 037, 03/08/2026)**: la consulta al Padrón de ARCA (`ws_sr_padron_a13`) reutiliza el
 > `CertificadoFiscal` activo y `ClienteWsaa` de este bloque para autenticarse (mismo Ticket de
 > Acceso, distinto nombre de servicio). No agrega tablas nuevas: el resultado de cada consulta es

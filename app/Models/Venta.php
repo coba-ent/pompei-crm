@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -126,9 +127,27 @@ class Venta extends Model
         return $this->morphToMany(Etiqueta::class, 'etiquetable');
     }
 
+    /**
+     * Comprobante fiscal **vigente**: el aprobado si existe, y si no el último intento.
+     *
+     * Una Venta puede acumular varios `ComprobanteFiscal` (cada rechazo de ARCA deja el suyo, que se
+     * conserva como evidencia). Sin este orden explícito, un `morphOne` pelado devuelve un intento
+     * cualquiera —en la práctica el rechazo más viejo, sin CAE ni número—, y como de esta relación
+     * dependen `estaFacturada()`, `puedeEnviarseAArca()` y el PDF, la Venta quedaba reenviable,
+     * editable y sin CAE en el comprobante pese a tener CAE aprobado (incidente 14/08/2026, Venta
+     * 24447). Para filtrar por el historial completo usar `comprobantesFiscales()`.
+     */
     public function comprobanteFiscal(): MorphOne
     {
-        return $this->morphOne(ComprobanteFiscal::class, 'comprobantable');
+        return $this->morphOne(ComprobanteFiscal::class, 'comprobantable')
+            ->orderByRaw("CASE WHEN estado = 'aprobado' THEN 0 ELSE 1 END")
+            ->orderByDesc('id');
+    }
+
+    /** Historial completo de intentos contra ARCA, incluidos los rechazados. */
+    public function comprobantesFiscales(): MorphMany
+    {
+        return $this->morphMany(ComprobanteFiscal::class, 'comprobantable');
     }
 
     /** Cobrado = Σ cobros no anulados (derivado, data-model.md §Cálculos clave). */

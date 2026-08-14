@@ -198,9 +198,11 @@ class VentaController extends Controller
             $estados = (array) $request->input('estado_factura');
             $query->where(function (Builder $q) use ($estados) {
                 foreach ($estados as $estado) {
+                    // Sobre el historial completo, no sobre el vigente: una Venta rechazada y luego
+                    // aprobada aparece bajo ambos filtros, que es el comportamiento previo.
                     $q->orWhere(fn (Builder $qq) => $estado === 'sin_emitir'
-                        ? $qq->whereDoesntHave('comprobanteFiscal')
-                        : $qq->whereHas('comprobanteFiscal', fn (Builder $qqq) => $qqq->where('estado', $estado)));
+                        ? $qq->whereDoesntHave('comprobantesFiscales')
+                        : $qq->whereHas('comprobantesFiscales', fn (Builder $qqq) => $qqq->where('estado', $estado)));
                 }
             });
         }
@@ -208,7 +210,7 @@ class VentaController extends Controller
             $kw = $request->input('factura_buscar');
             $query->where(function (Builder $q) use ($kw) {
                 $q->where('tipo_comprobante', 'like', "%{$kw}%")
-                    ->orWhereHas('comprobanteFiscal', fn (Builder $qq) => $qq->where('numero', 'like', "%{$kw}%"));
+                    ->orWhereHas('comprobantesFiscales', fn (Builder $qq) => $qq->where('numero', 'like', "%{$kw}%"));
             });
         }
         if ($request->filled('etiqueta_id')) {
