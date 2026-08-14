@@ -300,7 +300,16 @@ class CuentaCorriente
         foreach ($documentos as $documento) {
             $saldo = $documento->saldo;
 
-            if ($saldo <= self::TOLERANCIA) {
+            // Se descarta lo saldado (≈0), **no lo negativo**: un saldo a favor es plata que el
+            // cliente ya pagó y todavía no consumió, y Contagram lo lista. Con el `<= TOLERANCIA`
+            // que había acá esas filas no aparecían en ningún lado — más de 20 clientes y $1,44
+            // millones invisibles, y el caso mal cargado de FLORENCIA 1159751732 pasó desapercibido
+            // justo por eso. El bloque de saldo inicial de abajo ya usaba este criterio: eran dos
+            // varas distintas para el mismo concepto en la misma pantalla.
+            //
+            // Sólo afecta al listado del informe. Los totales de Tesorería salen de `aging()`, que
+            // arma sus buckets por otro camino (`bucketsEnSql`) y no pasa por acá.
+            if (abs($saldo) <= self::TOLERANCIA) {
                 continue;
             }
 
