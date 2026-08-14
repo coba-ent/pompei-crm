@@ -22,6 +22,31 @@ class CuentaCorriente
     private const TOLERANCIA = 0.005;
 
     /**
+     * Criterio del saldo a una fecha pasada: **se replica el de Contagram** (decisión del usuario,
+     * 13/08/2026), y Contagram **no usa el mismo criterio de los dos lados**. Medido, no supuesto:
+     *
+     * - **Clientes**: los comprobantes se filtran por fecha de emisión, pero los cobros se aplican
+     *   **completos**, sin importar cuándo ocurrieron. Verificado contra la ficha de la venta 1637
+     *   (06/11/2021, $296.169,36): cobró $93.895,34 en 2021 y el resto en febrero y abril de 2022,
+     *   y aun así el panel de Contagram al 31/12/2021 la da por saldada, cuando ese día debía
+     *   $202.274,02. Prueba de que no puede ser un filtro por fecha: para llegar a los −$6,74 que
+     *   muestra, las ventas de 2021 tendrían que haber cobrado $24.048.073,51 dentro de 2021,
+     *   cuando los extractos de tesorería registran $22.871.451,47 de cobros en todo el año.
+     * - **Proveedores**: acá sí respeta la fecha del pago. Con el filtro puesto, el saldo al
+     *   31/12/2021 da $1.199.345,88 contra $1.194.695,87 de Contagram: **$4.650,01**, que es el
+     *   mismo desfasaje constante que la bitácora §15 ya había medido en el VPS ($4.649,96) y que
+     *   está entre el informe de Contagram y su propio panel, no en el CRM.
+     *
+     * O sea que del lado de clientes el saldo a una fecha responde "cómo quedaron los comprobantes
+     * emitidos hasta ese día", y del lado de proveedores "cuánto se debía ese día". No es coherente,
+     * pero es lo que ve el negocio y lo que se decidió reproducir.
+     *
+     * Poniendo las dos constantes en `false` se vuelve al aging contable estándar en ambos lados,
+     * que es lo que hacía el código entre el 12/08 y el 13/08/2026.
+     */
+    private const ESTILO_CONTAGRAM = ['cliente' => true, 'proveedor' => false];
+
+    /**
      * Clasifica un saldo en un bucket de antigüedad según `$vencimiento` (fecha
      * de referencia) comparado contra `$fecha` (hoy, salvo test). Fecha nula
      * cae en "a_vencer" (research.md R5) — mismo criterio para Venta/Compra
@@ -141,15 +166,17 @@ class CuentaCorriente
         $dias = "DATEDIFF(?, {$tabla}.{$vto})";
         $aVencer = "({$tabla}.{$vto} IS NULL OR {$tabla}.{$vto} >= ?)";
 
-        // Todo lo que se agrega tiene que respetar la fecha de corte: si no, el aging devuelve
-        // siempre el saldo de hoy y la pantalla no reacciona al filtro (detectado el 12/08/2026
-        // comparando el panel a tres fechas distintas: los dos "Saldo Cta Cte" no se movían).
-        // `$fecha` acotaba sólo la clasificación en buckets, no los importes.
+        // Con el estilo Contagram los cobros/pagos y las notas NO se acotan por fecha: se aplican
+        // completos sobre los comprobantes emitidos hasta el corte (ver la constante). Con el
+        // criterio contable estándar sí se acotan, porque un cobro de febrero no puede reducir la
+        // deuda de diciembre.
+        $estiloContagram = self::ESTILO_CONTAGRAM[$tipo] ?? false;
+
         $sub = fn (string $t, ?string $signo, string $colFecha) => DB::table($t)
             ->selectRaw("{$fk} as fk, SUM(monto) as monto")
             ->whereNull('deleted_at')
             ->when($signo !== null, fn ($q) => $q->where('tipo', $signo))
-            ->where($colFecha, '<=', $fecha->toDateString())
+            ->when(! $estiloContagram, fn ($q) => $q->where($colFecha, '<=', $fecha->toDateString()))
             ->whereNotNull($fk)
             ->groupBy($fk);
 
@@ -191,7 +218,11 @@ class CuentaCorriente
             // total de cuenta corriente lo netea, igual que Contagram. Va contra `a_vencer` porque
             // un saldo a favor no está vencido — los buckets de antigüedad siguen mostrando sólo
             // deuda genuina. Al 01/08/2026 son 142 ventas por −$3,5 M y 28 compras por −$272 mil.
-            'a_vencer' => (float) $r->a_vencer + (float) $r->a_favor - $this->anticipos($tipo, $fecha),
+            // Con el criterio de Contagram no se restan anticipos: un comprobante emitido después
+            // del corte queda fuera del cálculo, y sus cobros con él. Restarlos contaría plata de
+            // una factura que a esa fecha no existe.
+            'a_vencer' => (float) $r->a_vencer + (float) $r->a_favor
+                - ($estiloContagram ? 0.0 : $this->anticipos($tipo, $fecha)),
             'vencido' => (float) $r->vencido,
             '0_30' => (float) $r->b0_30,
             '31_60' => (float) $r->b31_60,
