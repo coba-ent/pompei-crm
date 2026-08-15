@@ -160,6 +160,9 @@
                 },
                 { data: 'detalle', name: 'detalle', defaultContent: '' },
                 { data: 'producto', name: 'producto', defaultContent: '' },
+                // `name` con la tabla y columna reales: `deposito` es un alias del SELECT y no
+                // se puede usar en el WHERE que arma el buscador de la DataTable.
+                { data: 'deposito', name: 'depositos.nombre', defaultContent: '' },
                 {
                     data: 'cantidad', name: 'cantidad', className: 'text-end',
                     render: function (val) { return new Intl.NumberFormat('es-AR').format(val || 0); },

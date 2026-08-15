@@ -147,6 +147,10 @@
                                 <th>Operación</th>
                                 <th>Detalle</th>
                                 <th>Producto</th>
+                                {{-- El saldo se acumula por producto + depósito, así que sin esta
+                                     columna dos filas del mismo producto parecen contradecirse
+                                     cuando en realidad son depósitos distintos. --}}
+                                <th>Depósito</th>
                                 <th class="text-end">Cantidad</th>
                                 <th class="text-end">Stock Saldo</th>
                                 <th>Usuario</th>
