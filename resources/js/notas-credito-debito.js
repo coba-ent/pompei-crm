@@ -150,10 +150,17 @@
 
     function depositoInicial() {
         if (editando) { return notaExistente.deposito_id || null; }
-        return (data.queryString || {}).depositoId || null;
+        // Al crear, el depósito correcto es el del comprobante que se está ajustando:
+        // una NC tiene que reponer donde la Venta descontó. El query string sigue
+        // teniendo prioridad por si la pantalla que abre el form ya lo resolvió.
+        return (data.queryString || {}).depositoId
+            || (data.comprobanteOrigen || {}).depositoId
+            || null;
     }
     const depInicial = depositoInicial();
-    if (depInicial) { $('#f-deposito').val(depInicial).trigger('change.select2'); }
+    // Sin valor se deja en blanco a propósito: la validación obliga a elegirlo (FR-004),
+    // que es preferible a arrastrar el primero del listado como si fuera el real.
+    $('#f-deposito').val(depInicial || '').trigger('change.select2');
 
     // ---------------------------------------------------------------------
     // Toggle Stock: productos de la Venta/Compra vs. descripción libre (FR-004/FR-005)

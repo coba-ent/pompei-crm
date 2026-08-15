@@ -94,6 +94,11 @@
                     <div class="col-md-4" id="f-deposito-wrapper">
                         <label class="form-label">Depósito</label>
                         <select id="f-deposito" class="form-select" style="width:100%">
+                            {{-- Opción vacía a propósito: sin esto el navegador elige la primera
+                                 del listado —que va ordenado por nombre, y "Full" cae antes que
+                                 "Local"—, así que una NC hecha sin tocar el campo devolvía la
+                                 mercadería a Full aunque la Venta hubiera descontado de Local. --}}
+                            <option value=""></option>
                             @foreach ($depositos ?? [] as $deposito)
                                 <option value="{{ $deposito->id }}">{{ $deposito->nombre }}</option>
                             @endforeach
@@ -224,6 +229,11 @@
         comprobanteOrigen: {
             id: @json($comprobante->id),
             nroComprobante: @json($comprobante->nro_comprobante),
+            // Una NC repone donde el comprobante original descontó: el depósito viaja
+            // hasta el form para preseleccionarlo, en vez de dejarlo librado al orden
+            // del listado. Puede venir null en comprobantes migrados o anteriores al
+            // fix de depósito de las integraciones — ahí el selector queda en blanco.
+            depositoId: @json($comprobante->deposito_id),
         },
     };
     window.NotaFormConfig = {

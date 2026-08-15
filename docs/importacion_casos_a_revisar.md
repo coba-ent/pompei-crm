@@ -1273,3 +1273,134 @@ aporta nada a la caja.
 Lo que sí falta es el registro en el módulo: **`otros_ingresos` está vacía**, así que la pantalla de
 Otros Ingresos no muestra nada aunque la plata esté bien. Si se cargan, tiene que ser por el comando
 enlazando al movimiento existente — hacerlo desde la pantalla duplicaría los $34,5 M.
+
+## §9 — Auditoría de stock del 14/08/2026: un bug real y dos falsos positivos
+
+Disparador: al comparar el stock del VPS contra el `Listado de Productos y Servicios` de Contagram
+del 14/08 20:18 Hs aparecieron **24 diferencias en Local + Full** sobre 18.220 comparaciones. Como
+ambas plataformas están operando en paralelo con las mismas ventas, cobros y compras, una diferencia
+de 2 unidades **es un error, no deriva** — ese fue el criterio para investigar todas.
+
+### Trampa previa: los ids de Contagram se renumeraron
+
+El export nuevo trae una columna **`ID VIEJOS`**. El VPS conserva los ids viejos; Contagram los
+reasignó. Cruzar por `Id` compara productos distintos entre sí:
+
+```
+Contagram Id 42985  →  ID VIEJO 12700  →  MIXER      (en el VPS es 12700)
+Contagram Id 12700  →  ID VIEJO 29022  →  TAPA DEP   (otro producto)
+```
+
+Comparando por `Id` daban **115 diferencias y 7.625 "faltantes"**; por `ID VIEJOS`, **24 y 53**.
+Cualquier comparación futura contra exports nuevos tiene que usar `ID VIEJOS` como clave.
+
+### BUG CONFIRMADO — la Nota de Crédito repone el stock en el depósito equivocado
+
+Cuatro movimientos del 14/08 lo dejan a la vista:
+
+```
+#276   34400   depósito 6 (FULL)   +2   "Nota de Crédito venta"          NC 851
+#277   40605   depósito 6 (FULL)   +2   "Nota de Crédito venta"          NC 851
+#278   40356   depósito 6 (FULL)   +2   "Nota de Crédito venta"          NC 851
+#279   34434   depósito 6 (FULL)   +1   "Nota de Crédito venta 0001-20"  NC 852
+```
+
+Las Ventas originales habían descontado de **Local**; las NC repusieron en **Full**. Ninguno de esos
+cuatro productos se vende por Full.
+
+Causa, en tres partes que se suman:
+
+1. `NotaCreditoDebitoController` toma el depósito del formulario (`Deposito::findOrFail($datos['deposito_id'])`),
+   sin deducirlo de la Venta que se está ajustando.
+2. El listado va `Deposito::orderBy('nombre')` — alfabéticamente **`Full` cae antes que `Local`**.
+3. El `<select>` no tenía opción vacía, así que el navegador preseleccionaba la primera.
+
+El JS sólo preseleccionaba depósito al **editar** una nota existente; al crear devolvía `null`. La
+validación `if (!$('#f-deposito').val())` nunca se disparaba porque siempre había un valor.
+
+Es la misma familia que `20cab20` ("las ventas de integraciones no guardaban el depósito, y el
+selector mentía"), que arregló Ventas y Compras y **dejó las NC sin tocar**. Acá es más grave: allá
+el selector mostraba mal un dato ya guardado, acá decide dónde vuelve la mercadería.
+
+**Arreglado el 14/08/2026**: opción vacía en el `<select>`, `comprobanteOrigen.depositoId` expuesto
+en la vista, y `depositoInicial()` cayendo a ese valor. Si la Venta original no tiene depósito
+—hay 188 así, ver abajo— el selector queda en blanco y la validación obliga a elegir.
+
+### NO es bug — las 188 Ventas sin `deposito_id`
+
+```
+manual         105   todas con legacy_id  → importadas de Contagram
+mercadolibre    83   06/08 al 13/08       → anteriores al fix 20cab20
+```
+
+Las 105 manuales **tienen `legacy_id`**: son de la reconstrucción de la base, no cargadas a mano.
+Los `created_at` lo confirman — espaciados a intervalos exactos (18 min, 10 min 23 s), marcas
+generadas por el importador, y 89 con `creado_por_id = 0`. La migración no mueve inventario a
+propósito, así que sin movimiento no hay depósito que guardar.
+
+Las 83 de ML son el fix de ayer aplicado hacia adelante: **ninguna venta de ML posterior al 13/08
+quedó sin depósito**.
+
+### NO es bug — "las ventas manuales no descuentan stock"
+
+Falso positivo mío. La consulta usaba `origen_type = 'App\Models\Venta'` con el escapado de más
+que impone pasar por SSH + `mysql -e "…"`, y **nunca matcheaba**. Con `origen_type LIKE '%Venta'`:
+las 18 ventas manuales del 06/08 en adelante con depósito **sí movieron stock, todas**.
+
+Lección operativa: contra este VPS, filtrar `origen_type` con `LIKE '%Venta'` en vez de escribir la
+clase completa.
+
+### Signo invertido en el ajuste del 13/08 — producto 43491
+
+`Herraje REP0IMP001 Global`. Único movimiento propio además de una venta de 1 unidad:
+
+```
+13/08 22:43   ajuste  Local  +22   "Ajuste por conteo real — Sotck 17_08…"
+14/08 13:54   salida  Local   −1   venta 24481
+```
+
+Despejando: tenía **−11** antes del ajuste. La hoja traía `11` donde el valor real era `−11`, el
+comando calculó `11 − (−11) = +22` y mandó el doble en la dirección contraria. La diferencia contra
+Contagram era exactamente 22 = 2 × 11, firma inconfundible del signo dado vuelta.
+
+Revisados los otros 88 ajustes de esa corrida buscando `ajuste = −2 × valor_previo`: **es el único
+caso**. Corregido a −12 el 14/08.
+
+**Pendiente**: `AjustarStockDesdeHoja` no tiene defensa contra esto. Un conteo que llegue con el
+signo perdido se aplica al doble y al revés. Convendría avisar cuando `|ajuste| ≈ 2 × |previo|` y
+los signos son opuestos.
+
+### Resultado
+
+```
+antes    18.196 coinciden  /  24 difieren
+después  18.217 coinciden  /   3 difieren
+```
+
+Las 3 restantes son deliberadas: `27198` vendió 1 unidad después del export, y `12700` / `43005` en
+Full los gobierna el inventario de Mercado Libre, no Contagram.
+
+Correcciones aplicadas con `UPDATE` directo, sin generar movimientos (`movimientos_stock` quedó en
+357 antes y después). Backups: `/root/pre_correccion_final_20260814_2200.sql`.
+
+### Full: por qué nunca descontó, hasta hoy
+
+`logistic_type` estaba **NULL en las 270 publicaciones vinculadas**, así que `esFull()` devolvía
+siempre `false` y `resolverDeposito()` mandaba **todas** las órdenes al depósito general. El spec 065
+estaba bien escrito; nunca tuvo el dato.
+
+No era un bug de código sino de secuencia: los vínculos se crearon el 06/08 con el código viejo, la
+última corrida de `SincronizadorTiposPublicacion` fue el 13/08 20:46, y el código de spec 065 llegó
+al VPS el **14/08 03:19** — siete horas después. Y el comando tiene `INTERVALO_HORAS = 24`, así que
+no iba a reintentar hasta las 20:46 del 14/08.
+
+Resuelto con `mercadolibre:sincronizar-tipos-publicacion --forzar`: 270 actualizadas, 0 con error.
+Full real: **3 publicaciones** (`MLA823877533` → 43005, `MLA762900978` → 12700, `MLA1424068727` → 41363).
+
+Confirmación de que quedó bien: la venta **24506** (21:03 UTC, orden `2000017938763700`) se creó con
+`deposito_id = 6` y descontó de Full, mientras que la **24509** del mismo período, de Colecta, fue a
+Local.
+
+Efecto colateral esperado: a las 18:32 `SincronizadorStockFull` empezó a reflejar el inventario real
+de ML sobre el depósito Full (`ajuste` con descripción "Reflejo de stock Full de Mercado Libre"),
+pisando los valores cargados a mano. **Para Full la fuente de verdad es ML, no Contagram.**
