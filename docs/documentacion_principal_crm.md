@@ -1411,6 +1411,13 @@ registrarMovimiento()`) usados por Pagos y Gastos — no quedó pendiente al cie
 
 - **Cuenta Corriente**: "Cta Cte" en el menú de fila de Compras (proveedor) — mismo gap que Clientes/
   Ventas. Deshabilitado en la UI (`disabled`, "Próximamente"), no oculto ni simulado.
+  **Actualización 14/08/2026 (spec 067) — IMPLEMENTADO**: esta brecha quedó cerrada con el Informe
+  de Cuenta Corriente Proveedores (§6.6). El deep-link `?proveedor_id={id}` que abre ese informe en
+  el tab "Movimientos" se agregó al menú de fila de **Proveedores**
+  (`resources/views/proveedores/_row_actions.blade.php`), espejo exacto del que Clientes ya tenía.
+  Nota de implementación: el menú de fila de **Compras** no tenía una entrada "Cta Cte" deshabilitada
+  que habilitar —la opción vivía sólo del lado de la entidad, como en Clientes—, así que la brecha se
+  cierra donde realmente estaba abierta.
 - **Remitos**: "Crear Remito" en Compras crea sólo el encabezado (fecha + número); detalle de ítems
   pendiente de relevamiento propio — apunta al mismo hueco de estructura de pantalla que en Ventas.
 - **Recibos de Pagos**: análogo a Recibos de Cobros (§3.5), sin relevamiento propio con capturas.
@@ -1980,8 +1987,12 @@ solo link de menú → una sola ruta, ver `no-hash-urls-para-navegacion` en memo
   fechas de Emisión. La suma de "A Cobrar" de las filas de Venta (y, desde spec 031, de la fila
   sintética "Saldo Inicial", una por cliente con `saldo_inicial ≠ 0`) coincide con el "Total" de ese
   cliente en Saldos Clientes.
-- **Proveedores queda fuera de alcance** de esta spec (no hay pantalla de Cuenta Corriente Proveedores
-  todavía — sigue en §4.3/§7 como brecha pendiente).
+- **Proveedores queda fuera de alcance** de esta spec (spec 029). **Actualización 14/08/2026**: la
+  pantalla de Cuenta Corriente Proveedores está especificada en **spec 067** (tanda 1 del módulo
+  Informes, ver §6.6) como espejo estructural de ésta, reutilizando `CuentaCorriente::porCliente
+  ('proveedor')` — que ya soporta ese caso — **sin modificar el servicio**. **Implementado**
+  (14/08/2026): `App\Services\Tesoreria\CuentaCorriente` quedó byte a byte igual, y sus tests
+  previos (`CuentaCorrientePorClienteTest`, `CuentaCorrienteSaldoInicialTest`) siguen sin modificarse.
 - Sin exportación CSV/PDF en esta iteración (sin evidencia de esa acción en las capturas relevadas).
   El exportador/tests huérfanos de un intento anterior (`CuentaCorrienteCsvExport`, diseño de "Saldo"
   plano sin aging) se descartaron por no coincidir con la estructura real (regla de oro).
@@ -2042,6 +2053,127 @@ futura (Fase 1, "bot de Mercado Libre"), recién cuando esté migrado el VPS (ve
 
 ---
 
+### 6.6 Módulo Informes (relevado 14/08/2026 — se construye en 3 tandas)
+
+**Fuente**: `docs/Informe-Modulo-Informes-2026-08-14/` — 30 capturas reales, navegación completa de
+cada informe/sub-pestaña/modal, más análisis binario de 7 archivos Excel exportados desde la propia
+app para reconstruir la lógica de cálculo interna. Es la fuente de verdad estructural del módulo.
+
+En Contagram el módulo es una landing `/reports` con **8 tarjetas** (Ventas, Compras, Cta Cte
+Clientes, Cta Cte Proveedores, Reporte Final, Gastos, Stock, Rankings) más una vista consolidada de
+gráficos en `/graphs`. **Divergencia deliberada de este CRM**: no se construye la landing de
+tarjetas — cada informe es un ítem propio del desplegable "Informes" del sidebar con su URL real,
+siguiendo el patrón ya vigente de "Informes > Stock" (§6.2) e "Informes > Cuenta Corriente" (§6.4).
+Motivo: nuestro sidebar despliega submenús y el de Contagram no, con lo que la landing sería un salto
+de navegación sin valor. Ver `no-hash-urls-para-navegacion` en memoria de proyecto.
+
+**Arquitectura común de los 8 informes** (aprender uno enseña los ocho): selector de rango
+"**Emisión**" con 9 opciones idénticas (Hoy, Ayer, Última Semana, Mes actual, Mes anterior, Últimos
+30 días, Año actual, Desde-Hasta con doble calendario + accesos rápidos simultáneos, Borrar filtro),
+panel de "Filtros" propio de cada informe, tabla de detalle con scroll horizontal, y exportación dual
+Excel + PDF abajo a la derecha.
+
+> **Regla relevada — "Mes actual" es el mes calendario completo** (día 1 al último del mes),
+> incluyendo fechas futuras dentro del mismo mes; no se recorta a la fecha de hoy. Aplica a todos los
+> informes.
+
+**Estado por tandas:**
+
+| Tanda | Informes | Estado |
+|-------|----------|--------|
+| **1** | Compras, Gastos, Cuenta Corriente Proveedores | **spec 067 — IMPLEMENTADA** (14/08/2026) |
+| **2** | Ventas, Reporte Final | pendiente — bloqueada por una decisión de negocio abierta (ver abajo) |
+| **3** | Rankings / "Arma tu Informe" / vista consolidada `/graphs`, menú de gestión por fila en Cta Cte, ajustes al Informe de Stock | pendiente |
+
+**Ya implementados de antes**: Informe de Stock (spec 003, §6.2) y Cta Cte Clientes (spec 029, §6.4).
+
+#### Tanda 1 — spec 067 (Compras, Gastos, Cta Cte Proveedores)
+
+- **Informe de Compras** (`/informes/compras`): KPIs con la ecuación **Total Compras Creadas + Total
+  Nota de Débito − Total Nota de Crédito = Total Compras**, más Cantidad Prod./Serv. (suma de
+  cantidades, no de líneas), Cantidad Compras Creadas, Compra Promedio y Costo Actual. Tabla con
+  **una fila por ítem de compra** (Id, Fecha, Comprobante, Proveedor, Producto/Servicio, Cant.,
+  Precio, Total Comprobante — este último repetido por fila, **no sumable por fila**). Panel de 12
+  filtros: Id, Producto/Servicio, Tipo de Producto/Servicio, Etiqueta, Productos, Facturado,
+  Categoría de Compra, Proveedor, Tipo y N° de Factura, Usuario, Observación, Estado del Pago.
+- **Informe de Gastos** (`/informes/gastos`): el más simple. Bloque Desde/Hasta/Gasto Total y
+  estructura jerárquica Categoría → Subcategoría expandible con subtotal por nivel y detalle (Id,
+  Fecha, Descripción, Medio de Pago, Total). Filtros: Categoría y/o Subcategoría, Medio de pago,
+  Estado del Pago, Usuario.
+- **Informe de Cuenta Corriente Proveedores** (`/informes/cuenta-corriente-proveedores`): espejo
+  exacto del de Clientes (§6.4) — tabs "Saldos Proveedores" (A Vencer / 0-30 / 31-60 / 61-90 / >90 /
+  Total, con saldos negativos listados) y "Movimientos" (Compra/Pago/NC/ND/Saldo Inicial). Modal de
+  ficha de proveedor de **sólo lectura** al hacer clic en el nombre. Reutiliza
+  `CuentaCorriente::porCliente('proveedor')` **sin modificar el servicio**.
+
+**Divergencias deliberadas de la tanda 1 respecto de Contagram** (decididas por el cliente el
+14/08/2026):
+
+1. **El desglose impositivo AFIP se expone en pantalla**, no sólo en el Excel. El análisis binario
+   reveló que Contagram vuelca **35 columnas** al exportar Compras (netos Gravado/No Gravado/Exento,
+   IVA por alícuota 2,5/5/10,5/21/27 en columnas separadas, Perc. IVA, Perc. IIBB, Imp. Internos,
+   CUIT, Punto de Venta, Afecta Stock…) mientras la pantalla muestra sólo 8. Acá van todas al
+   selector de columnas. **No requiere migraciones**: se derivan de `compra_items.iva_pct` y
+   `compra_conceptos.tipo`.
+2. **Excel de doble hoja en los tres informes** (una formateada para leer + una plana para
+   reprocesar). Contagram sólo lo hace en Gastos; el relevamiento lo señala como buen patrón a
+   copiar.
+3. **Tercera columna "Otras Percepciones"**: `compra_conceptos.tipo` no distingue percepción de IVA
+   de percepción de IIBB (sólo tiene `percepcion|impuesto_interno|interes`). La clasificación se hace
+   por el texto del concepto y lo no clasificable cae en una columna propia — nunca se descarta ni se
+   imputa a la columna equivocada. Deuda anotada: tipificar el concepto en el formulario de Compra
+   sería una spec aparte.
+4. **Cta Cte de sólo lectura**: Contagram tiene un menú Ver/Editar/Eliminar por fila en Movimientos
+   (es decir, usa el informe como pantalla de gestión). Se deja fuera de la tanda 1; queda para la
+   tanda 3.
+
+#### Bugs de Contagram detectados en el relevamiento — NO se replican
+
+El análisis de los Excel exportados encontró inconsistencias reales del propio Contagram. Se
+documentan para que no se copien "por fidelidad":
+
+- **Resultado de líneas de Nota de Crédito en el Excel de Ventas**: para ventas normales
+  `Resultado = Precio − CMV`, pero para la fila de NC el Excel exporta `-570` donde la pantalla
+  muestra `-170` — o sea suma en vez de restar cuando el comprobante es NC. Error acotado a esa celda
+  (no se propaga a los totales). **Regla del proyecto**: la fórmula se aplica igual a ventas y notas,
+  respetando el signo de cada columna, sin ramas por tipo de comprobante.
+- **Doble convención de signos en el Reporte Final**: en "Ventas Vs. Compras" el Total Egresos se
+  guarda negativo y el Resultado es una suma; en "Cobros Vs Pagos" se guarda positivo y el Resultado
+  es una resta. Al construir la tanda 2 se unifica (todo positivo + bandera ingreso/egreso).
+- **Saldo corrido del Informe de Stock calculado sobre el orden de visualización** y no el
+  cronológico, lo que produce saldos intermedios negativos que nunca existieron. A revisar contra
+  nuestro §6.2 en la tanda 3.
+- **KPIs negativos en el Informe de Stock** por multiplicar el **costo actual** por el saldo de stock
+  en vez del costo histórico. Nuestro "Costo Actual" de Compras tiene la misma semántica a propósito
+  (es un indicador de valorización actual), pero **con tooltip explicativo obligatorio** para que no
+  se confunda con el costo real de compra.
+
+#### Decisión abierta que bloquea la tanda 2
+
+El Informe de Ventas de Contagram tiene un bloque de KPIs **Precio Neto − Costo Mercadería Vendida =
+Resultado**. Nuestro `venta_items` **no guarda costo histórico** (sólo `precio_unitario`, descuento e
+IVA), y `productos.costo` es el costo vigente. Sin costo congelado al momento de la venta no hay CMV
+real — sólo se puede calcular "costo actual × cantidad", que es exactamente lo que hace Contagram y
+la causa de sus KPIs negativos. **Decisión pendiente del cliente**: agregar `costo_unitario` a
+`venta_items` y llenarlo al confirmar la venta (correcto, requiere migración) vs. replicar el cálculo
+con costo actual (fiel, arrastra el mismo defecto). Hasta resolverlo, la tanda 2 no se especifica.
+
+#### Rankings / "Arma tu Informe" (tanda 3) — nota de arquitectura
+
+Ventas y Compras en Contagram montan un motor de tablas dinámicas sobre **PivotTable.js**: 8 modos de
+"Mostrar Como" (Tabla, Tabla con Gráfico de Barras, Mapa de Calor y sus variantes por fila/columna,
+Líneas, Barras, Histograma), 4 opciones de "Dato" y hasta 7 de "Acción" (la lista de Acción **se
+reduce a "Suma"** cuando el Dato es un conteo), con drag & drop de 13 dimensiones y guardado de vistas
+personalizadas como **pestañas persistentes**. Su exportación a Excel es 100% client-side (SheetJS),
+sin ida al servidor. **Tensión con nuestras reglas**: PivotTable.js carga todo el dataset en memoria
+del navegador — por eso su export no toca el servidor —, lo que choca con la regla obligatoria de
+DataTables server-side y no escala al volumen real del negocio. Decisión de enfoque pendiente para la
+tanda 3.
+
+*Fuente(s): `docs/Informe-Modulo-Informes-2026-08-14/`*
+
+---
+
 ## 7. Módulos pendientes de re-relevamiento
 
 Los siguientes módulos de Contagram fueron investigados en la primera pasada de este documento, pero
@@ -2062,9 +2194,12 @@ salieron de esta lista:
     `ws_sr_padron_a13` reutilizando `App\Services\Arca\ClienteWsaa`; ver §2 (ficha de Cliente) y §5
     (Ingresos > Tiendanube/MercadoLibre) para el detalle funcional. Queda listo para implementar, no
     aplica más como pendiente de esta lista.
-- Informes (Ventas, Compras, Gastos, Contador, Ranking, Reporte Final) — nota: **Cuenta Corriente
-  Clientes ya se implementó** (spec 029, ver §6.4); **Cuenta Corriente Proveedores sigue pendiente
-  acá** (mismo aging, falta el relevamiento y la pantalla propia por Proveedor).
+- ~~Informes (Ventas, Compras, Gastos, Contador, Ranking, Reporte Final)~~ — **re-relevado el
+  14/08/2026** con capturas reales (`docs/Informe-Modulo-Informes-2026-08-14/`, 30 capturas + análisis
+  binario de 7 Excel exportados). Ver §6.6. El módulo se construye **en tres tandas**; la tanda 1
+  (Compras, Gastos, Cuenta Corriente Proveedores) está especificada en spec 067. **Cuenta Corriente
+  Clientes ya se implementó** (spec 029, ver §6.4); **Cuenta Corriente Proveedores dejó de ser una
+  brecha: spec 067 la implementó el 14/08/2026**. Quedan pendientes las tandas 2 y 3.
 - Retenciones (transversal a Cobros/Pagos — ya resuelta a nivel de regla de negocio en Ingresos §3.5 y
   Egresos §4.1 vía el modal "Nueva Retención"; sigue faltando el relevamiento de una pantalla propia de
   administración de retenciones, si existiera)
@@ -2131,6 +2266,70 @@ salieron de esta lista:
     observers/eventos de Eloquent en las entidades transaccionales existentes (Venta, Cobro, Gasto,
     Movimiento de stock/caja, etc.), con `usuario_id` nullable (para acciones de sistema/integración
     como Mercado Libre/Tiendanube), `tipo_accion`, `entidad`, `entidad_id`, `detalle`, `fecha`.
+
+### 7.x Pendiente técnico — filtros por fecha sobre columnas `DATETIME` en UTC
+
+**Detectado el 15/08/2026.** La app guarda en UTC (`app.timezone`) y muestra en
+`America/Argentina/Buenos_Aires` (`app.display_timezone`). Las pantallas que filtran por día contra
+una columna **`DATETIME`** comparan una fecha tipeada en hora argentina contra un valor en UTC, así
+que **las últimas 3 horas de cada día (21:00 a 23:59 ARG) quedan imputadas al día siguiente**.
+
+**No afecta nada contable.** Todas las columnas de negocio son `DATE` puro, sin hora, y por lo tanto
+son inmunes:
+
+```
+ventas.fecha_emision   compras.fecha_emision   cobros.fecha   pagos.fecha
+gastos.fecha           otros_ingresos.fecha    movimientos_tesoreria.fecha
+notas_credito_debito.fecha_emision   presupuestos.fecha_emision
+remitos.fecha          retenciones.fecha
+```
+
+Dashboard, Cuenta Corriente (clientes y proveedores), Tesorería, Informe de Compras y de Gastos
+filtran sobre esas columnas: sus totales están bien.
+
+**Las columnas afectadas son `DATETIME` en UTC:**
+
+```
+movimientos_stock.fecha
+ml_ordenes.fecha_creada / fecha_cerrada
+tn_ordenes.fecha_creada / fecha_cerrada
+created_at de los logs de integraciones
+```
+
+**Pantallas a corregir:**
+
+| Pantalla | Archivo | Filtro |
+|---|---|---|
+| Informe de Stock | `Informes/InformeStockController.php:147,151` | `whereDate('mov.fecha', …)` |
+| Órdenes de Mercado Libre | `Ingresos/MercadoLibreVentaController.php:66,69` | `whereDate('fecha_cerrada', …)` |
+| Órdenes de Tiendanube | `Ingresos/TiendanubeVentaController.php:59,62` | `whereDate('fecha_cerrada', …)` |
+| Logs de integraciones | `Integraciones/MercadoLibreConfiguracionController.php:301,304` y `TiendanubeConfiguracionController.php:92,95` | `whereDate('created_at', …)` |
+
+El **Informe de Stock además muestra la hora cruda sin convertir** (`resources/js/informe-stock.js`,
+render de la columna `fecha`: `texto.slice(11, 16)`). Por eso un ajuste corrido a las 19:43 ARG se
+lee como `22:43`, y una venta de las 23:32 aparece fechada al día siguiente.
+
+Que el filtro y la vista estén desfasados **de la misma forma** tiene una consecuencia buena: son
+coherentes entre sí, así que no se pierden ni se duplican registros. Sólo que el "día" que muestran
+arranca a las 21:00 del día anterior.
+
+**Magnitud medida al 15/08/2026** (registros en la franja 00:00–03:00 UTC = 21:00–24:00 ARG del día
+anterior):
+
+```
+movimientos_stock     9 de 358    2,5 %
+ml_ordenes           25 de 157     16 %   ← se vende de noche
+```
+
+**Arreglo propuesto**: `CONVERT_TZ(columna, '+00:00', '-03:00')` en el `whereDate` de esos cuatro
+controladores, y convertir a `display_timezone` en el render de la fecha del Informe de Stock. Ojo
+con dos cosas: `CONVERT_TZ` con offset fijo ignora el horario de verano (hoy Argentina no lo usa,
+pero conviene dejarlo anotado), y aplicar la función sobre la columna **invalida el índice** — medir
+si hace falta un índice funcional en `movimientos_stock`.
+
+**Prioridad**: baja. No corrompe datos ni afecta importes; sólo la atribución de día en pantallas de
+consulta. Se vuelve importante si se cierra caja de stock por día o se concilian órdenes de ML
+contra Contagram por fecha.
 
 ---
 
