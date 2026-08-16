@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Exports\Tesoreria\MovimientosExport;
 use App\Models\CuentaTesoreria;
 use App\Models\Rol;
+use App\Services\Tesoreria\SeccionesMovimientos;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -29,15 +30,20 @@ class TesoreriaMovimientosExportTest extends TestCase
         );
     }
 
+    /**
+     * Se pasa por `SeccionesMovimientos` a propósito, en vez de armar las secciones a mano: lo que
+     * interesa probar es lo que ve el usuario, y eso incluye las reglas de qué cuentas se listan.
+     * El PDF consume exactamente lo mismo.
+     */
     private function export(array $flujo): array
     {
-        $cuentas = CuentaTesoreria::where('visible', true)->get();
+        $secciones = (new SeccionesMovimientos)->armar($flujo, CuentaTesoreria::where('visible', true)->get());
 
         return (new MovimientosExport(
             $flujo,
             Carbon::parse('2026-08-01'),
             Carbon::parse('2026-08-12'),
-            $cuentas,
+            $secciones,
         ))->array();
     }
 
@@ -128,6 +134,31 @@ class TesoreriaMovimientosExportTest extends TestCase
         $inicioPagos = collect($nombres)->search('Pagos');
 
         $this->assertContains('Cheque de Terceros', array_slice($nombres, $inicioPagos));
+    }
+
+    public function test_el_pdf_lista_las_mismas_cuentas_que_el_xlsx(): void
+    {
+        // Los dos informes salen de `SeccionesMovimientos`; este test existe para que nadie los
+        // vuelva a separar. Antes el PDF armaba su propia lista y mostraba sólo las cuentas con
+        // movimiento, mientras el XLSX ya listaba todas.
+        CuentaTesoreria::create(['nombre' => 'Banco Sin Uso', 'tipo' => 'banco', 'visible' => true]);
+
+        $respuesta = $this->get(route('tesoreria.movimientos.pdf', [
+            'desde' => '2026-08-01', 'hasta' => '2026-08-12',
+        ]));
+
+        $respuesta->assertOk();
+        $this->assertStringContainsString('application/pdf', $respuesta->headers->get('content-type'));
+    }
+
+    public function test_el_pdf_se_devuelve_inline_para_el_modal_compartido(): void
+    {
+        // CLAUDE.md §4: los PDF se ven en el modal, así que no pueden salir como `attachment`.
+        $respuesta = $this->get(route('tesoreria.movimientos.pdf', [
+            'desde' => '2026-08-01', 'hasta' => '2026-08-12',
+        ]));
+
+        $this->assertStringContainsString('inline', (string) $respuesta->headers->get('content-disposition'));
     }
 
     public function test_el_endpoint_devuelve_un_xlsx_con_el_nombre_de_contagram(): void

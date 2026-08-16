@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Exports\Tesoreria\MovimientosExport;
 use App\Http\Requests\StoreTransferenciaRequest;
 use App\Models\CuentaTesoreria;
+use App\Services\Tesoreria\SeccionesMovimientos;
 use App\Services\Tesoreria\Tesoreria;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -111,9 +112,21 @@ class TesoreriaController extends Controller
         return response()->json($this->tesoreria->flujo($desde, $hasta, $cuentasActivas));
     }
 
-    /** Export del informe Movimientos a planilla (FR-029). */
     /**
-     * Informe de Movimientos como XLSX, calcado del que genera Contagram.
+     * Secciones Cobros/Pagos del informe, como las muestra Contagram.
+     *
+     * El XLSX y el PDF salen de acá para que no se puedan desincronizar: las reglas de qué
+     * cuentas lista cada sección viven en `SeccionesMovimientos`.
+     *
+     * @return array{cobros: list<array{nombre: string, monto: float}>, pagos: list<array{nombre: string, monto: float}>}
+     */
+    private function seccionesMovimientos(array $flujo): array
+    {
+        return (new SeccionesMovimientos)->armar($flujo, CuentaTesoreria::where('visible', true)->get());
+    }
+
+    /**
+     * Informe de Movimientos como XLSX, calcado del que genera Contagram (FR-029).
      *
      * Antes devolvía un CSV con los mismos datos pero disposición propia. El nombre del archivo
      * sigue el patrón de Contagram —"Informe Final DD-MM-YYYY HHMM Hs.xlsx"—, igual que los tres
@@ -124,12 +137,8 @@ class TesoreriaController extends Controller
         [$desde, $hasta] = $this->rangoMovimientos($request);
         $flujo = $this->tesoreria->flujo($desde, $hasta, $this->cuentasActivas($request));
 
-        // Contagram lista TODAS las cuentas de cada sección, no sólo las que tuvieron movimiento
-        // (las demás van en 0), así que el export necesita el catálogo además del flujo.
-        $cuentas = CuentaTesoreria::where('visible', true)->get();
-
         return Excel::download(
-            new MovimientosExport($flujo, $desde, $hasta, $cuentas),
+            new MovimientosExport($flujo, $desde, $hasta, $this->seccionesMovimientos($flujo)),
             'Informe Final '.now()->format('d-m-Y Hi').' Hs.xlsx'
         );
     }
@@ -142,6 +151,7 @@ class TesoreriaController extends Controller
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('tesoreria.pdf.movimientos', [
             'desde' => $desde, 'hasta' => $hasta, 'flujo' => $flujo,
+            'secciones' => $this->seccionesMovimientos($flujo),
         ]);
 
         return $pdf->stream('movimientos-tesoreria.pdf', ['Content-Disposition' => 'inline']);

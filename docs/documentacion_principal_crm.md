@@ -1284,8 +1284,22 @@ desglose por cuenta y checkbox "Activo" (recalcula el total en vivo), Exportar y
     así aparece — tiene sentido de negocio (un cheque recibido se endosa para pagar), pero está
     calibrado contra un solo archivo. Si aparece otra cuenta con ese comportamiento, va a la misma
     constante del export.
-  - Los importes de Pagos se muestran en **negativo**, mientras que `Tesoreria::flujo()` los
-    devuelve en valor absoluto: la conversión de signo la hace el export.
+  - **El signo de los Pagos difiere según el formato**, y no es un error de ninguno de los dos:
+    en el **XLSX** van en **negativo** (`-4468870`) y en el **PDF** en **positivo**
+    (`$4.468.870,00`). Verificado contra los dos archivos reales del mismo período (16/08/2026).
+    `Tesoreria::flujo()` los devuelve en valor absoluto; `SeccionesMovimientos` los entrega con el
+    signo del XLSX y la plantilla del PDF los vuelve a pasar por `abs()`.
+  - Las reglas de arriba viven en **`App\Services\Tesoreria\SeccionesMovimientos`**, compartido por
+    el XLSX y el PDF a propósito: antes cada uno armaba su lista y el PDF mostraba sólo las cuentas
+    con movimiento mientras el Excel ya las listaba todas. Hay un test que fija que los dos
+    informes listen lo mismo.
+
+- **El botón "Exportar a PDF" replica el mismo informe** (`tesoreria.pdf.movimientos`): encabezado
+  de cinco celdas con recuadro (Total Cobros en verde, Total Pagos en rojo), banda turquesa
+  `#3c9aa8` con el nombre de la sección, banda gris `#eceff1` repitiéndolo, columnas
+  Descripción/Total, una fila por cuenta con el nombre en marrón, y el cierre con el total chico
+  sobre chip gris más el total grande. Pie "Pag. X / Y". Los colores se tomaron de una captura, no
+  de un archivo con estilos: si aparece el valor exacto, conviene ajustarlos.
 - **Pendiente de relevar**: el criterio de ORDEN de las filas dentro de cada sección. No coincide
   con alfabético, ni por id, ni por la columna `orden`. Hoy se ordena por tipo y alfabéticamente
   dentro de cada tipo, que se aproxima pero no calca. Hace falta otro export de un período distinto
