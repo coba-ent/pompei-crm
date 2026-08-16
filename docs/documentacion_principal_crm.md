@@ -1268,6 +1268,31 @@ selector de rango, resumen Total Cobros/Total Pagos/Resultado, secciones expandi
 desglose por cuenta y checkbox "Activo" (recalcula el total en vivo), Exportar y **Exportar a PDF**
 (modal compartido) — único botón de exportación a PDF nativo relevado hasta el momento.
 
+- **El botón "Exportar" devuelve un XLSX calcado del de Contagram (16/08/2026)**, no un CSV. Se
+  relevó contra el archivo real `Informe Final 16-08-2026 1747 Hs.xlsx`, y el nombre sigue ese
+  patrón: `Informe Final DD-MM-YYYY HHMM Hs.xlsx`, con la hoja llamada "Informe Final". Disposición:
+  título "Movimientos" en C2; fila de Desde · Hasta · Total Cobros · Total Pagos · Resultado; y por
+  cada sección una banda azul `#0E5DA1` y otra gris `#C5C9CC` con el nombre repetido, la fila de
+  columnas "Descripción"/"Total", una fila por cuenta (nombre en A, importe en E) y el total en D/E.
+  Las fechas van como **texto** `dd/mm/aaaa`, no como fecha de Excel. Ver
+  `App\Exports\Tesoreria\MovimientosExport`.
+- **Qué cuentas lista cada sección** (regla relevada del mismo archivo, no derivable de los datos):
+  no lista sólo las que tuvieron movimiento, sino **todas las que aplican a la sección**, y las que
+  no tuvieron nada van en **0**.
+  - Cobros = cuentas de tipo `efectivo` + `banco` + `a_cobrar`.
+  - Pagos = `efectivo` + `banco` + `a_pagar`, **más "Cheque de Terceros"**, que es `a_cobrar` y aun
+    así aparece — tiene sentido de negocio (un cheque recibido se endosa para pagar), pero está
+    calibrado contra un solo archivo. Si aparece otra cuenta con ese comportamiento, va a la misma
+    constante del export.
+  - Los importes de Pagos se muestran en **negativo**, mientras que `Tesoreria::flujo()` los
+    devuelve en valor absoluto: la conversión de signo la hace el export.
+- **Pendiente de relevar**: el criterio de ORDEN de las filas dentro de cada sección. No coincide
+  con alfabético, ni por id, ni por la columna `orden`. Hoy se ordena por tipo y alfabéticamente
+  dentro de cada tipo, que se aproxima pero no calca. Hace falta otro export de un período distinto
+  para deducirlo. Además, los nombres de cuenta de Contagram y los de la base importada difieren
+  ("Galicia" vs "Banco Galicia", "Visa" vs "Visa a Cobrar"), lo que arrastra diferencias de orden
+  aunque el criterio fuera el mismo — **el export muestra los nombres de nuestra base, a propósito**.
+
 **Punto de enganche para otros módulos**: `App\Services\Tesoreria\Tesoreria::registrarMovimiento()` es
 la API pública que Ingresos (Cobros de Ventas, Otros Ingresos) y a futuro Egresos (Pagos de Compras,
 Gastos) usan para impactar una cuenta de tesorería, sin que Tesorería conozca cada módulo (origen
@@ -2419,6 +2444,21 @@ si hace falta un índice funcional en `movimientos_stock`.
 **Prioridad**: baja. No corrompe datos ni afecta importes; sólo la atribución de día en pantallas de
 consulta. Se vuelve importante si se cierra caja de stock por día o se concilian órdenes de ML
 contra Contagram por fecha.
+
+**Corregido el 16/08/2026, la mitad de front del mismo problema.** Ocho modales calculaban "hoy"
+con `new Date().toISOString().slice(0, 10)`, que es UTC: después de las 21:00 ARG proponían el día
+**siguiente**. Un cobro cargado a las 22:00 quedaba fechado mañana, y eso sí escribía en la base
+—no era sólo atribución de pantalla—. Ahora usan `AppFecha.hoy()`, que lee el reloj local. Ver la
+regla de diseño #6 en `CLAUDE.md`.
+
+En la misma pasada se reemplazaron los 51 campos `<input type="date">` del proyecto por campos de
+texto `dd/mm/aaaa` (`AppFecha`): el input nativo se dibuja con el locale del **navegador**, no con
+el de la app, y mostraba `08/05/2026` para el 5 de agosto — indistinguible de un dato invertido en
+un proyecto cuyo origen ya venía con día y mes cambiados. **El contrato con el backend no cambió:
+sigue viajando ISO `YYYY-MM-DD`.** Lo fijan `tests/js/fecha-ar.test.mjs` (barrido de las 144 fechas
+ambiguas del año, las de día ≤ 12, que al invertirse siguen existiendo y por eso se guardan mal en
+silencio) y `tests/Feature/FechaIdaYVueltaTest.php` (incluido que reabrir y guardar sin cambios no
+mueva la fecha).
 
 ---
 

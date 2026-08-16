@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\Tesoreria\MovimientosExport;
 use App\Http\Requests\StoreTransferenciaRequest;
 use App\Models\CuentaTesoreria;
 use App\Services\Tesoreria\Tesoreria;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * Vistas globales de Tesorería: Saldos (pestaña por defecto), Movimientos
@@ -110,36 +112,26 @@ class TesoreriaController extends Controller
     }
 
     /** Export del informe Movimientos a planilla (FR-029). */
-    public function movimientosExport(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    /**
+     * Informe de Movimientos como XLSX, calcado del que genera Contagram.
+     *
+     * Antes devolvía un CSV con los mismos datos pero disposición propia. El nombre del archivo
+     * sigue el patrón de Contagram —"Informe Final DD-MM-YYYY HHMM Hs.xlsx"—, igual que los tres
+     * informes de la spec 067. Ver `App\Exports\Tesoreria\MovimientosExport`.
+     */
+    public function movimientosExport(Request $request): \Symfony\Component\HttpFoundation\BinaryFileResponse
     {
         [$desde, $hasta] = $this->rangoMovimientos($request);
         $flujo = $this->tesoreria->flujo($desde, $hasta, $this->cuentasActivas($request));
 
-        $nombreArchivo = 'movimientos_tesoreria_'.now()->format('Ymd_His').'.csv';
+        // Contagram lista TODAS las cuentas de cada sección, no sólo las que tuvieron movimiento
+        // (las demás van en 0), así que el export necesita el catálogo además del flujo.
+        $cuentas = CuentaTesoreria::where('visible', true)->get();
 
-        return response()->streamDownload(function () use ($flujo) {
-            $salida = fopen('php://output', 'w');
-            fwrite($salida, "\xEF\xBB\xBF");
-
-            fputcsv($salida, ['Total Cobros', 'Total Pagos', 'Resultado'], ';');
-            fputcsv($salida, [$flujo['total_cobros'], $flujo['total_pagos'], $flujo['resultado']], ';');
-            fputcsv($salida, [], ';');
-
-            fputcsv($salida, ['Cobros por cuenta'], ';');
-            fputcsv($salida, ['Cuenta', 'Monto'], ';');
-            foreach ($flujo['cobros'] as $fila) {
-                fputcsv($salida, [$fila['nombre'], $fila['monto']], ';');
-            }
-            fputcsv($salida, [], ';');
-
-            fputcsv($salida, ['Pagos por cuenta'], ';');
-            fputcsv($salida, ['Cuenta', 'Monto'], ';');
-            foreach ($flujo['pagos'] as $fila) {
-                fputcsv($salida, [$fila['nombre'], $fila['monto']], ';');
-            }
-
-            fclose($salida);
-        }, $nombreArchivo, ['Content-Type' => 'text/csv; charset=UTF-8']);
+        return Excel::download(
+            new MovimientosExport($flujo, $desde, $hasta, $cuentas),
+            'Informe Final '.now()->format('d-m-Y Hi').' Hs.xlsx'
+        );
     }
 
     /** Informe Movimientos como PDF inline (modal compartido — CLAUDE.md §4). */
