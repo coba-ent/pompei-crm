@@ -43,6 +43,11 @@ class CuentaCorriente
      *
      * Poniendo las dos constantes en `false` se vuelve al aging contable estándar en ambos lados,
      * que es lo que hacía el código entre el 12/08 y el 13/08/2026.
+     *
+     * **Proveedores tiene que quedar en `false`**: probado el 16/08/2026, ponerlo en `true` aplica
+     * todos los pagos sin mirar la fecha y el saldo histórico se desploma —al 12/09/2021 daba
+     * $0,00 contra los $777.451,80 de Contagram—. El corte a "hoy" se resuelve aparte, con
+     * {@see self::$acotarPagos} (ver ahí por qué).
      */
     private const ESTILO_CONTAGRAM = ['cliente' => true, 'proveedor' => false];
 
@@ -172,11 +177,23 @@ class CuentaCorriente
         // deuda de diciembre.
         $estiloContagram = self::ESTILO_CONTAGRAM[$tipo] ?? false;
 
+        // Preguntar "cuánto se debe hoy" no es lo mismo que preguntar por una fecha pasada. Un
+        // pago con fecha futura —un cheque diferido— ya está registrado y ya bajó la deuda: así lo
+        // muestran el listado de Compras, el Dashboard de Contagram y su propio listado. Acotarlo
+        // dejaba al Dashboard del CRM diciendo $27.344.772,22 de Compras a Pagar contra los
+        // $25.726.465,10 de nuestro propio listado, por el cheque de Peisa fechado 24/08/2026.
+        //
+        // A una fecha pasada sí se acota, porque ese pago todavía no había ocurrido. Lo que NO se
+        // puede hacer es resolverlo poniendo `ESTILO_CONTAGRAM['proveedor']` en `true`: eso aplica
+        // todos los pagos a cualquier corte y hunde el histórico —al 12/09/2021 el saldo pasaba de
+        // $777.451,78 a $0,00— (probado el 16/08/2026).
+        $acotarPorFecha = ! $estiloContagram && $fecha->lt(Carbon::today());
+
         $sub = fn (string $t, ?string $signo, string $colFecha) => DB::table($t)
             ->selectRaw("{$fk} as fk, SUM(monto) as monto")
             ->whereNull('deleted_at')
             ->when($signo !== null, fn ($q) => $q->where('tipo', $signo))
-            ->when(! $estiloContagram, fn ($q) => $q->where($colFecha, '<=', $fecha->toDateString()))
+            ->when($acotarPorFecha, fn ($q) => $q->where($colFecha, '<=', $fecha->toDateString()))
             ->whereNotNull($fk)
             ->groupBy($fk);
 
