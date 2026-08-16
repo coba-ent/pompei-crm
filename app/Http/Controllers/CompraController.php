@@ -59,6 +59,18 @@ class CompraController extends Controller
      * minuto tras importar el histórico (10/08/2026), corregido acá antes de que se manifieste.
      *
      * Mantiene la definición del modelo: `A Pagar = Total + Σ ND − Σ NC − Pagado`.
+     *
+     * ## Los cuatro importes cierran entre sí: `Pagado + A Pagar + Vencido = Total`
+     *
+     * Espejo de {@see VentaController::kpis()} — misma ecuación que muestra Contagram arriba de su
+     * listado, adoptada el 16/08/2026 para que las dos pantallas se lean igual. Implica que
+     * **Total es el neto** (`Σ (total + ND − NC)`, no `Σ total`) y que **A Pagar y Vencido son
+     * excluyentes**: antes "A Pagar" era todo lo pendiente y "Vencido" un subconjunto suyo, así
+     * que sumarlos contaba dos veces lo vencido.
+     *
+     * A diferencia de Ventas, acá no hace falta ningún default de vencimiento: las 2.392 compras
+     * lo tienen cargado, y en 1.057 es distinto de la emisión —los plazos reales del proveedor—,
+     * así que asumir "vence el día que se emite" sería falso.
      */
     private function kpis(Request $request): array
     {
@@ -66,19 +78,21 @@ class CompraController extends Controller
         $nc = "COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.compra_id = compras.id AND n.tipo = 'credito' AND n.deleted_at IS NULL), 0)";
         $nd = "COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.compra_id = compras.id AND n.tipo = 'debito' AND n.deleted_at IS NULL), 0)";
         $aPagar = "(compras.total + {$nd} - {$nc} - {$pagado})";
+        $neto = "(compras.total + {$nd} - {$nc})";
+        // "Hoy" como parámetro y no `CURDATE()`: esa función no existe fuera de MySQL y reventaba
+        // el endpoint bajo SQLite, que es donde corren los tests. Además el corte pasa a ser el
+        // día del negocio y no el del servidor, que está en UTC.
+        $hoy = now()->setTimezone(config('app.display_timezone'))->toDateString();
+        $estaVencida = "compras.fecha_vto_pago IS NOT NULL AND compras.fecha_vto_pago < ? AND {$aPagar} > 0.005";
 
         $r = $this->aplicarFiltros(Compra::query(), $request)
             ->selectRaw("
                 COUNT(*) AS cantidad,
-                COALESCE(SUM(compras.total), 0) AS total,
+                COALESCE(SUM({$neto}), 0) AS total,
                 COALESCE(SUM({$pagado}), 0) AS pagado,
-                COALESCE(SUM({$aPagar}), 0) AS a_pagar,
-                COALESCE(SUM(CASE
-                    WHEN compras.fecha_vto_pago IS NOT NULL
-                     AND compras.fecha_vto_pago < CURDATE()
-                     AND {$aPagar} > 0.005
-                    THEN {$aPagar} ELSE 0 END), 0) AS vencido
-            ")
+                COALESCE(SUM(CASE WHEN {$estaVencida} THEN 0 ELSE {$aPagar} END), 0) AS a_pagar,
+                COALESCE(SUM(CASE WHEN {$estaVencida} THEN {$aPagar} ELSE 0 END), 0) AS vencido
+            ", [$hoy, $hoy])
             ->first();
 
         return [
