@@ -108,6 +108,28 @@
             descuento_pct: primero.descuento_pct || 0,
             iva_pct: primero.iva_pct || null,
         }];
+
+        // Esta rama colapsa la nota a UNA fila, así que si el detalle real no entra en una sola
+        // (notas migradas de Contagram: se les reconstruyó el detalle desde la venta y muchas
+        // tienen varios productos) la fila valdría menos que la nota, y guardar bajaría el monto
+        // sin que nadie lo pida. Cuando la fila no reproduce el importe, se la reemplaza por una
+        // línea única que vale exactamente `monto`: el detalle se pierde en el form —donde ya no
+        // era representable—, pero la plata queda intacta.
+        const montoNota = Number(notaExistente ? notaExistente.monto : 0) || 0;
+        const bruto = (Number(items[0].cantidad) || 0) * (Number(items[0].precio) || 0);
+        const neto = bruto - (bruto * (Number(items[0].descuento_pct) || 0) / 100);
+        const reconstruido = neto + (neto * pctIva(items[0].iva_pct) / 100);
+
+        if (montoNota > 0 && Math.abs(reconstruido - montoNota) > 0.01) {
+            items = [{
+                producto_id: null,
+                descripcion: data.descripcionLibre || '',
+                cantidad: 1,
+                precio: montoNota,
+                descuento_pct: 0,
+                iva_pct: null,
+            }];
+        }
     } else if (afectaStock) {
         // Crear + Stock=Sí: arranca vacío, `cargarItemsDisponibles()` (más abajo) lo
         // completa con TODOS los ítems pendientes de la Venta/Compra apenas resuelve —
