@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Rol;
 use App\Models\Categoria;
 use App\Models\Compra;
 use App\Models\CondicionIva;
@@ -21,6 +22,19 @@ use Tests\TestCase;
 class InformeExclusionSoftDeleteTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Estas rutas están detrás del middleware `permiso:`, y el usuario que autentica
+        // `Tests\TestCase` no trae ningún rol. Es el mismo `setUp` que ya usan
+        // CompraVencidoTest y otros 140 archivos. No se centraliza en TestCase: varios tests
+        // cuentan administradores o prueban la denegación, y adjuntarlo a todos rompe el
+        // pivote `rol_usuario` y convierte esos asserts en falsos verdes. `syncWithoutDetaching`
+        // y no `attach` porque algunos tests de estos mismos archivos ya lo adjuntan aparte.
+        auth()->user()->roles()->syncWithoutDetaching(Rol::firstOrCreate(['nombre' => 'Admin'], ['es_sistema' => true])->id);
+    }
 
     public function test_informe_de_gastos_excluye_gastos_soft_deleted(): void
     {

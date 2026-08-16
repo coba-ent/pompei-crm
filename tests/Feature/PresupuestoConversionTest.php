@@ -16,6 +16,19 @@ class PresupuestoConversionTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Estas rutas están detrás del middleware `permiso:`, y el usuario que autentica
+        // `Tests\TestCase` no trae ningún rol. Es el mismo `setUp` que ya usan
+        // CompraVencidoTest y otros 140 archivos. No se centraliza en TestCase: varios tests
+        // cuentan administradores o prueban la denegación, y adjuntarlo a todos rompe el
+        // pivote `rol_usuario` y convierte esos asserts en falsos verdes. `syncWithoutDetaching`
+        // y no `attach` porque algunos tests de estos mismos archivos ya lo adjuntan aparte.
+        auth()->user()->roles()->syncWithoutDetaching(Rol::firstOrCreate(['nombre' => 'Admin'], ['es_sistema' => true])->id);
+    }
+
     /**
      * Spec 044 — "convertir a Venta" (crearVenta) redirige a ventas.create con los datos del Presupuesto
      * precargados en el formulario (VentaController@create, `presupuestoOrigen`); el submit final vuelve
@@ -25,9 +38,6 @@ class PresupuestoConversionTest extends TestCase
      */
     public function test_convertir_a_venta_conserva_el_total_con_descuento_general_y_multiples_alicuotas(): void
     {
-        $admin = Rol::firstOrCreate(['nombre' => 'Admin'], ['es_sistema' => true]);
-        auth()->user()->roles()->attach($admin->id);
-
         $cliente = Cliente::factory()->create();
         $deposito = Deposito::create(['nombre' => 'Principal', 'activo' => true]);
         $items = [
