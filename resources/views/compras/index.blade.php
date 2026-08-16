@@ -273,5 +273,5 @@
         },
     };
 </script>
-@vite(['resources/js/compras.js'])
+@vite(['resources/js/rango-emision.js', 'resources/js/compras.js'])
 @endsection

@@ -26,5 +26,14 @@
                 <i class="fas fa-trash-alt me-2 text-danger"></i> Eliminar
             </button>
         </li>
+        {{-- Deep-link al informe de Cta Cte de este proveedor (spec 067 FR-038), espejo exacto
+             del que Clientes ya tenía. Cierra el "Próximamente" de documentacion_principal_crm §4.3. --}}
+        @can('informes.ver')
+            <li>
+                <a class="dropdown-item" href="{{ route('informes.cuenta-corriente-proveedores.index', ['proveedor_id' => $proveedor->id]) }}">
+                    <i class="fas fa-file-invoice-dollar me-2 text-secondary"></i> Cta Cte
+                </a>
+            </li>
+        @endcan
     </ul>
 </div>

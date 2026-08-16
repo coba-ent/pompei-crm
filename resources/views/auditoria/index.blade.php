@@ -112,5 +112,5 @@
         hoy: "{{ $hoy }}",
     };
 </script>
-@vite(['resources/js/auditoria.js'])
+@vite(['resources/js/rango-emision.js', 'resources/js/auditoria.js'])
 @endsection

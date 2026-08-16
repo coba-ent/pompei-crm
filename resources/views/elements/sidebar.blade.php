@@ -158,8 +158,16 @@
 						</a>
 						<ul aria-expanded="false">
 							@can('informes.ver')
+								{{-- "Ventas" va primera, como en la landing de tarjetas de Contagram (spec 068 FR-001). --}}
+								<li><a href="{{ route('informes.ventas.index') }}">Ventas</a></li>
 								<li><a href="{{ route('informes.stock.index') }}">Stock</a></li>
-								<li><a href="{{ route('informes.cuenta-corriente.index') }}">Cuenta Corriente</a></li>
+								<li><a href="{{ route('informes.compras.index') }}">Compras</a></li>
+								<li><a href="{{ route('informes.gastos.index') }}">Gastos</a></li>
+								{{-- Renombrada al sumar el informe de proveedores: "Cuenta Corriente" a secas
+								     dejaba de ser un rótulo distinguible entre las dos pantallas (spec 067 FR-001). --}}
+								<li><a href="{{ route('informes.cuenta-corriente.index') }}">Cuenta Corriente Clientes</a></li>
+								<li><a href="{{ route('informes.cuenta-corriente-proveedores.index') }}">Cuenta Corriente Proveedores</a></li>
+								<li><a href="{{ route('informes.reporte-final.index') }}">Reporte Final</a></li>
 							@endcan
 						</ul>
 					</li>

@@ -124,29 +124,9 @@
         let vencimientoDesde = '';
         let vencimientoHasta = '';
 
-        function opcionesRango() {
-            const hoy = moment();
-
-            return {
-                autoUpdateInput: false,
-                opens: 'left',
-                locale: {
-                    format: 'DD/MM/YYYY', applyLabel: 'Aplicar', cancelLabel: 'Borrar filtro',
-                    fromLabel: 'Desde', toLabel: 'Hasta', customRangeLabel: 'Desde - Hasta',
-                    daysOfWeek: ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'],
-                    monthNames: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'],
-                },
-                ranges: {
-                    Hoy: [hoy.clone(), hoy.clone()],
-                    Ayer: [hoy.clone().subtract(1, 'day'), hoy.clone().subtract(1, 'day')],
-                    'Última Semana': [hoy.clone().subtract(6, 'days'), hoy.clone()],
-                    'Mes actual': [hoy.clone().startOf('month'), hoy.clone().endOf('month')],
-                    'Mes anterior': [hoy.clone().subtract(1, 'month').startOf('month'), hoy.clone().subtract(1, 'month').endOf('month')],
-                    'Últimos 30 días': [hoy.clone().subtract(29, 'days'), hoy.clone()],
-                    'Año actual': [hoy.clone().startOf('year'), hoy.clone().endOf('year')],
-                },
-            };
-        }
+        // Las 9 opciones viven en `resources/js/rango-emision.js` (spec 067 T002/T003):
+        // eran la misma lista copiada acá, en auditoria.js y en informe-cuenta-corriente.js.
+        const opcionesRango = () => window.RangoEmision.opciones();
 
         if ($.fn.daterangepicker) {
             $('#filtro-rango-emision').daterangepicker(opcionesRango());

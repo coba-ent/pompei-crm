@@ -140,23 +140,10 @@
         let fechaDesde = '';
         let fechaHasta = '';
         if ($.fn.daterangepicker) {
-            $('#filtro-movimientos-rango-fechas').daterangepicker({
-                autoUpdateInput: false,
-                opens: 'left',
-                locale: {
-                    format: 'DD/MM/YYYY',
-                    applyLabel: 'Aplicar',
-                    cancelLabel: 'Limpiar',
-                    fromLabel: 'Desde',
-                    toLabel: 'Hasta',
-                    customRangeLabel: 'Personalizado',
-                    daysOfWeek: ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'],
-                    monthNames: [
-                        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-                        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
-                    ],
-                },
-            });
+            // Presets compartidos (`resources/js/rango-emision.js`, spec 067 T002/T003): esta
+            // pantalla no tenía `ranges`, así que gana los 7 accesos rápidos que el resto del
+            // CRM ya ofrecía, con los mismos rótulos ("Borrar filtro", "Desde - Hasta").
+            $('#filtro-movimientos-rango-fechas').daterangepicker(window.RangoEmision.opciones());
             $('#filtro-movimientos-rango-fechas').on('apply.daterangepicker', function (e, picker) {
                 fechaDesde = picker.startDate.format('YYYY-MM-DD');
                 fechaHasta = picker.endDate.format('YYYY-MM-DD');

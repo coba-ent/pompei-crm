@@ -405,15 +405,99 @@ return [
 				'js/custom.js',
 			],
 		],
-		'informe-gastos' => [
-			'title' => 'Informe de Gastos',
+		'informe-cuenta-corriente-proveedores' => [
+			'title' => 'Cuenta Corriente Proveedores',
 			'css' => [
 				'vendor/datatables/css/jquery.dataTables.min.css',
+				'vendor/datatables/css/buttons.dataTables.min.css',
 				'vendor/toastr/css/toastr.min.css',
+				'vendor/select2/css/select2.min.css',
 				'vendor/bootstrap-daterangepicker/daterangepicker.css',
 			],
 			'js' => [
 				'vendor/datatables/js/jquery.dataTables.min.js',
+				'vendor/datatables/js/dataTables.buttons.min.js',
+				'vendor/datatables/js/buttons.colVis.min.js',
+				'vendor/toastr/js/toastr.min.js',
+				'vendor/select2/js/select2.full.min.js',
+				'vendor/moment/moment.min.js',
+				'vendor/bootstrap-daterangepicker/daterangepicker.js',
+				'js/custom.js',
+			],
+		],
+		'informe-compras' => [
+			'title' => 'Informe de Compras',
+			'css' => [
+				'vendor/datatables/css/jquery.dataTables.min.css',
+				'vendor/datatables/css/buttons.dataTables.min.css',
+				'vendor/toastr/css/toastr.min.css',
+				'vendor/select2/css/select2.min.css',
+				'vendor/bootstrap-daterangepicker/daterangepicker.css',
+			],
+			'js' => [
+				'vendor/datatables/js/jquery.dataTables.min.js',
+				'vendor/datatables/js/dataTables.buttons.min.js',
+				'vendor/datatables/js/buttons.colVis.min.js',
+				'vendor/toastr/js/toastr.min.js',
+				'vendor/select2/js/select2.full.min.js',
+				'vendor/moment/moment.min.js',
+				'vendor/bootstrap-daterangepicker/daterangepicker.js',
+				'js/custom.js',
+			],
+		],
+		'informe-gastos' => [
+			'title' => 'Informe de Gastos',
+			'css' => [
+				'vendor/datatables/css/jquery.dataTables.min.css',
+				'vendor/datatables/css/buttons.dataTables.min.css',
+				'vendor/datatables/css/rowGroup.dataTables.min.css',
+				'vendor/toastr/css/toastr.min.css',
+				'vendor/select2/css/select2.min.css',
+				'vendor/bootstrap-daterangepicker/daterangepicker.css',
+			],
+			'js' => [
+				'vendor/datatables/js/jquery.dataTables.min.js',
+				'vendor/datatables/js/dataTables.buttons.min.js',
+				'vendor/datatables/js/buttons.colVis.min.js',
+				// RowGroup arma la jerarquía Categoría → Subcategoría del informe (T032).
+				'vendor/datatables/js/dataTables.rowGroup.min.js',
+				'vendor/toastr/js/toastr.min.js',
+				'vendor/select2/js/select2.full.min.js',
+				'vendor/moment/moment.min.js',
+				'vendor/bootstrap-daterangepicker/daterangepicker.js',
+				'js/custom.js',
+			],
+		],
+		// Informes tanda 2 (spec 068). Ventas es una tabla server-side con panel de filtros, así
+		// que carga lo mismo que informe-compras. El Reporte Final NO lleva DataTables: es un
+		// árbol agregado con simulador en el cliente (plan.md §Complexity Tracking).
+		'informe-ventas' => [
+			'title' => 'Informe de Ventas',
+			'css' => [
+				'vendor/datatables/css/jquery.dataTables.min.css',
+				'vendor/datatables/css/buttons.dataTables.min.css',
+				'vendor/toastr/css/toastr.min.css',
+				'vendor/select2/css/select2.min.css',
+				'vendor/bootstrap-daterangepicker/daterangepicker.css',
+			],
+			'js' => [
+				'vendor/datatables/js/jquery.dataTables.min.js',
+				'vendor/datatables/js/dataTables.buttons.min.js',
+				'vendor/datatables/js/buttons.colVis.min.js',
+				'vendor/toastr/js/toastr.min.js',
+				'vendor/select2/js/select2.full.min.js',
+				'vendor/moment/moment.min.js',
+				'vendor/bootstrap-daterangepicker/daterangepicker.js',
+				'js/custom.js',
+			],
+		],
+		'reporte-final' => [
+			'title' => 'Reporte Final',
+			'css' => [
+				'vendor/toastr/css/toastr.min.css',
+				'vendor/bootstrap-daterangepicker/daterangepicker.css',
+			],
+			'js' => [
 				'vendor/toastr/js/toastr.min.js',
 				'vendor/moment/moment.min.js',
 				'vendor/bootstrap-daterangepicker/daterangepicker.js',

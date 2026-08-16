@@ -144,5 +144,5 @@
         clienteId: {{ $clientePreseleccionado ? (int) $clientePreseleccionado->id : 'null' }},
     };
 </script>
-@vite(['resources/js/informe-cuenta-corriente.js'])
+@vite(['resources/js/rango-emision.js', 'resources/js/informe-cuenta-corriente.js'])
 @endsection

@@ -17,6 +17,11 @@ use App\Http\Controllers\GastoController;
 use App\Http\Controllers\GeoController;
 use App\Http\Controllers\ImportacionController;
 use App\Http\Controllers\Informes\CuentaCorrienteController;
+use App\Http\Controllers\Informes\CuentaCorrienteProveedorController;
+use App\Http\Controllers\Informes\InformeComprasController;
+use App\Http\Controllers\Informes\InformeGastosController;
+use App\Http\Controllers\Informes\InformeVentasController;
+use App\Http\Controllers\Informes\ReporteFinalController;
 use App\Http\Controllers\Informes\InformeStockController;
 use App\Http\Controllers\Ingresos\MercadoLibreVentaController;
 use App\Http\Controllers\Ingresos\MercadoLibreVinculacionController;
@@ -152,6 +157,45 @@ Route::middleware('auth')->group(function () {
     Route::get('informes/cuenta-corriente', [CuentaCorrienteController::class, 'index'])->name('informes.cuenta-corriente.index');
     Route::get('informes/cuenta-corriente/saldos', [CuentaCorrienteController::class, 'saldosData'])->name('informes.cuenta-corriente.saldos.data');
     Route::get('informes/cuenta-corriente/movimientos', [CuentaCorrienteController::class, 'movimientosData'])->name('informes.cuenta-corriente.movimientos.data');
+
+    // Informes → Compras / Gastos / Cta Cte Proveedores (spec 067, tanda 1).
+    // Los tres son de **sólo lectura**: no hay POST/PUT/PATCH/DELETE en este bloque (FR-037).
+    Route::middleware('permiso:informes.ver')->group(function () {
+        Route::get('informes/compras', [InformeComprasController::class, 'index'])->name('informes.compras.index');
+        Route::get('informes/compras/data', [InformeComprasController::class, 'data'])->name('informes.compras.data');
+        Route::get('informes/compras/stats', [InformeComprasController::class, 'stats'])->name('informes.compras.stats');
+        Route::get('informes/compras/exportar', [InformeComprasController::class, 'exportar'])->name('informes.compras.exportar');
+        Route::get('informes/compras/pdf', [InformeComprasController::class, 'pdf'])->name('informes.compras.pdf');
+
+        Route::get('informes/gastos', [InformeGastosController::class, 'index'])->name('informes.gastos.index');
+        Route::get('informes/gastos/data', [InformeGastosController::class, 'data'])->name('informes.gastos.data');
+        Route::get('informes/gastos/stats', [InformeGastosController::class, 'stats'])->name('informes.gastos.stats');
+        Route::get('informes/gastos/exportar', [InformeGastosController::class, 'exportar'])->name('informes.gastos.exportar');
+        Route::get('informes/gastos/pdf', [InformeGastosController::class, 'pdf'])->name('informes.gastos.pdf');
+
+        Route::prefix('informes/cuenta-corriente-proveedores')->name('informes.cuenta-corriente-proveedores.')->group(function () {
+            Route::get('/', [CuentaCorrienteProveedorController::class, 'index'])->name('index');
+            Route::get('saldos', [CuentaCorrienteProveedorController::class, 'saldosData'])->name('saldos.data');
+            Route::get('movimientos', [CuentaCorrienteProveedorController::class, 'movimientosData'])->name('movimientos.data');
+            Route::get('proveedor/{proveedor}', [CuentaCorrienteProveedorController::class, 'showProveedor'])->name('proveedor.show');
+            Route::get('exportar', [CuentaCorrienteProveedorController::class, 'exportar'])->name('exportar');
+            Route::get('pdf', [CuentaCorrienteProveedorController::class, 'pdf'])->name('pdf');
+        });
+
+        // Informes → Ventas / Reporte Final (spec 068, tanda 2). También de sólo lectura.
+        Route::get('informes/ventas', [InformeVentasController::class, 'index'])->name('informes.ventas.index');
+        Route::get('informes/ventas/data', [InformeVentasController::class, 'data'])->name('informes.ventas.data');
+        Route::get('informes/ventas/stats', [InformeVentasController::class, 'stats'])->name('informes.ventas.stats');
+        Route::get('informes/ventas/exportar', [InformeVentasController::class, 'exportar'])->name('informes.ventas.exportar');
+        Route::get('informes/ventas/pdf', [InformeVentasController::class, 'pdf'])->name('informes.ventas.pdf');
+
+        Route::prefix('informes/reporte-final')->name('informes.reporte-final.')->group(function () {
+            Route::get('/', [ReporteFinalController::class, 'index'])->name('index');
+            Route::get('data', [ReporteFinalController::class, 'data'])->name('data');
+            Route::get('exportar', [ReporteFinalController::class, 'exportar'])->name('exportar');
+            Route::get('pdf', [ReporteFinalController::class, 'pdf'])->name('pdf');
+        });
+    });
 
     // Tesorería (spec 007) — Saldos, Movimientos, config de cuentas, transferencias, ficha/ledger
     Route::middleware('permiso:tesoreria.ver')->prefix('tesoreria')->name('tesoreria.')->group(function () {

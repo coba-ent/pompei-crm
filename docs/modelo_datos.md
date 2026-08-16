@@ -1514,3 +1514,176 @@ de filtro en `ventas`, `compras`, `presupuestos`, `cobros`, `pagos`, `gastos`, `
 - Los cobros y pagos migrados **no generan movimientos de tesorería**: éstos entran completos desde
   los archivos `Cuentas/`, que son la única fuente que incluye las transferencias entre cuentas.
 - `created_at` de los registros migrados = **la fecha del comprobante**, no la del import.
+
+---
+
+## 20. Módulo Informes — Tanda 1 (spec 067): **sin cambios de esquema**
+
+> **Implementada el 14/08/2026.** Se cumplió la restricción: cero migraciones. Toda la derivación
+> vive en `App\Services\Informes\` (`ComprasInformeQuery`, `DesgloseImpositivoCompra`,
+> `GastosInformeQuery`).
+
+Los tres informes de la tanda 1 (Compras, Gastos, Cuenta Corriente Proveedores) **no crean, alteran
+ni borran ninguna tabla ni columna**. Se deja constancia acá de cómo se deriva cada dato mostrado,
+porque el desglose impositivo del Informe de Compras parece exigir campos nuevos y no los exige.
+
+### Desglose impositivo AFIP de Compras — todo derivado
+
+| Dato del informe | De dónde sale |
+|------------------|---------------|
+| IVA 2,5 / 5 / 10,5 / 21 / 27 % (una columna por alícuota) | agrupar `compra_items` por **`iva_pct`** y sumar `subtotal_con_iva − subtotal` |
+| Importe Neto Gravado | Σ `compra_items.subtotal` con `iva_pct` ∈ {`2.5`,`5`,`10.5`,`21`,`27`} |
+| Importe Neto No Gravado | Σ `compra_items.subtotal` con `iva_pct IS NULL` **o** `iva_pct = 'no_gravado'` |
+| Importe Neto Exento | Σ `compra_items.subtotal` con `iva_pct = 'exento'` |
+| Perc. IVA / Perc. IIBB / Otras Percepciones | `compra_conceptos` con `tipo='percepcion'`, clasificados por el **texto** de `concepto` |
+| Imp. Internos | `compra_conceptos` con `tipo='impuesto_interno'` |
+| Subtotales y descuento | `compras.subtotal_sin_descuento`, `descuento`, `subtotal_con_descuento` |
+| Vencimiento / CUIT / Punto de Venta / N° Factura | `compras.fecha_vto_pago`, `proveedores`, `compras.nro_comprobante`, `compras.tipo_comprobante` |
+| Código / Tipo de producto / Afecta Stock | `productos`, `tipos_producto` vía `compra_items.producto_id` |
+
+> **Corrección medida durante la implementación (14/08/2026)**: `compra_items.iva_pct` es un
+> **`string(12)`**, no un número. Guarda los marcadores de `Producto::OPCIONES_IVA`
+> (`'5'`, `'10.5'`, `'21'`, `'27'`, `'exento'`, `'no_gravado'`) o `NULL`. Por eso las tres filas de
+> arriba se clasifican por marcador y no por comparación numérica: escrito como `iva_pct > 0` /
+> `= 0`, MySQL habría casteado `'exento'` a `0` y `'no_gravado'` a `0`, mezclando las dos columnas.
+> `'2.5'` no es una opción que el CRM ofrezca hoy al cargar una compra, pero la columna existe igual
+> (ARCA la contempla y puede venir en datos migrados): da 0 en vez de esconder importes en otra.
+
+**Invariante fiscal a testear**: para toda compra,
+`Neto Gravado + Neto No Gravado + Neto Exento + Σ(IVA por alícuota) + Σ(percepciones) + Imp. Internos + intereses = compras.total`.
+
+### Deuda de modelo anotada (no se resuelve en spec 067)
+
+- **`compra_conceptos.tipo` no distingue percepción de IVA de percepción de IIBB** — el enum es
+  `percepcion|impuesto_interno|interes`. La clasificación se hace por coincidencia de texto sobre
+  `concepto` (`iibb`/`ingresos brutos` → IIBB, `iva` → IVA, resto → **Otras Percepciones**, columna
+  creada justamente para que ningún importe se pierda ni se impute mal). La coincidencia es por
+  **palabra completa** y no por substring —si no, "Retención activa" caería en Perc. IVA— y IIBB se
+  evalúa **antes** que IVA, porque "Percepción IIBB s/ IVA" contiene las dos palabras y es de
+  Ingresos Brutos. El mismo criterio corre en PHP y en SQL, con un test que verifica que coinciden
+  (`InformeComprasDesgloseImpositivoTest::test_clasificacion_php_y_sql_coinciden`). Si en datos reales "Otras
+  Percepciones" resultara el caso mayoritario, la salida es agregar un `subtipo` a la tabla y
+  tipificar el concepto en el formulario de Compra — spec propia, toca el alta de Compras.
+- **`venta_items` no tiene `costo_unitario`** — sin costo histórico congelado no hay CMV real.
+  **Resuelto para la tanda 2 sin migración** (spec 068, 15/08/2026): el CMV se deriva del **costo
+  promedio ponderado de las compras registradas del producto** (ver §21). Congelar el costo al
+  confirmar la venta sigue siendo la solución exacta, pero es una spec propia que toca el alta de
+  Ventas; hasta entonces el CMV del informe es una aproximación declarada, no un dato histórico.
+- **`compra_items` no tiene `variante_id`** — los informes no pueden desagregar por variante. Brecha
+  ya documentada en `documentacion_principal_crm.md §4.3`.
+- **El caso "gasto sin categoría" no existe en la base** — la spec 067 lo contemplaba (rótulo
+  "Sin categoría"), pero medido contra el esquema real `gastos.categoria_id` es `NOT NULL` con
+  `restrictOnDelete` (`2026_07_31_070003_create_gastos_table`): todo gasto tiene categoría y una
+  categoría en uso no se puede borrar. El rótulo se dejó implementado igual, como red de contención
+  por si la columna se volviera nullable —el gasto seguiría apareciendo en el informe en vez de
+  desaparecer—, y hay dos tests que fijan las dos mitades. El caso que **sí** ocurre y se maneja es
+  el de **gasto sin subcategoría**: una `categoria_id` que apunta a una categoría raíz se agrupa
+  bajo ella con el rótulo "Sin subcategoría".
+- **Agregación del tab "Saldos" de Cuenta Corriente en PHP, no en SQL** — sin `LIMIT/OFFSET` real
+  (brecha de §6.4, con antecedente de `memory_limit` agotado en producción el 03/08/2026). La spec
+  067 la **hereda** en la pantalla de proveedores sin agravarla: no toca
+  `App\Services\Tesoreria\CuentaCorriente`, que comparten el Dashboard y el informe de clientes.
+
+---
+
+## 21. Módulo Informes — Tanda 2 (spec 068): **sin cambios de esquema**
+
+> **Resumen**: el Informe de Ventas y el Reporte Final **no agregan ni modifican ninguna tabla,
+> columna, índice ni relación**. Son de sólo lectura. Toda la lógica vive en
+> `App\Services\Informes\` (`VentasInformeQuery`, `CostoMercaderiaVendida`, `ReporteFinalQuery`).
+
+Se documenta acá porque tres cifras del módulo **parecen** exigir campos nuevos y no los exigen.
+
+### 21.1 Costo Mercadería Vendida — columna calculada, no persistida
+
+`venta_items` no guarda el costo del momento de la venta (§Deuda de modelo). El CMV del informe se
+deriva en SQL, sin migración:
+
+```sql
+-- una sola subconsulta agrupada por producto, no correlacionada por fila
+SELECT ci.producto_id,
+       SUM(ci.precio_unitario * ci.cantidad) / NULLIF(SUM(ci.cantidad), 0) AS costo_promedio
+  FROM compra_items ci
+  JOIN compras c ON c.id = ci.compra_id AND c.deleted_at IS NULL
+ GROUP BY ci.producto_id
+```
+
+`CMV Total (línea) = costo_promedio × venta_items.cantidad`; producto sin compras → 0.
+
+**No confundir con "Costo Actual"**, que es `productos.costo × cantidad` (valorización vigente) y es
+otra columna del mismo informe. Que las dos difieran es esperado y es lo que reproduce el
+relevamiento.
+
+### 21.2 Estado del Cobro — derivado, no una columna
+
+El filtro "Estado del Cobro" del Informe de Ventas se resuelve comparando `SUM(cobros.monto)` contra
+`ventas.total` (Cobrado / Parcial / Pendiente), con subconsulta, no con un campo de estado. `ventas`
+no tiene ni necesita una columna de estado de cobranza.
+
+### 21.3 Reporte Final — dos bases contables sobre las mismas tablas
+
+No hay tabla de "resultado". Cada vista es un conjunto de agregaciones:
+
+| Vista | Fuente de fecha | Nivel más profundo | Gastos pendientes |
+|-------|-----------------|--------------------|-------------------|
+| Ventas Vs. Compras (devengado) | `ventas.fecha_emision`, `compras.fecha_emision`, `notas_credito_debito.fecha_emision`, `gastos.fecha`, `otros_ingresos.fecha` | Categoría (Gastos: → Subcategoría) | **incluidos** |
+| Cobros Vs Pagos (caja) | `cobros.fecha`, `pagos.fecha`, `gastos.fecha`, `otros_ingresos.fecha` | Cuenta de Tesorería | **excluidos** |
+
+En la vista caja, la **categoría** de agrupación es la de la venta o compra de origen, no una del
+cobro/pago (`cobros` y `pagos` no tienen categoría propia, sólo `cuenta_tesoreria_id`). La jerarquía
+Categoría → Subcategoría de Gastos usa `categorias.categoria_padre_id`, igual que en la tanda 1.
+
+El servicio devuelve **todos los montos en positivo** con un campo `naturaleza` (`ingreso`/`egreso`).
+La convención de signos invertida que exporta Contagram se aplica sólo al escribir el Excel
+(réplica R2, ver `documentacion_principal_crm.md §6.6`), nunca en el modelo.
+
+*Fuente(s): `specs/068-informes-ventas-reporte-final/` (`research.md` R2, R5, R6; `data-model.md`)*
+
+## 22. Módulo Informes — Tanda 3 (spec 069): Rankings, "Arma tu Informe"
+
+> **Resumen**: la única tabla nueva del módulo. Todo lo demás se lee de las tablas ya existentes,
+> ampliando la proyección de `VentasInformeQuery` y `ComprasInformeQuery` (spec 067/068) con columnas
+> de dimensión que el detalle no necesitaba.
+
+### 22.1 `informes_vistas` — configuración de cruce, no datos
+
+| Columna | Tipo | Notas |
+|---------|------|-------|
+| `id` | bigint PK | |
+| `informe` | enum(`ventas`,`compras`) | a qué informe pertenece; una vista nunca se lista en el otro |
+| `descripcion` | string | rótulo de la pestaña guardada |
+| `config` | json | `{ filas[], columnas[], dato, accion, exclusiones{} }` — dimensiones y medidas, no valores |
+| `creado_por_id` | FK nullable → `users` | auditoría; **no** restringe quién ve la vista (son compartidas) |
+| `created_at` / `updated_at` | timestamps | |
+
+**Sin `deleted_at`**: no es documento fiscal ni contable — es configuración de presentación de un
+informe de sólo lectura. Eliminar una vista es un `DELETE` real y no afecta ningún dato de negocio.
+
+### 22.2 Dataset del pivot — ampliación de columnas, no tabla nueva
+
+`VentasInformeQuery` y `ComprasInformeQuery` (ya existentes) ganan columnas de dimensión al final de
+su proyección, sin tocar el orden ni las columnas que usa el detalle de las tandas 1/2:
+
+| Columna nueva | Ventas | Compras |
+|----------------|--------|---------|
+| `categoria` (raíz, con fallback "Sin categoría") | sí | sí |
+| `vendedor` (fallback "Sin vendedor") | sí | **no existe** — Compras no tiene vendedor |
+| `tipo_producto` (fallback "Sin tipo de producto") | sí | sí |
+| `proveedor` (fallback "Sin proveedor") | sí | ya existía en el detalle |
+| `descuento_pct` | sí | sí |
+| `etiquetas` | sí | sí |
+| `total_venta` / `total_compra` (con impuestos, a nivel línea) | sí | sí |
+| `comprobante_id` (técnica, para contar comprobantes distintos) | sí | sí |
+
+El dataset se corta a **50.000 filas**; superado, `422` pidiendo acotar el rango. El render del
+pivot se corta a **1.000 columnas**; superado, aviso en vez de dibujar.
+
+### 22.3 Medidas ("Dato") — nunca el total del comprobante
+
+"Total Venta"/"Total Compra" y su versión sin impuestos se miden **a nivel línea**. El total del
+comprobante (`ventas.total`, `compras.total`) **no** es una medida ofrecida: se repite por línea y
+sumarlo lo contaría de más — la misma trampa ya documentada para el detalle en la tanda 2 (§21.2).
+"Cantidad de Ventas/Compras" cuenta `comprobante_id` **distintos**, no líneas; "Cantidad de
+Productos" es la suma de `cantidad`.
+
+*Fuente(s): `specs/069-informes-rankings-pivot/` (`research.md` R1-R9; `data-model.md`)*

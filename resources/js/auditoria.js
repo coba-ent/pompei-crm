@@ -48,29 +48,15 @@
         let fechaDesde = cfg.hoy;
         let fechaHasta = cfg.hoy;
 
+        // Presets compartidos (`resources/js/rango-emision.js`, spec 067 T002/T003). Auditoría
+        // arranca acotada a hoy y **no** ofrece "Año actual": un año entero de bitácora es un
+        // rango que nadie pide desde un preset y que no conviene hacer barato de disparar.
         function opcionesRango() {
             const hoy = moment();
+            const opts = window.RangoEmision.opciones({ startDate: hoy.clone(), endDate: hoy.clone() });
+            delete opts.ranges['Año actual'];
 
-            return {
-                autoUpdateInput: false,
-                opens: 'left',
-                startDate: hoy.clone(),
-                endDate: hoy.clone(),
-                locale: {
-                    format: 'DD/MM/YYYY', applyLabel: 'Aplicar', cancelLabel: 'Borrar filtro',
-                    fromLabel: 'Desde', toLabel: 'Hasta', customRangeLabel: 'Desde - Hasta',
-                    daysOfWeek: ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'],
-                    monthNames: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'],
-                },
-                ranges: {
-                    Hoy: [hoy.clone(), hoy.clone()],
-                    Ayer: [hoy.clone().subtract(1, 'day'), hoy.clone().subtract(1, 'day')],
-                    'Última Semana': [hoy.clone().subtract(6, 'days'), hoy.clone()],
-                    'Mes actual': [hoy.clone().startOf('month'), hoy.clone().endOf('month')],
-                    'Mes anterior': [hoy.clone().subtract(1, 'month').startOf('month'), hoy.clone().subtract(1, 'month').endOf('month')],
-                    'Últimos 30 días': [hoy.clone().subtract(29, 'days'), hoy.clone()],
-                },
-            };
+            return opts;
         }
 
         if ($.fn.daterangepicker) {

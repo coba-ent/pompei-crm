@@ -2082,8 +2082,15 @@ Excel + PDF abajo a la derecha.
 | Tanda | Informes | Estado |
 |-------|----------|--------|
 | **1** | Compras, Gastos, Cuenta Corriente Proveedores | **spec 067 — IMPLEMENTADA** (14/08/2026) |
-| **2** | Ventas, Reporte Final | pendiente — bloqueada por una decisión de negocio abierta (ver abajo) |
-| **3** | Rankings / "Arma tu Informe" / vista consolidada `/graphs`, menú de gestión por fila en Cta Cte, ajustes al Informe de Stock | pendiente |
+| **2** | Ventas, Reporte Final | **spec 068 — IMPLEMENTADA** (15/08/2026) |
+| **3** | Rankings, "Arma tu Informe" (**sólo render tabla**) | **spec 069 — especificada, lista para implementar** (16/08/2026) |
+| **4** | Menú de gestión por fila en Cta Cte, ajustes al Informe de Stock | pendiente — spec por armar |
+
+> **Alcance acotado de la tanda 3, decidido por el cliente (15/08/2026)**: Rankings y "Arma tu
+> Informe" **sí** se construyen, pero el selector "Mostrar Como" queda **fijo en Tabla**. Se
+> descartan los demás modos de render de Contagram (mapa de calor, gráficos) y la vista consolidada
+> `/graphs`: el cliente confirmó que no los usa y que mostrar la misma información de muchas formas
+> sólo agranda la app. Un ranking es una tabla ordenada con su export; con eso alcanza.
 
 **Ya implementados de antes**: Informe de Stock (spec 003, §6.2) y Cta Cte Clientes (spec 029, §6.4).
 
@@ -2127,19 +2134,35 @@ Excel + PDF abajo a la derecha.
    (es decir, usa el informe como pantalla de gestión). Se deja fuera de la tanda 1; queda para la
    tanda 3.
 
-#### Bugs de Contagram detectados en el relevamiento — NO se replican
+#### Bugs de Contagram detectados en el relevamiento
 
-El análisis de los Excel exportados encontró inconsistencias reales del propio Contagram. Se
-documentan para que no se copien "por fidelidad":
+El análisis de los Excel exportados encontró inconsistencias reales del propio Contagram. **Dos de
+ellas SÍ se replican por decisión expresa del cliente (15/08/2026)** y dos no.
 
-- **Resultado de líneas de Nota de Crédito en el Excel de Ventas**: para ventas normales
-  `Resultado = Precio − CMV`, pero para la fila de NC el Excel exporta `-570` donde la pantalla
-  muestra `-170` — o sea suma en vez de restar cuando el comprobante es NC. Error acotado a esa celda
-  (no se propaga a los totales). **Regla del proyecto**: la fórmula se aplica igual a ventas y notas,
-  respetando el signo de cada columna, sin ramas por tipo de comprobante.
-- **Doble convención de signos en el Reporte Final**: en "Ventas Vs. Compras" el Total Egresos se
-  guarda negativo y el Resultado es una suma; en "Cobros Vs Pagos" se guarda positivo y el Resultado
-  es una resta. Al construir la tanda 2 se unifica (todo positivo + bandera ingreso/egreso).
+> **Cambio de criterio — 15/08/2026.** Este apartado decía originalmente que ninguno de estos bugs se
+> replicaba. Al especificar la tanda 2 el cliente eligió **fidelidad total**, para que los números de
+> los archivos exportados coincidan exactamente con los de Contagram al comparar. La decisión se
+> acota con una condición dura: **las dos réplicas viven sólo en la clase que escribe el Excel**,
+> nunca en el servicio de cálculo, de modo que pantalla, PDF, hoja plana y todos los totales
+> agregados siguen siendo correctos (ver spec 068 §Réplicas deliberadas y su `plan.md`).
+
+**Se replican (sólo en el Excel):**
+
+- **Resultado de líneas de Nota de Crédito en el Excel de Ventas** (réplica *R1*): para ventas
+  normales `Resultado = Precio − CMV`, pero para la fila de NC el Excel exporta `-570` donde la
+  pantalla muestra `-170` — o sea suma en vez de restar cuando el comprobante es NC. Error acotado a
+  esa celda: no se propaga a los totales. En nuestro CRM se replica **únicamente en la hoja legible
+  del Excel**; la pantalla, el PDF y la hoja plana aplican `Precio − CMV` a ventas y notas por igual,
+  sin ramas por tipo.
+- **Doble convención de signos en el Reporte Final** (réplica *R2*): en "Ventas Vs. Compras" el Total
+  Egresos se guarda negativo y el Resultado es una suma; en "Cobros Vs Pagos" se guarda positivo, el
+  Resultado es una resta, los subtotales por bloque van negativos y las líneas por cuenta de
+  tesorería positivas. Se replica **en las hojas legibles del Excel**; el servicio devuelve todo en
+  positivo con una bandera `naturaleza` (ingreso/egreso), la pantalla muestra egresos en positivo con
+  `Resultado = Ingresos − Egresos` en ambas vistas, y la hoja plana conserva el criterio unificado.
+
+**NO se replican:**
+
 - **Saldo corrido del Informe de Stock calculado sobre el orden de visualización** y no el
   cronológico, lo que produce saldos intermedios negativos que nunca existieron. A revisar contra
   nuestro §6.2 en la tanda 3.
@@ -2148,15 +2171,67 @@ documentan para que no se copien "por fidelidad":
   (es un indicador de valorización actual), pero **con tooltip explicativo obligatorio** para que no
   se confunda con el costo real de compra.
 
-#### Decisión abierta que bloquea la tanda 2
+#### Tanda 2 — spec 068 (Ventas, Reporte Final)
 
-El Informe de Ventas de Contagram tiene un bloque de KPIs **Precio Neto − Costo Mercadería Vendida =
-Resultado**. Nuestro `venta_items` **no guarda costo histórico** (sólo `precio_unitario`, descuento e
-IVA), y `productos.costo` es el costo vigente. Sin costo congelado al momento de la venta no hay CMV
-real — sólo se puede calcular "costo actual × cantidad", que es exactamente lo que hace Contagram y
-la causa de sus KPIs negativos. **Decisión pendiente del cliente**: agregar `costo_unitario` a
-`venta_items` y llenarlo al confirmar la venta (correcto, requiere migración) vs. replicar el cálculo
-con costo actual (fiel, arrastra el mismo defecto). Hasta resolverlo, la tanda 2 no se especifica.
+- **Informe de Ventas** (`/informes/ventas`): espejo estructural del de Compras. Tres bloques de
+  KPIs — **Total Ventas Creadas + Total Nota de Débito − Total Nota de Crédito = Total Ventas**;
+  Cantidad Prod./Serv. (suma de cantidades) / Cantidad Ventas Creadas / Venta Promedio / Costo
+  Actual; **Precio Neto − Costo Mercadería Vendida = Resultado**. Tabla con **una fila por ítem de
+  venta** y 12 columnas: Id, Fecha, Comprobante, Cliente, Prod./Serv., Cant., Precio Unitario, Costo
+  Total Actual, CMV Total, Precio Total Neto, Result., Total Comprobante (este último repetido por
+  fila, **no sumable**). Botones "Exportar Resumen" y "Exportar a PDF".
+- **Reporte Final** (`/informes/reporte-final`): resultado del período en dos vistas.
+  **Ventas Vs. Compras** (base devengado): `Ingresos → Ventas → Categoría`,
+  `Ingresos → Otros Ingresos → Categoría`, `Egresos → Compras → Categoría`,
+  `Egresos → Gastos → Categoría → Subcategoría`, **incluyendo gastos pendientes**.
+  **Cobros Vs Pagos** (base caja): la misma estructura con un nivel más por **Cuenta de Tesorería**,
+  imputando por la fecha del cobro/pago y **excluyendo los gastos pendientes**. Cada categoría lleva
+  un checkbox "Activo" que funciona como **simulador "qué pasaría si"**: destildarlo recalcula
+  subtotal de bloque, Total Ingresos/Egresos y Resultado en el instante del clic, sin ir al servidor
+  y sin tocar los datos; el escenario simulado también se refleja en los archivos exportados.
+
+  > **Cómo se identifica una categoría en el simulador** (decidido al implementar, 15/08/2026): por
+  > una **clave `bloque|id`** (p. ej. `ventas|3`) y no por el id de la categoría a secas. El nodo
+  > "Sin categoría" —que es un caso real, porque `ventas.categoria_id` y `compras.categoria_id` son
+  > nullable— no tiene id, y con el id solo habría quedado imposible de destildar. La clave viaja
+  > al servidor en `excluidas[]` al exportar.
+
+**Regla de negocio nueva — cómo se calcula el CMV (resuelve la decisión que bloqueaba esta tanda):**
+
+`venta_items` **no guarda costo histórico** y `productos.costo` es el costo vigente, así que el CMV
+real no es reconstruible desde el movimiento. Se adopta, **sin migración**:
+
+```
+CMV Total (línea) = costo_promedio_compras(producto) × cantidad
+costo_promedio_compras = SUM(compra_items.precio_unitario × cantidad) / SUM(cantidad)
+                         sobre las compras no eliminadas del producto, sin recorte temporal
+```
+
+Producto sin compras registradas → CMV 0. Es la única derivación compatible con los datos del
+relevamiento (los ítems de la venta Id 5 tienen Costo Total Actual > 0 y CMV 0 porque esos productos
+nunca se compraron; la Camisa del Id 6, comprada en el período, tiene CMV 200). Queda explícitamente
+distinguida de **Costo Actual**, que sí es `productos.costo × cantidad` y es un indicador de
+valorización vigente, no de costo real de compra. Si en el futuro se quiere CMV histórico exacto,
+hace falta congelar `costo_unitario` en `venta_items` al confirmar la venta — es una spec aparte.
+
+**Divergencias deliberadas de la tanda 2 respecto de Contagram:**
+
+1. **Excel de doble hoja también en Ventas y Reporte Final** (Contagram los exporta en una sola
+   hoja), por coherencia con el estándar del módulo fijado en la tanda 1.
+2. **Sin barra de pestañas en el Informe de Ventas**: "Rankings" y "Arma tu Informe" quedan para la
+   tanda 3 (con el alcance acotado de arriba), así que por ahora la pantalla es única.
+3. **El Reporte Final no usa DataTables server-side** (única excepción a la regla obligatoria #1):
+   no es un listado sino un árbol agregado de decenas de filas con checkboxes de simulación que
+   deben recalcular en el cliente. Justificado en `specs/068-.../plan.md` §Complexity Tracking.
+4. **No se replica** una omisión del export de Contagram: nuestro Excel completa siempre las celdas
+   Desde/Hasta en las dos vistas del Reporte Final (Contagram las deja vacías en "Cobros Vs Pagos").
+
+**Brecha abierta — 3 filtros del Informe de Ventas sin identificar**: el relevamiento declara un
+panel de **22 campos** pero enumera sólo **19** (Id, Producto/Servicio, Tipo de Producto/Servicio,
+Cliente, Productos, Facturado, Vendedor, Categoría de Venta, Proveedor, Etiqueta, Tipo y N° de
+Factura, Usuario, Nota Cliente, Nota Interna, Estado del Cobro, Tipo, Remitos, Tipo y N° de Remito,
+Transportista). Se construyen los 19; los 3 restantes **no se inventan** y quedan pendientes de
+re-relevamiento sobre la app real.
 
 #### Rankings / "Arma tu Informe" (tanda 3) — nota de arquitectura
 
@@ -2165,12 +2240,26 @@ Ventas y Compras en Contagram montan un motor de tablas dinámicas sobre **Pivot
 Líneas, Barras, Histograma), 4 opciones de "Dato" y hasta 7 de "Acción" (la lista de Acción **se
 reduce a "Suma"** cuando el Dato es un conteo), con drag & drop de 13 dimensiones y guardado de vistas
 personalizadas como **pestañas persistentes**. Su exportación a Excel es 100% client-side (SheetJS),
-sin ida al servidor. **Tensión con nuestras reglas**: PivotTable.js carga todo el dataset en memoria
-del navegador — por eso su export no toca el servidor —, lo que choca con la regla obligatoria de
-DataTables server-side y no escala al volumen real del negocio. Decisión de enfoque pendiente para la
-tanda 3.
+sin ida al servidor.
 
-*Fuente(s): `docs/Informe-Modulo-Informes-2026-08-14/`*
+**Decisión de arquitectura (spec 069, 16/08/2026)**: se adopta la misma librería (PivotTable.js),
+pero **vendorizada con un único renderer registrado ("Table")** — el recorte de "Mostrar Como" a sólo
+Tabla es entonces una propiedad estructural del bundle, no una opción escondida. El cruce se calcula
+**en el cliente**, sobre un dataset proyectado que el servidor entrega ya filtrado (mismo conjunto y
+mismos filtros que el detalle de cada informe, para que los totales concilien al centavo); es la
+misma excepción a "toda tabla es DataTables server-side" ya aceptada para el Reporte Final en la
+tanda 2, por el mismo motivo: es un agregado interactivo, no un listado paginable. La **exportación**
+NO es client-side como en Contagram: el cliente calcula la matriz y la manda al servidor, que la
+escribe con `HojaInforme` (mismo patrón de doble hoja del módulo) — evita sumar SheetJS como
+dependencia nueva y mantiene el mismo formato de archivo en los 9 exports del módulo. Detalle completo
+en `specs/069-informes-rankings-pivot/research.md` R1-R3.
+
+**Vistas guardadas**: se persisten en una tabla nueva, `informes_vistas` (config JSON, no datos),
+**compartidas por todo el negocio** y no por usuario — el CRM es de un solo equipo y duplicar el
+mismo cruce por persona no aporta. Una vista pertenece a un solo informe (Ventas o Compras) y no se
+lista en el otro. Sin soft delete: es configuración de presentación, no documento fiscal.
+
+*Fuente(s): `docs/Informe-Modulo-Informes-2026-08-14/`, `specs/069-informes-rankings-pivot/`*
 
 ---
 
