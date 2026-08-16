@@ -76,6 +76,19 @@ class VentaController extends Controller
      * Los subselects mantienen la definición exacta de los métodos del modelo:
      * `A Cobrar = Total + Σ ND − Σ NC − Cobrado`, y "vencido" es el A Cobrar > 0 de las ventas con
      * `fecha_vto_cobro` pasada. Si cambia esa fórmula en Venta, hay que reflejarla acá.
+     *
+     * ## Los cuatro importes cierran entre sí: `Cobrado + A Cobrar + Vencido = Total`
+     *
+     * Es la misma ecuación que muestra Contagram arriba de su listado, y se adoptó para que las
+     * dos pantallas se lean igual (16/08/2026). Implica dos cosas que antes no valían:
+     *
+     * - **Total es el neto**, `Σ (total + ND − NC)`, no `Σ total`. Sobre el histórico entero la
+     *   diferencia eran ~56 millones de notas de crédito que la pantalla no descontaba: el KPI
+     *   decía "Total Ventas" pero mostraba el facturado bruto.
+     * - **A Cobrar y Vencido son excluyentes.** Antes "A Cobrar" era todo lo pendiente y "Vencido"
+     *   un subconjunto suyo, así que sumarlos contaba dos veces lo vencido. Ahora "A Cobrar" es lo
+     *   pendiente **que todavía no venció**, y puede dar negativo cuando hay cobros adelantados
+     *   —igual que en Contagram—.
      */
     private function kpis(Request $request): array
     {
@@ -86,6 +99,12 @@ class VentaController extends Controller
         $nc = 'COALESCE(n.credito, 0)';
         $nd = 'COALESCE(n.debito, 0)';
         $aCobrar = "(ventas.total + {$nd} - {$nc} - {$cobrado})";
+        $neto = "(ventas.total + {$nd} - {$nc})";
+        // "Hoy" va como parámetro y no como `CURDATE()`: esa función no existe fuera de MySQL y
+        // dejaba el endpoint reventando en los tests (que corren sobre SQLite). De paso el corte
+        // pasa a ser el día del negocio y no el del servidor, que es UTC.
+        $hoy = now()->setTimezone(config('app.display_timezone'))->toDateString();
+        $estaVencido = "ventas.fecha_vto_cobro IS NOT NULL AND ventas.fecha_vto_cobro < ? AND {$aCobrar} > 0.005";
 
         $r = $this->aplicarFiltros(Venta::query(), $request)
             ->leftJoinSub(
@@ -103,15 +122,11 @@ class VentaController extends Controller
             )
             ->selectRaw("
                 COUNT(*) AS cantidad,
-                COALESCE(SUM(ventas.total), 0) AS total,
+                COALESCE(SUM({$neto}), 0) AS total,
                 COALESCE(SUM({$cobrado}), 0) AS cobrado,
-                COALESCE(SUM({$aCobrar}), 0) AS a_cobrar,
-                COALESCE(SUM(CASE
-                    WHEN ventas.fecha_vto_cobro IS NOT NULL
-                     AND ventas.fecha_vto_cobro < CURDATE()
-                     AND {$aCobrar} > 0.005
-                    THEN {$aCobrar} ELSE 0 END), 0) AS vencido
-            ")
+                COALESCE(SUM(CASE WHEN {$estaVencido} THEN 0 ELSE {$aCobrar} END), 0) AS a_cobrar,
+                COALESCE(SUM(CASE WHEN {$estaVencido} THEN {$aCobrar} ELSE 0 END), 0) AS vencido
+            ", [$hoy, $hoy])
             ->first();
 
         return [
