@@ -14,7 +14,12 @@ class DashboardPeriodoHoyTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Carbon::setTestNow('2026-06-15');
+
+        // Mediodía y NO medianoche: la app corre en UTC pero resuelve "hoy" con `->local()`
+        // (Argentina, UTC-3), así que `setTestNow('2026-06-15')` —medianoche UTC— caía a las
+        // 21:00 del 14 en hora local y el período "hoy" devolvía el día anterior. El desfasaje
+        // era del test, no del Dashboard.
+        Carbon::setTestNow('2026-06-15 12:00:00');
     }
 
     protected function tearDown(): void

@@ -33,8 +33,13 @@ class PresupuestoCalculoTest extends TestCase
         $this->assertSame(900.0, $resultado['subtotal_sin_descuento']);
         $this->assertSame(90.0, $resultado['descuento']); // 10% de 900
         $this->assertSame(810.0, $resultado['subtotal_con_descuento']);
-        // Total = subtotal_con_iva (900 + 21% = 1089) - descuento general (90)
-        $this->assertSame(999.0, $resultado['total']);
+        // El descuento general se prorratea sobre neto E IVA de cada ítem (commit a31ae93,
+        // spec 044): 1089 × 0.9 = 980.1. NO es 1089 − 90 = 999, que era la regla vieja de
+        // restar el descuento del total agregado sin discriminar por alícuota — ARCA rechazaba
+        // el CAE por inconsistencia de importes, porque cobraba IVA sobre plata que el cliente
+        // no paga. Ver "Descuento general aplicado proporcionalmente a neto e IVA" en
+        // docs/documentacion_principal_crm.md.
+        $this->assertSame(980.1, $resultado['total']);
     }
 
     public function test_percepciones_impuestos_e_intereses_suman_al_total(): void

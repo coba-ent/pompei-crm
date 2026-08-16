@@ -63,7 +63,10 @@ class FiltrosCompraTest extends TestCase
         $resp = $this->getJson(route('compras.data', ['proveedor_id' => $p1->id]));
 
         $ids = collect($resp->json('data'))->pluck('id');
-        $this->assertSame([$c1->id], $ids->all());
+        // assertEquals y no assertSame: el driver de los tests (SQLite) devuelve los ids
+        // como string y MySQL como int. Lo que se prueba es QUÉ filas trae el filtro, no
+        // de qué tipo PHP las entrega el PDO.
+        $this->assertEquals([$c1->id], $ids->all());
     }
 
     public function test_filtra_por_id(): void
@@ -74,7 +77,10 @@ class FiltrosCompraTest extends TestCase
         $resp = $this->getJson(route('compras.data', ['id' => $c1->id]));
 
         $ids = collect($resp->json('data'))->pluck('id');
-        $this->assertSame([$c1->id], $ids->all());
+        // assertEquals y no assertSame: el driver de los tests (SQLite) devuelve los ids
+        // como string y MySQL como int. Lo que se prueba es QUÉ filas trae el filtro, no
+        // de qué tipo PHP las entrega el PDO.
+        $this->assertEquals([$c1->id], $ids->all());
     }
 
     public function test_filtra_por_categoria_multiple(): void
@@ -89,7 +95,10 @@ class FiltrosCompraTest extends TestCase
         $resp = $this->getJson(route('compras.data', ['categoria_id' => [$cat1->id, $cat2->id]]));
 
         $ids = collect($resp->json('data'))->pluck('id')->sort()->values();
-        $this->assertSame(collect([$c1->id, $c2->id])->sort()->values()->all(), $ids->all());
+        // assertEquals y no assertSame: el driver de los tests (SQLite) devuelve los ids
+        // como string y MySQL como int. Lo que se prueba es QUÉ filas trae el filtro, no
+        // de qué tipo PHP las entrega el PDO.
+        $this->assertEquals(collect([$c1->id, $c2->id])->sort()->values()->all(), $ids->all());
     }
 
     public function test_filtra_por_estado_pago(): void
@@ -109,11 +118,17 @@ class FiltrosCompraTest extends TestCase
 
         $respParcial = $this->getJson(route('compras.data', ['estado_pago' => 'parcial']));
         $ids = collect($respParcial->json('data'))->pluck('id');
-        $this->assertSame([$parcial->id], $ids->all());
+        // assertEquals y no assertSame: el driver de los tests (SQLite) devuelve los ids
+        // como string y MySQL como int. Lo que se prueba es QUÉ filas trae el filtro, no
+        // de qué tipo PHP las entrega el PDO.
+        $this->assertEquals([$parcial->id], $ids->all());
 
         $respPagado = $this->getJson(route('compras.data', ['estado_pago' => 'pagado']));
         $ids = collect($respPagado->json('data'))->pluck('id');
-        $this->assertSame([$pagado->id], $ids->all());
+        // assertEquals y no assertSame: el driver de los tests (SQLite) devuelve los ids
+        // como string y MySQL como int. Lo que se prueba es QUÉ filas trae el filtro, no
+        // de qué tipo PHP las entrega el PDO.
+        $this->assertEquals([$pagado->id], $ids->all());
     }
 
     public function test_filtra_por_estado_pago_vencido(): void
@@ -129,7 +144,10 @@ class FiltrosCompraTest extends TestCase
         $resp = $this->getJson(route('compras.data', ['estado_pago' => 'vencido']));
 
         $ids = collect($resp->json('data'))->pluck('id');
-        $this->assertSame([$vencida->id], $ids->all());
+        // assertEquals y no assertSame: el driver de los tests (SQLite) devuelve los ids
+        // como string y MySQL como int. Lo que se prueba es QUÉ filas trae el filtro, no
+        // de qué tipo PHP las entrega el PDO.
+        $this->assertEquals([$vencida->id], $ids->all());
         $this->assertFalse($ids->contains($noVencidaAun->id));
         $this->assertFalse($ids->contains($sinVencimiento->id));
         $this->assertFalse($ids->contains($vencidaPeroPagada->id));
@@ -164,7 +182,10 @@ class FiltrosCompraTest extends TestCase
         $resp = $this->getJson(route('compras.data', ['etiqueta_id' => [$e1->id]]));
 
         $ids = collect($resp->json('data'))->pluck('id');
-        $this->assertSame([$c1->id], $ids->all());
+        // assertEquals y no assertSame: el driver de los tests (SQLite) devuelve los ids
+        // como string y MySQL como int. Lo que se prueba es QUÉ filas trae el filtro, no
+        // de qué tipo PHP las entrega el PDO.
+        $this->assertEquals([$c1->id], $ids->all());
     }
 
     public function test_filtra_por_facturado(): void
@@ -199,7 +220,10 @@ class FiltrosCompraTest extends TestCase
         $resp = $this->getJson(route('compras.data', ['medio_pago_id' => $cuenta1->id]));
 
         $ids = collect($resp->json('data'))->pluck('id');
-        $this->assertSame([$c1->id], $ids->all());
+        // assertEquals y no assertSame: el driver de los tests (SQLite) devuelve los ids
+        // como string y MySQL como int. Lo que se prueba es QUÉ filas trae el filtro, no
+        // de qué tipo PHP las entrega el PDO.
+        $this->assertEquals([$c1->id], $ids->all());
     }
 
     public function test_filtra_por_usuario_multiple(): void
@@ -212,7 +236,10 @@ class FiltrosCompraTest extends TestCase
         $resp = $this->getJson(route('compras.data', ['usuario_id' => [$u1->id]]));
 
         $ids = collect($resp->json('data'))->pluck('id');
-        $this->assertSame([$c1->id], $ids->all());
+        // assertEquals y no assertSame: el driver de los tests (SQLite) devuelve los ids
+        // como string y MySQL como int. Lo que se prueba es QUÉ filas trae el filtro, no
+        // de qué tipo PHP las entrega el PDO.
+        $this->assertEquals([$c1->id], $ids->all());
         $this->assertFalse($ids->contains($c2->id));
     }
 
@@ -224,7 +251,10 @@ class FiltrosCompraTest extends TestCase
         $resp = $this->getJson(route('compras.data', ['nota_interna' => 'revisar']));
 
         $ids = collect($resp->json('data'))->pluck('id');
-        $this->assertSame([$c1->id], $ids->all());
+        // assertEquals y no assertSame: el driver de los tests (SQLite) devuelve los ids
+        // como string y MySQL como int. Lo que se prueba es QUÉ filas trae el filtro, no
+        // de qué tipo PHP las entrega el PDO.
+        $this->assertEquals([$c1->id], $ids->all());
     }
 
     public function test_filtra_por_deposito(): void
@@ -237,7 +267,10 @@ class FiltrosCompraTest extends TestCase
         $resp = $this->getJson(route('compras.data', ['deposito_id' => $d1->id]));
 
         $ids = collect($resp->json('data'))->pluck('id');
-        $this->assertSame([$c1->id], $ids->all());
+        // assertEquals y no assertSame: el driver de los tests (SQLite) devuelve los ids
+        // como string y MySQL como int. Lo que se prueba es QUÉ filas trae el filtro, no
+        // de qué tipo PHP las entrega el PDO.
+        $this->assertEquals([$c1->id], $ids->all());
     }
 
     public function test_filtra_por_servicio_desde_hasta(): void
@@ -267,7 +300,10 @@ class FiltrosCompraTest extends TestCase
         ]));
 
         $ids = collect($resp->json('data'))->pluck('id');
-        $this->assertSame([$match->id], $ids->all());
+        // assertEquals y no assertSame: el driver de los tests (SQLite) devuelve los ids
+        // como string y MySQL como int. Lo que se prueba es QUÉ filas trae el filtro, no
+        // de qué tipo PHP las entrega el PDO.
+        $this->assertEquals([$match->id], $ids->all());
     }
 
     public function test_excluye_compras_sin_servicio_cargado_cuando_filtro_activo(): void
@@ -318,7 +354,10 @@ class FiltrosCompraTest extends TestCase
         ]));
 
         $ids = collect($resp->json('data'))->pluck('id');
-        $this->assertSame([$match->id], $ids->all());
+        // assertEquals y no assertSame: el driver de los tests (SQLite) devuelve los ids
+        // como string y MySQL como int. Lo que se prueba es QUÉ filas trae el filtro, no
+        // de qué tipo PHP las entrega el PDO.
+        $this->assertEquals([$match->id], $ids->all());
         $this->assertFalse($ids->contains($soloEmision->id));
     }
 }
