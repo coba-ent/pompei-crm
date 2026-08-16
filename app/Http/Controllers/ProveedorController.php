@@ -67,6 +67,9 @@ class ProveedorController extends Controller
     public function opciones(Request $request): JsonResponse
     {
         $opciones = Proveedor::query()
+            // Hoy el de ajuste está inactivo y ya quedaría afuera, pero el filtro va igual: que el
+            // proveedor interno no aparezca en un buscador no puede depender de un flag editable.
+            ->visibles()
             ->where('activo', true)
             ->when($request->filled('q'), function ($q) use ($request) {
                 $this->aplicarBusquedaFlexible($q, $request->input('q'));
@@ -90,6 +93,7 @@ class ProveedorController extends Controller
     private function queryFiltrada(Request $request): \Illuminate\Database\Eloquent\Builder
     {
         $query = Proveedor::query()
+            ->visibles()
             ->with(['condicionIva', 'categoria'])
             ->select('proveedores.*');
 
@@ -288,9 +292,9 @@ class ProveedorController extends Controller
     private function estadisticas(): array
     {
         return [
-            'total' => Proveedor::count(),
-            'activos' => Proveedor::where('activo', true)->count(),
-            'nuevos_mes' => Proveedor::whereYear('created_at', now()->year)
+            'total' => Proveedor::visibles()->count(),
+            'activos' => Proveedor::visibles()->where('activo', true)->count(),
+            'nuevos_mes' => Proveedor::visibles()->whereYear('created_at', now()->year)
                 ->whereMonth('created_at', now()->month)
                 ->count(),
         ];
