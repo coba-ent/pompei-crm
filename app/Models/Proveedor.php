@@ -23,6 +23,27 @@ class Proveedor extends Model
      */
     public const AJUSTE_CONCILIACION = 'AJUSTE CONCILIACION CONTAGRAM';
 
+    /**
+     * Contrapartida del anterior, con `saldo_inicial = +4650.00` al 16/08/2026.
+     *
+     * El desfasaje que tapa {@see self::AJUSTE_CONCILIACION} existe **sólo cuando se le pone
+     * fecha de corte al panel de Contagram**: verificado el 16/08/2026 contra 2021, 2022, 2023,
+     * 2024, 2025 y cada mes y día de 2026, todos piden el ajuste. Pero el panel **sin** fecha
+     * —el saldo de hoy— y la propia lista de Movimientos de Contagram dan 4.650 más, y ahí
+     * coinciden con el CRM sin ningún ajuste (12, 13 y 14/08 contrastados: 5 centavos).
+     *
+     * Como un `saldo_inicial` arranca en una fecha y sigue para siempre, el de 2021 no se puede
+     * "terminar": hace falta esta segunda entidad que lo cancela desde el 16/08/2026 en adelante.
+     * De ahí para acá los dos suman cero y el saldo de hoy queda limpio; hacia atrás sigue
+     * actuando sólo el primero y los cortes históricos siguen coincidiendo.
+     *
+     * Si algún día aparece la causa real del desfasaje, **hay que borrar los dos**, no uno.
+     */
+    public const AJUSTE_CONCILIACION_CIERRE = 'AJUSTE CONCILIACION CONTAGRAM - CIERRE';
+
+    /** Prefijo que comparten las dos entidades de ajuste, para ocultarlas de una. */
+    public const PREFIJO_AJUSTE = 'AJUSTE CONCILIACION CONTAGRAM%';
+
     protected $table = 'proveedores';
 
     protected $fillable = [
@@ -73,7 +94,7 @@ class Proveedor extends Model
      */
     public function scopeVisibles($query)
     {
-        return $query->where('proveedores.nombre', '<>', self::AJUSTE_CONCILIACION);
+        return $query->where('proveedores.nombre', 'not like', self::PREFIJO_AJUSTE);
     }
 
     public function condicionIva(): BelongsTo

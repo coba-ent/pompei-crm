@@ -58,9 +58,9 @@ class CuentaCorrienteProveedorController extends Controller
     private function saldos(Request $request)
     {
         $porProveedor = app(CuentaCorriente::class)->porCliente('proveedor')
-            // El proveedor de ajuste de conciliación suma en el total de Tesorería
-            // (a propósito) pero no se lista: no es un proveedor con el que se opere.
-            ->reject(fn (array $f) => ($f['proveedor_nombre'] ?? null) === Proveedor::AJUSTE_CONCILIACION)
+            // Los proveedores de ajuste de conciliación suman en el total de Tesorería
+            // (a propósito) pero no se listan: no son proveedores con los que se opere.
+            ->reject(fn (array $f) => str_starts_with((string) ($f['proveedor_nombre'] ?? ''), 'AJUSTE CONCILIACION CONTAGRAM'))
             ->values();
 
         if ($request->filled('proveedor_id')) {
@@ -137,9 +137,9 @@ class CuentaCorrienteProveedorController extends Controller
 
         $saldosIniciales = DB::table('proveedores')
             ->where('proveedores.saldo_inicial', '!=', 0)
-            // El proveedor de ajuste de conciliación no se lista (suma en el total
-            // de Tesorería, pero no es un movimiento que el negocio deba ver).
-            ->where('proveedores.nombre', '<>', Proveedor::AJUSTE_CONCILIACION)
+            // Los proveedores de ajuste de conciliación no se listan (suman en el total
+            // de Tesorería, pero no son movimientos que el negocio deba ver).
+            ->where('proveedores.nombre', 'not like', Proveedor::PREFIJO_AJUSTE)
             ->selectRaw(
                 'proveedores.id as id, proveedores.saldo_inicial_fecha as fecha_emision, proveedores.id as proveedor_id, '.
                 "'saldo_inicial' as operacion, NULL as categoria, NULL as total_compra, NULL as pagado, ".
