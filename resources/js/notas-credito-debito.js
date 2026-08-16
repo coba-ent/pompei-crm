@@ -152,7 +152,7 @@
         $('#f-afecta-si, #f-afecta-no').prop('disabled', true);
         $('input[name="f-afecta-stock"][value="' + (afectaStock ? '1' : '0') + '"]').prop('checked', true);
         $('#f-mes-imputacion').val(notaExistente.mes_imputacion);
-        $('#f-fecha-emision').val(notaExistente.fecha_emision);
+        AppFecha.set($('#f-fecha-emision'), notaExistente.fecha_emision);
         $('#f-tipo-comprobante').val(notaExistente.tipo_comprobante);
         $('#f-nro-comprobante').val(notaExistente.nro_comprobante);
         $('#f-nota-interna').val(notaExistente.nota_interna);
@@ -161,7 +161,7 @@
         $('#f-tipo').val(qs.tipo || 'credito').prop('disabled', false);
         $('input[name="f-afecta-stock"][value="' + (afectaStock ? '1' : '0') + '"]').prop('checked', true);
         $('#f-mes-imputacion').val(qs.mesImputacion || new Date().toISOString().slice(0, 7));
-        $('#f-fecha-emision').val(new Date().toISOString().slice(0, 10));
+        AppFecha.set($('#f-fecha-emision'), AppFecha.hoy());
     }
     refreshSelect2($('#f-tipo'));
 
@@ -460,7 +460,7 @@
             tipo: $('#f-tipo').val(),
             afecta_stock: afectaStock ? 1 : 0,
             mes_imputacion: $('#f-mes-imputacion').val(),
-            fecha_emision: $('#f-fecha-emision').val(),
+            fecha_emision: AppFecha.get($('#f-fecha-emision')),
             monto: totalActual(),
             tipo_comprobante: $('#f-tipo-comprobante').val(),
             nro_comprobante: $('#f-nro-comprobante').val(),
@@ -519,7 +519,7 @@
             toast('error', 'Ingresá una Descripción.');
             return false;
         }
-        if (!$('#f-fecha-emision').val()) { toast('error', 'Ingresá la fecha de Emisión.'); return false; }
+        if (!AppFecha.get($('#f-fecha-emision'))) { toast('error', 'Ingresá la fecha de Emisión.'); return false; }
         if (!totalActual()) { toast('error', 'El total tiene que ser mayor a 0.'); return false; }
         return true;
     }

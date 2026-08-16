@@ -43,11 +43,11 @@
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label">Desde</label>
-                                <input type="date" id="filtro-ledger-desde" class="form-control" value="{{ $desde->toDateString() }}">
+                                <input type="text" id="filtro-ledger-desde" class="form-control" data-fecha="{{ $desde->toDateString() }}" data-fecha-ar>
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label">Hasta</label>
-                                <input type="date" id="filtro-ledger-hasta" class="form-control" value="{{ $hasta->toDateString() }}">
+                                <input type="text" id="filtro-ledger-hasta" class="form-control" data-fecha="{{ $hasta->toDateString() }}" data-fecha-ar>
                             </div>
                         </div>
                     </div>

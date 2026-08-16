@@ -218,8 +218,8 @@
                 usuario_id: $('#filtro-usuario').val(),
                 nota_cliente: $('#filtro-nota-cliente').val(),
                 nota_interna: $('#filtro-nota-interna').val(),
-                servicio_desde: $('#filtro-servicio-desde').val(),
-                servicio_hasta: $('#filtro-servicio-hasta').val(),
+                servicio_desde: AppFecha.get($('#filtro-servicio-desde')),
+                servicio_hasta: AppFecha.get($('#filtro-servicio-hasta')),
             };
         }
 
@@ -458,7 +458,7 @@
             const defaults = data.defaults || {};
             if (defaults.categoriaId) { renderCategorias(defaults.categoriaId); }
             if (defaults.listaPrecioId) { $('#f-lista-precio').val(defaults.listaPrecioId); }
-            if (defaults.fechaValidez) { $('#f-fecha-validez').val(defaults.fechaValidez); }
+            if (defaults.fechaValidez) { AppFecha.set($('#f-fecha-validez'), defaults.fechaValidez); }
         }
         refreshSelect2($('#f-lista-precio'));
         if (Array.isArray(data.etiquetas)) {
@@ -836,10 +836,10 @@
                 categoria_id: $('#f-categoria').val() || null,
                 lista_precio_id: $('#f-lista-precio').val() || null,
                 vendedor_id: $('#f-vendedor').val() || null,
-                fecha_emision: $('#f-fecha-emision').val(),
-                fecha_validez: $('#f-fecha-validez').val() || null,
-                servicio_desde: $('#f-servicio-desde').val() || null,
-                servicio_hasta: $('#f-servicio-hasta').val() || null,
+                fecha_emision: AppFecha.get($('#f-fecha-emision')),
+                fecha_validez: AppFecha.get($('#f-fecha-validez')),
+                servicio_desde: AppFecha.get($('#f-servicio-desde')),
+                servicio_hasta: AppFecha.get($('#f-servicio-hasta')),
                 descuento_general_tipo: $('#f-descuento-general-toggle').data('modo') || 'porcentaje',
                 descuento_general_pct: ($('#f-descuento-general-toggle').data('modo') || 'porcentaje') === 'porcentaje' ? ($('#f-descuento-general').val() || null) : null,
                 descuento_general_monto: ($('#f-descuento-general-toggle').data('modo') || 'porcentaje') === 'monto' ? ($('#f-descuento-general').val() || null) : null,

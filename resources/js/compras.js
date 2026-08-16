@@ -191,8 +191,8 @@
                 usuario_id: $('#filtro-usuario').val(),
                 nota_interna: $('#filtro-nota-interna').val(),
                 deposito_id: $('#filtro-deposito').val(),
-                servicio_desde: $('#filtro-servicio-desde').val(),
-                servicio_hasta: $('#filtro-servicio-hasta').val(),
+                servicio_desde: AppFecha.get($('#filtro-servicio-desde')),
+                servicio_hasta: AppFecha.get($('#filtro-servicio-hasta')),
                 emision_desde: emisionDesde,
                 emision_hasta: emisionHasta,
                 vencimiento_desde: vencimientoDesde,
@@ -352,6 +352,7 @@
 
         initSelect2($('#f-deposito'), { placeholder: 'Seleccioná un Depósito' });
 
+
         initSelect2($('#f-proveedor'), {
             placeholder: 'Seleccionar Proveedor',
             ajax: {
@@ -394,7 +395,8 @@
             $('#f-descuento-general').val(data.descuentoGeneralPct);
         }
         if (data.notaInterna) { $('#f-nota-interna').val(data.notaInterna); }
-        if (data.fechaVtoPago) { $('#f-fecha-vto-pago').val(data.fechaVtoPago); }
+        // Campo de texto dd/mm/aaaa: se lee y escribe con `AppFecha`, nunca con `.val()` crudo.
+        if (data.fechaVtoPago) { AppFecha.set($('#f-fecha-vto-pago'), data.fechaVtoPago); }
         if (data.mesImputacionIva) { $('#f-mes-imputacion-iva').val(data.mesImputacionIva); }
 
         // Autocompletar Categoría de Compras al elegir Proveedor (FR-002).
@@ -701,9 +703,9 @@
                 categoria_id: $('#f-categoria').val() || null,
                 deposito_id: $('#f-deposito').val(),
                 nro_comprobante: $('#f-nro-comprobante').val(),
-                fecha_emision: $('#f-fecha-emision').val(),
+                fecha_emision: AppFecha.get($('#f-fecha-emision')),
                 tipo_comprobante: $('#f-tipo-comprobante').val(),
-                fecha_vto_pago: $('#f-fecha-vto-pago').val() || null,
+                fecha_vto_pago: AppFecha.get($('#f-fecha-vto-pago')),
                 mes_imputacion_iva: $('#f-mes-imputacion-iva').val() ? $('#f-mes-imputacion-iva').val() + '-01' : null,
                 descuento_general_tipo: $('#f-descuento-general-toggle').data('modo') || 'porcentaje',
                 descuento_general_pct: ($('#f-descuento-general-toggle').data('modo') || 'porcentaje') === 'porcentaje' ? ($('#f-descuento-general').val() || null) : null,
@@ -755,7 +757,7 @@
             $('#pago-total').text(money(data.total));
             $('#pago-a-pagar').text(money(data.aPagar));
             $('#pago-monto').val(data.aPagar);
-            $('#pago-fecha').val(new Date().toISOString().slice(0, 10));
+            AppFecha.set($('#pago-fecha'), AppFecha.hoy());
             $('#pago-nota').val('');
 
             const $cuentas = $('#pago-cuentas').empty();
@@ -773,7 +775,7 @@
             $.post(rutas.pagoStore, {
                 cuenta_tesoreria_id: cuentaId,
                 monto: $('#pago-monto').val(),
-                fecha: $('#pago-fecha').val(),
+                fecha: AppFecha.get($('#pago-fecha')),
                 nota: $('#pago-nota').val(),
             })
                 .done((resp) => {
@@ -810,7 +812,7 @@
         });
 
         $('#btn-agregar-retencion').on('click', function () {
-            $('#retencion-fecha').val(new Date().toISOString().slice(0, 10));
+            AppFecha.set($('#retencion-fecha'), AppFecha.hoy());
             $('#retencion-monto').val('');
             $('#retencion-comprobante').val('');
             $('#retencion-descripcion').val('');
@@ -818,7 +820,7 @@
         });
         $('#btn-guardar-retencion').on('click', function () {
             $.post(rutas.retencionStore, {
-                fecha: $('#retencion-fecha').val(),
+                fecha: AppFecha.get($('#retencion-fecha')),
                 monto: $('#retencion-monto').val(),
                 tipo_retencion: $('#retencion-tipo').val(),
                 nro_comprobante: $('#retencion-comprobante').val(),

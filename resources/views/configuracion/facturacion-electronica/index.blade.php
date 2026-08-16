@@ -113,11 +113,11 @@
                     <div class="row g-2">
                         <div class="col-6">
                             <label class="form-label">Fecha de emisión</label>
-                            <input type="date" class="form-control" name="fecha_emision">
+                            <input type="text" class="form-control" name="fecha_emision" data-fecha-ar>
                         </div>
                         <div class="col-6">
                             <label class="form-label">Fecha de vencimiento</label>
-                            <input type="date" class="form-control" name="fecha_vencimiento">
+                            <input type="text" class="form-control" name="fecha_vencimiento" data-fecha-ar>
                         </div>
                     </div>
                 </div>

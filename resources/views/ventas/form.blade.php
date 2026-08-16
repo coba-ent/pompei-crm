@@ -30,11 +30,15 @@
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Emisión</label>
-                        <input type="date" id="f-fecha-emision" class="form-control" value="{{ old('fecha_emision', now()->local()->format('Y-m-d')) }}">
+                        {{-- Texto + `data-fecha-ar` y NO `type=date`: el nativo se dibuja con el locale
+                             del navegador y mostraba 08/05/2026 para el 5 de agosto. El valor que viaja
+                             al backend sigue siendo ISO, vía `AppFecha.get()`. Ver `resources/js/fecha-ar.js`. --}}
+                        <input type="text" id="f-fecha-emision" class="form-control" data-fecha-ar
+                               data-fecha="{{ old('fecha_emision', now()->local()->format('Y-m-d')) }}">
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Vto. del Cobro <i class="fas fa-question-circle text-info" data-bs-toggle="tooltip" title="Fecha estimada de cobro"></i></label>
-                        <input type="date" id="f-fecha-vto-cobro" class="form-control">
+                        <input type="text" id="f-fecha-vto-cobro" class="form-control" data-fecha-ar>
                     </div>
                     <div class="col-md-2">
                         <label class="form-label">Tipo de Comprobante</label>
@@ -56,11 +60,11 @@
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Servicio Desde</label>
-                        <input type="date" id="f-servicio-desde" class="form-control">
+                        <input type="text" id="f-servicio-desde" class="form-control" data-fecha-ar>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Servicio Hasta</label>
-                        <input type="date" id="f-servicio-hasta" class="form-control">
+                        <input type="text" id="f-servicio-hasta" class="form-control" data-fecha-ar>
                     </div>
                     <div class="col-md-2">
                         <label class="form-label">Lista de Precios</label>

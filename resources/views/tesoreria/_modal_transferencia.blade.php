@@ -13,7 +13,7 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Fecha</label>
-                        <input type="date" class="form-control" id="transferencia-fecha" name="fecha" required>
+                        <input type="text" class="form-control" id="transferencia-fecha" name="fecha" required data-fecha-ar>
                         <div class="invalid-feedback" data-error="fecha"></div>
                     </div>
                     <div class="mb-3">

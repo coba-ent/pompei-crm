@@ -377,7 +377,7 @@
             const $wrap = $('#saldo-inicial-wrap').toggleClass('d-none');
             if (!$wrap.hasClass('d-none')) {
                 const $fecha = $wrap.find('[name="saldo_inicial_fecha"]');
-                if (!$fecha.val()) { $fecha.val(new Date().toISOString().slice(0, 10)); }
+                if (!AppFecha.get($fecha)) { AppFecha.set($fecha, AppFecha.hoy()); }
             }
         });
 
@@ -464,7 +464,7 @@
             const id = $('#cliente-id').val();
             const esEdicion = !!id;
             const url = esEdicion ? rutas.show + '/' + id : rutas.store;
-            const datos = $form.serializeArray();
+            const datos = AppFecha.serializeArray($form);
             if (esEdicion) { datos.push({ name: '_method', value: 'PATCH' }); }
 
             if (window.AppBtn) { window.AppBtn.loading('#btn-guardar-cliente', true); }
@@ -524,7 +524,13 @@
                 Object.keys(c).forEach(function (campo) {
                     const $input = $form.find('[name="' + campo + '"]');
                     if ($input.length && complejos.indexOf(campo) === -1) {
-                        $input.val(c[campo] === null ? '' : c[campo]);
+                        // Ver el comentario equivalente en `clientes.js`: asignar el ISO crudo a un
+                        // campo dd/mm/aaaa haría que se guarde vacío.
+                        if ($input.is('[data-fecha-ar]')) {
+                            AppFecha.set($input, c[campo]);
+                        } else {
+                            $input.val(c[campo] === null ? '' : c[campo]);
+                        }
                     }
                 });
                 (c.campos_personalizados || []).forEach(function (campo) { renderCampoAdicional(campo); });

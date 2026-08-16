@@ -203,11 +203,11 @@
         <div class="row g-2 mb-3">
             <div class="col-md-3">
                 <label class="form-label small text-muted mb-1">Desde</label>
-                <input type="date" class="form-control form-control-sm" id="ml-historial-desde">
+                <input type="text" class="form-control form-control-sm" id="ml-historial-desde" data-fecha-ar>
             </div>
             <div class="col-md-3">
                 <label class="form-label small text-muted mb-1">Hasta</label>
-                <input type="date" class="form-control form-control-sm" id="ml-historial-hasta">
+                <input type="text" class="form-control form-control-sm" id="ml-historial-hasta" data-fecha-ar>
             </div>
             <div class="col-md-3">
                 <label class="form-label small text-muted mb-1">Resultado</label>

@@ -70,7 +70,9 @@
                     </div>
                     <div class="col-md-2">
                         <label class="form-label">Emisión</label>
-                        <input type="date" id="f-fecha" class="form-control" value="{{ $editando ? $remito->fecha->format('Y-m-d') : now()->toDateString() }}">
+                        {{-- dd/mm/aaaa: ver `resources/js/fecha-ar.js`. Viaja ISO al backend. --}}
+                        <input type="text" id="f-fecha" class="form-control" data-fecha-ar
+                               data-fecha="{{ $editando ? $remito->fecha->format('Y-m-d') : now()->toDateString() }}">
                     </div>
                     <div class="col-md-1">
                         <label class="form-label">Tipo</label>

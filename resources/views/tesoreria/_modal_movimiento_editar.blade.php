@@ -11,7 +11,7 @@
                     <input type="hidden" id="movimiento-editar-id" name="id">
                     <div class="mb-3">
                         <label class="form-label">Fecha</label>
-                        <input type="date" class="form-control" id="movimiento-editar-fecha" name="fecha" required>
+                        <input type="text" class="form-control" id="movimiento-editar-fecha" name="fecha" required data-fecha-ar>
                         <div class="invalid-feedback" data-error="fecha"></div>
                     </div>
                     <div class="mb-3">

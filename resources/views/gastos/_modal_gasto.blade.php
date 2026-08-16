@@ -9,7 +9,8 @@
                 <input type="hidden" id="gasto-id">
                 <div class="mb-3">
                     <label class="form-label">Fecha</label>
-                    <input type="date" class="form-control" id="gasto-fecha">
+                    {{-- dd/mm/aaaa: ver `resources/js/fecha-ar.js`. Viaja ISO al backend. --}}
+                    <input type="text" class="form-control" id="gasto-fecha" data-fecha-ar>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Monto ($)</label>

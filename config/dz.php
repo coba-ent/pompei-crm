@@ -128,7 +128,6 @@ return [
 				'vendor/datatables/css/buttons.dataTables.min.css',
 				'vendor/toastr/css/toastr.min.css',
 				'vendor/select2/css/select2.min.css',
-				'vendor/bootstrap-datepicker-master/css/bootstrap-datepicker.min.css',
 			],
 			'js' => [
 				'vendor/datatables/js/jquery.dataTables.min.js',
@@ -136,7 +135,6 @@ return [
 				'vendor/datatables/js/buttons.colVis.min.js',
 				'vendor/toastr/js/toastr.min.js',
 				'vendor/select2/js/select2.full.min.js',
-				'vendor/bootstrap-datepicker-master/js/bootstrap-datepicker.min.js',
 				'js/custom.js',
 			],
 		],

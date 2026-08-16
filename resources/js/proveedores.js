@@ -329,7 +329,13 @@
                     Object.keys(p).forEach(function (campo) {
                         const $input = $form.find('[name="' + campo + '"]');
                         if ($input.length && complejos.indexOf(campo) === -1) {
-                            $input.val(p[campo] === null ? '' : p[campo]);
+                            // Ver el comentario equivalente en `clientes.js`: asignar el ISO crudo a
+                            // un campo dd/mm/aaaa haría que se guarde vacío.
+                            if ($input.is('[data-fecha-ar]')) {
+                                AppFecha.set($input, p[campo]);
+                            } else {
+                                $input.val(p[campo] === null ? '' : p[campo]);
+                            }
                         }
                     });
                     // Campos adicionales propios de este proveedor.
@@ -373,7 +379,7 @@
             const id = $('#proveedor-id').val();
             const esEdicion = !!id;
             const url = esEdicion ? rutas.show + '/' + id : rutas.store;
-            const datos = $form.serializeArray();
+            const datos = AppFecha.serializeArray($form);
             if (esEdicion) {
                 datos.push({ name: '_method', value: 'PATCH' });
             }
@@ -521,8 +527,8 @@
             const $wrap = $('#saldo-inicial-wrap').toggleClass('d-none');
             if (!$wrap.hasClass('d-none')) {
                 const $fecha = $wrap.find('[name="saldo_inicial_fecha"]');
-                if (!$fecha.val()) {
-                    $fecha.val(new Date().toISOString().slice(0, 10));
+                if (!AppFecha.get($fecha)) {
+                    AppFecha.set($fecha, AppFecha.hoy());
                 }
             }
         });

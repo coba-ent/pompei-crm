@@ -659,8 +659,8 @@
                 ajax: {
                     url: rutas.operaciones,
                     data: function (d) {
-                        d.desde = $('#ml-historial-desde').val();
-                        d.hasta = $('#ml-historial-hasta').val();
+                        d.desde = AppFecha.get($('#ml-historial-desde'));
+                        d.hasta = AppFecha.get($('#ml-historial-hasta'));
                         d.resultado = $('#ml-historial-resultado').val();
                     },
                 },

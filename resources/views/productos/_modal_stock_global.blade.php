@@ -15,7 +15,9 @@
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label">Fecha</label>
-                            <input type="date" class="form-control" name="fecha" value="{{ now()->local()->toDateString() }}">
+                            {{-- dd/mm/aaaa: ver `resources/js/fecha-ar.js`. Viaja ISO al backend. --}}
+                            <input type="text" class="form-control" name="fecha" data-fecha-ar
+                                   data-fecha="{{ now()->local()->toDateString() }}">
                             <div class="invalid-feedback" data-field="fecha"></div>
                         </div>
                         <div class="col-md-6">

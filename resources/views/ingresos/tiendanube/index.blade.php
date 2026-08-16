@@ -52,11 +52,11 @@
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Desde</label>
-                                <input type="date" id="filtro-desde" class="form-control">
+                                <input type="text" id="filtro-desde" class="form-control" data-fecha-ar>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Hasta</label>
-                                <input type="date" id="filtro-hasta" class="form-control">
+                                <input type="text" id="filtro-hasta" class="form-control" data-fecha-ar>
                             </div>
                             <div class="col-12 text-end">
                                 <button type="button" class="btn btn-light" id="btn-limpiar-filtros-tn">Limpiar</button>

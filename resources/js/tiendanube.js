@@ -370,8 +370,8 @@
                 ajax: {
                     url: rutas.historial,
                     data: function (d) {
-                        d.desde = $('#tn-historial-desde').val();
-                        d.hasta = $('#tn-historial-hasta').val();
+                        d.desde = AppFecha.get($('#tn-historial-desde'));
+                        d.hasta = AppFecha.get($('#tn-historial-hasta'));
                         d.resultado = $('#tn-historial-resultado').val();
                     },
                 },

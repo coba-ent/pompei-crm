@@ -73,15 +73,15 @@
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Emisión</label>
-                        <input type="date" id="f-fecha-emision" class="form-control">
+                        <input type="text" id="f-fecha-emision" class="form-control" data-fecha-ar>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Vto. del Pago/Servicio Desde</label>
-                        <input type="date" id="f-vto-desde" class="form-control">
+                        <input type="text" id="f-vto-desde" class="form-control" data-fecha-ar>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Servicio Hasta</label>
-                        <input type="date" id="f-vto-hasta" class="form-control">
+                        <input type="text" id="f-vto-hasta" class="form-control" data-fecha-ar>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Mes de Imputación</label>

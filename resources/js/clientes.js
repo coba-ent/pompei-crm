@@ -460,7 +460,15 @@
                     Object.keys(c).forEach(function (campo) {
                         const $input = $form.find('[name="' + campo + '"]');
                         if ($input.length && complejos.indexOf(campo) === -1) {
-                            $input.val(c[campo] === null ? '' : c[campo]);
+                            // Los campos de fecha guardan ISO pero MUESTRAN dd/mm/aaaa: si se les
+                            // asigna el ISO crudo, `AppFecha.serializeArray` no lo reconoce como
+                            // fecha argentina y lo manda vacío — o sea, abrir y guardar borraría
+                            // la fecha. Ver `resources/js/fecha-ar.js`.
+                            if ($input.is('[data-fecha-ar]')) {
+                                AppFecha.set($input, c[campo]);
+                            } else {
+                                $input.val(c[campo] === null ? '' : c[campo]);
+                            }
                         }
                     });
                     // Campos adicionales propios de este cliente (nombre/tipo/opciones/valor).
@@ -504,7 +512,7 @@
             const id = $('#cliente-id').val();
             const esEdicion = !!id;
             const url = esEdicion ? rutas.show + '/' + id : rutas.store;
-            const datos = $form.serializeArray();
+            const datos = AppFecha.serializeArray($form);
             if (esEdicion) {
                 datos.push({ name: '_method', value: 'PATCH' });
             }
@@ -653,8 +661,8 @@
             // Al abrirlo sin fecha cargada, prefijar hoy (fecha de apertura de la cta cte).
             if (!$wrap.hasClass('d-none')) {
                 const $fecha = $wrap.find('[name="saldo_inicial_fecha"]');
-                if (!$fecha.val()) {
-                    $fecha.val(new Date().toISOString().slice(0, 10));
+                if (!AppFecha.get($fecha)) {
+                    AppFecha.set($fecha, AppFecha.hoy());
                 }
             }
         });

@@ -560,6 +560,10 @@
 
         function abrirOp(tipo, productoId) {
             $formOp[0].reset();
+            // `reset()` restaura el atributo `value`, que en los campos de fecha quedó vacío al
+            // pasar el valor inicial a `data-fecha`. Sin esto la fecha del ajuste arranca en blanco
+            // en vez de en hoy. Ver `resources/js/fecha-ar.js`.
+            AppFecha.set($formOp.find('[data-fecha-ar]'), AppFecha.hoy());
             $formOp.find('.is-invalid').removeClass('is-invalid');
             $formOp.find('.invalid-feedback').text('');
             $('#stock-op-tipo').val(tipo);
@@ -610,7 +614,7 @@
             const esTransf = tipo === 'transferencia';
             const url = rutas.show + '/' + productoId + (esTransf ? '/transferencia' : '/stock');
             const datos = {
-                fecha: $formOp.find('[name="fecha"]').val(),
+                fecha: AppFecha.get($formOp.find('[name="fecha"]')),
                 cantidad: $formOp.find('[name="cantidad"]').val(),
                 descripcion: $formOp.find('[name="descripcion"]').val(),
                 variante_id: $formOp.find('[name="variante_id"]').val(),

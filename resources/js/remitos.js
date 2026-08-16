@@ -159,7 +159,7 @@
 
     function payload() {
         return {
-            fecha: $('#f-fecha').val(),
+            fecha: AppFecha.get($('#f-fecha')),
             tipo: $('#f-tipo').val(),
             transportista_id: $transportista.val() || null,
             domicilio_entrega: $('#f-domicilio-entrega').val(),

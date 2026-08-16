@@ -97,7 +97,7 @@
                                 <div class="row g-2">
                                     <div class="col-6">
                                         <label class="form-label">Fecha</label>
-                                        <input type="date" class="form-control" name="saldo_inicial_fecha">
+                                        <input type="text" class="form-control" name="saldo_inicial_fecha" data-fecha-ar>
                                         <div class="invalid-feedback" data-field="saldo_inicial_fecha"></div>
                                     </div>
                                     <div class="col-6">

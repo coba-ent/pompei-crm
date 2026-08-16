@@ -48,11 +48,15 @@
                         <label class="form-label">Emisión</label>
                         {{-- En edición tiene que arrancar en la fecha que la compra YA tiene; `now()`
                              es sólo el default del alta. Sin esto el submit la pisaba con la de hoy. --}}
-                        <input type="date" id="f-fecha-emision" class="form-control" value="{{ old('fecha_emision', optional($compra?->fecha_emision)->format('Y-m-d') ?? now()->local()->format('Y-m-d')) }}">
+                        {{-- Texto + `data-fecha-ar` y NO `type=date`: el nativo se dibuja con el locale
+                             del navegador y mostraba 08/05/2026 para el 5 de agosto. El valor que viaja
+                             al backend sigue siendo ISO, vía `AppFecha.get()`. Ver `resources/js/fecha-ar.js`. --}}
+                        <input type="text" id="f-fecha-emision" class="form-control" data-fecha-ar
+                               data-fecha="{{ old('fecha_emision', optional($compra?->fecha_emision)->format('Y-m-d') ?? now()->local()->format('Y-m-d')) }}">
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Vto. del Pago</label>
-                        <input type="date" id="f-fecha-vto-pago" class="form-control">
+                        <input type="text" id="f-fecha-vto-pago" class="form-control" data-fecha-ar>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Depósito</label>

@@ -131,11 +131,11 @@
         <div class="row g-2 mb-3">
             <div class="col-md-3">
                 <label class="form-label small text-muted mb-1">Desde</label>
-                <input type="date" class="form-control form-control-sm" id="tn-historial-desde">
+                <input type="text" class="form-control form-control-sm" id="tn-historial-desde" data-fecha-ar>
             </div>
             <div class="col-md-3">
                 <label class="form-label small text-muted mb-1">Hasta</label>
-                <input type="date" class="form-control form-control-sm" id="tn-historial-hasta">
+                <input type="text" class="form-control form-control-sm" id="tn-historial-hasta" data-fecha-ar>
             </div>
             <div class="col-md-3">
                 <label class="form-label small text-muted mb-1">Resultado</label>

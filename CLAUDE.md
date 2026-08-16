@@ -103,6 +103,27 @@ No son sugerencias: toda spec, plan, task e implementación debe cumplirlas.
    imprescindible porque en el handler de `select2:select` el cierre todavía está en curso. Ver
    `reabrirBuscador()` en `resources/js/ventas.js`.
 
+6. **Inputs de fecha**: **NUNCA** `<input type="date">`. El input nativo se dibuja con el locale
+   del **navegador**, no con el de la app: mostraba `08/05/2026` para el 5 de agosto, que en un
+   proyecto cuyo origen de datos ya venía con día y mes invertidos es indistinguible de un dato
+   malo. Todo campo de fecha va como `<input type="text" data-fecha-ar>`, con el valor inicial en
+   `data-fecha="{ISO}"`. El helper global `AppFecha` (`resources/js/fecha-ar.js`, cargado desde
+   `layouts/default.blade.php`) se auto-inicializa sobre cualquier `[data-fecha-ar]` del documento
+   y de los modales. Reglas:
+   - Leer con **`AppFecha.get($el)`** y escribir con **`AppFecha.set($el, iso)`**, nunca `.val()`
+     crudo — `.val()` devuelve `05/08/2026` y mandarlo al backend es exactamente el bug.
+   - En formularios que se envían enteros usar **`AppFecha.serializeArray($form)`** en lugar de
+     `$form.serializeArray()`, que lee el texto crudo (ver Cliente y Proveedor).
+   - En un llenado genérico de formulario (`$input.val(data[campo])` en un loop), chequear
+     `$input.is('[data-fecha-ar]')` y usar `AppFecha.set`: asignar el ISO crudo a un campo
+     dd/mm/aaaa hace que después se guarde **vacío**.
+   - Para "hoy" usar **`AppFecha.hoy()`**, no `new Date().toISOString().slice(0,10)`: `toISOString()`
+     es UTC y en Argentina (UTC-3) devuelve el día siguiente después de las 21:00.
+   - Hacia el backend el contrato **sigue siendo ISO** (`YYYY-MM-DD`): no se tocan validaciones ni
+     controladores. `tests/Feature/FechaIdaYVueltaTest.php` y `tests/js/fecha-ar.test.mjs` fijan ese
+     contrato — el caso peligroso son las fechas de día ≤ 12, que al invertirse siguen existiendo y
+     por eso se guardan mal en silencio.
+
 Consecuencias técnicas típicas: controladores que responden JSON para las operaciones AJAX,
 endpoints server-side para DataTables, validación que devuelve errores en JSON para mostrarlos en el
 modal/toast sin recargar, endpoints de PDF que devuelven `Content-Disposition: inline` (renderizables

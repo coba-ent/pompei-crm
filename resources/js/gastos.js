@@ -185,7 +185,7 @@
             $('#gasto-id').val(row ? row.id : '');
             $('#modal-gasto-titulo').text(row ? 'Editar Gasto' : 'Nuevo Gasto');
             $('#btn-guardar-gasto').text(row ? 'Guardar' : 'Crear');
-            $('#gasto-fecha').val(row ? row.fecha_raw : new Date().toISOString().slice(0, 10));
+            AppFecha.set($('#gasto-fecha'), row ? row.fecha_raw : AppFecha.hoy());
             $('#gasto-monto').val(row ? row.monto : '');
             $('#gasto-descripcion').val(row ? row.descripcion : '');
             $('#gasto-pendiente').prop('checked', row ? !!row.pendiente : false);
@@ -279,7 +279,7 @@
         $('#btn-guardar-gasto').on('click', function () {
             const id = $('#gasto-id').val();
             const payload = {
-                fecha: $('#gasto-fecha').val(),
+                fecha: AppFecha.get($('#gasto-fecha')),
                 monto: $('#gasto-monto').val(),
                 categoria_id: $('#gasto-categoria').val(),
                 cuenta_tesoreria_id: $('#gasto-pendiente').is(':checked') ? null : $('#gasto-cuenta').val(),

@@ -25,11 +25,14 @@
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Emisión</label>
-                        <input type="date" id="f-fecha-emision" class="form-control" value="{{ old('fecha_emision', optional($presupuesto?->fecha_emision)->format('Y-m-d') ?? now()->local()->format('Y-m-d')) }}">
+                        {{-- dd/mm/aaaa: ver `resources/js/fecha-ar.js`. Viaja ISO al backend. --}}
+                        <input type="text" id="f-fecha-emision" class="form-control" data-fecha-ar
+                               data-fecha="{{ old('fecha_emision', optional($presupuesto?->fecha_emision)->format('Y-m-d') ?? now()->local()->format('Y-m-d')) }}">
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Validez</label>
-                        <input type="date" id="f-fecha-validez" class="form-control" value="{{ optional($presupuesto?->fecha_validez)->format('Y-m-d') }}">
+                        <input type="text" id="f-fecha-validez" class="form-control" data-fecha-ar
+                               data-fecha="{{ optional($presupuesto?->fecha_validez)->format('Y-m-d') }}">
                     </div>
                     <div class="col-md-2">
                         <label class="form-label">Formas de Pago</label>
@@ -42,11 +45,13 @@
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Servicio Desde</label>
-                        <input type="date" id="f-servicio-desde" class="form-control" value="{{ optional($presupuesto?->servicio_desde)->format('Y-m-d') }}">
+                        <input type="text" id="f-servicio-desde" class="form-control" data-fecha-ar
+                               data-fecha="{{ optional($presupuesto?->servicio_desde)->format('Y-m-d') }}">
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Servicio Hasta</label>
-                        <input type="date" id="f-servicio-hasta" class="form-control" value="{{ optional($presupuesto?->servicio_hasta)->format('Y-m-d') }}">
+                        <input type="text" id="f-servicio-hasta" class="form-control" data-fecha-ar
+                               data-fecha="{{ optional($presupuesto?->servicio_hasta)->format('Y-m-d') }}">
                     </div>
                     <div class="col-md-2">
                         <label class="form-label">Métodos de Envío</label>

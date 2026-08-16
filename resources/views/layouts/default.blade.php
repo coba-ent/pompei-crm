@@ -11,6 +11,11 @@
 
 @include('elements.page-css', ['CurrentPage' => $CurrentPage])
 
+{{-- Calendario de los campos dd/mm/aaaa (`AppFecha`). Va global y no por pagelevel porque hay
+     campos de fecha en casi todos los módulos; declararlo pantalla por pantalla ya nos dejó
+     ventas y compras con el campo sin calendario. --}}
+<link href="{{ asset('vendor/bootstrap-datepicker-master/css/bootstrap-datepicker.min.css') }}" rel="stylesheet">
+
 </head>
 
 <body>
@@ -91,6 +96,14 @@
 
 
 @include('elements.page-js', ['CurrentPage' => $CurrentPage])
+
+{{-- Utilidad global de inputs de fecha en dd/mm/aaaa (`AppFecha`). Va acá, y no vista por vista,
+     porque hay campos de fecha en casi todos los módulos y porque se auto-inicializa sobre
+     cualquier `[data-fecha-ar]` del documento y de los modales. Tiene que cargar ANTES de los
+     bundles de pantalla (`local-js`), que la usan al inicializar. --}}
+<script src="{{ asset('vendor/bootstrap-datepicker-master/js/bootstrap-datepicker.min.js') }}"></script>
+<script src="{{ asset('vendor/bootstrap-datepicker-master/locales/bootstrap-datepicker.es.min.js') }}"></script>
+@vite(['resources/js/fecha-ar.js'])
 
 @yield('local-js')
 </body>

@@ -16,7 +16,7 @@
 
                     <div class="mb-3">
                         <label class="form-label">Fecha</label>
-                        <input type="date" class="form-control" id="cuenta-saldo-inicial-fecha" name="saldo_inicial_fecha" required>
+                        <input type="text" class="form-control" id="cuenta-saldo-inicial-fecha" name="saldo_inicial_fecha" required data-fecha-ar>
                         <div class="invalid-feedback" data-error="saldo_inicial_fecha"></div>
                     </div>
 

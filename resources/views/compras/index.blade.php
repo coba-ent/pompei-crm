@@ -191,12 +191,12 @@
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label">Servicio Desde</label>
-                                <input type="date" id="filtro-servicio-desde" class="form-control">
+                                <input type="text" id="filtro-servicio-desde" class="form-control" data-fecha-ar>
                             </div>
 
                             <div class="col-md-3">
                                 <label class="form-label">Servicio Hasta</label>
-                                <input type="date" id="filtro-servicio-hasta" class="form-control">
+                                <input type="text" id="filtro-servicio-hasta" class="form-control" data-fecha-ar>
                             </div>
 
                             <div class="col-12 text-end">

@@ -31,11 +31,11 @@
         <div class="row align-items-end mb-3 g-2">
             <div class="col-md-3">
                 <label class="form-label mb-1">Desde</label>
-                <input type="date" id="movimientos-desde" class="form-control" value="{{ $desde->toDateString() }}">
+                <input type="text" id="movimientos-desde" class="form-control" data-fecha="{{ $desde->toDateString() }}" data-fecha-ar>
             </div>
             <div class="col-md-3">
                 <label class="form-label mb-1">Hasta</label>
-                <input type="date" id="movimientos-hasta" class="form-control" value="{{ $hasta->toDateString() }}">
+                <input type="text" id="movimientos-hasta" class="form-control" data-fecha="{{ $hasta->toDateString() }}" data-fecha-ar>
             </div>
             <div class="col-md-6 text-md-end">
                 <button type="button" class="btn btn-outline-secondary" id="btn-exportar-movimientos">

@@ -145,7 +145,7 @@
             $('#ingreso-id').val(row ? row.id : '');
             $('#modal-ingreso-titulo').text(row ? 'Editar Ingreso' : 'Nuevo Ingreso');
             $('#btn-guardar-ingreso').text(row ? 'Guardar' : 'Crear');
-            $('#ingreso-fecha').val(row ? row.fecha_raw : new Date().toISOString().slice(0, 10));
+            AppFecha.set($('#ingreso-fecha'), row ? row.fecha_raw : AppFecha.hoy());
             $('#ingreso-monto').val(row ? row.monto : '');
             $('#ingreso-descripcion').val(row ? row.descripcion : '');
             $('#ingreso-pendiente').prop('checked', row ? !!row.pendiente : false);
@@ -257,7 +257,7 @@
         $('#btn-guardar-ingreso').on('click', function () {
             const id = $('#ingreso-id').val();
             const payload = {
-                fecha: $('#ingreso-fecha').val(),
+                fecha: AppFecha.get($('#ingreso-fecha')),
                 monto: $('#ingreso-monto').val(),
                 categoria_id: $('#ingreso-categoria').val(),
                 cuenta_tesoreria_id: $('#ingreso-pendiente').is(':checked') ? null : $('#ingreso-cuenta').val(),

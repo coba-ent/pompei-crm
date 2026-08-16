@@ -283,8 +283,8 @@
                 usuario_id: $('#filtro-usuario').val(),
                 nota_cliente: $('#filtro-nota-cliente').val(),
                 nota_interna: $('#filtro-nota-interna').val(),
-                servicio_desde: $('#filtro-servicio-desde').val(),
-                servicio_hasta: $('#filtro-servicio-hasta').val(),
+                servicio_desde: AppFecha.get($('#filtro-servicio-desde')),
+                servicio_hasta: AppFecha.get($('#filtro-servicio-hasta')),
                 emision_desde: emisionDesde,
                 emision_hasta: emisionHasta,
                 vencimiento_desde: vencimientoDesde,
@@ -554,6 +554,7 @@
         initSelect2($('#f-etiquetas'), { tags: true, tokenSeparators: [','], placeholder: 'Buscar o crear etiqueta...' });
         initSelect2($('#f-deposito'), { placeholder: 'Seleccioná un Depósito' });
 
+
         // ---- Cliente (catálogo editable inline: "Crear Cliente" + lápiz por fila, abren la
         // ficha COMPLETA de Cliente — mismo modal que en el módulo Clientes) ----
         if (window.ClienteModal) {
@@ -605,17 +606,19 @@
         const defaults = data.defaults || {};
         if (data.categoriaId) { renderCategorias(data.categoriaId); } else if (defaults.categoriaId) { renderCategorias(defaults.categoriaId); }
         if (data.listaPrecioId) { $('#f-lista-precio').val(data.listaPrecioId); } else if (defaults.listaPrecioId) { $('#f-lista-precio').val(defaults.listaPrecioId); }
-        if (data.fechaEmision) { $('#f-fecha-emision').val(data.fechaEmision); }
-        if (data.fechaVtoCobro) { $('#f-fecha-vto-cobro').val(data.fechaVtoCobro); }
-        if (data.servicioDesde) { $('#f-servicio-desde').val(data.servicioDesde); }
-        if (data.servicioHasta) { $('#f-servicio-hasta').val(data.servicioHasta); }
+        // Los campos de fecha son texto dd/mm/aaaa: se leen y escriben con `AppFecha`, nunca con
+        // `.val()` crudo, que devolvería `05/08/2026` y lo mandaría así al backend.
+        if (data.fechaEmision) { AppFecha.set($('#f-fecha-emision'), data.fechaEmision); }
+        if (data.fechaVtoCobro) { AppFecha.set($('#f-fecha-vto-cobro'), data.fechaVtoCobro); }
+        if (data.servicioDesde) { AppFecha.set($('#f-servicio-desde'), data.servicioDesde); }
+        if (data.servicioHasta) { AppFecha.set($('#f-servicio-hasta'), data.servicioHasta); }
         refreshSelect2($('#f-lista-precio'));
         if (data.venta && data.venta.tipo_comprobante) {
             $('#f-tipo-comprobante').val(data.venta.tipo_comprobante);
         } else if (defaults.tipoComprobante) {
             $('#f-tipo-comprobante').val(defaults.tipoComprobante);
         }
-        if (defaults.fechaVtoCobro && !$('#f-fecha-vto-cobro').val()) { $('#f-fecha-vto-cobro').val(defaults.fechaVtoCobro); }
+        if (defaults.fechaVtoCobro && !AppFecha.get($('#f-fecha-vto-cobro'))) { AppFecha.set($('#f-fecha-vto-cobro'), defaults.fechaVtoCobro); }
         $('#f-deposito').val(data.depositoId || defaults.depositoId || '').trigger('change.select2');
         if (!$('#f-deposito option').length) {
             $('#f-deposito').prop('disabled', true);
@@ -1029,11 +1032,11 @@
                 lista_precio_id: $('#f-lista-precio').val() || null,
                 vendedor_id: $('#f-vendedor').val() || null,
                 deposito_id: $('#f-deposito').val(),
-                fecha_emision: $('#f-fecha-emision').val(),
-                servicio_desde: $('#f-servicio-desde').val() || null,
-                servicio_hasta: $('#f-servicio-hasta').val() || null,
+                fecha_emision: AppFecha.get($('#f-fecha-emision')),
+                servicio_desde: AppFecha.get($('#f-servicio-desde')),
+                servicio_hasta: AppFecha.get($('#f-servicio-hasta')),
                 tipo_comprobante: $('#f-tipo-comprobante').val(),
-                fecha_vto_cobro: $('#f-fecha-vto-cobro').val() || null,
+                fecha_vto_cobro: AppFecha.get($('#f-fecha-vto-cobro')),
                 descuento_general_tipo: $('#f-descuento-general-toggle').data('modo') || 'porcentaje',
                 descuento_general_pct: ($('#f-descuento-general-toggle').data('modo') || 'porcentaje') === 'porcentaje' ? ($('#f-descuento-general').val() || null) : null,
                 descuento_general_monto: ($('#f-descuento-general-toggle').data('modo') || 'porcentaje') === 'monto' ? ($('#f-descuento-general').val() || null) : null,
@@ -1099,7 +1102,7 @@
             $('#cobranza-total').text(money(data.total));
             $('#cobranza-a-cobrar').text(money(data.aCobrar));
             $('#cobranza-monto').val(editando ? cobro.monto : data.aCobrar);
-            $('#cobranza-fecha').val(editando ? cobro.fecha : new Date().toISOString().slice(0, 10));
+            AppFecha.set($('#cobranza-fecha'), editando ? cobro.fecha : AppFecha.hoy());
             $('#cobranza-nota').val(editando ? (cobro.nota || '') : '');
             cuentaSeleccionadaEdicion = editando ? cobro.cuentaId : null;
 
@@ -1129,7 +1132,7 @@
             $.post(rutas.cobranzaStore, {
                 cuenta_tesoreria_id: cuentaId,
                 monto: $('#cobranza-monto').val(),
-                fecha: $('#cobranza-fecha').val(),
+                fecha: AppFecha.get($('#cobranza-fecha')),
             })
                 .done((resp) => {
                     toast('success', resp.mensaje || 'Venta actualizada con éxito.');
@@ -1156,7 +1159,7 @@
                 data: {
                     cuenta_tesoreria_id: cuentaSeleccionadaEdicion,
                     monto: $('#cobranza-monto').val(),
-                    fecha: $('#cobranza-fecha').val(),
+                    fecha: AppFecha.get($('#cobranza-fecha')),
                     nota: $('#cobranza-nota').val(),
                 },
             })

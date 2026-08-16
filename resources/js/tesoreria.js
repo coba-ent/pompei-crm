@@ -211,14 +211,14 @@
             limpiarErroresCuenta();
             $('#cuenta-sistema-aviso').addClass('d-none');
             $('#btn-eliminar-cuenta').addClass('d-none');
-            $('#cuenta-saldo-inicial-fecha').val(new Date().toISOString().slice(0, 10));
+            AppFecha.set($('#cuenta-saldo-inicial-fecha'), AppFecha.hoy());
 
             if (cuenta) {
                 $('#modal-cuenta-tesoreria-titulo').text('Editar Cuenta');
                 $('#cuenta-id').val(cuenta.id);
                 $('#cuenta-nombre').val(cuenta.nombre);
                 $('#cuenta-saldo-inicial').val(cuenta.saldo_inicial);
-                $('#cuenta-saldo-inicial-fecha').val((cuenta.saldo_inicial_fecha || '').slice(0, 10));
+                AppFecha.set($('#cuenta-saldo-inicial-fecha'), cuenta.saldo_inicial_fecha);
                 $tipoSelect.val(cuenta.tipo).trigger('change.select2').prop('disabled', true);
                 $('#cuenta-visible-wrap').removeClass('d-none');
                 $('#cuenta-visible-mostrar, #cuenta-visible-ocultar').prop('checked', false);
@@ -277,7 +277,7 @@
                 nombre: $('#cuenta-nombre').val(),
                 tipo: $tipoSelect.val(),
                 saldo_inicial: $('#cuenta-saldo-inicial').val() || 0,
-                saldo_inicial_fecha: $('#cuenta-saldo-inicial-fecha').val(),
+                saldo_inicial_fecha: AppFecha.get($('#cuenta-saldo-inicial-fecha')),
             };
 
             let promesa;
@@ -357,7 +357,7 @@
             $formTransf[0].reset();
             $formTransf.find('.is-invalid').removeClass('is-invalid');
             $formTransf.find('[data-error]').text('');
-            $('#transferencia-fecha').val(new Date().toISOString().slice(0, 10));
+            AppFecha.set($('#transferencia-fecha'), AppFecha.hoy());
             $('#transferencia-cuenta-salida, #transferencia-cuenta-entrada').val(null).trigger('change');
             modalTransf ? modalTransf.show() : $modalTransf.show();
         }
@@ -371,7 +371,7 @@
             $formTransf.find('[data-error]').text('');
 
             const datos = {
-                fecha: $('#transferencia-fecha').val(),
+                fecha: AppFecha.get($('#transferencia-fecha')),
                 monto: $('#transferencia-monto').val(),
                 cuenta_salida_id: $('#transferencia-cuenta-salida').val(),
                 cuenta_entrada_id: $('#transferencia-cuenta-entrada').val(),
@@ -434,8 +434,8 @@
                     url: rutas.ledgerData,
                     data: function (d) {
                         d.tipo_operacion = $('#filtro-tipo-operacion').val();
-                        d.desde = $('#filtro-ledger-desde').val();
-                        d.hasta = $('#filtro-ledger-hasta').val();
+                        d.desde = AppFecha.get($('#filtro-ledger-desde'));
+                        d.hasta = AppFecha.get($('#filtro-ledger-hasta'));
                     },
                 },
                 columns: [
@@ -506,7 +506,7 @@
                 $formMovEditar[0].reset();
                 $formMovEditar.find('.is-invalid').removeClass('is-invalid');
                 $('#movimiento-editar-id').val(fila.id);
-                $('#movimiento-editar-fecha').val((fila.fecha || '').slice(0, 10));
+                AppFecha.set($('#movimiento-editar-fecha'), fila.fecha);
                 $('#movimiento-editar-monto').val(fila.monto);
                 $('#movimiento-editar-observacion').val(fila.observacion);
                 modalMovEditar ? modalMovEditar.show() : $modalMovEditar.show();
@@ -516,7 +516,7 @@
                 e.preventDefault();
                 const id = $('#movimiento-editar-id').val();
                 const datos = {
-                    fecha: $('#movimiento-editar-fecha').val(),
+                    fecha: AppFecha.get($('#movimiento-editar-fecha')),
                     monto: $('#movimiento-editar-monto').val(),
                     observacion: $('#movimiento-editar-observacion').val(),
                 };
@@ -597,8 +597,8 @@
 
             function cargarMovimientos() {
                 $.getJSON(rutas.movimientosData, {
-                    desde: $('#movimientos-desde').val(),
-                    hasta: $('#movimientos-hasta').val(),
+                    desde: AppFecha.get($('#movimientos-desde')),
+                    hasta: AppFecha.get($('#movimientos-hasta')),
                 }).done(function (resp) {
                     renderDesglose($tablaCobros, resp.cobros);
                     renderDesglose($('#tabla-desglose-pagos tbody'), resp.pagos);
@@ -614,8 +614,8 @@
 
             function parametrosExport() {
                 const params = new URLSearchParams();
-                params.set('desde', $('#movimientos-desde').val());
-                params.set('hasta', $('#movimientos-hasta').val());
+                params.set('desde', AppFecha.get($('#movimientos-desde')) || '');
+                params.set('hasta', AppFecha.get($('#movimientos-hasta')) || '');
                 $('.js-cuenta-activa:checked').each(function () {
                     params.append('cuentas_activas[]', $(this).data('cuenta-id'));
                 });

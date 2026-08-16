@@ -53,8 +53,8 @@
             return {
                 estado_orden: $('#filtro-estado-orden').val(),
                 estado_conversion: $('#filtro-estado-conversion').val(),
-                desde: $('#filtro-desde').val(),
-                hasta: $('#filtro-hasta').val(),
+                desde: AppFecha.get($('#filtro-desde')),
+                hasta: AppFecha.get($('#filtro-hasta')),
             };
         }
 
