@@ -44,6 +44,26 @@ class Venta extends Model
         'total' => 'decimal:2',
     ];
 
+    /**
+     * Una venta sin fecha de vencimiento vence el día que se emite.
+     *
+     * Va en el modelo y no en el controlador porque las ventas se crean por muchas puertas —alta
+     * manual, conversión de Presupuesto, Mercado Libre, Tiendanube, los comandos de importación— y
+     * sólo el alta manual pedía el campo. El resto las dejaba en `NULL`, y una venta sin
+     * vencimiento **nunca figura como vencida**: ni en el KPI del listado ni en el aging de la
+     * Cuenta Corriente, que también tratan el `NULL` como "a vencer". El agujero se abrió el
+     * 06/08/2026 y para el 16/08 ya eran 200 ventas.
+     *
+     * El default no se inventa: en el export de Contagram las 3.529 ventas de 2026 tienen
+     * vencimiento cargado y en las 3.529 coincide con la emisión.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (self $venta) {
+            $venta->fecha_vto_cobro ??= $venta->fecha_emision;
+        });
+    }
+
     public function cliente(): BelongsTo
     {
         return $this->belongsTo(Cliente::class);
