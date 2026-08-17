@@ -952,6 +952,21 @@ Control después de cada pasada: **total de ventas, cobros, movimientos de tesor
 stock idénticos al centavo**. Sólo bajó lo derivado de la línea (Precio Neto y Resultado del Informe
 de Ventas, y las medidas del pivot).
 
+**También aplicado en producción** (VPS `pompeisanitarioscontable.cloud`, 17/08/2026 01:30). El VPS
+no tiene los Excel de origen —pesan cientos de MB—, así que el plan se calculó acá contra la base
+viva por un túnel SSH (`ssh -L 3307:127.0.0.1:3306`) y se volcó con `--sql`. Salió **byte a byte
+idéntico** al calculado contra la copia local, o sea que ninguna de las 55 ventas se había movido.
+
+Cada UPDATE lleva guarda (`WHERE id = X AND ABS(subtotal - <valor esperado>) < 0.02`): si la fila ya
+hubiera cambiado, no escribe en vez de pisarla. La transacción se manejó desde el cliente y no con
+`mysql < archivo`, para que el COMMIT fuera **condicional** — se confirma sólo si las cuatro cifras
+de plata quedan iguales y si se tocaron exactamente 173 líneas y 55 ventas. Backup previo de las dos
+tablas en `/root/backups/bonif_20260817.sql`.
+
+Detectadas allá: 163 ventas con el defecto (2 más que en la copia local, por ventas de ML posteriores
+al snapshot). Corregidas las mismas 55; quedaron 108. Verificado después del COMMIT que la venta
+15253 y la 24209 abren, calculan estado y generan su PDF sin error.
+
 ### Lo que queda pendiente
 
 **108 ventas por $963.441 siguen con el desglose sin cerrar**, y no se pueden reconstruir con los
