@@ -97,6 +97,7 @@ class RefrescarVentasEditadas extends Command
 
             $items = array_map(fn ($f) => $this->item($lector, $f), $renglones);
             $subtotal = round(array_sum(array_column($items, 'subtotal')), 2);
+            $sinDescuento = round(array_sum(array_column($items, '_sin_descuento')), 2);
 
             $filas[] = [$venta->id, $venta->fecha_emision?->format('Y-m-d'),
                 number_format((float) $venta->total, 2), number_format($total, 2),
@@ -107,10 +108,11 @@ class RefrescarVentasEditadas extends Command
                 continue;
             }
 
-            DB::transaction(function () use ($venta, $total, $subtotal, $items) {
+            DB::transaction(function () use ($venta, $total, $subtotal, $sinDescuento, $items) {
                 $venta->update([
                     'total' => $total,
-                    'subtotal_sin_descuento' => $subtotal,
+                    'subtotal_sin_descuento' => $sinDescuento,
+                    'descuento' => round($sinDescuento - $subtotal, 2),
                     'subtotal_con_descuento' => $subtotal,
                 ]);
 
@@ -119,6 +121,7 @@ class RefrescarVentasEditadas extends Command
                 VentaItem::where('venta_id', $venta->id)->delete();
 
                 foreach ($items as $item) {
+                    unset($item['_sin_descuento']);
                     $vi = new VentaItem($item + ['venta_id' => $venta->id]);
                     $vi->created_at = $venta->created_at;
                     $vi->updated_at = $venta->created_at;
@@ -143,7 +146,15 @@ class RefrescarVentasEditadas extends Command
     {
         $cantidad = (float) ($lector->numero($f['Cantidad'] ?? null) ?? 1);
         $precio = (float) ($lector->numero($f['Precio Unitario'] ?? null) ?? 0);
-        $subtotal = round($cantidad * $precio, 2);
+
+        // El renglón puede estar bonificado, y el detallado lo trae desglosado. `cantidad × precio`
+        // es el precio de lista: usarlo solo dejaba el neto inflado con el total correcto (el mismo
+        // defecto que tenía `ComprobantesContagram::armarItem`, corregido el 16/08/2026).
+        $sinDescuento = $lector->numero($f['Subtotal sin Descuento'] ?? null) ?? round($cantidad * $precio, 2);
+        $subtotal = round($lector->numero($f['Subtotal con Descuento'] ?? null) ?? $sinDescuento, 2);
+        $descuentoPct = $sinDescuento > 0.005
+            ? max(0.0, min(100.0, round(($sinDescuento - $subtotal) / $sinDescuento * 100, 2)))
+            : 0.0;
 
         $iva = 0.0;
         foreach (self::COLUMNAS_IVA as $pct => $columna) {
@@ -162,8 +173,11 @@ class RefrescarVentasEditadas extends Command
             'descripcion' => $lector->texto($f['Producto/Servicio'] ?? null) ?? 'Sin descripción',
             'cantidad' => $cantidad,
             'precio_unitario' => $precio,
+            'descuento_pct' => $descuentoPct,
             'iva_pct' => $iva,
             'subtotal' => $subtotal,
+            // Sólo para el subtotal de cabecera; se saca antes de construir el VentaItem.
+            '_sin_descuento' => round($sinDescuento, 2),
             'subtotal_con_iva' => round($subtotal * (1 + $iva / 100), 2),
         ];
     }

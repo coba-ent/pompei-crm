@@ -902,5 +902,69 @@ a cobrar. Lo que no cierra es `neto de línea × 1,21` contra el total.
 **De las 27, 26 son ventas 100% bonificadas con total $0** (la plata está bien igual). **Sólo la
 24209 tiene descuento parcial** y es la única con impacto real en un informe.
 
-**Pendiente de decidir**: si se reconstruye el `descuento_pct` de cada línea desde el origen o se
-deja como está. No se tocó ningún dato.
+### 17/08/2026 — Corregido, y el alcance real era 6 veces mayor
+
+**Verificado contra Contagram antes de tocar nada**: la venta 15253 (05/11/2024, $398.000 de
+descuento) se abrió en Contagram y su PDF muestra **`% Bonif. 100%` y `Subtotal $0,00` en las dos
+líneas**, con Total $0. Confirma que el total nuestro está bien y lo que estaba mal era el renglón.
+
+**Causa raíz encontrada** — `ComprobantesContagram::armarItem()`:
+
+```php
+$subtotal = $L->numero($f['Subtotal con Descuento'] ?? null);
+if ($subtotal === null || abs($subtotal) < 0.005) {   // ← el bug
+    $subtotal = $cantidad * $precio;
+}
+```
+
+El fallback a `cantidad × precio` existe porque en 2021 la columna viene **vacía**. Pero trataba
+también un **cero** como hueco, y en un renglón bonificado al 100% ese cero es el dato: se reponía el
+precio de lista. `RefrescarVentasEditadas::item()` tenía el mismo defecto en otra forma — calculaba
+el subtotal como `cantidad × precio` sin mirar nunca las columnas de descuento.
+
+Los dos quedaron corregidos, y ambos comandos ahora graban `venta_items.descuento_pct`.
+
+**El alcance real no eran 27 sino 136 + 27.** El criterio de detección original
+(`subtotal_sin_descuento = subtotal_con_descuento`) era demasiado angosto: dejaba afuera las ventas
+donde el importador sí había separado los subtotales de **cabecera** pero igual no había bajado la
+bonificación al renglón. El criterio correcto es el síntoma: `descuento > 0` y
+`SUM(venta_items.subtotal_con_iva) ≠ ventas.total`. Con ese criterio apareció, entre otras, la venta
+20288 ($1.346.035 — la más grande de todas), que la primera pasada no había visto.
+
+**Comando**: `migracion:corregir-bonificacion` (`--aplicar`, `--dir=` para los detallado,
+`--imports=`). Idempotente, con backup en `storage/app/`, y escribe con `DB::table` para no despertar
+los observers de venta. Cubierto por `tests/Feature/BonificacionPorLineaTest.php` (8 tests).
+
+Reconstruye por dos caminos: el export por ítem cuando trae los subtotales del renglón y alinea con
+los ítems guardados; y la regla del 100% (total 0 y descuento igual al neto) cuando el archivo no
+tiene el dato. **Si no puede resolver una venta, no la toca**: repartir un descuento adivinado sobre
+renglones equivocados sería inventar datos.
+
+**Resultado en la base nueva** (dos pasadas, 17/08/2026):
+
+| | Ventas | Líneas | Baja del Precio Neto |
+|---|---:|---:|---:|
+| 1ª pasada (criterio angosto) | 27 | 66 | $1.733.682,37 |
+| 2ª pasada (criterio por síntoma) | 28 | 107 | $2.013.261,64 |
+| **Total corregido** | **55** | **173** | **$3.746.944,01** |
+
+Control después de cada pasada: **total de ventas, cobros, movimientos de tesorería y movimientos de
+stock idénticos al centavo**. Sólo bajó lo derivado de la línea (Precio Neto y Resultado del Informe
+de Ventas, y las medidas del pivot).
+
+### Lo que queda pendiente
+
+**108 ventas por $963.441 siguen con el desglose sin cerrar**, y no se pueden reconstruir con los
+archivos que hay:
+
+- **91 son de 2021**, cuyo export por ítem **no pobla ninguna columna de subtotal** (§3.10). El dato
+  simplemente no está en el archivo.
+- Las otras 17 (2023-2026) tampoco alinean contra su export.
+
+Para cerrarlas hace falta pedirle a Contagram un **"Informe de Ventas Detallado" de esos períodos**,
+que sí trae `Subtotal sin Descuento` / `Subtotal con Descuento` por renglón — el mismo archivo que se
+usó para el tramo 06→13/08/2026.
+
+**Aparte, 5 ventas por $600.286 no cierran y NO tienen descuento**: es otra causa, no ésta. Las dos
+más grandes son la 24477 y la 24478 (13/08/2026), donde el desglose queda **corto** contra el total en
+vez de largo. Sin diagnosticar.

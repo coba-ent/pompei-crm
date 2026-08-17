@@ -263,11 +263,13 @@ class ComprobantesContagram
         $cantidad = (float) ($L->numero($f['Cantidad'] ?? null) ?? 0);
         $precio = (float) ($L->numero($f['Precio Unitario'] ?? null) ?? 0);
 
-        // `Subtotal con Descuento` está vacío en 1.354 ventas de 2021 (§3.10): ahí manda cant × precio.
-        $subtotal = $L->numero($f['Subtotal con Descuento'] ?? null);
-        if ($subtotal === null || abs($subtotal) < 0.005) {
-            $subtotal = $cantidad * $precio;
-        }
+        // `Subtotal con Descuento` está VACÍO en 1.354 ventas de 2021 (§3.10): ahí manda cant × precio.
+        //
+        // Sólo se cae al fallback si la celda no trae número. Un cero es un dato, no un hueco: es lo
+        // que Contagram escribe en un renglón bonificado al 100%, y tratarlo como faltante repone el
+        // precio de lista. Eso infló el neto de 27 ventas en $1.733.682 con el total de cabecera
+        // correcto — se descubrió el 16/08/2026 comparando el pivot contra el KPI del informe.
+        $subtotal = $L->numero($f['Subtotal con Descuento'] ?? null) ?? $cantidad * $precio;
 
         $iva = 0.0;
         $ivaPct = null;
@@ -279,6 +281,13 @@ class ComprobantesContagram
             }
         }
 
+        // La bonificación es un dato del renglón en Contagram, y hasta el 16/08/2026 se perdía:
+        // se sumaba en `ventas.descuento` (cabecera) y la línea quedaba a precio de lista.
+        $sinDescuento = $L->numero($f['Subtotal sin Descuento'] ?? null);
+        $descuentoPct = $sinDescuento !== null && $sinDescuento > 0.005
+            ? round(($sinDescuento - (float) $subtotal) / $sinDescuento * 100, 2)
+            : 0.0;
+
         return [
             'producto_legacy_id' => $L->idProductoDesdeCodigo($f['Código'] ?? null),
             'codigo' => $L->texto($f['Código'] ?? null),
@@ -288,6 +297,7 @@ class ComprobantesContagram
             'costo' => $L->numero($f['Costo Total Actual'] ?? null),
             'cantidad' => $cantidad,
             'precio_unitario' => round($precio, 2),
+            'descuento_pct' => max(0.0, min(100.0, $descuentoPct)),
             'iva_pct' => $ivaPct,
             'subtotal' => round((float) $subtotal, 2),
             'subtotal_con_iva' => round((float) $subtotal + $iva, 2),

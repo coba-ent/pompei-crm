@@ -348,6 +348,7 @@ class MigrarVentasContagram extends Command
                     'descripcion' => $item['descripcion'],
                     'cantidad' => $item['cantidad'],
                     'precio_unitario' => $item['precio_unitario'],
+                    'descuento_pct' => $item['descuento_pct'] ?? 0,
                     'iva_pct' => $item['iva_pct'],
                     'subtotal' => $item['subtotal'],
                     'subtotal_con_iva' => $item['subtotal_con_iva'],
