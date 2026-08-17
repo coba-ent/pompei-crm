@@ -21,6 +21,7 @@ use App\Http\Controllers\Informes\CuentaCorrienteProveedorController;
 use App\Http\Controllers\Informes\InformeComprasController;
 use App\Http\Controllers\Informes\InformeGastosController;
 use App\Http\Controllers\Informes\InformeVentasController;
+use App\Http\Controllers\Informes\InformeVistaController;
 use App\Http\Controllers\Informes\ReporteFinalController;
 use App\Http\Controllers\Informes\InformeStockController;
 use App\Http\Controllers\Ingresos\MercadoLibreVentaController;
@@ -195,6 +196,37 @@ Route::middleware('auth')->group(function () {
             Route::get('exportar', [ReporteFinalController::class, 'exportar'])->name('exportar');
             Route::get('pdf', [ReporteFinalController::class, 'pdf'])->name('pdf');
         });
+
+        // Rankings y "Arma tu Informe" (spec 069, tanda 3) sobre Ventas y Compras.
+        //
+        // A diferencia de las tandas 1 y 2, este bloque SÍ escribe: las vistas guardadas son
+        // configuración de presentación que el usuario crea y borra. No llevan permiso propio
+        // (FR-042): quien puede ver el informe puede guardar cruces sobre él.
+        Route::prefix('informes/ventas/pivot')->name('informes.ventas.pivot.')->group(function () {
+            Route::get('dataset', [InformeVentasController::class, 'pivotDataset'])->name('dataset');
+            Route::post('exportar', [InformeVentasController::class, 'pivotExportar'])->name('exportar');
+
+            Route::get('vistas', [InformeVistaController::class, 'indexVentas'])->name('vistas.index');
+            Route::post('vistas', [InformeVistaController::class, 'storeVentas'])->name('vistas.store');
+            Route::delete('vistas/{vista}', [InformeVistaController::class, 'destroyVentas'])->name('vistas.destroy');
+        });
+
+        Route::prefix('informes/compras/pivot')->name('informes.compras.pivot.')->group(function () {
+            Route::get('dataset', [InformeComprasController::class, 'pivotDataset'])->name('dataset');
+            Route::post('exportar', [InformeComprasController::class, 'pivotExportar'])->name('exportar');
+
+            Route::get('vistas', [InformeVistaController::class, 'indexCompras'])->name('vistas.index');
+            Route::post('vistas', [InformeVistaController::class, 'storeCompras'])->name('vistas.store');
+            Route::delete('vistas/{vista}', [InformeVistaController::class, 'destroyCompras'])->name('vistas.destroy');
+        });
+
+        // Entrada directa por URL a un ranking o a una vista guardada (research R6). Sin esto,
+        // compartir el enlace de un ranking daba 404: la pestaña sólo existía en el cliente.
+        // Las resuelve el `index()` de cada informe con la pestaña inicial ya seleccionada.
+        Route::get('informes/ventas/ranking/{dimension}', [InformeVentasController::class, 'index'])->name('informes.ventas.ranking.show');
+        Route::get('informes/ventas/vista/{vista}', [InformeVentasController::class, 'index'])->name('informes.ventas.vista.show');
+        Route::get('informes/compras/ranking/{dimension}', [InformeComprasController::class, 'index'])->name('informes.compras.ranking.show');
+        Route::get('informes/compras/vista/{vista}', [InformeComprasController::class, 'index'])->name('informes.compras.vista.show');
     });
 
     // Tesorería (spec 007) — Saldos, Movimientos, config de cuentas, transferencias, ficha/ledger

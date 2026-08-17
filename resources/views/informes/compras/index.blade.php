@@ -20,7 +20,9 @@
 
         {{-- KPIs. La ecuación se muestra escrita, no sólo insinuada por el orden de las cards:
              es la forma de que quien lee el informe pueda verificar el número de arriba. --}}
-        <div class="row mb-2 g-2" id="panel-kpis">
+        @include('informes.partials.pestanas', ['informe' => 'compras', 'rankings' => ['proveedores' => 'Proveedores', 'categorias' => 'Categorías', 'productos' => 'Productos', 'tipos_producto' => 'Tipo de Producto']])
+
+        <div class="row mb-2 g-2 js-solo-detalle" id="panel-kpis">
             <div class="col-6 col-md-3">
                 <div class="widget-stat card mb-0 h-100">
                     <div class="card-body p-3">
@@ -59,7 +61,7 @@
             Total Compras = Total Compras Creadas + Total Nota de Débito &minus; Total Nota de Crédito
         </p>
 
-        <div class="row mb-3 g-2">
+        <div class="js-solo-detalle row mb-3 g-2">
             <div class="col-6 col-md-3">
                 <div class="widget-stat card mb-0 h-100">
                     <div class="card-body p-3">
@@ -215,7 +217,7 @@
                     </div>
                 </div>
 
-                <div class="table-responsive">
+                <div class="table-responsive js-solo-detalle">
                     <table id="tabla-informe-compras" class="table table-hover display nowrap" style="width:100%">
                         <thead>
                             <tr>
@@ -263,6 +265,9 @@
             </div>
         </div>
 
+
+        @include('informes.partials.pivot', ['informe' => 'compras'])
+
     </div>
 </div>
 @endsection
@@ -275,10 +280,14 @@
             stats: @json(route('informes.compras.stats')),
             exportar: @json(route('informes.compras.exportar')),
             pdf: @json(route('informes.compras.pdf')),
+            pivotDataset: @json(route('informes.compras.pivot.dataset')),
+            pivotExportar: @json(route('informes.compras.pivot.exportar')),
+            pivotVistas: @json(route('informes.compras.pivot.vistas.index')),
+            pivotVistaBase: @json(url('informes/compras/pivot/vistas')),
             proveedoresOpciones: @json(route('proveedores.opciones')),
             productosOpciones: @json(route('productos.opciones')),
         },
     };
 </script>
-@vite(['resources/js/rango-emision.js', 'resources/js/informe-compras.js'])
+@vite(['resources/js/rango-emision.js', 'resources/js/informes-pivot.js', 'resources/js/informes-pivot-pantalla.js', 'resources/js/informe-compras.js'])
 @endsection

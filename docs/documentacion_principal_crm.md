@@ -2122,7 +2122,7 @@ Excel + PDF abajo a la derecha.
 |-------|----------|--------|
 | **1** | Compras, Gastos, Cuenta Corriente Proveedores | **spec 067 — IMPLEMENTADA** (14/08/2026) |
 | **2** | Ventas, Reporte Final | **spec 068 — IMPLEMENTADA** (15/08/2026) |
-| **3** | Rankings, "Arma tu Informe" (**sólo render tabla**) | **spec 069 — especificada, lista para implementar** (16/08/2026) |
+| **3** | Rankings, "Arma tu Informe" (**sólo render tabla**) | **spec 069 — IMPLEMENTADA** (16/08/2026) |
 | **4** | Menú de gestión por fila en Cta Cte, ajustes al Informe de Stock | pendiente — spec por armar |
 
 > **Alcance acotado de la tanda 3, decidido por el cliente (15/08/2026)**: Rankings y "Arma tu
@@ -2132,6 +2132,45 @@ Excel + PDF abajo a la derecha.
 > sólo agranda la app. Un ranking es una tabla ordenada con su export; con eso alcanza.
 
 **Ya implementados de antes**: Informe de Stock (spec 003, §6.2) y Cta Cte Clientes (spec 029, §6.4).
+
+#### Tanda 3 — cómo quedó el motor de tablas dinámicas (16/08/2026)
+
+**Contagram usa PivotTable.js y nosotros también.** Verificado en su app con el usuario presente: su
+DOM trae las clases `pvtUi`, `pvtUnused`, `pvtCols`, `pvtRows` y `ui-sortable`. El arrastre de
+dimensiones no es código propio de ellos ni nuestro: es el de la librería.
+
+Diferencias de configuración que se relevaron y **se replicaron**:
+
+- **El pool de un ranking lleva sólo la dimensión del ranking más el desglose de fecha**, no las 13.
+  En su Ranking de Categorías el área sin asignar tiene un único elemento, `fecha de emision`. El
+  pool completo es exclusivo de "Arma tu Informe".
+- **El pool va horizontal arriba** (`unusedAttrsVertical: false`), no vertical a la izquierda.
+- **Los textos van en español** y los botones del embudo con las clases del template: Contagram usa
+  `btn btn-primary` / `btn btn-danger` / `btn btn-success` para "Seleccionar todo",
+  "Deseleccionar todo" y "Aceptar". Se registró un locale `es` — pasar `localeStrings` como opción
+  de `pivotUI` NO alcanza, el renderer de tabla se queda con "Totals" en inglés.
+
+Divergencias **deliberadas** respecto de Contagram:
+
+- **URLs reales en vez de fragmentos.** Contagram usa `#reporte_3`; nosotros
+  `/informes/ventas/ranking/{dimension}` para poder compartir el enlace (FR-004).
+- **El ranking arranca acotado al rango del informe.** Contagram abre sin filtro y muestra de 2021 a
+  2026 (66 columnas de meses) porque calcula el cruce **en el servidor**. Nosotros lo calculamos en
+  el navegador, así que el dataset viaja entero y hay un tope de 50.000 filas.
+- **"Mostrar Como" no se dibuja** (FR-021) y el locale registra un único renderer, para que los
+  modos de gráfico no puedan reaparecer ni manipulando las opciones desde afuera.
+
+**Rendimiento medido** (16/08/2026, base de ~24.000 ventas):
+
+| Rango | Filas | Tiempo | Peso del JSON |
+|---|---|---|---|
+| Un mes (caso típico) | 470 | 0,7 s | 212 KB |
+| Dos años | 13.378 | 3,8 s | 5,7 MB |
+| Tope de 50.000 (proyectado) | 50.000 | — | **~22 MB** |
+
+El tope de 50.000 filas es generoso en cantidad pero **pesado en transferencia**: llegar ahí implica
+mandar unos 22 MB al navegador. Si en el uso real se llega seguido a rangos así, conviene mover el
+cálculo del cruce al servidor antes que subir el tope.
 
 #### Tanda 1 — spec 067 (Compras, Gastos, Cta Cte Proveedores)
 

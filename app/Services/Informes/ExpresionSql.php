@@ -39,6 +39,20 @@ class ExpresionSql
         return 'TRIM(CONCAT_WS(\' \', '.implode(', ', $partes).'))';
     }
 
+    /**
+     * Concatena expresiones sin separador, tratando NULL como cadena vacía.
+     *
+     * @param  list<string>  $partes  expresiones SQL
+     */
+    public static function concatPlano(array $partes): string
+    {
+        $envueltas = array_map(fn ($p) => "COALESCE(CAST({$p} AS CHAR), '')", $partes);
+
+        return self::esSqlite()
+            ? implode(' || ', array_map(fn ($p) => str_replace('AS CHAR', 'AS TEXT', $p), $envueltas))
+            : 'CONCAT('.implode(', ', $envueltas).')';
+    }
+
     /** Parte de `$columna` anterior al primer `$separador` (NULL si no aparece). */
     public static function antesDe(string $columna, string $separador): string
     {
@@ -63,6 +77,25 @@ class ExpresionSql
         }
 
         return "CASE WHEN {$columna} LIKE '%".addslashes($separador)."%' THEN SUBSTRING_INDEX({$columna}, {$sep}, -1) ELSE {$columna} END";
+    }
+
+    /**
+     * Literal de texto entrecomillado, escapado según el motor.
+     *
+     * Existe por los nombres de clase de las relaciones polimórficas (`App\Models\Venta`), que
+     * llevan barra invertida. `addslashes()` la duplica, y eso **sólo** es correcto en MySQL,
+     * donde la barra es carácter de escape: en SQLite la barra es un carácter común, así que
+     * `'App\\Models\\Venta'` queda literalmente con dos barras y no matchea nunca — la columna de
+     * etiquetas volvía vacía en los tests mientras en producción andaba bien.
+     */
+    public static function literal(string $texto): string
+    {
+        $escapado = self::esSqlite()
+            // En SQLite la única comilla que hay que escapar es la simple, duplicándola.
+            ? str_replace("'", "''", $texto)
+            : addslashes($texto);
+
+        return "'".$escapado."'";
     }
 
     /** `GROUP_CONCAT` con separador explícito: la sintaxis difiere entre los dos motores. */

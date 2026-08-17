@@ -61,6 +61,10 @@ class ComprasInformeQuery
             ->leftJoin('condiciones_iva', 'condiciones_iva.id', '=', 'proveedores.condicion_iva_id')
             ->leftJoin('productos', 'productos.id', '=', 'compra_items.producto_id')
             ->leftJoin('tipos_producto', 'tipos_producto.id', '=', 'productos.tipo_producto_id')
+            // Categoría raíz para el motor de tablas dinámicas (spec 069). LEFT JOIN uno-a-uno:
+            // no multiplica filas ni altera los totales del detalle ya existente.
+            ->leftJoin('categorias as cat_compra', 'cat_compra.id', '=', 'compras.categoria_id')
+            ->leftJoin('categorias as cat_padre', 'cat_padre.id', '=', 'cat_compra.categoria_padre_id')
             ->whereNull('compras.deleted_at')
             ->selectRaw($this->selectItems());
 
@@ -120,12 +124,27 @@ class ComprasInformeQuery
             'compras.total as total_compra',
             'COALESCE((SELECT '.ExpresionSql::groupConcat('e.nombre').' FROM etiquetas e '.
                 'JOIN etiquetables et ON et.etiqueta_id = e.id '.
-                "WHERE et.etiquetable_type = '".addslashes(Compra::class)."' AND et.etiquetable_id = compras.id), '') as etiquetas",
+                // `ExpresionSql::literal` y no `addslashes`: la barra del namespace sólo es escape en
+            // MySQL; en SQLite dejaba la comparación sin matchear y esta columna volvía vacía.
+            'WHERE et.etiquetable_type = '.ExpresionSql::literal(Compra::class)." AND et.etiquetable_id = compras.id), '') as etiquetas",
             // "Afecta Stock" no es una columna guardada: un ítem mueve stock si su producto es de
             // tipo `producto`. Los servicios y las líneas sin producto asociado (descripción
             // libre) no mueven nada.
             "CASE WHEN productos.tipo = 'producto' THEN 'Si' ELSE 'No' END as afecta_stock",
             "'compra' as operacion",
+
+            // ---- Dimensiones del motor de tablas dinámicas (spec 069) ----
+            // Al final y sin tocar nada de arriba: la UNION con la rama de notas espeja este
+            // orden, y el detalle y el export de la tanda 1 ya están en producción.
+            "COALESCE(cat_padre.nombre, cat_compra.nombre, 'Sin categoría') as categoria",
+            "COALESCE(compra_items.descuento_pct, 0) as descuento_pct",
+            // Para contar comprobantes DISTINTOS y no líneas (invariante 2).
+            'compras.id as comprobante_id',
+            // Importes POR LÍNEA. `total_compra` y los `subtotal_*` de arriba son del
+            // comprobante y se repiten en cada ítem: sumarlos por fila los contaría una vez por
+            // producto (FR-012b). `/ 100.0` para no caer en la división entera de SQLite.
+            'compra_items.subtotal as neto_linea',
+            'compra_items.subtotal * (1 + COALESCE(compra_items.iva_pct, 0) / 100.0) as total_linea',
         ]);
 
         return implode(', ', $columnas);
@@ -158,6 +177,8 @@ class ComprasInformeQuery
             ->join('compras', 'compras.id', '=', 'notas_credito_debito.compra_id')
             ->leftJoin('proveedores', 'proveedores.id', '=', 'compras.proveedor_id')
             ->leftJoin('condiciones_iva', 'condiciones_iva.id', '=', 'proveedores.condicion_iva_id')
+            ->leftJoin('categorias as cat_compra', 'cat_compra.id', '=', 'compras.categoria_id')
+            ->leftJoin('categorias as cat_padre', 'cat_padre.id', '=', 'cat_compra.categoria_padre_id')
             ->whereNull('notas_credito_debito.deleted_at')
             ->whereNull('compras.deleted_at')
             ->whereNotNull('notas_credito_debito.compra_id')
@@ -180,7 +201,15 @@ class ComprasInformeQuery
                 '0 as perc_iva, 0 as perc_iibb, 0 as otras_percepciones, 0 as imp_internos, '.
                 "{$monto} as total_compra, ".
                 "'' as etiquetas, 'No' as afecta_stock, ".
-                "CASE notas_credito_debito.tipo WHEN 'credito' THEN 'nota_credito' ELSE 'nota_debito' END as operacion"
+                "CASE notas_credito_debito.tipo WHEN 'credito' THEN 'nota_credito' ELSE 'nota_debito' END as operacion, ".
+                // Espeja el final de `selectItems()`: la UNION exige mismo orden y misma cantidad.
+                // La nota hereda la categoría de su compra de origen.
+                "COALESCE(cat_padre.nombre, cat_compra.nombre, 'Sin categoría') as categoria, ".
+                '0 as descuento_pct, '.
+                'compras.id as comprobante_id, '.
+                // La nota aporta una fila por nota (no por ítem), así que su importe ES el de la
+                // "línea" a los efectos del cruce.
+                "{$monto} as neto_linea, {$monto} as total_linea"
             );
 
         // Sólo los filtros que tienen sentido sobre una nota: los de ítem (producto, tipo de

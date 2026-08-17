@@ -2,6 +2,7 @@
 
 namespace App\Services\Informes;
 
+use App\Models\NotaCreditoDebito;
 use App\Models\Venta;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
@@ -66,6 +67,13 @@ class VentasInformeQuery
             ->leftJoin('clientes', 'clientes.id', '=', 'ventas.cliente_id')
             ->leftJoin('productos', 'productos.id', '=', 'venta_items.producto_id')
             ->leftJoin('tipos_producto', 'tipos_producto.id', '=', 'productos.tipo_producto_id')
+            // Dimensiones del pivot (spec 069). Son todos LEFT JOIN uno-a-uno, así que no
+            // multiplican filas ni alteran los totales del detalle ya existente. Las etiquetas,
+            // que sí serían muchos-a-muchos, van por subconsulta y no por join.
+            ->leftJoin('categorias as cat_venta', 'cat_venta.id', '=', 'ventas.categoria_id')
+            ->leftJoin('categorias as cat_padre', 'cat_padre.id', '=', 'cat_venta.categoria_padre_id')
+            ->leftJoin('vendedores', 'vendedores.id', '=', 'ventas.vendedor_id')
+            ->leftJoin('proveedores', 'proveedores.id', '=', 'productos.proveedor_id')
             ->leftJoinSub($this->cmv->subconsulta(), CostoMercaderiaVendida::ALIAS,
                 CostoMercaderiaVendida::ALIAS.'.producto_id', '=', 'venta_items.producto_id')
             ->whereNull('ventas.deleted_at')
@@ -89,6 +97,16 @@ class VentasInformeQuery
                 usuarioId: 'ventas.creado_por_id',
                 tipoComprobante: 'ventas.tipo_comprobante',
                 nroComprobante: 'ventas.nro_comprobante',
+                // `venta_items.subtotal` es el neto; el total con impuestos le suma el IVA de la
+                // línea. Se reconstruye acá y no se toma de `ventas.total` porque ese es el del
+                // comprobante entero.
+                // `/ 100.0` y no `/ 100`: con enteros SQLite hace división ENTERA y 21/100 da 0, así
+                // que el IVA desaparecía en los tests mientras en MySQL andaba bien. El test del
+                // invariante lo detectó — dejarlo así habría hecho que producción y tests
+                // calcularan distinto.
+                totalConImpuestos: 'venta_items.subtotal * (1 + COALESCE(venta_items.iva_pct, 0) / 100.0)',
+                descuentoPct: 'COALESCE(venta_items.descuento_pct, 0)',
+                etiquetas: $this->sqlEtiquetas('ventas.id', Venta::class),
             ));
 
         $this->aplicarFiltrosVenta($query, $request);
@@ -124,6 +142,12 @@ class VentasInformeQuery
             ->leftJoin('clientes', 'clientes.id', '=', 'ventas.cliente_id')
             ->leftJoin('productos', 'productos.id', '=', $tabla.'.producto_id')
             ->leftJoin('tipos_producto', 'tipos_producto.id', '=', 'productos.tipo_producto_id')
+            // Mismas dimensiones que la rama de ventas: la nota hereda categoría y vendedor de su
+            // venta de origen, y el proveedor sale del producto de la línea.
+            ->leftJoin('categorias as cat_venta', 'cat_venta.id', '=', 'ventas.categoria_id')
+            ->leftJoin('categorias as cat_padre', 'cat_padre.id', '=', 'cat_venta.categoria_padre_id')
+            ->leftJoin('vendedores', 'vendedores.id', '=', 'ventas.vendedor_id')
+            ->leftJoin('proveedores', 'proveedores.id', '=', 'productos.proveedor_id')
             ->leftJoinSub($this->cmv->subconsulta(), CostoMercaderiaVendida::ALIAS,
                 CostoMercaderiaVendida::ALIAS.'.producto_id', '=', $tabla.'.producto_id')
             ->whereNull('notas_credito_debito.deleted_at')
@@ -150,6 +174,12 @@ class VentasInformeQuery
                 usuarioId: 'ventas.creado_por_id',
                 tipoComprobante: 'notas_credito_debito.tipo_comprobante',
                 nroComprobante: 'notas_credito_debito.nro_comprobante',
+                // La nota ya trae su neto con signo; el IVA de la línea se le aplica igual que en
+                // ventas. Una nota migrada sin detalle da 0 acá, como el resto de sus columnas
+                // de ítem (ver el comentario de este método).
+                totalConImpuestos: $this->sqlNetoNota($tabla, $signo)." * (1 + COALESCE({$tabla}.iva_pct, 0) / 100.0)",
+                descuentoPct: "COALESCE({$tabla}.descuento_pct, 0)",
+                etiquetas: $this->sqlEtiquetas('notas_credito_debito.id', NotaCreditoDebito::class),
             ));
 
         $this->aplicarFiltrosNota($query, $request);
@@ -190,6 +220,20 @@ class VentasInformeQuery
      * fije la primera: sin los alias el SQL es ilegible y se rompe en cuanto alguien reordene las
      * ramas. El orden importa y tiene que ser idéntico.
      */
+    /**
+     * Etiquetas del comprobante como un solo texto, por subconsulta y NO por join.
+     *
+     * `etiquetables` es muchos-a-muchos: un comprobante con dos etiquetas duplicaría su fila en
+     * el detalle y **rompería todos los totales del informe**. La subconsulta las concatena y
+     * deja una sola fila. Mismo patrón que ya usa `ComprasInformeQuery`.
+     */
+    private function sqlEtiquetas(string $columnaId, string $clase): string
+    {
+        return 'COALESCE((SELECT '.ExpresionSql::groupConcat('e.nombre').' FROM etiquetas e '.
+            'JOIN etiquetables et ON et.etiqueta_id = e.id '.
+            'WHERE et.etiquetable_type = '.ExpresionSql::literal($clase)." AND et.etiquetable_id = {$columnaId}), 'Sin etiquetas')";
+    }
+
     private function proyeccion(
         string $id,
         string $tipoOperacion,
@@ -208,6 +252,9 @@ class VentasInformeQuery
         string $usuarioId,
         string $tipoComprobante,
         string $nroComprobante,
+        string $totalConImpuestos,
+        string $descuentoPct,
+        string $etiquetas,
     ): string {
         $costoActual = "COALESCE(productos.costo, 0) * ({$cantidad})";
         $cmv = $this->cmv->sqlCmv($cantidad);
@@ -236,6 +283,35 @@ class VentasInformeQuery
             "{$usuarioId} as usuario_id",
             "{$tipoComprobante} as tipo_comprobante",
             "{$nroComprobante} as nro_comprobante",
+
+            // ---- Dimensiones y medidas del motor de tablas dinámicas (spec 069) ----
+            //
+            // Se agregan AL FINAL y sin tocar nada de arriba a propósito: esta proyección
+            // alimenta el detalle y el export de la tanda 2, que ya están en producción.
+            // Reordenar o renombrar una columna existente rompería esos dos.
+            //
+            // Cada dimensión resuelve su rótulo de "sin valor" acá, en SQL, y no en el cliente
+            // (FR-018): un registro sin categoría tiene que agruparse bajo "Sin categoría", no
+            // desaparecer del cruce.
+            "COALESCE(cat_padre.nombre, cat_venta.nombre, 'Sin categoría') as categoria",
+            "COALESCE(vendedores.nombre, 'Sin vendedor') as vendedor",
+            "COALESCE(tipos_producto.nombre, 'Sin tipo de producto') as tipo_producto",
+            "COALESCE(proveedores.nombre, 'Sin proveedor') as proveedor",
+            "{$descuentoPct} as descuento_pct",
+            "{$etiquetas} as etiquetas",
+
+            // Importe de la línea CON impuestos, que es la medida "Total Venta" del pivot. No se
+            // usa `total_comprobante`: ese se repite en cada línea y sumarlo lo contaría una vez
+            // por ítem (FR-012b).
+            "{$totalConImpuestos} as total_venta",
+
+            // Para contar comprobantes DISTINTOS y no líneas (FR-012b, invariante 3).
+            //
+            // Lleva el TIPO adelante y no sólo el id: `ventas` y `notas_credito_debito` son tablas
+            // distintas con secuencias propias, y hoy comparten 644 ids. Contando sólo el id, una
+            // venta y una nota con el mismo número se fusionaban en un comprobante — medido: en
+            // 2021 el conteo perdía 12 comprobantes.
+            ExpresionSql::concatPlano([$tipoOperacion, "'-'", $id]).' as comprobante_id',
         ]);
     }
 

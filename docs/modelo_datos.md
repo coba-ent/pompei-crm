@@ -1678,6 +1678,20 @@ su proyección, sin tocar el orden ni las columnas que usa el detalle de las tan
 El dataset se corta a **50.000 filas**; superado, `422` pidiendo acotar el rango. El render del
 pivot se corta a **1.000 columnas**; superado, aviso en vez de dibujar.
 
+### 22.2b Corrección hecha al implementar: `comprobante_id` lleva el TIPO
+
+El plan decía "`comprobante_id` (técnica, para contar comprobantes distintos)" usando el `id` a
+secas. **No alcanza**: `ventas` y `notas_credito_debito` son tablas distintas con secuencias
+propias y hoy **comparten 644 ids**. Contando sólo el id, una venta y una nota con el mismo número
+se fusionaban en un solo comprobante.
+
+Medido antes de corregirlo: en el rango junio–diciembre 2021 el conteo perdía **12 comprobantes**
+(2.139 reales contra 2.127 contados). En rangos recientes no se notaba —las ventas tienen ids
+~24.000 y las notas ~20— pero es suerte, no diseño.
+
+La columna proyecta ahora `tipo-id` (`venta-24209`, `nc-88`), armado con
+`ExpresionSql::concatPlano()` para que funcione igual en MySQL y en la SQLite de los tests.
+
 ### 22.3 Medidas ("Dato") — nunca el total del comprobante
 
 "Total Venta"/"Total Compra" y su versión sin impuestos se miden **a nivel línea**. El total del

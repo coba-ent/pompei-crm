@@ -59,6 +59,63 @@ class InformesAccesoTest extends TestCase
     }
 
     /**
+     * Rutas del motor de tablas dinámicas (spec 069, tanda 3).
+     *
+     * Van aparte del proveedor de arriba porque no son todas GET: las vistas guardadas son el
+     * único punto de escritura del módulo, y un POST/DELETE sin permiso tiene que dar 403 igual
+     * que una pantalla.
+     *
+     * @return list<array{string, string}>
+     */
+    public static function rutasPivotProtegidas(): array
+    {
+        return [
+            ['get', 'informes.ventas.pivot.dataset'],
+            ['get', 'informes.ventas.pivot.vistas.index'],
+            ['post', 'informes.ventas.pivot.vistas.store'],
+            ['post', 'informes.ventas.pivot.exportar'],
+            ['get', 'informes.compras.pivot.dataset'],
+            ['get', 'informes.compras.pivot.vistas.index'],
+            ['post', 'informes.compras.pivot.vistas.store'],
+            ['post', 'informes.compras.pivot.exportar'],
+        ];
+    }
+
+    #[DataProvider('rutasPivotProtegidas')]
+    public function test_pivot_sin_permiso_recibe_403(string $metodo, string $ruta): void
+    {
+        $this->{$metodo.'Json'}(route($ruta))->assertForbidden();
+    }
+
+    public function test_borrar_una_vista_existente_sin_permiso_recibe_403(): void
+    {
+        // Con una vista REAL, no con un id inventado: `SubstituteBindings` corre antes que el
+        // middleware de permiso, así que un id inexistente devuelve 404 y no probaría nada de
+        // autorización. Lo que importa es que un usuario sin permiso no pueda borrar una que sí
+        // existe — y que la vista siga ahí después del intento.
+        $vista = \App\Models\InformeVista::create([
+            'informe' => 'ventas',
+            'descripcion' => 'No la puede borrar cualquiera',
+            'config' => ['filas' => ['clientes'], 'columnas' => [], 'dato' => 'total_venta', 'accion' => 'suma', 'exclusiones' => []],
+        ]);
+
+        $this->deleteJson(route('informes.ventas.pivot.vistas.destroy', $vista))->assertForbidden();
+
+        $this->assertDatabaseHas('informes_vistas', ['id' => $vista->id]);
+    }
+
+    /**
+     * Entrada directa por URL a un ranking o a una vista guardada (research R6): sin permiso, 403.
+     */
+    public function test_las_urls_directas_de_ranking_y_vista_tambien_estan_protegidas(): void
+    {
+        $this->get(route('informes.ventas.ranking.show', 'clientes'))->assertForbidden();
+        $this->get(route('informes.compras.ranking.show', 'proveedores'))->assertForbidden();
+        $this->get(route('informes.ventas.vista.show', 1))->assertForbidden();
+        $this->get(route('informes.compras.vista.show', 1))->assertForbidden();
+    }
+
+    /**
      * El sidebar se ejercita renderizando el parcial y no cargando otra pantalla completa: toda
      * pantalla del CRM exige su propio permiso, así que un usuario sin ninguno no puede abrir
      * ninguna, y el Dashboard —que sería la candidata natural— llama a `CuentaCorriente::aging()`,

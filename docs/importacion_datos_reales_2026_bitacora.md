@@ -868,3 +868,39 @@ riesgo (genuinamente no tienen factura todavía). **Tiendanube: tema cerrado, si
 4. Importar ventas 2026 ya sin las filas de ML.
 5. Cuando llegue la hoja de cobros detallada: importar `cobros` con cuenta/monto/fecha reales.
 6. Limpieza y fusión de clientes duplicados (recién ahí, con ventas ya asociadas).
+
+---
+
+## 16/08/2026 — Descuento por línea no traducido: 27 ventas con el desglose inconsistente
+
+Detectado al implementar el pivot de la spec 069, comparando el total del cruce contra el KPI del
+Informe de Ventas: daba $294.162 de más sobre un período de 12 días.
+
+**Causa**: Contagram registra el descuento **por línea** (columna "Bonif." de su detalle de venta).
+Nuestro modelo lo tiene en la cabecera (`ventas.descuento`), y el importador sumó todas las
+bonificaciones de línea ahí **sin descontarlas de los subtotales de línea**. El síntoma visible en
+pantalla es `Descuento General (0%)` con un importe distinto de cero: el porcentaje no existe
+porque nunca hubo un descuento general.
+
+**Alcance**: 27 ventas de 23.785 (0,11%), $1.724.324,55 de descuento declarado. Se detectan con:
+
+```sql
+SELECT id, fecha_emision, descuento, total FROM ventas
+WHERE deleted_at IS NULL AND descuento > 0.005
+  AND subtotal_sin_descuento = subtotal_con_descuento;
+```
+
+**Los totales están BIEN — las cajas cierran.** Verificado contra Contagram en la venta 24209:
+$1.902.809,94 allá contra $1.902.809,97 acá (3 centavos), con las mismas cobranzas y el mismo saldo
+a cobrar. Lo que no cierra es `neto de línea × 1,21` contra el total.
+
+| Sale de | Estado |
+|---|---|
+| Totales, cobranzas, cajas, cuenta corriente (`ventas.total`) | correctos |
+| Columnas derivadas por línea: "Precio Neto" y "Resultado" del Informe de Ventas, y las medidas del pivot | arrastran el desglose mal |
+
+**De las 27, 26 son ventas 100% bonificadas con total $0** (la plata está bien igual). **Sólo la
+24209 tiene descuento parcial** y es la única con impacto real en un informe.
+
+**Pendiente de decidir**: si se reconstruye el `descuento_pct` de cada línea desde el origen o se
+deja como está. No se tocó ningún dato.

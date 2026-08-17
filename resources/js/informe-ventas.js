@@ -231,5 +231,18 @@
                 new window.bootstrap.Tooltip(el);
             });
         }
+
+        // Pestañas Rankings / "Arma tu Informe" (spec 069). El cruce usa EXACTAMENTE los mismos
+        // filtros que la tabla de detalle, por eso se le pasa `filtros` y no una copia.
+        if (window.InformesPivotPantalla) {
+            window.InformesPivotPantalla.iniciar({
+                informe: 'ventas',
+                rutas: rutas,
+                filtros: filtros,
+                tablaDetalle: '#tabla-informe-ventas',
+                datoPorDefecto: 'total_venta',
+            });
+        }
+
     });
 })();

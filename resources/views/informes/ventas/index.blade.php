@@ -21,7 +21,9 @@
 
         {{-- Bloque 1: la ecuación se escribe, no se insinúa por el orden de las cards. Es lo que
              permite a quien lee el informe verificar el número destacado (FR-010). --}}
-        <div class="row mb-2 g-2" id="panel-kpis">
+        @include('informes.partials.pestanas', ['informe' => 'ventas', 'rankings' => ['clientes' => 'Clientes', 'categorias' => 'Categorías', 'productos' => 'Productos', 'tipos_producto' => 'Tipo de Producto', 'vendedores' => 'Vendedores']])
+
+        <div class="row mb-2 g-2 js-solo-detalle" id="panel-kpis">
             <div class="col-6 col-md-3">
                 <div class="widget-stat card mb-0 h-100">
                     <div class="card-body p-3">
@@ -56,12 +58,12 @@
             </div>
         </div>
 
-        <p class="text-muted small mb-3">
+        <p class="js-solo-detalle text-muted small mb-3">
             Total Ventas = Total Ventas Creadas + Total Nota de Débito &minus; Total Nota de Crédito
         </p>
 
         {{-- Bloque 2: cantidades, promedio y costo vigente. --}}
-        <div class="row mb-3 g-2">
+        <div class="js-solo-detalle row mb-3 g-2">
             <div class="col-6 col-md-3">
                 <div class="widget-stat card mb-0 h-100">
                     <div class="card-body p-3">
@@ -108,7 +110,7 @@
         </div>
 
         {{-- Bloque 3: el resultado del período. --}}
-        <div class="row mb-2 g-2">
+        <div class="js-solo-detalle row mb-2 g-2">
             <div class="col-6 col-md-4">
                 <div class="widget-stat card mb-0 h-100">
                     <div class="card-body p-3">
@@ -140,7 +142,7 @@
             </div>
         </div>
 
-        <p class="text-muted small mb-3">
+        <p class="js-solo-detalle text-muted small mb-3">
             Resultado = Precio Neto &minus; Costo Mercadería Vendida
         </p>
 
@@ -323,7 +325,7 @@
 
                 {{-- Las 12 columnas del relevamiento, en su orden exacto, con scroll horizontal
                      (FR-015). --}}
-                <div class="table-responsive">
+                <div class="table-responsive js-solo-detalle">
                     <table id="tabla-informe-ventas" class="table table-hover display nowrap" style="width:100%">
                         <thead>
                             <tr>
@@ -347,6 +349,9 @@
             </div>
         </div>
 
+
+        @include('informes.partials.pivot', ['informe' => 'ventas'])
+
     </div>
 </div>
 @endsection
@@ -359,11 +364,15 @@
             stats: @json(route('informes.ventas.stats')),
             exportar: @json(route('informes.ventas.exportar')),
             pdf: @json(route('informes.ventas.pdf')),
+            pivotDataset: @json(route('informes.ventas.pivot.dataset')),
+            pivotExportar: @json(route('informes.ventas.pivot.exportar')),
+            pivotVistas: @json(route('informes.ventas.pivot.vistas.index')),
+            pivotVistaBase: @json(url('informes/ventas/pivot/vistas')),
             clientesOpciones: @json(route('clientes.opciones')),
             productosOpciones: @json(route('productos.opciones')),
             proveedoresOpciones: @json(route('proveedores.opciones')),
         },
     };
 </script>
-@vite(['resources/js/rango-emision.js', 'resources/js/informe-ventas.js'])
+@vite(['resources/js/rango-emision.js', 'resources/js/informes-pivot.js', 'resources/js/informes-pivot-pantalla.js', 'resources/js/informe-ventas.js'])
 @endsection

@@ -333,36 +333,6 @@ return [
 				'js/custom.js',
 			],
 		],
-		'informe-ventas' => [
-			'title' => 'Informe de Ventas',
-			'css' => [
-				'vendor/datatables/css/jquery.dataTables.min.css',
-				'vendor/toastr/css/toastr.min.css',
-				'vendor/bootstrap-daterangepicker/daterangepicker.css',
-			],
-			'js' => [
-				'vendor/datatables/js/jquery.dataTables.min.js',
-				'vendor/toastr/js/toastr.min.js',
-				'vendor/moment/moment.min.js',
-				'vendor/bootstrap-daterangepicker/daterangepicker.js',
-				'js/custom.js',
-			],
-		],
-		'informe-compras' => [
-			'title' => 'Informe de Compras',
-			'css' => [
-				'vendor/datatables/css/jquery.dataTables.min.css',
-				'vendor/toastr/css/toastr.min.css',
-				'vendor/bootstrap-daterangepicker/daterangepicker.css',
-			],
-			'js' => [
-				'vendor/datatables/js/jquery.dataTables.min.js',
-				'vendor/toastr/js/toastr.min.js',
-				'vendor/moment/moment.min.js',
-				'vendor/bootstrap-daterangepicker/daterangepicker.js',
-				'js/custom.js',
-			],
-		],
 		'informe-stock' => [
 			'title' => 'Informe de Stock',
 			'css' => [
@@ -431,6 +401,10 @@ return [
 				'vendor/toastr/css/toastr.min.css',
 				'vendor/select2/css/select2.min.css',
 				'vendor/bootstrap-daterangepicker/daterangepicker.css',
+				// Tablas dinámicas de Rankings y "Arma tu Informe" (spec 069). Sólo el core:
+				// los renderers de gráficos no se vendorizaron porque "Mostrar Como" quedó
+				// fijo en Tabla. Ver public/vendor/pivottable/LEEME.md.
+				'vendor/pivottable/pivot.min.css',
 			],
 			'js' => [
 				'vendor/datatables/js/jquery.dataTables.min.js',
@@ -441,6 +415,9 @@ return [
 				'vendor/moment/moment.min.js',
 				'vendor/bootstrap-daterangepicker/daterangepicker.js',
 				'js/custom.js',
+				// jQuery UI va ANTES que pivot: es la dependencia del drag & drop de dimensiones.
+				'vendor/jqueryui/js/jquery-ui.min.js',
+				'vendor/pivottable/pivot.min.js',
 			],
 		],
 		'informe-gastos' => [
@@ -477,6 +454,10 @@ return [
 				'vendor/toastr/css/toastr.min.css',
 				'vendor/select2/css/select2.min.css',
 				'vendor/bootstrap-daterangepicker/daterangepicker.css',
+				// Tablas dinámicas de Rankings y "Arma tu Informe" (spec 069). Sólo el core:
+				// los renderers de gráficos no se vendorizaron porque "Mostrar Como" quedó
+				// fijo en Tabla. Ver public/vendor/pivottable/LEEME.md.
+				'vendor/pivottable/pivot.min.css',
 			],
 			'js' => [
 				'vendor/datatables/js/jquery.dataTables.min.js',
@@ -487,6 +468,9 @@ return [
 				'vendor/moment/moment.min.js',
 				'vendor/bootstrap-daterangepicker/daterangepicker.js',
 				'js/custom.js',
+				// jQuery UI va ANTES que pivot: es la dependencia del drag & drop de dimensiones.
+				'vendor/jqueryui/js/jquery-ui.min.js',
+				'vendor/pivottable/pivot.min.js',
 			],
 		],
 		'reporte-final' => [

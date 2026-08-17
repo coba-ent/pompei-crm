@@ -73,6 +73,57 @@ class InformeVentasController extends Controller
         return response()->json($this->informe->kpis($request));
     }
 
+    /**
+     * Dataset del motor de tablas dinámicas (spec 069).
+     *
+     * Aplica exactamente los mismos filtros que `data()` y `stats()` — el cruce se calcula sobre
+     * el conjunto filtrado completo y no sobre una página del detalle (FR-017).
+     */
+    public function pivotDataset(Request $request, \App\Services\Informes\VentasPivotDataset $dataset): JsonResponse
+    {
+        if ($error = $this->rangoInvalido($request)) {
+            return $error;
+        }
+
+        // Se corta ANTES de materializar: el dataset entero viaja al navegador, y con un rango
+        // muy amplio lo único que se logra es colgar la pestaña.
+        if ($dataset->excedeTope($request)) {
+            return response()->json([
+                'message' => 'El período tiene demasiados movimientos para armar el cruce (más de '
+                    .number_format(\App\Services\Informes\PivotDataset::TOPE_FILAS, 0, ',', '.')
+                    .'). Acotá el rango o los filtros.',
+            ], 422);
+        }
+
+        return response()->json($dataset->armar($request));
+    }
+
+    /**
+     * Excel del cruce visible (spec 069).
+     *
+     * Recibe la matriz **ya calculada por el cliente** y no la recalcula: lo que se exporta tiene
+     * que ser exactamente lo que el usuario está viendo, incluidas las exclusiones que hizo con el
+     * embudo y el orden en que dejó las dimensiones (research R3).
+     */
+    public function pivotExportar(Request $request)
+    {
+        $datos = $request->validate([
+            'titulo' => ['required', 'string', 'max:120'],
+            'encabezados_fila' => ['present', 'array'],
+            'encabezados_columna' => ['present', 'array'],
+            'filas' => ['required', 'array', 'min:1', 'max:50000'],
+            'filas.*.etiqueta' => ['present', 'array'],
+            'filas.*.valores' => ['present', 'array'],
+            'totales_columna' => ['present', 'array'],
+            'total_general' => ['present'],
+        ]);
+
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\Informes\PivotExport($datos),
+            $datos['titulo'].' '.now()->format('d-m-Y Hi').' Hs.xlsx'
+        );
+    }
+
     /** "Exportar Resumen": Excel de dos hojas con los mismos filtros que la pantalla. */
     public function exportar(Request $request)
     {
