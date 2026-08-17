@@ -612,6 +612,12 @@
         if (data.fechaVtoCobro) { AppFecha.set($('#f-fecha-vto-cobro'), data.fechaVtoCobro); }
         if (data.servicioDesde) { AppFecha.set($('#f-servicio-desde'), data.servicioDesde); }
         if (data.servicioHasta) { AppFecha.set($('#f-servicio-hasta'), data.servicioHasta); }
+        // Casi todas las ventas son del día, así que Servicio Desde/Hasta arrancan en la Emisión y
+        // la siguen mientras el vendedor no los toque. Sólo en un alta desde cero: en edición y en
+        // la conversión desde Presupuesto manda lo que el comprobante ya trae, incluso si es vacío.
+        if (!data.venta && !data.presupuestoId) {
+            AppFecha.seguir($('#f-fecha-emision'), [$('#f-servicio-desde'), $('#f-servicio-hasta')]);
+        }
         refreshSelect2($('#f-lista-precio'));
         if (data.venta && data.venta.tipo_comprobante) {
             $('#f-tipo-comprobante').val(data.venta.tipo_comprobante);

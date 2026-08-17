@@ -397,7 +397,14 @@
         if (data.notaInterna) { $('#f-nota-interna').val(data.notaInterna); }
         // Campo de texto dd/mm/aaaa: se lee y escribe con `AppFecha`, nunca con `.val()` crudo.
         if (data.fechaVtoPago) { AppFecha.set($('#f-fecha-vto-pago'), data.fechaVtoPago); }
+        if (data.servicioDesde) { AppFecha.set($('#f-servicio-desde'), data.servicioDesde); }
+        if (data.servicioHasta) { AppFecha.set($('#f-servicio-hasta'), data.servicioHasta); }
         if (data.mesImputacionIva) { $('#f-mes-imputacion-iva').val(data.mesImputacionIva); }
+        // Igual que en Ventas: Servicio Desde/Hasta arrancan en la Emisión y la siguen mientras
+        // nadie los toque. Sólo en un alta — en edición manda lo que la compra ya trae.
+        if (!data.compra) {
+            AppFecha.seguir($('#f-fecha-emision'), [$('#f-servicio-desde'), $('#f-servicio-hasta')]);
+        }
 
         // Autocompletar Categoría de Compras al elegir Proveedor (FR-002).
         $('#f-proveedor').on('select2:select', function (e) {
@@ -706,6 +713,8 @@
                 fecha_emision: AppFecha.get($('#f-fecha-emision')),
                 tipo_comprobante: $('#f-tipo-comprobante').val(),
                 fecha_vto_pago: AppFecha.get($('#f-fecha-vto-pago')),
+                servicio_desde: AppFecha.get($('#f-servicio-desde')),
+                servicio_hasta: AppFecha.get($('#f-servicio-hasta')),
                 mes_imputacion_iva: $('#f-mes-imputacion-iva').val() ? $('#f-mes-imputacion-iva').val() + '-01' : null,
                 descuento_general_tipo: $('#f-descuento-general-toggle').data('modo') || 'porcentaje',
                 descuento_general_pct: ($('#f-descuento-general-toggle').data('modo') || 'porcentaje') === 'porcentaje' ? ($('#f-descuento-general').val() || null) : null,

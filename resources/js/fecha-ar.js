@@ -252,7 +252,50 @@
         });
     }
 
-    window.AppFecha = { init, initAll, get, set, hoy, serializeArray, isoAvisible, visibleAiso };
+    /**
+     * Hace que uno o más campos de fecha copien a otro **mientras nadie los toque a mano**.
+     *
+     * Existe para "Servicio Desde/Hasta" de Venta y Compra: en la práctica el comprobante es del
+     * día, así que arrancan en la fecha de emisión y la siguen si el vendedor la corrige. Apenas
+     * escribe uno de los dos, ese campo y su compañero dejan de seguirla — a partir de ahí manda
+     * lo que puso él, incluso si lo deja vacío.
+     *
+     * Sólo tiene sentido en un ALTA. En edición el comprobante ya tiene sus fechas, y una fecha
+     * vacía también es un dato: pisarla sería cambiar algo que nadie pidió cambiar.
+     *
+     * El flag `propio` distingue nuestra escritura de la del usuario. Hace falta porque `set()`
+     * llama a `datepicker('update')`, que dispara `changeDate` y termina en el mismo
+     * `fecha:cambio` que el tipeo manual — sin el flag, el primer autocompletado se tomaría a sí
+     * mismo por una edición y se desactivaría solo.
+     */
+    function seguir($origen, destinos) {
+        const $ = window.jQuery;
+        const origen = $origen.jquery ? $origen : $($origen);
+        const campos = destinos.map((d) => (d.jquery ? d : $(d)));
+
+        let propio = false;
+        let manual = false;
+
+        function copiar() {
+            if (manual) { return; }
+
+            const iso = get(origen);
+            if (!iso) { return; }
+
+            propio = true;
+            campos.forEach((campo) => set(campo, iso));
+            propio = false;
+        }
+
+        campos.forEach((campo) => campo.on('fecha:cambio', function () {
+            if (!propio) { manual = true; }
+        }));
+        origen.on('fecha:cambio', copiar);
+
+        copiar();
+    }
+
+    window.AppFecha = { init, initAll, get, set, hoy, seguir, serializeArray, isoAvisible, visibleAiso };
 
     // Auto-inicialización: cada pantalla sólo tiene que marcar sus inputs con `data-fecha-ar`.
     //

@@ -58,6 +58,18 @@
                         <label class="form-label">Vto. del Pago</label>
                         <input type="text" id="f-fecha-vto-pago" class="form-control" data-fecha-ar>
                     </div>
+                    {{-- El modelo y el listado ya tenían Servicio Desde/Hasta (se filtra por ellos y
+                         `StoreCompraRequest` los valida), pero el formulario nunca los mostró: no había
+                         forma de cargarlos salvo importándolos. En Contagram están acá, junto a Emisión
+                         y Vto. del Pago (docs/informe_contagram_egresos.md). --}}
+                    <div class="col-md-3">
+                        <label class="form-label">Servicio Desde</label>
+                        <input type="text" id="f-servicio-desde" class="form-control" data-fecha-ar>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Servicio Hasta</label>
+                        <input type="text" id="f-servicio-hasta" class="form-control" data-fecha-ar>
+                    </div>
                     <div class="col-md-3">
                         <label class="form-label">Depósito</label>
                         <select id="f-deposito" class="form-select" style="width:100%">
@@ -161,6 +173,8 @@
         nroComprobante: @json($compra?->nro_comprobante ?? (($defaults ?? null)['nroComprobanteSugerido'] ?? null)),
         notaInterna: @json($compra?->nota_interna),
         fechaVtoPago: @json(optional($compra?->fecha_vto_pago)->format('Y-m-d') ?: (($defaults ?? null)['fechaVtoPago'] ?? null)),
+        servicioDesde: @json(optional($compra?->servicio_desde)->format('Y-m-d')),
+        servicioHasta: @json(optional($compra?->servicio_hasta)->format('Y-m-d')),
         mesImputacionIva: @json(optional($compra?->mes_imputacion_iva)->format('Y-m')),
         tipoComprobanteDefault: @json($compra ? null : (($defaults ?? null)['tipoComprobante'] ?? null)),
         descuentoGeneralPct: @json($compra?->descuento_general_pct),

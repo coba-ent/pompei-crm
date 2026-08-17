@@ -470,6 +470,16 @@ Otros Ingresos y Abonos son independientes.
   `configuracion_ventas.deposito_id`) con fallback al mismo `Deposito::porDefecto()`. Cierra la
   inconsistencia por la que el filtro por Depósito del listado (arriba) no reflejaba ninguna elección
   real del usuario. Divergencia deliberada, sin capturas de Contagram real que confirmen este campo.
+- **Servicio Desde/Hasta se autocompletan con la Emisión (17/08/2026)**: en el alta los dos campos
+  arrancan en la fecha de emisión y la siguen si el vendedor la corrige. En la práctica todas las
+  ventas del negocio son del día, así que llenarlos a mano era tipeo repetido en cada carga.
+  **Deja de seguirla en cuanto el vendedor escribe uno de los dos** — a partir de ahí manda lo que
+  puso él, incluso si lo deja vacío. **En edición no actúa nunca**: el comprobante ya tiene sus
+  fechas, y una fecha vacía también es un dato; pisarla sería cambiar algo que nadie pidió cambiar.
+  Tampoco actúa al convertir un Presupuesto en Venta, que hereda el período del presupuesto.
+  Implementado en `AppFecha.seguir()` (`resources/js/fecha-ar.js`), compartido con Compras para que
+  las dos pantallas no diverjan. Divergencia deliberada, sin capturas de Contagram que la confirmen:
+  es una comodidad de carga, no una regla de negocio — el campo sigue siendo opcional y editable.
 - Botón **"Analizar" (IA/Gemini)**: exclusivo de Ventas — genera un resumen del período (producto
   estrella, categoría más rentable, récord de venta, recomendación de negocio), con advertencia
   explícita de que "puede no ser del todo precisa o real". Misma tecnología (Gemini) que "Buscar
@@ -1359,7 +1369,9 @@ Remito, Cta Cte (proveedor), Imprimir Detalle, Eliminar.
 
 **Formulario "Nueva Compra"** (`/purchases/new`): Proveedor (autocompletado; al elegir un proveedor
 existente precarga su **Categoría de Compras** guardada como default), Emisión, Vto. del Pago, Servicio
-Desde/Hasta, **Contador** (campo exclusivo de Compras, sin equivalente en Ventas — tooltip: "Mes de
+Desde/Hasta (**agregados al formulario el 17/08/2026**: el modelo, los filtros del listado y
+`StoreCompraRequest` ya los tenían, pero el formulario nunca los mostró, así que no había forma de
+cargarlos salvo importándolos — ver la nota de autocompletado en §3.2 Ventas), **Contador** (campo exclusivo de Compras, sin equivalente en Ventas — tooltip: "Mes de
 imputación en el IVA Compras, para el informe a tu Contador"; permite imputar el período fiscal de IVA
 Compras independientemente de la fecha de emisión), Tipo de comprobante + numeración. **N° de
 comprobante editable (spec 049, 06/08/2026)**: antes de esta spec, la numeración se autogeneraba
