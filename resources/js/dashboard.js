@@ -25,6 +25,37 @@
         return new Intl.NumberFormat('es-AR').format(n || 0);
     }
 
+    /**
+     * Monto abreviado para ejes y etiquetas de gráfico: `$ 9,8 M`, `$ 250 mil`.
+     *
+     * Sin esto ApexCharts imprime el número crudo del eje —`250000000.000000000`, con nueve
+     * decimales— porque su formateador por defecto deriva la precisión del paso del eje, y con
+     * montos de cientos de millones ese paso le queda fraccionario.
+     */
+    function fmtMoneyCorto(n) {
+        const v = Number(n) || 0;
+        const abs = Math.abs(v);
+        const partes = [
+            [1e9, ' MM'],
+            [1e6, ' M'],
+            [1e3, ' mil'],
+        ];
+
+        for (const [escala, sufijo] of partes) {
+            if (abs >= escala) {
+                const corto = v / escala;
+                // Un decimal hasta 100, ninguno de ahí para arriba: "9,8 M" pero "250 M".
+                const decimales = Math.abs(corto) < 100 ? 1 : 0;
+
+                return '$ ' + new Intl.NumberFormat('es-AR', {
+                    minimumFractionDigits: decimales, maximumFractionDigits: decimales,
+                }).format(corto) + sufijo;
+            }
+        }
+
+        return '$ ' + new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(v);
+    }
+
     function renderVariacion($el, variacionPct) {
         if (variacionPct === null || variacionPct === undefined) {
             $el.removeClass('text-success text-danger').addClass('text-muted').text('sin datos previos');
@@ -83,6 +114,12 @@
                     { name: 'Gastos', data: data.series.gastos },
                 ],
                 xaxis: { categories: data.labels },
+                yaxis: { labels: { formatter: fmtMoneyCorto } },
+                // Las etiquetas sobre las barras quedaban ilegibles: 12 meses × 4 series, cada una
+                // con el número entero encimado sobre la de al lado. El monto exacto está en el
+                // tooltip, que es donde se lo va a buscar.
+                dataLabels: { enabled: false },
+                tooltip: { y: { formatter: fmtMoney } },
                 legend: { position: 'top' },
             };
             if (graficoMensual) {
@@ -105,6 +142,9 @@
             series: filas.map(function (f) { return f.monto; }),
             labels: filas.map(function (f) { return f.categoria; }),
             legend: { position: 'bottom' },
+            // Sobre la porción va el porcentaje (que es lo que se compara de un vistazo) y el
+            // monto exacto queda en el tooltip, igual que en el gráfico mensual.
+            tooltip: { y: { formatter: fmtMoney } },
         };
         if (donas[key]) {
             donas[key].updateOptions(opciones);
