@@ -62,11 +62,19 @@
             function renderBloque($tbody, cuentas) {
                 $tbody.empty();
                 (cuentas || []).forEach(function (c) {
+                    // Las dos filas sintéticas de cuenta corriente no son cuentas de tesorería
+                    // (vienen sin `id`, ver Tesoreria::saldos()), así que enlazan a su informe en
+                    // vez de a la ficha de una cuenta.
+                    const informeCtaCte = {
+                        'Saldo Cta Cte Clientes': rutas.cuentaCorrienteClientes,
+                        'Saldo Cta Cte Proveedores': rutas.cuentaCorrienteProveedores,
+                    }[c.nombre];
+
                     let $nombre;
                     if (c.id) {
                         $nombre = $('<a>').attr('href', rutas.cuentasBase + '/' + c.id).text(c.nombre);
-                    } else if (c.nombre === 'Saldo Cta Cte Clientes') {
-                        $nombre = $('<a>').attr('href', rutas.cuentaCorrienteClientes).text(c.nombre);
+                    } else if (informeCtaCte) {
+                        $nombre = $('<a>').attr('href', informeCtaCte).text(c.nombre);
                     } else {
                         $nombre = $('<span>').text(c.nombre);
                     }
