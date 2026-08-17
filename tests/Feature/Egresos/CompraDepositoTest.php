@@ -130,6 +130,12 @@ class CompraDepositoTest extends TestCase
         $response->assertOk();
         preg_match('/<select id="f-deposito"[^>]*>(.*?)<\/select>/s', $response->getContent(), $matches);
         $this->assertNotEmpty($matches);
-        $this->assertStringNotContainsString('<option', $matches[1]);
+
+        // Lo que no puede haber es una opción ELEGIBLE. El `<option value="">` vacío sí está
+        // siempre, y a propósito: sin él, una compra sin depósito muestra el primero de la lista
+        // como si fuera el suyo (ver el comentario en compras/form.blade.php). El assert original
+        // pedía que no hubiera ningún `<option`, así que no podía pasar nunca.
+        preg_match_all('/<option value="(\d+)"/', $matches[1], $elegibles);
+        $this->assertSame([], $elegibles[1]);
     }
 }
