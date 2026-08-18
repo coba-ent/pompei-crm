@@ -5,11 +5,19 @@ namespace Tests\Feature;
 use App\Models\CuentaTesoreria;
 use App\Services\Tesoreria\Tesoreria;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\ActuaComoUsuarioConPermisos;
 use Tests\TestCase;
 
 class DashboardTesoreriaResumenTest extends TestCase
 {
     use RefreshDatabase;
+    use ActuaComoUsuarioConPermisos;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->actingAsUsuarioConTodosLosPermisosDashboard();
+    }
 
     public function test_el_bloque_de_tesoreria_coincide_con_tesoreria_saldos(): void
     {

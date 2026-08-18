@@ -1,4 +1,10 @@
+@php
+    $rankingClientesVisible = $permisos['ventas'] && $permisos['clientes'];
+    $rankingProductosVisible = $permisos['ventas'] && $permisos['productos'];
+@endphp
+@if ($rankingClientesVisible || $rankingProductosVisible)
 <div class="row">
+    @if ($rankingClientesVisible)
     <div class="col-lg-6">
         <div class="card mb-3">
             <div class="card-header"><h6 class="mb-0">Ranking de Clientes</h6></div>
@@ -11,6 +17,8 @@
             </div>
         </div>
     </div>
+    @endif
+    @if ($rankingProductosVisible)
     <div class="col-lg-6">
         <div class="card mb-3">
             <div class="card-header"><h6 class="mb-0">Ranking de Productos</h6></div>
@@ -23,4 +31,6 @@
             </div>
         </div>
     </div>
+    @endif
 </div>
+@endif

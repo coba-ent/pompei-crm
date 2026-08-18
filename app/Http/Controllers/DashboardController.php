@@ -44,80 +44,148 @@ class DashboardController extends Controller
     {
         $CurrentPage = 'home';
 
-        $saldos = $this->tesoreria->saldos();
+        $permisos = $this->permisosRubros($request->user());
+        $resultadoVisible = $this->resultadoVisible($permisos);
 
-        $movimientosRecientes = MovimientoTesoreria::query()
-            ->with('cuenta')
-            ->orderBy('fecha', 'desc')
-            ->orderBy('id', 'desc')
-            ->limit(self::LIMITE_MOVIMIENTOS_RECIENTES)
-            ->get()
-            ->map(fn (MovimientoTesoreria $m) => [
-                'fecha' => $m->fecha->toDateString(),
-                'cuenta' => optional($m->cuenta)->nombre,
-                'monto' => (float) $m->monto,
-            ])
-            ->values();
+        $saldos = null;
+        $movimientosRecientes = collect();
+        $cuentasACobrar = null;
+        $cuentasAPagar = null;
 
-        $cuentasACobrar = $this->cuentaCorriente->aging('cliente');
-        $cuentasAPagar = $this->cuentaCorriente->aging('proveedor');
+        if ($permisos['tesoreria']) {
+            $saldos = $this->tesoreria->saldos();
+
+            $movimientosRecientes = MovimientoTesoreria::query()
+                ->with('cuenta')
+                ->orderBy('fecha', 'desc')
+                ->orderBy('id', 'desc')
+                ->limit(self::LIMITE_MOVIMIENTOS_RECIENTES)
+                ->get()
+                ->map(fn (MovimientoTesoreria $m) => [
+                    'fecha' => $m->fecha->toDateString(),
+                    'cuenta' => optional($m->cuenta)->nombre,
+                    'monto' => (float) $m->monto,
+                ])
+                ->values();
+
+            $cuentasACobrar = $this->cuentaCorriente->aging('cliente');
+            $cuentasAPagar = $this->cuentaCorriente->aging('proveedor');
+        }
 
         return view('dashboard.index', compact(
-            'CurrentPage', 'saldos', 'movimientosRecientes', 'cuentasACobrar', 'cuentasAPagar'
+            'CurrentPage', 'permisos', 'resultadoVisible', 'saldos', 'movimientosRecientes', 'cuentasACobrar', 'cuentasAPagar'
         ));
     }
 
-    /** 4 KPIs con variación % vs. el período anterior equivalente (US1). */
+    /**
+     * Qué rubros/widgets del Dashboard puede ver el usuario logueado (spec 070): un array de
+     * booleans indexado por rubro, calculado a partir de los permisos `.ver` ya existentes.
+     * Admin ve todo (`tienePermiso()` ya lo resuelve vía `esAdmin()`).
+     *
+     * @return array{ventas: bool, otros_ingresos: bool, compras: bool, gastos: bool, clientes: bool, productos: bool, tesoreria: bool}
+     */
+    private function permisosRubros(\App\Models\User $user): array
+    {
+        return [
+            'ventas' => $user->tienePermiso('ventas.ver'),
+            'otros_ingresos' => $user->tienePermiso('otros-ingresos.ver'),
+            'compras' => $user->tienePermiso('compras.ver'),
+            'gastos' => $user->tienePermiso('gastos.ver'),
+            'clientes' => $user->tienePermiso('clientes.ver'),
+            'productos' => $user->tienePermiso('productos.ver'),
+            'tesoreria' => $user->tienePermiso('tesoreria.ver'),
+        ];
+    }
+
+    /**
+     * El KPI "Resultado" combina los 4 rubros (ventas + otros ingresos - compras - gastos): sólo
+     * se muestra si el usuario tiene permiso sobre los 4, porque un "resultado" parcial sería un
+     * número engañoso (spec 070, FR-003).
+     */
+    private function resultadoVisible(array $permisos): bool
+    {
+        return $permisos['ventas'] && $permisos['otros_ingresos'] && $permisos['compras'] && $permisos['gastos'];
+    }
+
+    /** 4 KPIs con variación % vs. el período anterior equivalente (US1), filtrados por permiso (spec 070). */
     public function kpis(Request $request): JsonResponse
     {
+        $permisos = $this->permisosRubros($request->user());
+
         [$desde, $hasta, $desdeAnterior, $hastaAnterior] = $this->rangoPeriodo($request->input('periodo'));
 
-        $actual = $this->metricasRango($desde, $hasta);
-        $anterior = $this->metricasRango($desdeAnterior, $hastaAnterior);
+        $actual = $this->metricasRango($desde, $hasta, $permisos);
+        $anterior = $this->metricasRango($desdeAnterior, $hastaAnterior, $permisos);
 
         $variacion = fn (float $valorActual, float $valorAnterior): ?float => $valorAnterior == 0.0
             ? null
             : round((($valorActual - $valorAnterior) / $valorAnterior) * 100, 2);
 
-        return response()->json([
-            'ventas_creadas' => [
+        $respuesta = [];
+
+        if ($permisos['ventas']) {
+            $respuesta['ventas_creadas'] = [
                 'valor' => $actual['ventas_creadas'],
                 'variacion_pct' => $variacion($actual['ventas_creadas'], $anterior['ventas_creadas']),
-            ],
-            'venta_promedio' => [
+            ];
+            $respuesta['venta_promedio'] = [
                 'valor' => $actual['venta_promedio'],
                 'variacion_pct' => $variacion($actual['venta_promedio'], $anterior['venta_promedio']),
-            ],
-            'cantidad_ventas' => [
+            ];
+            $respuesta['cantidad_ventas'] = [
                 'valor' => $actual['cantidad_ventas'],
                 'variacion_pct' => $variacion($actual['cantidad_ventas'], $anterior['cantidad_ventas']),
-            ],
-            'resultado' => [
+            ];
+        }
+
+        if ($this->resultadoVisible($permisos)) {
+            $respuesta['resultado'] = [
                 'valor' => $actual['resultado'],
                 'variacion_pct' => $variacion($actual['resultado'], $anterior['resultado']),
-            ],
-        ]);
+            ];
+        }
+
+        return response()->json($respuesta);
     }
 
-    /** Totales de Ventas/Otros Ingresos/Compras/Gastos del rango actual, para las barras de progreso (US1). */
+    /** Totales de Ventas/Otros Ingresos/Compras/Gastos del rango actual, para las barras de progreso (US1), filtrados por permiso (spec 070). */
     public function totales(Request $request): JsonResponse
     {
-        [$desde, $hasta] = $this->rangoPeriodo($request->input('periodo'));
-        $metricas = $this->metricasRango($desde, $hasta);
+        $permisos = $this->permisosRubros($request->user());
 
-        return response()->json([
-            'ventas' => $metricas['ventas_creadas'],
-            'otros_ingresos' => $metricas['otros_ingresos'],
-            'compras' => $metricas['compras'],
-            'gastos' => $metricas['gastos'],
-        ]);
+        [$desde, $hasta] = $this->rangoPeriodo($request->input('periodo'));
+        $metricas = $this->metricasRango($desde, $hasta, $permisos);
+
+        $respuesta = [];
+
+        if ($permisos['ventas']) {
+            $respuesta['ventas'] = $metricas['ventas_creadas'];
+        }
+        if ($permisos['otros_ingresos']) {
+            $respuesta['otros_ingresos'] = $metricas['otros_ingresos'];
+        }
+        if ($permisos['compras']) {
+            $respuesta['compras'] = $metricas['compras'];
+        }
+        if ($permisos['gastos']) {
+            $respuesta['gastos'] = $metricas['gastos'];
+        }
+
+        return response()->json($respuesta);
     }
 
-    /** Serie de 12 meses fija (Ventas/Otros Ingresos/Compras/Gastos), no depende del período (US2, FR-008). */
-    public function graficoMensual(): JsonResponse
+    /** Serie de 12 meses fija (Ventas/Otros Ingresos/Compras/Gastos), no depende del período (US2, FR-008), filtrada por permiso (spec 070). */
+    public function graficoMensual(Request $request): JsonResponse
     {
+        $permisos = $this->permisosRubros($request->user());
+
         $labels = [];
-        $series = ['ventas' => [], 'otros_ingresos' => [], 'compras' => [], 'gastos' => []];
+        $series = [];
+        foreach (['ventas', 'otros_ingresos', 'compras', 'gastos'] as $rubro) {
+            if ($permisos[$rubro]) {
+                $series[$rubro] = [];
+            }
+        }
 
         $inicioPrimerMes = Carbon::now()->local()->startOfDay()->startOfMonth()->subMonths(11);
 
@@ -126,86 +194,125 @@ class DashboardController extends Controller
             $hasta = $desde->copy()->endOfMonth();
 
             $labels[] = $desde->format('Y-m');
-            $series['ventas'][] = $this->montoNetoQuery(Venta::class, 'venta_id', 'fecha_emision', $desde, $hasta);
-            $series['otros_ingresos'][] = (float) OtroIngreso::whereBetween('fecha', [$desde->toDateString(), $hasta->toDateString()])->sum('monto');
-            $series['compras'][] = $this->montoNetoQuery(Compra::class, 'compra_id', 'fecha_emision', $desde, $hasta);
-            $series['gastos'][] = (float) Gasto::whereBetween('fecha', [$desde->toDateString(), $hasta->toDateString()])->sum('monto');
+            if ($permisos['ventas']) {
+                $series['ventas'][] = $this->montoNetoQuery(Venta::class, 'venta_id', 'fecha_emision', $desde, $hasta);
+            }
+            if ($permisos['otros_ingresos']) {
+                $series['otros_ingresos'][] = (float) OtroIngreso::whereBetween('fecha', [$desde->toDateString(), $hasta->toDateString()])->sum('monto');
+            }
+            if ($permisos['compras']) {
+                $series['compras'][] = $this->montoNetoQuery(Compra::class, 'compra_id', 'fecha_emision', $desde, $hasta);
+            }
+            if ($permisos['gastos']) {
+                $series['gastos'][] = (float) Gasto::whereBetween('fecha', [$desde->toDateString(), $hasta->toDateString()])->sum('monto');
+            }
         }
 
         return response()->json(['labels' => $labels, 'series' => $series]);
     }
 
-    /** 3 donas de composición por categoría (Ventas/Compras/Gastos), dentro del período filtrado (US5). */
+    /** 3 donas de composición por categoría (Ventas/Compras/Gastos), dentro del período filtrado (US5), filtradas por permiso (spec 070). */
     public function donas(Request $request): JsonResponse
     {
+        $permisos = $this->permisosRubros($request->user());
+
         [$desde, $hasta] = $this->rangoPeriodo($request->input('periodo'));
 
-        return response()->json([
-            'ventas' => $this->composicionPorCategoria(Venta::class, 'fecha_emision', 'total', $desde, $hasta),
-            'compras' => $this->composicionPorCategoria(Compra::class, 'fecha_emision', 'total', $desde, $hasta),
-            'gastos' => $this->composicionPorCategoria(Gasto::class, 'fecha', 'monto', $desde, $hasta),
-        ]);
+        $respuesta = [];
+
+        if ($permisos['ventas']) {
+            $respuesta['ventas'] = $this->composicionPorCategoria(Venta::class, 'fecha_emision', 'total', $desde, $hasta);
+        }
+        if ($permisos['compras']) {
+            $respuesta['compras'] = $this->composicionPorCategoria(Compra::class, 'fecha_emision', 'total', $desde, $hasta);
+        }
+        if ($permisos['gastos']) {
+            $respuesta['gastos'] = $this->composicionPorCategoria(Gasto::class, 'fecha', 'monto', $desde, $hasta);
+        }
+
+        return response()->json($respuesta);
     }
 
-    /** Ranking de Clientes (por monto vendido) y de Productos (por cantidad vendida), dentro del período (US6). */
+    /** Ranking de Clientes (por monto vendido) y de Productos (por cantidad vendida), dentro del período (US6), filtrados por permiso (spec 070). */
     public function rankings(Request $request): JsonResponse
     {
+        $permisos = $this->permisosRubros($request->user());
+
         [$desde, $hasta] = $this->rangoPeriodo($request->input('periodo'));
 
-        $porCliente = Venta::whereBetween('fecha_emision', [$desde->toDateString(), $hasta->toDateString()])
-            ->selectRaw('cliente_id, SUM(total) as monto')
-            ->groupBy('cliente_id')
-            ->orderByDesc('monto')
-            ->limit(self::TOP_N_RANKING)
-            ->get();
+        $respuesta = [];
 
-        $nombresClientes = Cliente::whereIn('id', $porCliente->pluck('cliente_id'))->pluck('nombre', 'id');
+        if ($permisos['ventas'] && $permisos['clientes']) {
+            $porCliente = Venta::whereBetween('fecha_emision', [$desde->toDateString(), $hasta->toDateString()])
+                ->selectRaw('cliente_id, SUM(total) as monto')
+                ->groupBy('cliente_id')
+                ->orderByDesc('monto')
+                ->limit(self::TOP_N_RANKING)
+                ->get();
 
-        $rankingClientes = $porCliente->map(fn ($fila) => [
-            'nombre' => $nombresClientes[$fila->cliente_id] ?? 'Sin cliente',
-            'monto' => round((float) $fila->monto, 2),
-        ])->values();
+            $nombresClientes = Cliente::whereIn('id', $porCliente->pluck('cliente_id'))->pluck('nombre', 'id');
 
-        $porProducto = VentaItem::query()
-            ->join('ventas', 'ventas.id', '=', 'venta_items.venta_id')
-            ->whereNull('ventas.deleted_at')
-            ->whereBetween('ventas.fecha_emision', [$desde->toDateString(), $hasta->toDateString()])
-            ->selectRaw('venta_items.producto_id as producto_id, SUM(venta_items.cantidad) as cantidad')
-            ->groupBy('venta_items.producto_id')
-            ->orderByDesc('cantidad')
-            ->limit(self::TOP_N_RANKING)
-            ->get();
+            $respuesta['clientes'] = $porCliente->map(fn ($fila) => [
+                'nombre' => $nombresClientes[$fila->cliente_id] ?? 'Sin cliente',
+                'monto' => round((float) $fila->monto, 2),
+            ])->values();
+        }
 
-        $nombresProductos = Producto::whereIn('id', $porProducto->pluck('producto_id'))->pluck('nombre', 'id');
+        if ($permisos['ventas'] && $permisos['productos']) {
+            $porProducto = VentaItem::query()
+                ->join('ventas', 'ventas.id', '=', 'venta_items.venta_id')
+                ->whereNull('ventas.deleted_at')
+                ->whereBetween('ventas.fecha_emision', [$desde->toDateString(), $hasta->toDateString()])
+                ->selectRaw('venta_items.producto_id as producto_id, SUM(venta_items.cantidad) as cantidad')
+                ->groupBy('venta_items.producto_id')
+                ->orderByDesc('cantidad')
+                ->limit(self::TOP_N_RANKING)
+                ->get();
 
-        $rankingProductos = $porProducto->map(fn ($fila) => [
-            'nombre' => $nombresProductos[$fila->producto_id] ?? 'Sin producto',
-            'cantidad' => round((float) $fila->cantidad, 3),
-        ])->values();
+            $nombresProductos = Producto::whereIn('id', $porProducto->pluck('producto_id'))->pluck('nombre', 'id');
 
-        return response()->json([
-            'clientes' => $rankingClientes,
-            'productos' => $rankingProductos,
-        ]);
+            $respuesta['productos'] = $porProducto->map(fn ($fila) => [
+                'nombre' => $nombresProductos[$fila->producto_id] ?? 'Sin producto',
+                'cantidad' => round((float) $fila->cantidad, 3),
+            ])->values();
+        }
+
+        return response()->json($respuesta);
     }
 
     /** @return array{ventas_creadas: float, venta_promedio: float, cantidad_ventas: int, resultado: float, otros_ingresos: float, compras: float, gastos: float} */
-    private function metricasRango(Carbon $desde, Carbon $hasta): array
+    private function metricasRango(Carbon $desde, Carbon $hasta, ?array $permisos = null): array
     {
+        // Sin filtro explícito (llamadas internas/tests legacy) se calcula todo, como antes.
+        $permisos ??= ['ventas' => true, 'otros_ingresos' => true, 'compras' => true, 'gastos' => true];
+
         // Límite superior con hora de fin de día: las columnas `date` de MySQL no tienen
         // componente horario, pero comparar por string (como hace SQLite en tests) requiere
         // que el límite superior no sea "menor" que un valor con hora — necesario para que un
         // rango de un solo día (periodo "hoy", FR-010) incluya sus propias operaciones.
         $rango = [$desde->toDateString(), $hasta->copy()->endOfDay()->toDateTimeString()];
 
-        $ventasCreadas = $this->montoNetoQuery(Venta::class, 'venta_id', 'fecha_emision', $desde, $hasta);
-        $cantidadVentas = (int) Venta::whereBetween('fecha_emision', $rango)->count();
-        $ventaPromedio = $cantidadVentas > 0 ? round($ventasCreadas / $cantidadVentas, 2) : 0.0;
+        $ventasCreadas = 0.0;
+        $cantidadVentas = 0;
+        $ventaPromedio = 0.0;
+        if ($permisos['ventas']) {
+            $ventasCreadas = $this->montoNetoQuery(Venta::class, 'venta_id', 'fecha_emision', $desde, $hasta);
+            $cantidadVentas = (int) Venta::whereBetween('fecha_emision', $rango)->count();
+            $ventaPromedio = $cantidadVentas > 0 ? round($ventasCreadas / $cantidadVentas, 2) : 0.0;
+        }
 
-        $otrosIngresos = (float) OtroIngreso::whereBetween('fecha', $rango)->where('pendiente', false)->sum('monto');
-        $compras = $this->montoNetoQuery(Compra::class, 'compra_id', 'fecha_emision', $desde, $hasta);
-        $gastos = (float) Gasto::whereBetween('fecha', $rango)->where('pendiente', false)->sum('monto');
+        $otrosIngresos = $permisos['otros_ingresos']
+            ? (float) OtroIngreso::whereBetween('fecha', $rango)->where('pendiente', false)->sum('monto')
+            : 0.0;
+        $compras = $permisos['compras']
+            ? $this->montoNetoQuery(Compra::class, 'compra_id', 'fecha_emision', $desde, $hasta)
+            : 0.0;
+        $gastos = $permisos['gastos']
+            ? (float) Gasto::whereBetween('fecha', $rango)->where('pendiente', false)->sum('monto')
+            : 0.0;
 
+        // Sólo tiene sentido si los 4 rubros se calcularon con permiso real (ver resultadoVisible());
+        // si a alguno le faltó permiso, este valor no se expone en la respuesta.
         $resultado = round($ventasCreadas + $otrosIngresos - $compras - $gastos, 2);
 
         return [

@@ -3,16 +3,27 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\ActuaComoUsuarioConPermisos;
 use Tests\TestCase;
 
 /**
  * Con la base de datos recién migrada (sin seeders de negocio), el dashboard
  * no debe romper: todos los bloques devuelven estado vacío (ceros) sin excepción
  * (SC-005/FR-012 — gap detectado en /speckit-analyze, F2).
+ *
+ * Usuario con los 7 permisos `.ver` (spec 070): así el estado vacío que se prueba acá es "sin
+ * datos", no "sin permiso" — que es un caso distinto, cubierto en DashboardPermisosTest.
  */
 class DashboardEmptyStateTest extends TestCase
 {
     use RefreshDatabase;
+    use ActuaComoUsuarioConPermisos;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->actingAsUsuarioConTodosLosPermisosDashboard();
+    }
 
     public function test_index_carga_sin_error_500(): void
     {

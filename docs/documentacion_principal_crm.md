@@ -1999,6 +1999,23 @@ nada por su cuenta.
 - **Donas por categoría** (Ventas/Compras/Gastos) y **Rankings** (Clientes por monto vendido, Productos
   por cantidad vendida) dentro del período filtrado. Categoría inactiva o ausente se agrupa bajo
   "Sin categoría".
+- **Filtrado por permiso (spec 070)**: `/dashboard` sigue siendo accesible para cualquier usuario
+  autenticado (no requiere permiso propio), pero cada widget/rubro se oculta por completo —tanto en
+  la vista como en la respuesta de los endpoints AJAX, sin exponer el dato aunque se llame el
+  endpoint directamente— si al usuario le falta el permiso `.ver` correspondiente:
+  - Ventas Creadas/Venta Promedio/Cantidad de Ventas, barra de Totales "Ventas", serie "Ventas" del
+    gráfico mensual y dona "Ventas por Categoría": requieren `ventas.ver`.
+  - Barra de Totales "Otros Ingresos" y su serie del gráfico mensual: `otros-ingresos.ver`.
+  - KPI/Totales/gráfico/dona de "Compras": `compras.ver`.
+  - KPI/Totales/gráfico/dona de "Gastos": `gastos.ver`.
+  - KPI "Resultado": requiere los 4 permisos anteriores a la vez (`ventas.ver`, `otros-ingresos.ver`,
+    `compras.ver`, `gastos.ver`) — al combinar los 4 rubros, un "Resultado" calculado con sólo
+    algunos de ellos sería una cifra engañosa, así que directamente no se muestra.
+  - Ranking de Clientes: `ventas.ver` **+** `clientes.ver`. Ranking de Productos: `ventas.ver` **+**
+    `productos.ver`.
+  - Resumen de Tesorería (saldos/movimientos) y Cuentas a Cobrar/Cuentas a Pagar: `tesoreria.ver`.
+  - Un usuario sin ninguno de estos 7 permisos igual entra a `/dashboard` (200, sin redirección),
+    con la pantalla prácticamente vacía de widgets. Admin ve siempre el Dashboard completo.
 
 ---
 

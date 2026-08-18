@@ -8,15 +8,18 @@ use App\Models\NotaCreditoDebito;
 use App\Models\Venta;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Tests\Concerns\ActuaComoUsuarioConPermisos;
 use Tests\TestCase;
 
 class DashboardNeteoNotasTest extends TestCase
 {
     use RefreshDatabase;
+    use ActuaComoUsuarioConPermisos;
 
     protected function setUp(): void
     {
         parent::setUp();
+        $this->actingAsUsuarioConTodosLosPermisosDashboard();
         Carbon::setTestNow('2026-06-15');
     }
 

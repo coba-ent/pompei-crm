@@ -22,6 +22,7 @@
             </div>
         </div>
 
+        @if ($permisos['tesoreria'])
         <div class="row">
             <div class="col-lg-6">
                 @includeIf('dashboard._tesoreria')
@@ -30,6 +31,7 @@
                 @includeIf('dashboard._cuentas-corrientes')
             </div>
         </div>
+        @endif
 
         @includeIf('dashboard._donas')
 
@@ -50,6 +52,7 @@
             rankings: @json(route('dashboard.rankings')),
         },
         periodoInicial: 'mes_actual',
+        permisos: @json($permisos),
     };
 </script>
 @vite(['resources/js/dashboard.js'])

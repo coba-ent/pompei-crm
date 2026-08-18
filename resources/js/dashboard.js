@@ -102,17 +102,18 @@
     // Gráfico mensual (US2) — fijo, no depende del período
     // ============================================================
     let graficoMensual = null;
+    const NOMBRES_SERIE = { ventas: 'Ventas', otros_ingresos: 'Otros Ingresos', compras: 'Compras', gastos: 'Gastos' };
     function cargarGraficoMensual() {
         if (!rutas.graficoMensual || !$('#grafico-mensual').length || typeof ApexCharts === 'undefined') { return; }
         $.getJSON(rutas.graficoMensual).done(function (data) {
+            // Sólo se arman las series que vinieron en la respuesta: un rubro sin permiso no
+            // viaja en `data.series` (spec 070), así que no hay que asumir las 4 claves fijas.
+            const series = Object.keys(data.series || {}).map(function (clave) {
+                return { name: NOMBRES_SERIE[clave] || clave, data: data.series[clave] };
+            });
             const opciones = {
                 chart: { type: 'bar', height: 320, stacked: true, toolbar: { show: false } },
-                series: [
-                    { name: 'Ventas', data: data.series.ventas },
-                    { name: 'Otros Ingresos', data: data.series.otros_ingresos },
-                    { name: 'Compras', data: data.series.compras },
-                    { name: 'Gastos', data: data.series.gastos },
-                ],
+                series: series,
                 xaxis: { categories: data.labels },
                 yaxis: { labels: { formatter: fmtMoneyCorto } },
                 // Las etiquetas sobre las barras quedaban ilegibles: 12 meses × 4 series, cada una

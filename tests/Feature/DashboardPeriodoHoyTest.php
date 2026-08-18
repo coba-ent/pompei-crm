@@ -5,15 +5,18 @@ namespace Tests\Feature;
 use App\Models\Venta;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Tests\Concerns\ActuaComoUsuarioConPermisos;
 use Tests\TestCase;
 
 class DashboardPeriodoHoyTest extends TestCase
 {
     use RefreshDatabase;
+    use ActuaComoUsuarioConPermisos;
 
     protected function setUp(): void
     {
         parent::setUp();
+        $this->actingAsUsuarioConTodosLosPermisosDashboard();
 
         // Mediodía y NO medianoche: la app corre en UTC pero resuelve "hoy" con `->local()`
         // (Argentina, UTC-3), así que `setTestNow('2026-06-15')` —medianoche UTC— caía a las

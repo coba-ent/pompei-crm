@@ -1,4 +1,6 @@
+@if ($permisos['ventas'] || $resultadoVisible)
 <div class="row" id="dashboard-kpis">
+    @if ($permisos['ventas'])
     <div class="col-md-3 col-sm-6">
         <div class="card">
             <div class="card-body">
@@ -26,6 +28,8 @@
             </div>
         </div>
     </div>
+    @endif
+    @if ($resultadoVisible)
     <div class="col-md-3 col-sm-6">
         <div class="card">
             <div class="card-body">
@@ -35,4 +39,6 @@
             </div>
         </div>
     </div>
+    @endif
 </div>
+@endif
