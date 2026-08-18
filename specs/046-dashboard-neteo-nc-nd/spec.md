@@ -199,13 +199,19 @@ que KPIs, panel de Totales y donas recalculan usando únicamente operaciones con
   nunca tuvo categoría asignada, se agrupa bajo "Sin categoría", igual que el resto del dashboard.
 - **FR-007**: El monto neto de una Venta o Compra individual DEBE calcularse considerando
   únicamente las Notas de Crédito/Débito cuya `fecha_emision` cae dentro del **mismo período que se
-  está evaluando** (ver Key Entities), y NUNCA DEBE ser negativo dentro de ese cálculo — se recorta
-  en $0 como piso cuando las Notas de Crédito de ese período superan el total original de la
-  Venta/Compra. Notas cuya `fecha_emision` cae en un período distinto al de la Venta/Compra
-  original se contabilizan aparte, en el período que les corresponde por su propia fecha (FR-001),
-  sin este piso — porque en ese período no existe un total "base" de esa Venta/Compra contra el
-  cual acotar (ver Acceptance Scenario 4 de la Historia 1). No existe techo simétrico: una Nota de
-  Débito puede hacer que el monto neto supere ampliamente el total original sin límite superior.
+  está evaluando** (ver Key Entities). Notas cuya `fecha_emision` cae en un período distinto al de
+  la Venta/Compra original se contabilizan aparte, en el período que les corresponde por su propia
+  fecha (FR-001). No hay piso ni techo: el neto PUEDE ser negativo cuando las Notas de Crédito
+  superan el total original, igual que puede superarlo sin límite con una Nota de Débito.
+
+  > **Revisado el 18/08/2026.** La versión original recortaba el neto en $0 como piso. Contagram no
+  > lo hace, verificado por dos caminos: en agosto de 2026 el Dashboard mostraba $32.463.153,90 de
+  > compras contra sus $32.444.829,98 —por la compra 2424 de Pompei SRL, total $54.504,80 con una
+  > NC de $72.828,74—; y siendo ése el único neto negativo de toda la historia, si Contagram
+  > aplicara el piso su total histórico tendría que ser exactamente $18.323,94 más alto, y no lo
+  > es (da 16 centavos). Se quitó el piso a pedido del usuario, con el criterio de que las dos
+  > aplicaciones tienen que dar lo mismo: una devolución mayor que la compra que la origina resta
+  > del período, que es lo que efectivamente pasó con la plata.
 - **FR-008**: El aging de Cuentas a Cobrar/Pagar y el Ranking de Clientes/Productos NO DEBEN
   modificarse por esta spec — quedan fuera de alcance (el primero ya estaba neteado; los segundos
   se documentan como brecha pendiente, no se resuelven acá).
@@ -270,5 +276,5 @@ que KPIs, panel de Totales y donas recalculan usando únicamente operaciones con
 - Ranking de Clientes/Productos y aging de Cta Cte quedan fuera de alcance por decisión explícita
   del usuario al momento de especificar esta feature (ver Edge Cases) — se documentan como brecha
   pendiente, no como "no aplica".
-- El piso de $0 (FR-007) aplica por Venta/Compra individual antes de agregar al total del período,
-  no al total agregado del período completo.
+- El piso de $0 que tenía FR-007 se quitó el 18/08/2026 (ver la nota en ese requisito): el neto de
+  una Venta/Compra individual puede ser negativo y así se agrega al total del período.

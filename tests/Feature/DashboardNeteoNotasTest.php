@@ -117,6 +117,24 @@ class DashboardNeteoNotasTest extends TestCase
         $this->assertEquals(0.0, $resp['compras']);
     }
 
+    /**
+     * Antes se recortaba en $0 (FR-007 original). Contagram no lo hace: una devolución mayor que
+     * la compra que la origina resta del período, que es lo que pasó con la plata. Cambiado el
+     * 18/08/2026 — la compra 2424 de agosto (total $54.504,80, NC $72.828,74) dejaba al Dashboard
+     * $18.323,94 por encima de Contagram.
+     */
+    public function test_us2_nc_mayor_que_la_compra_deja_el_total_en_negativo(): void
+    {
+        $compra = Compra::factory()->create(['fecha_emision' => '2026-06-05', 'total' => 50000]);
+        NotaCreditoDebito::factory()->create([
+            'venta_id' => null, 'compra_id' => $compra->id, 'tipo' => 'credito', 'monto' => 80000, 'fecha_emision' => '2026-06-06',
+        ]);
+
+        $resp = $this->getJson(route('dashboard.totales', ['periodo' => 'mes_actual']))->assertOk()->json();
+
+        $this->assertEquals(-30000.0, $resp['compras']);
+    }
+
     public function test_us2_nd_de_compra_suma_al_total_de_compras(): void
     {
         $compra = Compra::factory()->create(['fecha_emision' => '2026-06-05', 'total' => 50000]);

@@ -268,12 +268,25 @@ class DashboardController extends Controller
 
     /**
      * Monto neto de Venta/Compra en `[$desde, $hasta]`, restando NC y sumando ND por período de
-     * emisión de cada nota (research.md Decisión 1): componente 1 = suma por fila con piso $0 de
-     * las ventas/compras del propio rango; componente 2 = ajuste crudo sin piso de notas cuyo
-     * período cae en el rango pero cuya venta/compra base cayó en otro período. El piso $0 se
-     * aplica con `CASE WHEN ... > 0` sobre una subconsulta derivada (en vez de `GREATEST`/`MAX`
-     * multi-argumento) para que la misma consulta corra tanto en MySQL (producción) como en
-     * SQLite (tests).
+     * emisión de cada nota (research.md Decisión 1): componente 1 = suma de las ventas/compras del
+     * propio rango; componente 2 = ajuste de las notas cuyo período cae en el rango pero cuya
+     * venta/compra base cayó en otro período.
+     *
+     * ## Sin piso de $0 (18/08/2026)
+     *
+     * FR-007 pedía recortar en $0 el neto de cada Venta/Compra individual cuando sus notas de
+     * crédito superaban el total original. **Contagram no lo hace**, verificado por dos caminos:
+     *
+     * - En agosto de 2026 el Dashboard mostraba $32.463.153,90 de compras contra sus
+     *   $32.444.829,98. La culpable era una sola: la compra 2424 de Pompei SRL, total $54.504,80
+     *   con una NC de $72.828,74, que quedaba en $0 en vez de restar sus −$18.323,94.
+     * - Es el **único** caso de neto negativo en toda la historia, así que si Contagram aplicara
+     *   el piso su total histórico de compras tendría que ser exactamente $18.323,94 más alto que
+     *   el nuestro. No lo es: da 16 centavos.
+     *
+     * El requisito se cambió a pedido del usuario, con el criterio de que las dos aplicaciones
+     * tienen que dar lo mismo. Una devolución mayor que la compra que la origina **resta** del
+     * período, que es lo que efectivamente pasó con la plata.
      */
     private function montoNetoQuery(string $modelo, string $columnaFk, string $campoFecha, Carbon $desde, Carbon $hasta): float
     {
@@ -283,7 +296,7 @@ class DashboardController extends Controller
         $rango = [$desde->toDateString(), $hasta->copy()->endOfDay()->toDateTimeString()];
 
         $componente1 = DB::selectOne(
-            "SELECT COALESCE(SUM(CASE WHEN x.monto_bruto > 0 THEN x.monto_bruto ELSE 0 END), 0) as monto
+            "SELECT COALESCE(SUM(x.monto_bruto), 0) as monto
             FROM (
                 SELECT (t.total
                     + COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.{$columnaFk} = t.id AND n.tipo = 'debito' AND n.deleted_at IS NULL AND n.fecha_emision BETWEEN ? AND ?), 0)
@@ -323,7 +336,7 @@ class DashboardController extends Controller
         $rango = [$desde->toDateString(), $hasta->copy()->endOfDay()->toDateTimeString()];
 
         $filas1 = DB::select(
-            "SELECT x.categoria_id as categoria_id, COALESCE(SUM(CASE WHEN x.monto_bruto > 0 THEN x.monto_bruto ELSE 0 END), 0) as monto
+            "SELECT x.categoria_id as categoria_id, COALESCE(SUM(x.monto_bruto), 0) as monto
             FROM (
                 SELECT t.categoria_id, (t.total
                     + COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.{$columnaFk} = t.id AND n.tipo = 'debito' AND n.deleted_at IS NULL AND n.fecha_emision BETWEEN ? AND ?), 0)
