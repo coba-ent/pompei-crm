@@ -88,7 +88,8 @@ migración no mueve inventario a propósito— y 83 son de Mercado Libre anterio
 
 **Órdenes de ML sin venta**: las canceladas no se convierten (spec 066). Es lo esperado.
 
-**Publicación desfasada CON `[BLOQUEADA]`**: llegó al tope de reintentos. Ver el `stock_error`.
+**Publicación desfasada CON `[BLOQUEADA]`**: llegó al tope de reintentos. Ver el `stock_error`. Si dice
+`under_review`, la frenó la moderación de Mercado Libre y no hay nada que hacer del lado del CRM.
 
 **Publicación desfasada SIN `[BLOQUEADA]`**: es una **congelada** — el caso peligroso, porque no da
 error. Se destraba marcándola pendiente (ver correcciones).
@@ -180,7 +181,7 @@ Actualizar al terminar cada uno. El corte es `movimientos_stock.id`.
 
 | Fecha | Corte | Resultado |
 |---|---|---|
-| 19/08/2026 | 508 | Fix de publicaciones Full desplegado (`15df08b`). Las 3 Full alineadas: 12700 Local 2, 43005 Local 0, 41363 Local 30. |
+| 19/08/2026 | 516 | Fix de publicaciones Full desplegado (`15df08b`). Las 3 Full alineadas: 12700 Local 2, 43005 Local 0, 41363 Local 30. Quedan 3 bloqueadas por moderación de ML (`under_review`), ajenas al CRM: MLA1953964180, MLA2053709352, MLA1489377153. |
 | 17/08/2026 | 401 | 5 ventas, 0 problemas. Primera venta Full descontando de Full. |
 | 16/08/2026 | 394 | 2 ventas, 0 problemas. |
 | 15/08/2026 | 388 | 13 ventas, 0 problemas. |
