@@ -54,6 +54,37 @@
     --headerbg: #0F1237;
 }
 
+/* --------------------------------------------------------------------------
+ * Texto negro en vez de gris claro, para mejorar la legibilidad (pedido del
+ * usuario). El template trae `--bs-body-color: #6F767E` (gris medio) en
+ * :root, del que heredan tablas, formularios (`.form-control`, `.form-label`)
+ * y texto general — sólo hace falta pisar las variables acá. `.text-muted`
+ * usa `--bs-secondary-color` con !important sobre la propiedad, pero la
+ * variable en sí no tiene !important, así que redefinirla alcanza igual.
+ * El sidebar (`.deznav .metismenu`) SÍ hardcodea el gris directo en la regla
+ * (no usa variable), así que necesita su propio override aparte.
+ * ------------------------------------------------------------------------ */
+:root {
+    --bs-body-color: #212529;
+    --bs-body-color-rgb: 33, 37, 41;
+    --bs-secondary-color: rgba(33, 37, 41, 0.75);
+    --bs-secondary-color-rgb: 33, 37, 41;
+    --bs-tertiary-color: rgba(33, 37, 41, 0.5);
+    --bs-tertiary-color-rgb: 33, 37, 41;
+}
+
+.deznav .metismenu > li > a,
+.deznav .metismenu a {
+    color: #212529;
+}
+
+/* Números grandes de las tarjetas KPI (Clientes/Proveedores/Informe de Stock,
+ * clase `.data-value` del template) — venían en gris medio hardcodeado, sin
+ * pasar por ninguna variable Bootstrap. */
+.data-value {
+    color: #212529 !important;
+}
+
 /* Cabecera del sidebar (`.nav-header`, fondo = --nav-headbg) al mismo color
  * que la topbar (--headerbg), para que ambas cabeceras luzcan unificadas.
  * El logo (isologo + wordmark) venía en trazos oscuros (var(--primary) y
@@ -311,7 +342,7 @@
     margin-bottom: 0.25rem;
     font-size: 0.8125rem;
     font-weight: 500;
-    color: #495057;
+    color: #212529;
 }
 
 /* Contraste de inputs/selects: el default de NexaDash usa borde casi blanco
