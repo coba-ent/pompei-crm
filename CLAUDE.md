@@ -96,12 +96,23 @@ No son sugerencias: toda spec, plan, task e implementación debe cumplirlas.
    `{data:[{id,nombre,codigo}]}`, ej. `productos.opciones`); tras setear value/opciones por código
    refrescar con `.trigger('change.select2')`. El alto/tipografía ya están alineados a los controles
    compactos en `public/css/contagram-custom.css` (regla global). Referencia: `resources/js/productos.js`.
-   **Carga en lote**: en un buscador que agrega ítems a un detalle (productos de Venta/Presupuesto/
-   Compra), tras agregar el ítem hay que **reabrir el desplegable** (`setTimeout(() => $el.select2('open'), 0)`)
+   **Carga en lote**: en un buscador que agrega ítems a un detalle y **sigue usando Select2**, tras
+   agregar el ítem hay que **reabrir el desplegable** (`setTimeout(() => $el.select2('open'), 0)`)
    para que el foco vuelva al buscador y se pueda cargar el siguiente sin volver a hacer clic — el
    campo de búsqueda de Select2 sólo existe con el desplegable abierto, y el `setTimeout` es
-   imprescindible porque en el handler de `select2:select` el cierre todavía está en curso. Ver
-   `reabrirBuscador()` en `resources/js/ventas.js`.
+   imprescindible porque en el handler de `select2:select` el cierre todavía está en curso.
+   **Excepción documentada (spec 071, 19/08/2026)**: el buscador de productos del detalle de
+   Venta/Compra/Presupuesto (`#f-producto`) **no usa Select2**. El pedido del cliente —cargar varios
+   productos seguidos sin tocar el mouse— es imposible con Select2 por arquitectura del componente:
+   su campo de búsqueda sólo existe en el DOM mientras el desplegable está abierto, así que la única
+   forma de recuperar el foco es reabrir el desplegable entero, que es justamente el efecto lateral
+   que había que eliminar. Ese campo usa en cambio el widget propio `resources/js/buscador-catalogo.js`
+   (`window.BuscadorCatalogo.montar(el, {buscar, formatear, onElegir})`): un `<input type="text">`
+   siempre visible más un panel de sugerencias que abre/cierra sin mover el foco. El patrón
+   `setTimeout(() => $el.select2('open'), 0)` de arriba sigue vigente para **cualquier otro** select
+   con carga en lote que siga usando Select2 — no se generaliza el widget nuevo a selects que no
+   tienen este problema puntual de foco. Ver `specs/071-buscador-productos-detalle/research.md`
+   Decisión 1 y `contracts/buscador-catalogo-api.md`.
 
 6. **Inputs de fecha**: **NUNCA** `<input type="date">`. El input nativo se dibuja con el locale
    del **navegador**, no con el de la app: mostraba `08/05/2026` para el 5 de agosto, que en un

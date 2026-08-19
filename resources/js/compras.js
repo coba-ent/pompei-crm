@@ -42,15 +42,6 @@
             $el.trigger('change.select2');
         }
     }
-    /**
-     * Deja el buscador listo para cargar el ítem siguiente sin volver a hacer clic. Ver el comentario
-     * extendido en `ventas.js` — el campo de búsqueda de Select2 sólo existe con el desplegable
-     * abierto, y el `setTimeout` evita chocar con el cierre en curso.
-     */
-    function reabrirBuscador($el) {
-        if (!hasSelect2 || !$el || !$el.length) { return; }
-        setTimeout(function () { $el.select2('open'); }, 0);
-    }
     function money(v) {
         return '$ ' + (Number(v) || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
@@ -362,12 +353,23 @@
             },
         });
 
-        initSelect2($('#f-producto'), {
+        // Buscador de productos con foco persistente (spec 071): ver ventas.js para el contexto
+        // completo de por qué reemplaza a Select2 en este campo puntual.
+        window.BuscadorCatalogo && window.BuscadorCatalogo.montar('#f-producto', {
             placeholder: 'Buscar producto...',
-            ajax: {
-                url: rutas.productosOpciones,
-                data: (params) => ({ q: params.term, incluir_servicios: 1 }),
-                processResults: (resp) => ({ results: resp.data.map((p) => ({ id: p.id, text: '(' + p.id + ') ' + p.nombre + (p.codigo ? ' (' + p.codigo + ')' : ''), producto: p })) }),
+            buscar: (termino) => $.get(rutas.productosOpciones, {
+                q: termino,
+                incluir_servicios: 1,
+            }).then((resp) => resp.data),
+            formatear: (p) => '(' + p.id + ') ' + p.nombre + (p.codigo ? ' (' + p.codigo + ')' : ''),
+            onElegir: (producto) => {
+                // IVA sin preseleccionar ("Elegir") — research.md §2: sólo se sugiere el
+                // costo/IVA de compra del producto, nunca se fuerza un valor por defecto.
+                // Excepción: si el comprobante es tipo A (discrimina IVA), se precarga el
+                // iva_compra_pct del producto para ahorrar el tipeo manual en cada ítem.
+                const ivaAuto = $('#f-tipo-comprobante').val() === 'A' ? (producto.iva_compra_pct || null) : null;
+                items.unshift({ producto_id: producto.id, descripcion: producto.nombre, cantidad: 1, precio_unitario: producto.costo || 0, descuento_pct: null, iva_pct: ivaAuto, _precioCatalogoOriginal: producto.costo || 0 });
+                renderItems();
             },
         });
 
@@ -411,19 +413,6 @@
             const proveedor = e.params.data.proveedor;
             if (!proveedor) { return; }
             if (proveedor.categoria_id) { $('#f-categoria').val(proveedor.categoria_id).trigger('change'); }
-        });
-
-        // IVA sin preseleccionar ("Elegir") — research.md §2: sólo se sugiere el
-        // costo/IVA de compra del producto, nunca se fuerza un valor por defecto.
-        // Excepción: si el comprobante es tipo A (discrimina IVA), se precarga el
-        // iva_compra_pct del producto para ahorrar el tipeo manual en cada ítem.
-        $('#f-producto').on('select2:select', function (e) {
-            const producto = e.params.data.producto;
-            const ivaAuto = $('#f-tipo-comprobante').val() === 'A' ? (producto.iva_compra_pct || null) : null;
-            items.unshift({ producto_id: producto.id, descripcion: producto.nombre, cantidad: 1, precio_unitario: producto.costo || 0, descuento_pct: null, iva_pct: ivaAuto, _precioCatalogoOriginal: producto.costo || 0 });
-            renderItems();
-            $(this).val(null).trigger('change');
-            reabrirBuscador($(this));
         });
 
         // Refresco de fila al editar el producto desde el desplegable ▾ del detalle

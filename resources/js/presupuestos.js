@@ -88,16 +88,6 @@
         };
     }
 
-    /**
-     * Deja el buscador listo para cargar el ítem siguiente sin volver a hacer clic. Ver el comentario
-     * extendido en `ventas.js` — el campo de búsqueda de Select2 sólo existe con el desplegable
-     * abierto, y el `setTimeout` evita chocar con el cierre en curso.
-     */
-    function reabrirBuscador($el) {
-        if (!hasSelect2 || !$el || !$el.length) { return; }
-        setTimeout(function () { $el.select2('open'); }, 0);
-    }
-
     function iniciarSelect2Catalogo($el, opciones) {
         if (!hasSelect2 || !$el || !$el.length) { return; }
         const opts = opciones || {};
@@ -429,12 +419,27 @@
             onEditar: (id) => window.ClienteModal && window.ClienteModal.editar(id, aplicarClienteGuardado),
         });
 
-        initSelect2($('#f-producto'), {
+        // Buscador de productos con foco persistente (spec 071): ver ventas.js para el contexto
+        // completo de por qué reemplaza a Select2 en este campo puntual.
+        window.BuscadorCatalogo && window.BuscadorCatalogo.montar('#f-producto', {
             placeholder: 'Buscar producto...',
-            ajax: {
-                url: rutas.productosOpciones,
-                data: (params) => ({ q: params.term, incluir_servicios: 1, lista_precio_id: $('#f-lista-precio').val() || null }),
-                processResults: (resp) => ({ results: resp.data.map((p) => ({ id: p.id, text: '(' + p.id + ') ' + p.nombre + (p.codigo ? ' (' + p.codigo + ')' : ''), producto: p })) }),
+            buscar: (termino) => $.get(rutas.productosOpciones, {
+                q: termino,
+                incluir_servicios: 1,
+                lista_precio_id: $('#f-lista-precio').val() || null,
+            }).then((resp) => resp.data),
+            formatear: (p) => '(' + p.id + ') ' + p.nombre + (p.codigo ? ' (' + p.codigo + ')' : ''),
+            onElegir: (producto) => {
+                items.unshift({
+                    producto_id: producto.id,
+                    descripcion: producto.nombre,
+                    cantidad: 1,
+                    precio_unitario: producto.precio || 0,
+                    descuento_pct: null,
+                    iva_pct: producto.iva_venta_pct || '21',
+                    _precioCatalogoOriginal: producto.precio || 0,
+                });
+                renderItems();
             },
         });
 
@@ -483,22 +488,6 @@
 
         $('#f-cliente').on('select2:select', function (e) {
             aplicarAutocompletadoCliente(e.params.data.cliente);
-        });
-
-        $('#f-producto').on('select2:select', function (e) {
-            const producto = e.params.data.producto;
-            items.unshift({
-                producto_id: producto.id,
-                descripcion: producto.nombre,
-                cantidad: 1,
-                precio_unitario: producto.precio || 0,
-                descuento_pct: null,
-                iva_pct: producto.iva_venta_pct || '21',
-                _precioCatalogoOriginal: producto.precio || 0,
-            });
-            renderItems();
-            $(this).val(null).trigger('change');
-            reabrirBuscador($(this));
         });
 
         // Refresco de fila al editar el producto desde el desplegable ▾ del detalle

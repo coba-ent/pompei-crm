@@ -480,6 +480,19 @@ Otros Ingresos y Abonos son independientes.
   Implementado en `AppFecha.seguir()` (`resources/js/fecha-ar.js`), compartido con Compras para que
   las dos pantallas no diverjan. Divergencia deliberada, sin capturas de Contagram que la confirmen:
   es una comodidad de carga, no una regla de negocio — el campo sigue siendo opcional y editable.
+- **Buscador de productos del detalle con foco persistente (spec 071, 19/08/2026)**: el campo
+  "Seleccionar o Crear Producto/Servicio" del detalle dejó de ser un Select2 y pasó a un widget
+  propio (`resources/js/buscador-catalogo.js`) porque Select2 no permite mantener el foco en el
+  input mientras el panel de sugerencias abre y cierra — el requisito del cliente es cargar varios
+  productos seguidos sin tocar el mouse. Mismo comportamiento de búsqueda que antes (mismos
+  parámetros al backend, mismo formato de fila, misma línea agregada al detalle — sin regresión),
+  sólo cambia la interacción: al elegir un producto (clic o `Enter` con una opción resaltada) el
+  panel se cierra, el campo queda vacío y el foco **permanece en el buscador**, listo para tipear el
+  siguiente término sin ninguna acción intermedia. `Escape` cierra el panel conservando lo tipeado;
+  `↓`/`↑` navegan las opciones sin auto-resaltar la primera (evita cargar "lo primero que apareció"
+  con un Enter reflejo, dado que la línea alimenta un comprobante fiscal). Aplica igual en Venta,
+  Compra y Presupuesto; el resto de los selects de esas pantallas (Cliente/Proveedor, Categoría,
+  Vendedor, Lista de Precios) siguen siendo Select2 sin cambios.
 - Botón **"Analizar" (IA/Gemini)**: exclusivo de Ventas — genera un resumen del período (producto
   estrella, categoría más rentable, récord de venta, recomendación de negocio), con advertencia
   explícita de que "puede no ser del todo precisa o real". Misma tecnología (Gemini) que "Buscar
@@ -2542,6 +2555,18 @@ salieron de esta lista:
     observers/eventos de Eloquent en las entidades transaccionales existentes (Venta, Cobro, Gasto,
     Movimiento de stock/caja, etc.), con `usuario_id` nullable (para acciones de sistema/integración
     como Mercado Libre/Tiendanube), `tipo_accion`, `entidad`, `entidad_id`, `detalle`, `fecha`.
+- **Brecha detectada (spec 071, 19/08/2026): "Crear Producto" desde el buscador del detalle no
+  existe.** El campo del detalle de Venta/Compra/Presupuesto rotula la etiqueta
+  *"Seleccionar o Crear Producto/Servicio"*, pero relevando el código (`resources/js/ventas.js`,
+  `compras.js`, `presupuestos.js`) se confirmó que ese buscador **nunca tuvo** una acción de
+  creación rápida — a diferencia del selector de Cliente (`#f-cliente`), que sí tiene "Crear
+  Cliente" con su propio modal. La etiqueta viene prometiendo algo que no existe desde antes de
+  esta feature; no se resuelve acá (el widget nuevo, `resources/js/buscador-catalogo.js`, es
+  deliberadamente genérico y no sabe crear productos). Dos salidas posibles, sin resolver:
+  (a) implementar la creación rápida de Producto/Servicio desde el buscador en una spec futura
+  (análoga a "Crear Cliente"), o (b) corregir la etiqueta a "Seleccionar Producto/Servicio" para
+  que deje de prometer algo que no hace. Ver `specs/071-buscador-productos-detalle/research.md`
+  (hallazgo previo).
 
 ### 7.x Pendiente técnico — filtros por fecha sobre columnas `DATETIME` en UTC
 

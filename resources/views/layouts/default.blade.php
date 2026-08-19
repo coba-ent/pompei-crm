@@ -105,6 +105,11 @@
 <script src="{{ asset('vendor/bootstrap-datepicker-master/locales/bootstrap-datepicker.es.min.js') }}"></script>
 @vite(['resources/js/fecha-ar.js'])
 
+{{-- Buscador de catálogo con foco persistente (spec 071): widget genérico usado hoy en
+     `#f-producto` de Venta/Compra/Presupuesto. Va acá por el mismo motivo que `fecha-ar.js`:
+     tiene que cargar ANTES que los bundles de pantalla que lo montan. --}}
+@vite(['resources/js/buscador-catalogo.js'])
+
 @yield('local-js')
 </body>
 

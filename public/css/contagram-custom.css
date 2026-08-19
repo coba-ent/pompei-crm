@@ -784,3 +784,54 @@ table.dataTable > thead > tr > td {
 .widget-stat .media .media-body p {
     font-size: 0.75rem;
 }
+
+/* --------------------------------------------------------------------------
+ * Buscador de catálogo con foco persistente (spec 071) — reemplaza Select2
+ * en `#f-producto` de Venta/Compra/Presupuesto. Ver `resources/js/buscador-catalogo.js`
+ * para el porqué (foco independiente del panel, imposible con Select2).
+ * Estilo compacto igual que `.form-control` (mismo padding/font-size/line-height
+ * de la sección "Formularios" de arriba).
+ * ------------------------------------------------------------------------ */
+.buscador-catalogo-wrapper {
+    position: relative;
+}
+
+.buscador-catalogo-panel {
+    position: absolute;
+    top: calc(100% + 0.25rem);
+    left: 0;
+    right: 0;
+    /* Por encima de cualquier card y, dentro de un modal, por encima del propio modal
+     * (Bootstrap 5 usa 1055 para `.modal`; ver también `.select2-container--open` arriba). */
+    z-index: 1065;
+    max-height: 16rem;
+    overflow-y: auto;
+    background-color: #fff;
+    border: 1px solid #c9ced4;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.5rem 1.5rem rgba(15, 18, 55, 0.15);
+    padding: 0.25rem 0;
+}
+
+.buscador-catalogo-opcion {
+    padding: 0.375rem 0.85rem;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    cursor: pointer;
+    color: #212529;
+}
+
+.buscador-catalogo-opcion--resaltada,
+.buscador-catalogo-opcion:hover {
+    background-color: rgba(40, 172, 227, 0.15);
+}
+
+.buscador-catalogo-estado {
+    padding: 0.5rem 0.85rem;
+    font-size: 0.8125rem;
+    color: #8a929b;
+}
+
+.buscador-catalogo-error {
+    color: #bd362f;
+}

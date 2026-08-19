@@ -92,7 +92,7 @@
                 <div class="row g-3 align-items-end mb-3">
                     <div class="col-md-12">
                         <label class="form-label">Seleccionar o Crear Producto/Servicio</label>
-                        <select id="f-producto" class="form-select" style="width:100%"></select>
+                        <input type="text" id="f-producto" class="form-control" autocomplete="off" placeholder="Buscar producto...">
                     </div>
                 </div>
 

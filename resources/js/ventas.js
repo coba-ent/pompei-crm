@@ -106,19 +106,6 @@
         };
     }
 
-    /**
-     * Deja el buscador listo para cargar el ítem siguiente sin volver a hacer clic.
-     *
-     * Al limpiar la selección el desplegable se cierra y Select2 devuelve el foco al contenedor, no
-     * al campo de búsqueda —que sólo existe mientras el desplegable está abierto—, así que la única
-     * forma de recuperar el foco es reabrirlo. El `setTimeout` es necesario: en el handler de
-     * `select2:select` el cierre todavía está en curso y abrir en el mismo tick no tiene efecto.
-     */
-    function reabrirBuscador($el) {
-        if (!hasSelect2 || !$el || !$el.length) { return; }
-        setTimeout(function () { $el.select2('open'); }, 0);
-    }
-
     function iniciarSelect2Catalogo($el, opciones) {
         if (!hasSelect2 || !$el || !$el.length) { return; }
         const opts = opciones || {};
@@ -588,12 +575,20 @@
             onEditar: (id) => window.ClienteModal && window.ClienteModal.editar(id, aplicarClienteGuardado),
         });
 
-        initSelect2($('#f-producto'), {
+        // Buscador de productos con foco persistente (spec 071): widget propio en vez de Select2,
+        // porque el pedido del cliente (cargar varios productos seguidos sin tocar el mouse) es
+        // imposible con Select2 por arquitectura del componente — ver research.md Decisión 1.
+        window.BuscadorCatalogo && window.BuscadorCatalogo.montar('#f-producto', {
             placeholder: 'Buscar producto...',
-            ajax: {
-                url: rutas.productosOpciones,
-                data: (params) => ({ q: params.term, incluir_servicios: 1, lista_precio_id: $('#f-lista-precio').val() || null }),
-                processResults: (resp) => ({ results: resp.data.map((p) => ({ id: p.id, text: '(' + p.id + ') ' + p.nombre + (p.codigo ? ' (' + p.codigo + ')' : ''), producto: p })) }),
+            buscar: (termino) => $.get(rutas.productosOpciones, {
+                q: termino,
+                incluir_servicios: 1,
+                lista_precio_id: $('#f-lista-precio').val() || null,
+            }).then((resp) => resp.data),
+            formatear: (p) => '(' + p.id + ') ' + p.nombre + (p.codigo ? ' (' + p.codigo + ')' : ''),
+            onElegir: (producto) => {
+                items.unshift({ producto_id: producto.id, descripcion: producto.nombre, cantidad: 1, precio_unitario: producto.precio || 0, descuento_pct: null, iva_pct: producto.iva_venta_pct || '21', _precioCatalogoOriginal: producto.precio || 0 });
+                renderItems();
             },
         });
 
@@ -662,14 +657,6 @@
 
         $('#f-cliente').on('select2:select', function (e) {
             aplicarAutocompletadoCliente(e.params.data.cliente);
-        });
-
-        $('#f-producto').on('select2:select', function (e) {
-            const producto = e.params.data.producto;
-            items.unshift({ producto_id: producto.id, descripcion: producto.nombre, cantidad: 1, precio_unitario: producto.precio || 0, descuento_pct: null, iva_pct: producto.iva_venta_pct || '21', _precioCatalogoOriginal: producto.precio || 0 });
-            renderItems();
-            $(this).val(null).trigger('change');
-            reabrirBuscador($(this));
         });
 
         // Refresco de fila al editar el producto desde el desplegable ▾ del detalle
