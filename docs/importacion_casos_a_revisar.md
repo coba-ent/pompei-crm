@@ -1404,3 +1404,71 @@ Local.
 Efecto colateral esperado: a las 18:32 `SincronizadorStockFull` empezó a reflejar el inventario real
 de ML sobre el depósito Full (`ajuste` con descripción "Reflejo de stock Full de Mercado Libre"),
 pisando los valores cargados a mano. **Para Full la fuente de verdad es ML, no Contagram.**
+
+## §10 — Bitácora de los chequeos de stock (14 al 19/08/2026)
+
+Rutina que se viene aplicando cada mañana, y lo que fue apareciendo. Sirve como procedimiento para
+repetirlo y como registro de qué se descartó ya, para no volver a investigarlo.
+
+### El procedimiento
+
+1. **Movimientos nuevos desde el último corte** (`movimientos_stock.id > N`), agrupados por origen,
+   tipo y depósito. Cualquier `ajuste` sin descripción o sin `origen_type` merece explicación.
+2. **Auditoría venta por venta**: cada ítem contra los movimientos que generó, comparando por **neto**
+   —una edición produce entrada + salida que se cancelan— y verificando producto, depósito y cantidad.
+   También el caso inverso: movimientos sobre productos que no están en los ítems.
+3. **Estado de las integraciones**: última corrida de órdenes y de stock, publicaciones pendientes y
+   bloqueadas, órdenes sin venta.
+4. **Cruce contra la API de Mercado Libre** cuando hay dudas: stock del CRM contra el que ML publica
+   de verdad. Es el único chequeo que detecta una publicación congelada.
+
+Cortes registrados: `358` (14/08), `388` (15/08), `392` (16/08), `394` (16/08), `401` (17/08).
+
+### Trampas del procedimiento (pisadas y resueltas)
+
+- **`origen_type` con escapado de más.** Filtrar `origen_type = 'App\Models\Venta'` a través de
+  SSH + `mysql -e "…"` **nunca matchea**. Usar `origen_type LIKE '%Venta'`. Me hizo reportar en falso
+  que "ninguna venta manual descuenta stock".
+- **Sumar sólo las salidas infla el ranking de más vendidos.** Las ediciones generan pares
+  entrada+salida; hay que netear. Un producto daba 41 unidades vendidas cuando eran 7.
+- **El depósito a comparar depende de la publicación.** Para una publicación Full el stock relevante
+  es el del depósito Full, no el Local. Comparar siempre contra Local marcaba como "desfasadas" a las
+  tres Full sin que lo estuvieran (y tapaba el desfasaje real, que era otro).
+- **Los `created_at` están en UTC.** Un export de Contagram de las 20:18 hora argentina corresponde al
+  corte 23:18 UTC. Ver §7.x de `documentacion_principal_crm.md`.
+- **Los ids de Contagram se renumeraron.** Cruzar por `ID VIEJOS`, nunca por `Id` (ver §9).
+
+### Ediciones de ventas migradas: sigue ocurriendo
+
+Confirmado que las ediciones hechas desde sesiones de trabajo (`usuario_id` NULL) sobre Ventas con
+`legacy_id` **generan movimientos de stock**, pese a que la instrucción explícita era no tocar
+inventario. `VentaObserver::deleting()` tiene el guard de `legacy_id`; `StockDeVenta::reaplicarPorEdicion()`
+**no**.
+
+Casos posteriores a los ocho del 14/08 documentados en §9:
+
+```
+venta 24371   migrada   18/08 12:25   neto 0    sin daño
+venta 24429   migrada   19/08 13:38   neto 0    sin daño
+venta 24100   migrada   18/08 18:39   neto ±1   dejó dos boquillas cruzadas
+```
+
+La 24100 cambió `24759` (boquilla ahorradora) por `24107` (boquilla aireadora) — nombres casi
+idénticos. Contagram no tiene ese cambio, así que **una unidad de cada una está atribuida a un
+producto distinto en cada sistema**. Pendiente: definir cuál se vendió realmente.
+
+### Cruce final contra Contagram (export del 19/08 01:42)
+
+```
+18.212 coinciden  /  8 difieren
+  4  ventas posteriores al export (el VPS está más al día)
+  2  de Full, gobernadas por el inventario de ML
+  2  las boquillas cruzadas de arriba
+```
+
+### Lo que quedó descartado como problema
+
+- Las **188 Ventas sin `deposito_id`** no son un bug: 105 son migradas y 83 anteriores al fix `20cab20`.
+- Las **ventas manuales sí descuentan stock** (era el falso positivo del escapado).
+- Los **62 productos en negativo son 42**: veinte son mano de obra cargada como producto
+  (Colocación, Visita, Traslado), que no lleva inventario.

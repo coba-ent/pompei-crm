@@ -801,8 +801,10 @@ Reglas de negocio:
 - **Depósito propio**: `ml_configuracion.deposito_full_id` designa el depósito del CRM que representa
   la mercadería alojada en el centro de distribución de Mercado Libre. Es **opcional**, lo da de alta
   el usuario a mano, y **debe ser distinto** del depósito general de Mercado Libre.
-- **CRM → Mercado Libre**: las publicaciones Full quedan **excluidas** del envío de stock de
-  §3.2.ter. El envío se limita a lo que Mercado Libre permite escribir.
+- **CRM → Mercado Libre**: la publicación Full **sí recibe** el stock del depósito general, pero por
+  otro recurso — ver §3.2.ter.ter. Lo que no se escribe es la existencia del centro de distribución.
+  *(Corregido el 19/08/2026: hasta entonces la publicación se salteaba entera, y su stock propio
+  quedaba congelado para siempre. Ver el detalle abajo.)*
 - **Mercado Libre → CRM**: el CRM **lee** la existencia vendible del centro de distribución y la
   refleja en el depósito Full, deduplicando por inventario (publicaciones que comparten inventario
   cuentan una sola vez). La existencia no vendible (dañada, en transferencia) no se computa. A
@@ -818,6 +820,84 @@ Reglas de negocio:
 producto con 4 unidades en el centro de distribución de Mercado Libre y 3 en el depósito propio se ve
 como "7 en un solo lugar", sin poder distinguir cuáles puede despachar el negocio por sus propios
 medios. Ver `specs/065-ml-deposito-full/`.
+
+### 3.2.ter.ter El stock **propio** de una publicación Full sí se escribe (corregido 19/08/2026)
+
+**El error que se corrigió.** La spec 065 concluyó que en una publicación Full no había destino de
+escritura, y el sincronizador la salteaba entera limpiándole el `stock_pendiente`. La conclusión era
+correcta para la mitad Full y **equivocada para la otra mitad**: la existencia del domicilio del
+vendedor sí es escribible.
+
+Consecuencia: el stock propio de esas publicaciones quedaba **congelado en el valor que tenía el día
+que la publicación pasó a Full**, sin que ningún indicador lo denunciara — al limpiarse el pendiente,
+la publicación dejaba de figurar como que le faltaba algo.
+
+Falla en los dos sentidos, y ambos se vieron en producción el 19/08/2026:
+
+```
+43005  Kit Arizona   ML ofrecía 4   CRM Local  0   → vendía lo que no había (lo reportó el cliente)
+12700  Mixer         ML ofrecía 6   CRM Local  3   → vendía de más
+41363  Tecla         ML ofrecía 0   CRM Local 30   → pausada por "sin stock" con 30 en depósito
+```
+
+**El modelo de datos de Mercado Libre.** Una publicación Full reparte el stock en dos ubicaciones
+bajo un "user product":
+
+```
+GET /user-products/{user_product_id}/stock
+  locations: [ {type: selling_address, quantity: N},      ← domicilio del vendedor, ESCRIBIBLE
+               {type: meli_facility,   quantity: M} ]     ← centro de distribución, NO escribible
+```
+
+`available_quantity` del ítem pasa a ser un valor **derivado** de esas dos. Por eso
+`PUT /items/{id}` responde `400 item.available_quantity.not_modifiable`: no se escribe un campo
+calculado, se escribe lo que lo compone. En una publicación **no** Full hay una sola ubicación y
+`PUT /items/{id}` sigue siendo el camino correcto (267 de las 270 publicaciones van por ahí).
+
+**El recurso correcto** (verificado contra la cuenta real, 19/08/2026):
+
+```
+PUT /user-products/{user_product_id}/stock/type/selling_address
+    header  x-version: {la que devolvió el GET de /stock}
+    body    {"quantity": N}
+    →  204 No Content
+```
+
+Dos detalles que hacen fallar el intento ingenuo:
+
+1. **La ubicación va en el path**, no en el cuerpo. `PUT /user-products/{id}/stock` con un array de
+   `locations` devuelve **404**, igual que `/stock/selling_address` sin el `/type/`.
+2. **Control de concurrencia optimista**: el `GET` del stock devuelve un header `x-version`; el `PUT`
+   tiene que reenviarlo. Sin él, 400; con una versión vieja, 409 → hay que releer y reintentar.
+
+**Cómo quedó implementado.** `SincronizadorStock` elige el recurso según `esFull()`, y
+`ml_publicacion_producto.user_product_id` se persiste al clasificar (`SincronizadorTiposPublicacion`)
+y al vincular (`VinculadorAutomatico`), para no pagar un `GET` por publicación en cada corrida. Sin
+ese id la publicación se saltea como antes: no hay destino hasta que la corrida de tipos lo resuelva.
+`meli_facility` sigue intocable y su reflejo inverso lo sigue haciendo `SincronizadorStockFull`.
+
+### 3.2.ter.quater Regla operativa: **nunca** corregir stock con `UPDATE` directo
+
+Escribir `stocks.cantidad` a mano **saltea `MovimientoStockObserver`**, que es el único punto que marca
+las publicaciones de Mercado Libre y Tiendanube como pendientes de sincronizar. El dato queda bien en
+el CRM y **congelado en las integraciones, sin error ni marca de pendiente**.
+
+Incidente real (14–17/08/2026): se corrigieron stocks con `UPDATE` directo a pedido del usuario para
+no generar movimientos. La publicación `MLA1500482785` (Mixer, Colecta) quedó publicando **0 con 3
+unidades en depósito durante tres días**, sin dar error. Se detectó recién al cruzar contra la API.
+
+Para corregir un conteo real usar siempre `StockService::ajustar()` —el mismo mecanismo que un ajuste
+desde la pantalla—: deja el movimiento trazable, dispara el observer y la cadena se completa sola
+(movimiento → observer → publicación pendiente → cron → Mercado Libre). Si aun así hay que escribir
+directo, hay que marcar a mano las publicaciones afectadas:
+
+```sql
+UPDATE ml_publicacion_producto SET stock_pendiente = 1 WHERE producto_id = ...;
+```
+
+**Un segundo efecto del observer**, a tener presente: sólo mira el depósito general
+(`if ($movimiento->deposito_id !== $depositoMl->id) return;`). Un movimiento en el depósito **Full**
+no marca nada, así que un cambio que ocurra únicamente ahí no dispara sincronización.
 
 > **Nota — Compras también mueven stock** (spec 030, §6.2): el disparo reacciona a *cualquier* movimiento
 > de stock, y desde spec 030 las Compras generan los suyos igual que Ventas y ajustes — quedan cubiertas
