@@ -24,7 +24,7 @@ class MercadoLibrePublicacionProducto extends Model
         'stock_intentos_fallidos', 'stock_error_desde', 'stock_requiere_intervencion', 'ultimo_stock_publicado',
         'precio_pendiente', 'precio_sincronizado_en', 'precio_error', 'precio_error_en',
         'listing_type_id', 'listing_type_sincronizado_en',
-        'logistic_type', 'inventory_id', 'logistica_sincronizada_en',
+        'logistic_type', 'inventory_id', 'user_product_id', 'logistica_sincronizada_en',
     ];
 
     /**

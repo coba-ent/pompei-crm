@@ -44,6 +44,18 @@ class RespuestaMercadoLibre
         return ! $this->exito;
     }
 
+    /** Primer valor de un header, sin importar cómo lo haya capitalizado el proveedor. */
+    public function encabezado(string $nombre): ?string
+    {
+        foreach ($this->encabezados as $clave => $valores) {
+            if (strcasecmp($clave, $nombre) === 0) {
+                return is_array($valores) ? ($valores[0] ?? null) : $valores;
+            }
+        }
+
+        return null;
+    }
+
     /** Respuesta parcial de Mercado Libre (206 + `X-Content-Missing`, FR-012b). */
     public function esParcial(): bool
     {

@@ -186,12 +186,11 @@ class SincronizadorStock
         $omitidos = 0;
 
         foreach ($vinculos as $vinculo) {
-            // spec 065/FR-006: en una publicación Full, `available_quantity` refleja la
-            // existencia del centro de distribución de Mercado Libre, que NO es escribible
-            // por API. No es prudencia: del otro lado no hay destino de escritura. Se limpia
-            // el pendiente (FR-007) para que no quede reintentándose eternamente ni contando
-            // como error, y el reflejo inverso lo hace SincronizadorStockFull.
-            if ($vinculo->esFull()) {
+            // Una publicación Full que además vende con stock propio se saltea sólo si no
+            // sabemos contra qué "user product" escribir (ver publicarStockPropio()): ahí no
+            // hay destino, se limpia el pendiente para no reintentar en vano y lo resuelve la
+            // próxima corrida de tipos de publicación, que es la que resuelve ese id.
+            if ($vinculo->esFull() && ! $vinculo->user_product_id) {
                 $omitidos++;
                 $vinculo->update(['stock_pendiente' => false]);
 
@@ -207,12 +206,14 @@ class SincronizadorStock
 
             $cantidad = (int) max(0, $this->stock->disponibilidad($vinculo->producto, null, $depositoMl));
 
-            $respuesta = $this->cliente->enviar(
-                'sincronizar_stock',
-                'PUT',
-                "/items/{$vinculo->ml_item_id}",
-                ['available_quantity' => $cantidad]
-            );
+            $respuesta = $vinculo->esFull()
+                ? $this->publicarStockPropio($vinculo, $cantidad)
+                : $this->cliente->enviar(
+                    'sincronizar_stock',
+                    'PUT',
+                    "/items/{$vinculo->ml_item_id}",
+                    ['available_quantity' => $cantidad]
+                );
 
             if ($respuesta->fallo()) {
                 $conError++;
@@ -252,6 +253,50 @@ class SincronizadorStock
     }
 
     /**
+     * Publica el stock **propio** de una publicación Full.
+     *
+     * En una publicación Full el stock vive repartido en dos ubicaciones —`meli_facility`
+     * (el depósito de Mercado Libre) y `selling_address` (el domicilio del vendedor)— y
+     * `available_quantity` del ítem pasa a ser la suma de ambas. Por eso `PUT /items/{id}`
+     * responde `item.available_quantity.not_modifiable`: es un campo derivado. La ubicación
+     * propia sí se escribe, pero contra el "user product" y en su propio recurso.
+     *
+     * `meli_facility` no se toca: eso lo administra Mercado Libre y el reflejo inverso hacia
+     * el CRM lo hace SincronizadorStockFull.
+     *
+     * El recurso lleva control de concurrencia optimista: el GET devuelve `x-version` y el PUT
+     * tiene que reenviarlo. Si otro proceso escribió en el medio contesta 409, y ahí se reintenta
+     * una vez con la versión nueva — más que eso sería pelearse con quien esté escribiendo.
+     */
+    private function publicarStockPropio(MercadoLibrePublicacionProducto $vinculo, int $cantidad, bool $reintento = false): RespuestaMercadoLibre
+    {
+        $lectura = $this->cliente->obtener('leer_stock_user_product', "/user-products/{$vinculo->user_product_id}/stock");
+
+        if ($lectura->fallo()) {
+            return $lectura;
+        }
+
+        $version = $lectura->encabezado('x-version');
+
+        if (! $version) {
+            return RespuestaMercadoLibre::error('Mercado Libre no devolvió la versión del stock (x-version).', $lectura->codigoHttp);
+        }
+
+        $respuesta = $this->cliente->enviar(
+            'sincronizar_stock_propio',
+            'PUT',
+            "/user-products/{$vinculo->user_product_id}/stock/type/selling_address",
+            ['quantity' => $cantidad, 'encabezados' => ['x-version' => $version]]
+        );
+
+        if ($respuesta->codigoHttp === 409 && ! $reintento) {
+            return $this->publicarStockPropio($vinculo, $cantidad, reintento: true);
+        }
+
+        return $respuesta;
+    }
+
+    /**
      * spec 065/FR-008 y SC-007: los sufijos de Full sólo aparecen si hubo algo que omitir.
      * Sin publicaciones Full vinculadas, los mensajes quedan **idénticos** a los de antes
      * de esta feature — es el criterio de no-regresión más importante.
@@ -262,7 +307,7 @@ class SincronizadorStock
     private function mensajes(array $resultado): array
     {
         $sufijo = $resultado['omitidos'] > 0
-            ? ", {$resultado['omitidos']} omitidos por estar en Full"
+            ? ", {$resultado['omitidos']} de Full sin clasificar"
             : '';
 
         return [

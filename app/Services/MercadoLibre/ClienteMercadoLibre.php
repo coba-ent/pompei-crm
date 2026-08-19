@@ -52,6 +52,11 @@ class ClienteMercadoLibre
         $omitirGuardFuncion = (bool) ($opciones['omitir_guard_funcion'] ?? false);
         unset($opciones['omitir_guard_funcion']);
 
+        // `encabezados` viaja aparte del cuerpo: lo necesita el control de concurrencia
+        // de user-products (`x-version`), que va en header y no en el JSON.
+        $encabezados = (array) ($opciones['encabezados'] ?? []);
+        unset($opciones['encabezados']);
+
         $metodo = strtoupper($metodo);
         $sentido = $metodo === 'GET' ? 'lectura' : 'escritura';
 
@@ -84,7 +89,7 @@ class ClienteMercadoLibre
             return $this->registrarError($operacion, $metodo, $endpoint, $sentido, null, $e->getMessage());
         }
 
-        return $this->ejecutarConReintentos($operacion, $metodo, $endpoint, $sentido, $opciones, $cuenta, renovadoYa: false);
+        return $this->ejecutarConReintentos($operacion, $metodo, $endpoint, $sentido, $opciones, $cuenta, renovadoYa: false, encabezados: $encabezados);
     }
 
     private function ejecutarConReintentos(
@@ -95,6 +100,7 @@ class ClienteMercadoLibre
         array $opciones,
         MercadoLibreCuenta $cuenta,
         bool $renovadoYa,
+        array $encabezados = [],
     ): RespuestaMercadoLibre {
         $intentosTransitorios = 0;
 
@@ -104,6 +110,7 @@ class ClienteMercadoLibre
             try {
                 $respuestaHttp = Http::timeout(30)->connectTimeout(10)
                     ->withToken($cuenta->access_token)
+                    ->withHeaders($encabezados)
                     ->acceptJson()
                     ->send($metodo, self::API_BASE.$endpoint, $metodo === 'GET' ? ['query' => $opciones] : ['json' => $opciones]);
             } catch (ConnectionException $e) {
@@ -134,7 +141,7 @@ class ClienteMercadoLibre
                     return $this->registrarError($operacion, $metodo, $endpoint, $sentido, $codigo, $e->getMessage(), $duracionMs);
                 }
 
-                return $this->ejecutarConReintentos($operacion, $metodo, $endpoint, $sentido, $opciones, $cuenta, renovadoYa: true);
+                return $this->ejecutarConReintentos($operacion, $metodo, $endpoint, $sentido, $opciones, $cuenta, renovadoYa: true, encabezados: $encabezados);
             }
 
             if ($codigo === 401) {

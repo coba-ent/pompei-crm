@@ -104,10 +104,14 @@ class SincronizadorTiposPublicacion
             // stock que Mercado Libre no puede escribir.
             $logisticType = $entrada['body']['shipping']['logistic_type'] ?? null;
             $inventoryId = $entrada['body']['inventory_id'] ?? null;
+            // spec 065: el stock propio de una publicación Full se escribe contra el
+            // "user product", así que su id se persiste acá y no cuesta una llamada extra.
+            $userProductId = $entrada['body']['user_product_id'] ?? null;
 
             $filas = MercadoLibrePublicacionProducto::where('ml_item_id', $itemId)->update(array_filter([
                 'logistic_type' => $logisticType,
                 'inventory_id' => $inventoryId,
+                'user_product_id' => $userProductId,
                 'logistica_sincronizada_en' => $logisticType ? now() : null,
             ], static fn ($valor) => $valor !== null) + [
                 'listing_type_id' => $listingTypeId,
