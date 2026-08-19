@@ -181,7 +181,7 @@ Actualizar al terminar cada uno. El corte es `movimientos_stock.id`.
 
 | Fecha | Corte | Resultado |
 |---|---|---|
-| 19/08/2026 | 516 | Fix de publicaciones Full desplegado (`15df08b`). Las 3 Full alineadas: 12700 Local 2, 43005 Local 0, 41363 Local 30. Quedan 3 bloqueadas por moderación de ML (`under_review`), ajenas al CRM: MLA1953964180, MLA2053709352, MLA1489377153. |
+| 19/08/2026 (14:31) | 516 | 12 ventas, 13 líneas, 0 problemas. 268/270 alineadas con ML. Fix de publicaciones Full desplegado (`15df08b`). Las 3 Full alineadas: 12700 Local 2, 43005 Local 0, 41363 Local 30. Quedan 3 bloqueadas por moderación de ML (`under_review`), ajenas al CRM: MLA1953964180, MLA2053709352, MLA1489377153. |
 | 17/08/2026 | 401 | 5 ventas, 0 problemas. Primera venta Full descontando de Full. |
 | 16/08/2026 | 394 | 2 ventas, 0 problemas. |
 | 15/08/2026 | 388 | 13 ventas, 0 problemas. |
