@@ -823,11 +823,32 @@ Reglas de negocio:
   cuentan una sola vez). La existencia no vendible (dañada, en transferencia) no se computa. A
   diferencia del envío, **este reflejo NO se bloquea por el modo sólo lectura**: es una lectura, y ese
   modo restringe escrituras hacia Mercado Libre.
-- **Ventas**: una orden cuyas líneas sean **todas** Full imputa la Venta al depósito Full. Si mezcla
-  Full con logística propia, va al general (una Venta tiene un único depósito). Sin depósito Full
-  configurado, va al general. **La conversión de una orden nunca se traba por esta configuración.**
+- **Ventas**: una orden cuyas líneas sean **todas** Full imputa la Venta al depósito Full **sólo si el
+  envío salió efectivamente de Full**. Si mezcla Full con logística propia, va al general (una Venta
+  tiene un único depósito). Sin depósito Full configurado, va al general. **La conversión de una orden
+  nunca se traba por esta configuración.**
+
+  *Corregido el 20/08/2026 (`2696f0a`)*: el `logistic_type` del vínculo describe la **publicación**, no
+  el envío. Una publicación Full cuyo depósito de Mercado Libre se vació sigue vendiendo, pero el
+  paquete sale del domicilio (`self_service` / `xd_drop_off`). Esa venta no salió de Full, y sin
+  embargo se le imputaba: descontaba de Full, el reflejo lo devolvía a cero, y **la unidad vendida no
+  se descontaba de ningún depósito**. Ahora, cuando los vínculos dicen Full, se confirma contra
+  `GET /shipments/{id}` — el id ya viene en el payload de la orden. Ante cualquier duda va al general,
+  que es donde el stock existe (mismo criterio que FR-005).
+
+  Caso real: venta 24587 del 19/08 — publicación `fulfillment`, envío `self_service` en
+  `ready_to_print`. Movimientos: salida −1 en Full a las 21:33, ajuste +1 a las 21:37.
+  **Validado contra Contagram** (informe de movimientos del 20/08): los mismos productos tienen ventas
+  imputadas a Full el 18/08 y a Local el 19/08, cuando el depósito Full se vació. Contagram también
+  decide venta por venta.
 - **Reposición hacia Full**: **manual**, por decisión del negocio y porque Mercado Libre no la expone
   por API. El CRM no la automatiza; si se quiere dejar registro, se usa un movimiento entre depósitos.
+- **El depósito Full es un espejo, no un depósito escribible.** `SincronizadorStockFull` lo iguala al
+  inventario real de Mercado Libre en cada corrida, así que cualquier valor que se le escriba —a mano,
+  por `stock:ajustar-desde-hoja` o por el módulo de importación (§Base de Datos)— se revierte en menos
+  de cinco minutos, sin aviso. Verificado el 20/08/2026: un ajuste de −2 duró **once segundos**.
+  **Pendiente**: el mapeo del módulo de importación sigue ofreciendo "Stock: Full" como si fuera un
+  destino válido.
 
 **Qué problema resuelve**. Hoy el CRM suma ambas existencias en un solo depósito. Caso real: un
 producto con 4 unidades en el centro de distribución de Mercado Libre y 3 en el depósito propio se ve

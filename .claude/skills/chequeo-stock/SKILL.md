@@ -78,6 +78,11 @@ netear. Un producto figuraba con 41 unidades vendidas cuando eran 7.
 
 **Un export es una foto.** Toda venta posterior a su hora aparece como diferencia y no lo es.
 
+**Auditar cada venta por separado no alcanza.** Un ajuste posterior puede anular la salida de una
+venta, y como pertenece a otro origen no aparece al auditar esa venta: el primer pase le pone OK.
+Por eso `auditar_ventas.php` tiene un **segundo pase** que compara el neto por producto en toda la
+ventana. Fue lo que dejó pasar la venta 24587 del 19/08 durante un día entero.
+
 ## Cómo se interpreta lo que aparece
 
 **Stock negativo**: hay ~60 filas, y **un tercio son mano de obra cargada como producto**
@@ -93,6 +98,10 @@ migración no mueve inventario a propósito— y 83 son de Mercado Libre anterio
 
 **Publicación desfasada SIN `[BLOQUEADA]`**: es una **congelada** — el caso peligroso, porque no da
 error. Se destraba marcándola pendiente (ver correcciones).
+
+**Una salida seguida de un ajuste que la devuelve** (mismo producto y depósito, minutos después) es
+la firma de los tres bugs encontrados hasta ahora. Neto cero = la mercadería salió y no se descontó de
+ningún lado. Nunca da error ni deja la publicación pendiente: hay que buscarlo a propósito.
 
 **Ediciones de Ventas migradas**: `StockDeVenta::reaplicarPorEdicion()` **no** tiene el guard de
 `legacy_id` que sí tiene `VentaObserver::deleting()`, así que editar una Venta migrada mueve stock
@@ -153,7 +162,28 @@ Sólo después de entender y resolver la causa del `stock_error`.
 
 **Depósitos**: `Local` (general de Mercado Libre) y `Full`. El de Tiendanube ya no existe.
 
-**Publicaciones Full**: el stock vive en dos ubicaciones bajo un "user product" — `selling_address`
+**Publicaciones Full — dos cosas distintas que se confunden fácil:**
+
+*Que la publicación sea Full no significa que la venta salga de Full.* Cuando el depósito de Mercado
+Libre se queda vacío, la publicación **sigue vendiendo** y el paquete sale del domicilio del vendedor
+(`self_service` = Flex, `xd_drop_off` = Colecta). Esa venta descuenta de **Local**, no de Full. El dato
+que lo decide es el `logistic_type` del **envío**, no el de la publicación:
+
+```
+GET /shipments/{id}      → logistic_type: fulfillment | self_service | xd_drop_off
+```
+
+El id del envío viene en `ml_ordenes.payload->shipping.id`. Desde `2696f0a` el conversor lo consulta
+antes de imputar el depósito. **Confirmado contra Contagram** (informe de movimientos del 20/08): los
+mismos tres productos tienen ventas imputadas a Full el 18/08 y a Local el 19/08, cuando el depósito
+Full se vació. Contagram decide venta por venta, igual que nosotros ahora.
+
+*El depósito Full del CRM es un espejo, no un depósito propio.* `SincronizadorStockFull` lo iguala al
+inventario real de Mercado Libre cada corrida. **Cualquier valor que le escribas —a mano, por Excel o
+por el módulo de importación— lo pisa en menos de 5 minutos.** Verificado: un ajuste de −2 duró 11
+segundos. Si necesitás que Full tenga unidades, tiene que recibirlas Mercado Libre físicamente.
+
+*El stock propio sí se escribe.* Vive en dos ubicaciones bajo un "user product" — `selling_address`
 (del vendedor, **escribible**) y `meli_facility` (de ML, **no escribible**). El `available_quantity`
 del ítem es derivado, y por eso `PUT /items/{id}` responde `item.available_quantity.not_modifiable`.
 El recurso correcto es:
@@ -181,11 +211,23 @@ Actualizar al terminar cada uno. El corte es `movimientos_stock.id`.
 
 | Fecha | Corte | Resultado |
 |---|---|---|
+| 20/08/2026 | 539 | Fix: la venta de una publicación Full se imputa según el envío, no según la publicación (`2696f0a`). Validado contra el informe de movimientos de Contagram. 5 de 6 diferencias alineadas; queda 12700 en Full, que el reflejo no deja fijar. |
 | 19/08/2026 (14:31) | 516 | 12 ventas, 13 líneas, 0 problemas. 268/270 alineadas con ML. Fix de publicaciones Full desplegado (`15df08b`). Las 3 Full alineadas: 12700 Local 2, 43005 Local 0, 41363 Local 30. Quedan 3 bloqueadas por moderación de ML (`under_review`), ajenas al CRM: MLA1953964180, MLA2053709352, MLA1489377153. |
 | 17/08/2026 | 401 | 5 ventas, 0 problemas. Primera venta Full descontando de Full. |
 | 16/08/2026 | 394 | 2 ventas, 0 problemas. |
 | 15/08/2026 | 388 | 13 ventas, 0 problemas. |
 | 14/08/2026 | 358 | Stock alineado contra Contagram; bug de depósito en Notas de Crédito corregido. |
+
+## Por qué estos chequeos son manuales (y qué falta)
+
+Los tres bugs encontrados —depósito equivocado en Notas de Crédito, publicaciones Full congeladas, y
+venta Full despachada desde el domicilio— **no daban ningún error**. Stock que no baja, publicación
+que no se actualiza: para el sistema todo salió bien. Los tres aparecieron comparando contra una
+fuente externa (un export de Contagram o la API de ML), nunca por una alarma.
+
+Pendiente de construir: un detector que corra cada 15 minutos y verifique tres invariantes sobre lo
+que se movió — que todo lo vendido se haya descontado, que ningún movimiento se anule a sí mismo, y
+que Mercado Libre ofrezca lo que dice el CRM— avisando cuando alguno falle.
 
 ## Pendientes conocidos
 
@@ -194,3 +236,8 @@ Actualizar al terminar cada uno. El corte es `movimientos_stock.id`.
   venta 24100 que no llegó al otro sistema. Falta definir cuál se vendió.
 - **`AjustarStockDesdeHoja` sin defensa contra el signo invertido** — incidente del producto 43491.
 - **Filtros por fecha sobre columnas `DATETIME`** corren el día (§7.x).
+- **El módulo de importación ofrece mapear "Stock: Full"** y ese valor lo revierte el reflejo a los
+  pocos minutos, sin avisar. Habría que sacar los depósitos Full de esa lista de campos.
+- **No hay ningún canal de alertas**: `MAIL_MAILER=log` en el VPS y no existe ninguna clase de
+  notificación. Todo problema de stock se descubre mirando a propósito. Pendiente: detector de
+  invariantes con aviso (ver abajo).
