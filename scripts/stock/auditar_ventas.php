@@ -79,3 +79,64 @@ printf("\n\nLíneas correctas: %d\nProblemas: %d\n", $ok, count($problemas));
 foreach ($problemas as $p) {
     echo "  - $p\n";
 }
+
+/**
+ * Segundo pase — el punto ciego del primero.
+ *
+ * Arriba se audita cada Venta contra los movimientos que cuelgan de ELLA. Un ajuste posterior
+ * que anule esa salida no aparece, porque pertenece a otro origen (o a ninguno). Fue exactamente
+ * lo que tapó la venta 24587 del 19/08: descontó 1 de Full y cuatro minutos después el reflejo
+ * de Full lo devolvió, dejando la unidad vendida sin descontar de ningún lado. El primer pase le
+ * puso OK.
+ *
+ * Acá se mira el NETO por producto en toda la ventana, venga de donde venga el movimiento, y se
+ * compara contra lo que las Ventas del período dicen haber vendido.
+ */
+titulo('Neto por producto en la ventana (detecta ajustes que anulan ventas)');
+
+$vendido = [];
+foreach ($ventas as $v) {
+    foreach (DB::table('venta_items as i')->join('productos as p', 'p.id', '=', 'i.producto_id')
+        ->where('i.venta_id', $v->id)->where('p.tipo', '!=', 'servicio')
+        ->select('i.producto_id', 'i.cantidad')->get() as $it) {
+        $vendido[$it->producto_id] = ($vendido[$it->producto_id] ?? 0) + (float) $it->cantidad;
+    }
+}
+
+$sospechosos = [];
+
+foreach ($vendido as $pid => $unidades) {
+    $movs = DB::table('movimientos_stock')->where('producto_id', $pid)
+        ->where('created_at', '>=', $desde)->get();
+
+    $neto = $movs->sum(fn ($m) => (float) $m->cantidad);
+    $compras = $movs->filter(fn ($m) => str_contains((string) $m->origen_type, 'Compra'))
+        ->sum(fn ($m) => (float) $m->cantidad);
+
+    // Lo esperado: bajó al menos lo vendido, salvo que hayan entrado compras en el medio.
+    $esperado = $compras - $unidades;
+
+    if (abs($neto - $esperado) < 0.005) {
+        continue;
+    }
+
+    $nombre = DB::table('productos')->where('id', $pid)->value('nombre');
+    $sospechosos[] = sprintf('  %-7d %-40s vendió %s → neto real %s (esperado %s)',
+        $pid, mb_substr($nombre ?? '?', 0, 40), number_format($unidades, 0),
+        number_format($neto, 0), number_format($esperado, 0));
+
+    foreach ($movs as $m) {
+        $sospechosos[] = sprintf('              #%-5s %-8s %6s  %s', $m->id, $m->tipo,
+            number_format((float) $m->cantidad, 0),
+            mb_substr($m->descripcion ?? ('origen '.$m->origen_type.'#'.$m->origen_id), 0, 56));
+    }
+}
+
+if ($sospechosos === []) {
+    printf("  Sin anomalías: el stock bajó lo que se vendió en los %d productos del período.\n", count($vendido));
+} else {
+    printf("  %d producto(s) donde el neto NO coincide con lo vendido:\n\n", count(array_filter($sospechosos, fn ($l) => ! str_starts_with($l, '              '))));
+    foreach ($sospechosos as $s) {
+        echo "$s\n";
+    }
+}

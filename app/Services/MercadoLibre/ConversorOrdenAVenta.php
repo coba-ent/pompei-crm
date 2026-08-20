@@ -39,6 +39,7 @@ class ConversorOrdenAVenta
         private readonly StockDeVenta $stockDeVenta,
         private readonly Cobranzas $cobranzas,
         private readonly CalculoComprobante $calculo,
+        private readonly ClienteMercadoLibre $cliente,
     ) {
     }
 
@@ -395,12 +396,47 @@ class ConversorOrdenAVenta
      * mercadería que salió del domicilio del vendedor sería peor que la imprecisión de
      * imputar todo al general, donde al menos el stock físico existe.
      *
-     * `GET /orders/{id}` no trae el tipo de logística (contracts §Nota), así que se resuelve
-     * contra el `logistic_type` ya persistido de cada vínculo, sin llamadas extra.
+     * El `logistic_type` del vínculo describe la PUBLICACIÓN, no el envío. Una publicación Full
+     * cuyo depósito de Mercado Libre se quedó sin unidades sigue vendiendo, pero el paquete sale
+     * del domicilio (`self_service` / `xd_drop_off`): esa venta NO salió de Full. Por eso, cuando
+     * los vínculos dicen Full, se confirma contra el envío real de la orden — es el único dato
+     * que distingue una venta de otra dentro de la misma publicación.
+     *
+     * Caso real (venta 24587, 19/08/2026): publicación `fulfillment`, envío `self_service`. La
+     * Venta se imputó a Full, el reflejo de Full la devolvió a cero y la unidad no se descontó
+     * de ningún depósito.
      *
      * FR-022: esto nunca puede impedir que la orden se convierta — ante cualquier duda cae al
      * depósito general.
      */
+    /**
+     * ¿El paquete de esta orden salió del centro de distribución de Mercado Libre?
+     *
+     * Lo dice el envío, no la publicación: `GET /shipments/{id}` devuelve el `logistic_type`
+     * con el que se despachó **esa** orden. `fulfillment` = salió de Full; `self_service`
+     * (Flex) o `xd_drop_off` (Colecta) = lo despacha el vendedor desde su domicilio.
+     *
+     * Ante cualquier duda —sin id de envío, o la consulta falla— devuelve `false`: se imputa al
+     * depósito general, que es donde el stock existe de verdad. Mismo criterio que FR-005, que
+     * nunca asume Full. Y nunca traba la conversión (FR-022).
+     */
+    private function envioSalioDeFull(MercadoLibreOrden $orden): bool
+    {
+        $envioId = $orden->payload['shipping']['id'] ?? null;
+
+        if (! $envioId) {
+            return false;
+        }
+
+        $respuesta = $this->cliente->obtener('logistica_envio', "/shipments/{$envioId}");
+
+        if ($respuesta->fallo()) {
+            return false;
+        }
+
+        return ($respuesta->datos['logistic_type'] ?? null) === MercadoLibrePublicacionProducto::LOGISTICA_FULL;
+    }
+
     private function resolverDeposito(MercadoLibreOrden $orden): Deposito
     {
         $configuracion = MercadoLibreConfiguracion::actual();
@@ -422,7 +458,9 @@ class ConversorOrdenAVenta
         // el sistema nunca asume Full ante la duda (FR-005).
         $todasFull = $itemIds->every(fn (string $itemId) => $vinculos->get($itemId)?->esFull() === true);
 
-        $deposito = $todasFull ? $depositoFull : $configuracion->depositoEfectivo();
+        $deposito = $todasFull && $this->envioSalioDeFull($orden)
+            ? $depositoFull
+            : $configuracion->depositoEfectivo();
 
         // FR-023: queda registrado el criterio aplicado, para poder responder después por qué
         // una Venta descontó de un depósito y no del otro.
