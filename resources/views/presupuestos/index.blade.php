@@ -100,7 +100,17 @@
                     <button type="button" class="btn btn-info" data-bs-toggle="collapse" data-bs-target="#panel-filtros">
                         <i class="fas fa-filter me-1"></i> Filtros
                     </button>
-                    <span id="dt-buttons-presupuestos"></span>
+                    <div class="ms-auto d-flex flex-wrap gap-2 align-items-center">
+                        <div class="input-group" style="width:190px">
+                            <input type="text" id="filtro-rango-emision" class="form-control" placeholder="Emisión">
+                            <button type="button" class="btn btn-outline-secondary" id="btn-limpiar-rango-emision" title="Quitar filtro de Emisión"><i class="fas fa-times"></i></button>
+                        </div>
+                        <div class="input-group" style="width:190px">
+                            <input type="text" id="filtro-rango-vencimiento" class="form-control" placeholder="Vencimiento">
+                            <button type="button" class="btn btn-outline-secondary" id="btn-limpiar-rango-vencimiento" title="Quitar filtro de Vencimiento"><i class="fas fa-times"></i></button>
+                        </div>
+                        <span id="dt-buttons-presupuestos"></span>
+                    </div>
                 </div>
 
                 <div class="collapse mb-3" id="panel-filtros">

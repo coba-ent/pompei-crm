@@ -113,6 +113,20 @@ class PresupuestoController extends Controller
         if ($request->filled('servicio_hasta')) {
             $query->whereDate('servicio_hasta', '<=', $request->input('servicio_hasta'));
         }
+        // Rangos de la barra superior (mismos que Ventas). Acá el "vencimiento" del Presupuesto
+        // es su fecha de validez: no hay vencimiento de cobro porque todavía no es una Venta.
+        if ($request->filled('emision_desde')) {
+            $query->whereDate('fecha_emision', '>=', $request->input('emision_desde'));
+        }
+        if ($request->filled('emision_hasta')) {
+            $query->whereDate('fecha_emision', '<=', $request->input('emision_hasta'));
+        }
+        if ($request->filled('vencimiento_desde')) {
+            $query->whereDate('fecha_validez', '>=', $request->input('vencimiento_desde'));
+        }
+        if ($request->filled('vencimiento_hasta')) {
+            $query->whereDate('fecha_validez', '<=', $request->input('vencimiento_hasta'));
+        }
 
         return $query;
     }

@@ -193,6 +193,89 @@
         initSelect2($('#filtro-usuario'), { placeholder: 'Todos', allowClear: true });
         initSelect2($('#filtro-estado'), { placeholder: 'Todos', allowClear: true });
 
+        // --- Rangos de fecha (Emisión / Vencimiento) con presets, mismo patrón que Ventas.
+        // "Vencimiento" acá es la fecha de validez del Presupuesto. ---
+        let emisionDesde = '';
+        let emisionHasta = '';
+        let vencimientoDesde = '';
+        let vencimientoHasta = '';
+
+        function opcionesRango() {
+            const hoy = moment();
+
+            return {
+                autoUpdateInput: false,
+                opens: 'left',
+                locale: {
+                    format: 'DD/MM/YYYY', applyLabel: 'Aplicar', cancelLabel: 'Borrar filtro',
+                    fromLabel: 'Desde', toLabel: 'Hasta', customRangeLabel: 'Desde - Hasta',
+                    daysOfWeek: ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'],
+                    monthNames: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'],
+                },
+                ranges: {
+                    Hoy: [hoy.clone(), hoy.clone()],
+                    Ayer: [hoy.clone().subtract(1, 'day'), hoy.clone().subtract(1, 'day')],
+                    'Última Semana': [hoy.clone().subtract(6, 'days'), hoy.clone()],
+                    'Mes actual': [hoy.clone().startOf('month'), hoy.clone().endOf('month')],
+                    'Mes anterior': [hoy.clone().subtract(1, 'month').startOf('month'), hoy.clone().subtract(1, 'month').endOf('month')],
+                    'Últimos 30 días': [hoy.clone().subtract(29, 'days'), hoy.clone()],
+                    'Año actual': [hoy.clone().startOf('year'), hoy.clone().endOf('year')],
+                },
+            };
+        }
+
+        if ($.fn.daterangepicker) {
+            $('#filtro-rango-emision').daterangepicker(opcionesRango());
+            $('#filtro-rango-emision').on('apply.daterangepicker', function (e, picker) {
+                emisionDesde = picker.startDate.format('YYYY-MM-DD');
+                emisionHasta = picker.endDate.format('YYYY-MM-DD');
+                $(this).val('Emisión: ' + picker.startDate.format('DD/MM/YYYY') + ' - ' + picker.endDate.format('DD/MM/YYYY'));
+                tabla.ajax.reload();
+            });
+            $('#filtro-rango-emision').on('cancel.daterangepicker', function () {
+                emisionDesde = ''; emisionHasta = '';
+                $(this).val('');
+                tabla.ajax.reload();
+            });
+            // Borrar el texto a mano no dispara ningún evento del daterangepicker -- sin este
+            // listener el filtro seguía aplicado con las fechas viejas aunque el input se viera vacío.
+            $('#filtro-rango-emision').on('blur keyup', function () {
+                if ($(this).val() === '' && emisionDesde !== '') {
+                    emisionDesde = ''; emisionHasta = '';
+                    tabla.ajax.reload();
+                }
+            });
+            $('#btn-limpiar-rango-emision').on('click', function () {
+                emisionDesde = ''; emisionHasta = '';
+                $('#filtro-rango-emision').val('');
+                tabla.ajax.reload();
+            });
+
+            $('#filtro-rango-vencimiento').daterangepicker(opcionesRango());
+            $('#filtro-rango-vencimiento').on('apply.daterangepicker', function (e, picker) {
+                vencimientoDesde = picker.startDate.format('YYYY-MM-DD');
+                vencimientoHasta = picker.endDate.format('YYYY-MM-DD');
+                $(this).val('Vencimiento: ' + picker.startDate.format('D MMM') + ' - ' + picker.endDate.format('D MMM'));
+                tabla.ajax.reload();
+            });
+            $('#filtro-rango-vencimiento').on('cancel.daterangepicker', function () {
+                vencimientoDesde = ''; vencimientoHasta = '';
+                $(this).val('');
+                tabla.ajax.reload();
+            });
+            $('#filtro-rango-vencimiento').on('blur keyup', function () {
+                if ($(this).val() === '' && vencimientoDesde !== '') {
+                    vencimientoDesde = ''; vencimientoHasta = '';
+                    tabla.ajax.reload();
+                }
+            });
+            $('#btn-limpiar-rango-vencimiento').on('click', function () {
+                vencimientoDesde = ''; vencimientoHasta = '';
+                $('#filtro-rango-vencimiento').val('');
+                tabla.ajax.reload();
+            });
+        }
+
         function filtrosActuales() {
             return {
                 id: $('#filtro-id').val(),
@@ -210,6 +293,10 @@
                 nota_interna: $('#filtro-nota-interna').val(),
                 servicio_desde: AppFecha.get($('#filtro-servicio-desde')),
                 servicio_hasta: AppFecha.get($('#filtro-servicio-hasta')),
+                emision_desde: emisionDesde,
+                emision_hasta: emisionHasta,
+                vencimiento_desde: vencimientoDesde,
+                vencimiento_hasta: vencimientoHasta,
             };
         }
 
@@ -281,6 +368,9 @@
             $('#filtro-id, #filtro-buscar, #filtro-formas-pago, #filtro-metodos-envio, #filtro-nota-cliente, #filtro-nota-interna, #filtro-servicio-desde, #filtro-servicio-hasta').val('');
             $('#filtro-producto, #filtro-cliente, #filtro-categoria, #filtro-etiqueta, #filtro-vendedor, #filtro-usuario').val(null).trigger('change');
             $('#filtro-estado').val('').trigger('change');
+            emisionDesde = ''; emisionHasta = '';
+            vencimientoDesde = ''; vencimientoHasta = '';
+            $('#filtro-rango-emision, #filtro-rango-vencimiento').val('');
             tabla.ajax.reload();
         });
 
