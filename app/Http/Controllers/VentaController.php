@@ -554,6 +554,8 @@ class VentaController extends Controller
             'ok' => true,
             'mensaje' => 'Venta '.$venta->nro_comprobante.' actualizada con éxito.',
             'venta' => $venta->fresh(),
+            // Tras editar se vuelve al detalle de ESA venta, no al listado.
+            'redirect' => route('ventas.show', $venta),
         ]);
     }
 

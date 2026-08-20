@@ -209,7 +209,7 @@
         descuentoGeneralMonto: @json($venta?->descuento_general_monto ?? $presupuestoOrigen?->descuento_general_monto),
         categoriaId: @json($venta?->categoria_id ?? $presupuestoOrigen?->categoria_id),
         listaPrecioId: @json($venta?->lista_precio_id ?? $presupuestoOrigen?->lista_precio_id),
-        vendedorId: @json($venta?->vendedor_id),
+        vendedorId: @json($venta?->vendedor_id ?? $presupuestoOrigen?->vendedor_id),
         depositoId: @json($venta?->deposito_id),
         {{-- En edición hay que devolver la fecha que la venta YA tiene: el input arranca en hoy
              (es lo correcto para un alta), así que sin esto el submit la pisaba con la de hoy. --}}

@@ -35,6 +35,11 @@
                         <i class="fas fa-check me-1"></i> Enviada a ARCA
                     </button>
                 @endif
+                @if (! $venta->estaFacturada())
+                    <a href="{{ route('ventas.edit', $venta) }}" class="btn btn-primary me-1">
+                        <i class="fas fa-pencil-alt me-1"></i> Editar
+                    </a>
+                @endif
                 <a href="{{ route('ventas.remitos.create', $venta) }}" class="btn btn-warning">
                     <i class="fas fa-truck me-1"></i> Crear Remito
                 </a>
