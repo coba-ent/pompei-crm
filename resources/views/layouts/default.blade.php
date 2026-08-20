@@ -48,6 +48,20 @@
             Nav header start
         ***********************************-->
 @include('elements.nav-header')
+		{{-- El sidebar recuerda si quedó colapsado, por navegador (localStorage), igual que el
+		     tema oscuro de más arriba. Va inline y acá —apenas existen el wrapper y el
+		     hamburger, antes del sidebar— y no en un bundle: si se espera al DOMContentLoaded
+		     la barra se pinta abierta y se cierra de golpe a la vista del usuario.
+		     El estado es el que el template ya usa: `menu-toggle` en #main-wrapper e
+		     `is-active` en el hamburger (ver handleNavigation en public/js/custom.js). --}}
+		<script>
+			try {
+				if (localStorage.getItem('contagram-sidebar') === 'colapsado') {
+					document.getElementById('main-wrapper').classList.add('menu-toggle');
+					document.querySelector('.hamburger').classList.add('is-active');
+				}
+			} catch (e) {}
+		</script>
 		<!--**********************************
             Nav header end
         ***********************************-->
@@ -109,6 +123,23 @@
      `#f-producto` de Venta/Compra/Presupuesto. Va acá por el mismo motivo que `fecha-ar.js`:
      tiene que cargar ANTES que los bundles de pantalla que lo montan. --}}
 @vite(['resources/js/buscador-catalogo.js'])
+
+{{-- Guarda el estado del sidebar cada vez que se lo abre/cierra; el que lo aplica al cargar es
+     el script inline de arriba. El toggle de la clase lo sigue haciendo el template
+     (`handleNavigation`), acá sólo se lee el resultado — de ahí el `setTimeout`, para leer
+     DESPUÉS de que el handler del template haya corrido. --}}
+<script>
+	document.querySelector('.nav-control')?.addEventListener('click', function () {
+		setTimeout(function () {
+			try {
+				localStorage.setItem(
+					'contagram-sidebar',
+					document.getElementById('main-wrapper').classList.contains('menu-toggle') ? 'colapsado' : 'abierto'
+				);
+			} catch (e) {}
+		}, 0);
+	});
+</script>
 
 @yield('local-js')
 </body>
