@@ -48,6 +48,7 @@ class MonitoreoController extends Controller
             'fallando' => $this->publicacionesFallando($depositoMl),
             'stockBajo' => $this->stockBajo($depositoMl),
             'sinStock' => $this->sinStockEnAmbos($depositoMl, $depositoFull),
+            'ordenesSinVenta' => $this->ordenesSinVenta(),
             'ultimasVentas' => $this->ultimasVentas(),
         ]);
     }
@@ -195,6 +196,72 @@ class MonitoreoController extends Controller
                 'local' => (float) $f->local,
                 'full' => (float) $f->fullstock,
             ])->values()->all();
+    }
+
+    /**
+     * Órdenes de Mercado Libre que no generaron Venta, con el motivo.
+     *
+     * Las canceladas y las que esperan pago son lo normal y no requieren nada. Lo que hay que
+     * mirar es `requiere_atencion`: ahí la orden se quedó trabada por algo puntual —publicación
+     * sin vincular, cliente ambiguo, datos incompletos— y hasta que se resuelva no factura.
+     *
+     * El texto del motivo se arma acá y no se reusa del enum a propósito: esta pantalla no
+     * depende de nada del resto de la app (ver cabecera de la clase).
+     */
+    private function ordenesSinVenta(): array
+    {
+        $explicacion = [
+            'publicacion_sin_vincular' => 'La publicación no está vinculada a ningún producto',
+            'publicacion_con_variantes' => 'La publicación tiene variantes, que no se soportan',
+            'cliente_ambiguo' => 'Hay más de un cliente que podría corresponder',
+            'producto_inexistente' => 'El producto vinculado ya no existe',
+            'moneda_invalida' => 'La orden vino en una moneda que no es ARS',
+            'alerta_fraude' => 'Mercado Libre la marcó con alerta de fraude: no despachar',
+            'datos_incompletos' => 'Faltan datos del comprador para poder facturar',
+            'error_conversion' => 'Falló la conversión; ver el detalle',
+            'orden_cancelada' => 'Cancelada en Mercado Libre',
+            'orden_reembolso_parcial' => 'Mercado Libre informó un reembolso parcial',
+            'orden_en_mediacion' => 'Hay un reclamo en mediación, sin desenlace todavía',
+        ];
+
+        return DB::table('ml_ordenes')
+            ->whereNull('venta_id')
+            ->orderByDesc('fecha_creada')
+            ->limit(50)
+            ->get([
+                'id', 'ml_order_id', 'estado_ml', 'estado_orden', 'estado_conversion', 'motivo',
+                'motivo_detalle', 'total', 'comprador_apodo', 'fecha_creada', 'en_mediacion',
+                'tiene_alerta_fraude', 'datos_faltantes',
+            ])
+            ->map(function ($o) use ($explicacion) {
+                $estado = (string) $o->estado_conversion;
+
+                // Sin motivo explícito, el estado ya dice bastante.
+                $causa = $o->motivo
+                    ? ($explicacion[$o->motivo] ?? $o->motivo)
+                    : match ($estado) {
+                        'cancelada' => 'Cancelada en Mercado Libre',
+                        'pendiente_pago' => 'Todavía sin acreditar el pago',
+                        'lista' => 'Lista para convertir — todavía no corrió la conversión',
+                        default => 'Sin motivo registrado',
+                    };
+
+                return [
+                    'orden' => $o->ml_order_id,
+                    'comprador' => $o->comprador_apodo,
+                    'total' => (float) $o->total,
+                    'cuando' => $o->fecha_creada
+                        ? now()->parse($o->fecha_creada)->timezone(config('app.display_timezone'))->format('d/m H:i')
+                        : null,
+                    'estado' => $estado,
+                    'causa' => $causa,
+                    'detalle' => $o->motivo_detalle ?: ($o->datos_faltantes ?: null),
+                    // Lo que hay que mirar: el resto es el curso normal de las cosas.
+                    'accionable' => $estado === 'requiere_atencion',
+                    'mediacion' => (bool) $o->en_mediacion,
+                    'fraude' => (bool) $o->tiene_alerta_fraude,
+                ];
+            })->values()->all();
     }
 
     /** Las últimas ventas de integraciones, para ver la cadena funcionando de punta a punta. */

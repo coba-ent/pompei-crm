@@ -88,6 +88,11 @@
     </section>
 
     <section>
+        <div class="cab"><h2>Órdenes de ML sin venta creada</h2><span id="c-ordenes" class="cuenta">0</span></div>
+        <div id="p-ordenes" class="cuerpo"></div>
+    </section>
+
+    <section>
         <div class="cab"><h2>Últimas ventas de integraciones</h2></div>
         <div id="p-ventas" class="cuerpo"></div>
     </section>
@@ -161,7 +166,29 @@ function pintar(d) {
             <span class="badge b-gris">no vende</span>
         </div>`).join('') : '<div class="vacio">Todos los productos publicados tienen stock.</div>';
 
-    // --- 4. Últimas ventas ---
+    // --- 4. Órdenes sin venta ---
+    const o = d.ordenesSinVenta;
+    const trabadas = o.filter((x) => x.accionable).length;
+    $('c-ordenes').textContent = o.length;
+    $('c-ordenes').className = 'cuenta' + (trabadas ? ' rojo' : '');
+    $('p-ordenes').innerHTML = o.length ? o.map((x) => {
+        const cls = x.accionable ? 'b-rojo' : (x.estado === 'cancelada' ? 'b-gris' : 'b-amarillo');
+        return `<div class="fila">
+            <div class="nom">
+                <b>${esc(x.comprador ?? 'sin comprador')} · $ ${num(x.total.toFixed(2))}</b>
+                <small>orden ${esc(x.orden)}${x.cuando ? ' · ' + esc(x.cuando) : ''}</small>
+                <div class="${x.accionable ? 'err' : ''}" style="font-size:11.5px;margin-top:3px">${esc(x.causa)}</div>
+                ${x.detalle ? `<small>${esc(x.detalle)}</small>` : ''}
+            </div>
+            <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
+                <span class="badge ${cls}">${esc(x.estado.replace('_', ' '))}</span>
+                ${x.mediacion ? '<span class="badge b-amarillo">mediación</span>' : ''}
+                ${x.fraude ? '<span class="badge b-rojo">fraude</span>' : ''}
+            </div>
+        </div>`;
+    }).join('') : '<div class="vacio">Todas las órdenes se convirtieron en venta.</div>';
+
+    // --- 5. Últimas ventas ---
     $('p-ventas').innerHTML = d.ultimasVentas.map((v) => {
         const bien = v.movimientos > 0 && v.neto < 0;
         return `<div class="fila">
@@ -190,6 +217,7 @@ function pintar(d) {
     // --- Semáforo general: sólo lo que es falla nuestra ---
     const problemas = f.filter((x) => !x.moderacion).length
         + b.filter((x) => x.dias !== null && x.dias < 3).length
+        + trabadas
         + (p.ordenes.alerta ? 1 : 0) + (p.stock.alerta ? 1 : 0);
     $('estado').textContent = problemas ? `${problemas} alerta${problemas > 1 ? 's' : ''}` : 'todo en orden';
     $('estado').className = 'estado ' + (problemas ? 'mal' : 'ok');
