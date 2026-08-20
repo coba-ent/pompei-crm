@@ -26,7 +26,7 @@
     .estado.ok { background:var(--verde-bg); color:var(--verde); border:1px solid var(--verde); }
     .estado.mal { background:var(--rojo-bg); color:var(--rojo); border:1px solid var(--rojo); }
     .reloj { margin-left:auto; color:var(--tenue); font-size:12px; }
-    main { padding:20px; display:grid; gap:18px; grid-template-columns:repeat(auto-fit,minmax(460px,1fr)); }
+    main { padding:20px; display:grid; gap:18px; grid-template-columns:repeat(auto-fit,minmax(min(460px,100%),1fr)); }
     section { background:var(--panel); border:1px solid var(--borde); border-radius:10px; overflow:hidden; }
     section.ancho { grid-column:1/-1; }
     .cab { padding:11px 16px; border-bottom:1px solid var(--borde); display:flex; align-items:center; gap:10px; }
@@ -58,6 +58,42 @@
     .vacio { padding:26px 16px; text-align:center; color:var(--tenue); font-size:12.5px; }
     .aviso { margin:0 20px; padding:10px 14px; border-radius:8px; background:var(--azul); color:#04121f;
         font-weight:700; font-size:12.5px; }
+
+    /* --- Celular ---------------------------------------------------------
+       El panel se mira sobre todo desde el teléfono, así que acá no se trata
+       de "que entre" sino de que siga siendo legible: una columna, los badges
+       debajo del texto en vez de peleando por el ancho, y el pulso en grilla
+       de dos para no dejar una tira de una sola línea por dato. */
+    @media (max-width: 640px) {
+        body { font-size:13.5px; }
+        header { padding:11px 14px; gap:10px; }
+        h1 { font-size:13px; }
+        .estado { font-size:12px; padding:4px 11px; }
+        #btn-sync { order:3; width:100%; padding:9px; font-size:12.5px; }
+        .reloj { margin-left:0; order:2; width:100%; font-size:11px; }
+        .aviso { margin:0 14px; }
+
+        main { padding:14px; gap:14px; }
+        .cuerpo { max-height:none; }
+
+        /* Los badges pasan a una fila propia abajo: al costado quedaban de 40px de ancho. */
+        .fila { flex-direction:column; gap:8px; padding:12px 14px; }
+        .fila > div:last-child { flex-direction:row !important; align-items:center !important;
+            flex-wrap:wrap; gap:8px !important; width:100%; }
+        .fila .nom b { white-space:normal; }
+
+        .tira { display:grid; grid-template-columns:1fr 1fr; gap:14px; padding:14px; }
+        .tira div { min-width:0; }
+        .tira div b { font-size:13px; word-break:break-word; }
+        .tira div small { word-break:break-word; }
+
+        button { padding:7px 12px; }
+    }
+
+    /* Pantallas muy angostas: el pulso pasa a una sola columna. */
+    @media (max-width: 380px) {
+        .tira { grid-template-columns:1fr; }
+    }
 </style>
 </head>
 <body>
