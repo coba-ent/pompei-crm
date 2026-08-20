@@ -120,9 +120,15 @@ class MonitoreoController extends Controller
     }
 
     /**
-     * Productos con poco stock. El umbral es fijo (menos de 3) y además se estima cuántos días
-     * quedan según lo vendido en las últimas dos semanas: un producto que rota rápido necesita
-     * atención antes que otro con la misma cantidad que no se mueve.
+     * Productos a punto de quedarse sin stock: les queda algo, pero menos de 3 unidades.
+     *
+     * El `> 0` es lo que hace útil al panel. Sin él entran los 8.400 productos del catálogo que
+     * están en cero —la mayoría discontinuados o que nunca se repusieron— y la lista deja de
+     * servir. Los que ya están en cero tienen su propio panel, que además exige que estén
+     * publicados en Mercado Libre.
+     *
+     * Se ordena por días de stock restante según lo vendido en las últimas dos semanas: dos
+     * unidades de algo que sale todos los días urge, dos de algo que no rota puede esperar.
      */
     private function stockBajo(int $depositoMl): array
     {
@@ -140,6 +146,7 @@ class MonitoreoController extends Controller
             ->where('s.deposito_id', $depositoMl)
             ->where('p.tipo', 'producto')
             ->where('p.activo', true)
+            ->where('s.cantidad', '>', 0)
             ->where('s.cantidad', '<', self::UMBRAL_STOCK_BAJO)
             ->select('p.id', 'p.nombre', 's.cantidad')
             ->get()
@@ -157,6 +164,8 @@ class MonitoreoController extends Controller
             })
             // Primero lo que se agota antes; lo que no rota queda al final.
             ->sortBy(fn ($x) => $x['dias'] ?? 9999)
+            // La cola son cientos de productos sin rotación: no aportan y hacen pesada la vista.
+            ->take(120)
             ->values()->all();
     }
 
