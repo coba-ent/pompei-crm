@@ -531,4 +531,14 @@ Route::middleware('auth')->group(function () {
         });
     });
 
+    // Panel de monitoreo interno — SIN link en ningún menú, se entra por la URL.
+    // Aislado a propósito: controlador y vista propios, sin lógica compartida con el resto.
+    Route::prefix('monitoreo')->name('monitoreo.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Monitoreo\MonitoreoController::class, 'index'])->name('index');
+        Route::get('datos', [\App\Http\Controllers\Monitoreo\MonitoreoController::class, 'datos'])->name('datos');
+        Route::post('destrabar', [\App\Http\Controllers\Monitoreo\MonitoreoController::class, 'destrabar'])->name('destrabar');
+        Route::post('reactivar', [\App\Http\Controllers\Monitoreo\MonitoreoController::class, 'reactivar'])->name('reactivar');
+        Route::post('sincronizar', [\App\Http\Controllers\Monitoreo\MonitoreoController::class, 'sincronizarAhora'])->name('sincronizar');
+    });
+
 }); // fin Route::middleware('auth')
