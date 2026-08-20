@@ -1276,6 +1276,10 @@ enlazando al movimiento existente — hacerlo desde la pantalla duplicaría los 
 
 ## §9 — Auditoría de stock del 14/08/2026: un bug real y dos falsos positivos
 
+> ⚠️ **Parcialmente retractada — ver §11.** Lo que esta sección dice sobre las ediciones de Ventas
+> migradas ("unidades fantasma", "+18 acreditadas de más") está mal: esas ediciones movieron el delta
+> correcto. El bug de la Nota de Crédito y el signo invertido del 43491 siguen siendo válidos.
+
 Disparador: al comparar el stock del VPS contra el `Listado de Productos y Servicios` de Contagram
 del 14/08 20:18 Hs aparecieron **24 diferencias en Local + Full** sobre 18.220 comparaciones. Como
 ambas plataformas están operando en paralelo con las mismas ventas, cobros y compras, una diferencia
@@ -1407,6 +1411,9 @@ pisando los valores cargados a mano. **Para Full la fuente de verdad es ML, no C
 
 ## §10 — Bitácora de los chequeos de stock (14 al 19/08/2026)
 
+> ⚠️ **Parcialmente retractada — ver §11.** El apartado "Ediciones de ventas migradas: sigue
+> ocurriendo" describe como problema algo que es el comportamiento correcto.
+
 Rutina que se viene aplicando cada mañana, y lo que fue apareciendo. Sirve como procedimiento para
 repetirlo y como registro de qué se descartó ya, para no volver a investigarlo.
 
@@ -1472,3 +1479,38 @@ producto distinto en cada sistema**. Pendiente: definir cuál se vendió realmen
 - Las **ventas manuales sí descuentan stock** (era el falso positivo del escapado).
 - Los **62 productos en negativo son 42**: veinte son mano de obra cargada como producto
   (Colocación, Visita, Traslado), que no lleva inventario.
+
+
+## §11 — Corrección: editar una Venta migrada SÍ debe mover stock (20/08/2026)
+
+Las §9 y §10 dieron por bug que las ediciones de Ventas con `legacy_id` generaran movimientos de
+stock, y hablaron de "unidades fantasma". **Estaba mal, y se retracta acá.**
+
+**El criterio correcto.** La migración no generó movimientos porque el conteo real ya reflejaba todo
+el histórico — esa decisión sigue siendo válida y aplica a cualquier importación masiva de
+comprobantes viejos. Pero una **edición hecha hoy** es una operación de hoy: si la venta tenía 1
+unidad y se edita a 3, dos unidades más están saliendo ahora y el stock tiene que bajar 2.
+
+El sistema revierte los ítems anteriores (entrada) y aplica los nuevos (salida), así que el neto es
+exactamente **el delta de la edición**, y cero si los ítems no cambiaron. Es el comportamiento correcto.
+
+**El error de método.** Se auditó comparando *"lo que la venta movió"* contra *"los ítems que tiene
+hoy"*, esperando que coincidieran. Esa vara sólo vale para una Venta normal, que descontó su total al
+crearse. Una migrada nunca lo descontó, así que la comparación da negativo siempre.
+
+**Casos que se reportaron mal:**
+
+- *Venta 22416 (14/08)*: se reportó "+18 unidades acreditadas de más". El producto 27198 pasó de 9 a 5
+  unidades en la venta — cuatro menos saliendo — y el sistema acreditó +4. Correcto.
+- *Las 8 ediciones del 14/08 (§9)*: se reportó un neto de −10 "sin explicación". Ese neto es la suma de
+  los deltas de esas ediciones, no un error.
+- *Las 6 del 18 al 20/08 (§10)*: revisadas una por una con la vara correcta, las 6 están bien. Tres no
+  cambiaron ítems (neto 0), dos sumaron un producto (sólo su salida) y una cambió un producto por otro
+  (entrada del viejo + salida del nuevo).
+
+**Consecuencia sobre las diferencias con Contagram.** Las boquillas cruzadas (`24107` / `24759`) y el
+Tubo plástico (`43055`) no son errores del CRM: son correcciones aplicadas acá que Contagram no tiene.
+En esos tres productos **el CRM está más al día**.
+
+**Lo que queda como regla**: al auditar una Venta migrada editada, la vara es el **delta**. Y al
+importar histórico, la importación no debe generar movimientos.

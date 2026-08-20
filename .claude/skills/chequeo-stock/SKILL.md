@@ -100,12 +100,24 @@ migración no mueve inventario a propósito— y 83 son de Mercado Libre anterio
 error. Se destraba marcándola pendiente (ver correcciones).
 
 **Una salida seguida de un ajuste que la devuelve** (mismo producto y depósito, minutos después) es
-la firma de los tres bugs encontrados hasta ahora. Neto cero = la mercadería salió y no se descontó de
+la firma de los tres bugs encontrados hasta ahora. Ojo: una **entrada + salida en el mismo segundo y
+mismo origen** es otra cosa —una edición de venta— y es normal. Neto cero = la mercadería salió y no se descontó de
 ningún lado. Nunca da error ni deja la publicación pendiente: hay que buscarlo a propósito.
 
-**Ediciones de Ventas migradas**: `StockDeVenta::reaplicarPorEdicion()` **no** tiene el guard de
-`legacy_id` que sí tiene `VentaObserver::deleting()`, así que editar una Venta migrada mueve stock
-aunque no debería. Se reconoce por `usuario_id` NULL y `legacy_id` presente. **Bug abierto.**
+**Ediciones de Ventas migradas — mueven stock, y está BIEN.** La migración no generó movimientos
+porque el stock contado ya reflejaba todo el histórico. Pero una edición hecha hoy sí tiene que mover:
+si la venta tenía 1 unidad y se edita a 3, dos unidades más están saliendo ahora. El sistema revierte
+lo viejo (entrada) y aplica lo nuevo (salida), y el neto es exactamente **el delta de la edición** —
+cero si los ítems no cambiaron.
+
+⚠️ **Al auditar una Venta migrada editada, la vara es el delta, no el total.** Comparar "lo que movió"
+contra "los ítems que tiene hoy" da falsos positivos: una migrada nunca descontó su total original.
+Ese error de método produjo dos alarmas falsas (14 y 16/08) que quedaron documentadas como bug y no
+lo eran. Verificado el 20/08 sobre las 13 ediciones del período: las 13 correctas.
+
+*Distinto es el momento de importar histórico*: ahí la importación **no debe** generar movimientos,
+porque el stock contado ya los contempla. Es la decisión que se tomó en la migración y sigue vigente
+para cualquier carga masiva de comprobantes viejos.
 
 ## Correcciones
 
@@ -232,9 +244,9 @@ que Mercado Libre ofrezca lo que dice el CRM— avisando cuando alguno falle.
 
 ## Pendientes conocidos
 
-- **Ediciones de Ventas migradas mueven stock** — falta el guard de `legacy_id` en `reaplicarPorEdicion()`.
-- **Boquillas cruzadas**: `24107` y `24759` difieren en 1 unidad contra Contagram por una edición de la
-  venta 24100 que no llegó al otro sistema. Falta definir cuál se vendió.
+- **Boquillas cruzadas**: `24107` y `24759` difieren en 1 unidad contra Contagram porque la venta 24100
+  se corrigió acá (cambió una boquilla por la otra) y esa corrección no está en Contagram. **El CRM está
+  bien**; el que quedó atrasado es el otro sistema.
 - **`AjustarStockDesdeHoja` sin defensa contra el signo invertido** — incidente del producto 43491.
 - **Filtros por fecha sobre columnas `DATETIME`** corren el día (§7.x).
 - **El módulo de importación ofrece mapear "Stock: Full"** y ese valor lo revierte el reflejo a los
