@@ -90,6 +90,20 @@ class VentaController extends Controller
      *   pendiente **que todavía no venció**, y puede dar negativo cuando hay cobros adelantados
      *   —igual que en Contagram—.
      */
+    /**
+     * A Cobrar real de la Venta en SQL: total + ND − NC − cobrado, la misma fórmula que
+     * `Venta::aCobrar()`. Vive acá para que los filtros del listado no vuelvan a divergir
+     * entre sí (los KPIs arman la suya con JOINs por una cuestión de performance, ver kpis()).
+     */
+    private function sqlACobrar(): string
+    {
+        return "(ventas.total
+            + COALESCE((SELECT SUM(monto) FROM notas_credito_debito WHERE venta_id = ventas.id AND tipo = 'debito' AND deleted_at IS NULL), 0)
+            - COALESCE((SELECT SUM(monto) FROM notas_credito_debito WHERE venta_id = ventas.id AND tipo = 'credito' AND deleted_at IS NULL), 0)
+            - COALESCE((SELECT SUM(monto) FROM cobros WHERE venta_id = ventas.id AND deleted_at IS NULL), 0)
+        )";
+    }
+
     private function kpis(Request $request): array
     {
         // JOIN contra subconsultas ya agrupadas, no subselects correlacionados: éstos se evalúan
@@ -189,17 +203,19 @@ class VentaController extends Controller
             $query->where(function (Builder $q) use ($estados) {
                 foreach ($estados as $estado) {
                     $q->orWhere(function (Builder $qq) use ($estado) {
+                        // Los cuatro casos miden contra el mismo A Cobrar real que Venta::estadoCobro(),
+                        // para que filtrar por un estado devuelva exactamente las filas que el listado
+                        // muestra con ese badge. Antes sólo "vencido" restaba las NC y los otros tres
+                        // comparaban cobros contra ventas.total pelado: una venta saldada con NC salía
+                        // en "Sin Cobrar" y no aparecía en "Cobrada".
+                        $aCobrar = $this->sqlACobrar();
+
                         match ($estado) {
-                            'sin_cobrar' => $qq->whereDoesntHave('cobros'),
-                            'cobrada' => $qq->whereHas('cobros')->whereRaw('(select coalesce(sum(monto),0) from cobros where cobros.venta_id = ventas.id) >= ventas.total'),
-                            'parcial' => $qq->whereHas('cobros')->whereRaw('(select coalesce(sum(monto),0) from cobros where cobros.venta_id = ventas.id) < ventas.total'),
-                            // Mismo criterio que la card KPI "Vencido": vto. pasado y todavía queda saldo
-                            // (A Cobrar real, con NC/ND — no sólo cobros vs. total como los casos de arriba).
-                            'vencido' => $qq->whereNotNull('fecha_vto_cobro')->whereDate('fecha_vto_cobro', '<', now())->whereRaw("(ventas.total
-                                    + COALESCE((SELECT SUM(monto) FROM notas_credito_debito WHERE venta_id = ventas.id AND tipo = 'debito' AND deleted_at IS NULL), 0)
-                                    - COALESCE((SELECT SUM(monto) FROM notas_credito_debito WHERE venta_id = ventas.id AND tipo = 'credito' AND deleted_at IS NULL), 0)
-                                    - COALESCE((SELECT SUM(monto) FROM cobros WHERE venta_id = ventas.id AND deleted_at IS NULL), 0)
-                                ) > 0.005"),
+                            'sin_cobrar' => $qq->whereDoesntHave('cobros')->whereRaw("{$aCobrar} > 0.005"),
+                            'cobrada' => $qq->whereRaw("{$aCobrar} <= 0.005"),
+                            'parcial' => $qq->whereHas('cobros')->whereRaw("{$aCobrar} > 0.005"),
+                            // Mismo criterio que la card KPI "Vencido": vto. pasado y todavía queda saldo.
+                            'vencido' => $qq->whereNotNull('fecha_vto_cobro')->whereDate('fecha_vto_cobro', '<', now())->whereRaw("{$aCobrar} > 0.005"),
                             default => $qq->whereRaw('1 = 0'),
                         };
                     });

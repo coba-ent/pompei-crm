@@ -148,11 +148,15 @@ class CompraController extends Controller
                 foreach ($estados as $estado) {
                     $q->orWhere(function (Builder $qq) use ($estado, $pagado, $aPagar) {
                         match ($estado) {
-                            'pagado' => $qq->whereRaw("{$pagado} > 0")->whereRaw("{$aPagar} <= 0.005"),
+                            // Sin exigir pago > 0: una compra saldada íntegramente con una NC no
+                            // tiene pagos, pero Compra::estadoPago() ya la muestra "Pagado" (mira el
+                            // A Pagar). Con la condición anterior el badge decía Pagado y el filtro
+                            // la devolvía en "A Pagar" — 5 compras por $860.320,82.
+                            'pagado' => $qq->whereRaw("{$aPagar} <= 0.005"),
                             'parcial' => $qq->whereRaw("{$pagado} > 0")->whereRaw("{$aPagar} > 0.005"),
                             // Mismo criterio que la card KPI "Vencido": vto. pasado y todavía queda saldo.
                             'vencido' => $qq->whereNotNull('fecha_vto_pago')->whereDate('fecha_vto_pago', '<', now())->whereRaw("{$aPagar} > 0.005"),
-                            default => $qq->whereRaw("{$pagado} <= 0"),
+                            default => $qq->whereRaw("{$pagado} <= 0")->whereRaw("{$aPagar} > 0.005"),
                         };
                     });
                 }

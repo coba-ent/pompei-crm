@@ -192,16 +192,22 @@ class Venta extends Model
         return round((float) $this->total + $this->totalNotasDebito() - $this->totalNotasCredito() - $this->cobrado(), 2);
     }
 
-    /** Estado de cobro derivado: sin_cobrar / parcial / cobrada. */
+    /**
+     * Estado de cobro derivado: sin_cobrar / parcial / cobrada.
+     *
+     * Se decide por el A Cobrar real (total + ND − NC − cobrado), no por si entró plata: una venta
+     * saldada con una Nota de Crédito ya no tiene nada que cobrar, y Contagram la muestra
+     * "Cobrado" (relevamiento del 20/08/2026, `docs/informe_contagram_notas_credito_mayores/`).
+     * Con el criterio anterior —`cobrado <= 0` primero— esas ventas caían en "Sin Cobrar": 457
+     * ventas por $43,3M figuraban como deuda de clientes que no debían nada.
+     */
     public function estadoCobro(): string
     {
-        $cobrado = $this->cobrado();
-
-        if ($cobrado <= 0) {
-            return 'sin_cobrar';
+        if ($this->aCobrar() <= 0.005) {
+            return 'cobrada';
         }
 
-        return $this->aCobrar() > 0.005 ? 'parcial' : 'cobrada';
+        return $this->cobrado() > 0 ? 'parcial' : 'sin_cobrar';
     }
 
     /**
