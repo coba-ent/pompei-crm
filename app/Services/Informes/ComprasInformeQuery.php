@@ -3,6 +3,7 @@
 namespace App\Services\Informes;
 
 use App\Models\Compra;
+use App\Services\Ingresos\SqlCredito;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -319,12 +320,14 @@ class ComprasInformeQuery
             foreach ($estados as $estado) {
                 $q->orWhere(function (Builder $qq) use ($estado, $pagado, $aPagar) {
                     match ($estado) {
-                        'pagado' => $qq->whereRaw("{$pagado} > 0")->whereRaw("{$aPagar} <= 0.005"),
+                        // Sin exigir `pagado > 0`, igual que el listado de Compras: una compra
+                        // saldada con una NC o con saldo a favor de proveedor no tiene pagos.
+                        'pagado' => $qq->whereRaw("{$aPagar} <= 0.005"),
                         'parcial' => $qq->whereRaw("{$pagado} > 0")->whereRaw("{$aPagar} > 0.005"),
                         'vencido' => $qq->whereNotNull('compras.fecha_vto_pago')
                             ->whereDate('compras.fecha_vto_pago', '<', now())
                             ->whereRaw("{$aPagar} > 0.005"),
-                        default => $qq->whereRaw("{$pagado} <= 0"),
+                        default => $qq->whereRaw("{$pagado} <= 0")->whereRaw("{$aPagar} > 0.005"),
                     };
                 });
             }
@@ -343,7 +346,8 @@ class ComprasInformeQuery
 
     private function sqlAPagar(): string
     {
-        return '(compras.total + '.$this->sqlNotas('debito').' - '.$this->sqlNotas('credito').' - '.$this->sqlPagado().')';
+        return '(compras.total + '.$this->sqlNotas('debito').' - '.$this->sqlNotas('credito').' - '.$this->sqlPagado()
+            .' '.SqlCredito::terminos('compras').')';
     }
 
     /** Rango de emisión efectivo. Por defecto, el mes actual (FR-004b). */

@@ -4,6 +4,7 @@ namespace App\Services\Tesoreria;
 
 use App\Models\Cliente;
 use App\Models\Proveedor;
+use App\Services\Ingresos\SqlCredito;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -116,6 +117,7 @@ class CuentaCorriente
                     "+ COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.venta_id = ventas.id AND n.tipo = 'debito' AND n.deleted_at IS NULL), 0) ".
                     "- COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.venta_id = ventas.id AND n.tipo = 'credito' AND n.deleted_at IS NULL), 0) ".
                     '- COALESCE((SELECT SUM(c.monto) FROM cobros c WHERE c.venta_id = ventas.id AND c.deleted_at IS NULL), 0) '.
+                    SqlCredito::terminos('ventas').' '.
                     ') as saldo'
                 )
                 ->get();
@@ -130,6 +132,7 @@ class CuentaCorriente
                     "+ COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.compra_id = compras.id AND n.tipo = 'debito' AND n.deleted_at IS NULL), 0) ".
                     "- COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.compra_id = compras.id AND n.tipo = 'credito' AND n.deleted_at IS NULL), 0) ".
                     '- COALESCE((SELECT SUM(p.monto) FROM pagos p WHERE p.compra_id = compras.id AND p.deleted_at IS NULL), 0) '.
+                    SqlCredito::terminos('compras').' '.
                     ') as saldo'
                 )
                 ->get();
@@ -166,7 +169,12 @@ class CuentaCorriente
         $fk = $esCliente ? 'venta_id' : 'compra_id';
         $pagosTabla = $esCliente ? 'cobros' : 'pagos';
 
-        $saldo = "({$tabla}.total + COALESCE(nd.monto, 0) - COALESCE(nc.monto, 0) - COALESCE(p.monto, 0))";
+        // Los términos de crédito (spec 072) NO se acotan por fecha aunque el resto sí: una
+        // aplicación de saldo a favor no crea ni destruye deuda, sólo la reubica entre dos
+        // comprobantes del mismo cliente. Acotarla por fecha dejaría el traslado a medias —el
+        // destino ya saldado y el origen todavía con el crédito entero— y movería el total.
+        $credito = SqlCredito::terminos($tabla);
+        $saldo = "({$tabla}.total + COALESCE(nd.monto, 0) - COALESCE(nc.monto, 0) - COALESCE(p.monto, 0) {$credito})";
         // DATEDIFF y no diffInDays: la comparación tiene que resolverse en el motor, no en PHP.
         $dias = "DATEDIFF(?, {$tabla}.{$vto})";
         $aVencer = "({$tabla}.{$vto} IS NULL OR {$tabla}.{$vto} >= ?)";
@@ -263,6 +271,63 @@ class CuentaCorriente
             ->where("{$pagosTabla}.fecha", '<=', $fecha->toDateString())
             ->where("{$tabla}.fecha_emision", '>', $fecha->toDateString())
             ->sum("{$pagosTabla}.monto");
+    }
+
+    /**
+     * Saldo de cuenta corriente de un puñado de clientes/proveedores (spec 072, FR-014).
+     *
+     * **Acotado a los ids que se le pasan**, que es la página que devuelve el buscador (10-50
+     * registros): calcularlo sobre el catálogo completo —20.000 clientes— degradaría el Select2 de
+     * Nueva Venta, que es justo la pantalla donde el dato tiene que aparecer sin demora.
+     *
+     * Convención de signo, la misma que el resto de Cuenta Corriente: **negativo = saldo a favor**
+     * del cliente/proveedor, positivo = deuda.
+     *
+     * @param  array<int>  $ids
+     * @return array<int, float> saldo por id de entidad
+     */
+    public function saldosPorEntidad(string $tipo, array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        $esCliente = $tipo === 'cliente';
+        $tabla = $esCliente ? 'ventas' : 'compras';
+        $campoEntidad = $esCliente ? 'cliente_id' : 'proveedor_id';
+        $fk = $esCliente ? 'venta_id' : 'compra_id';
+        $pagosTabla = $esCliente ? 'cobros' : 'pagos';
+        $modelo = $esCliente ? Cliente::class : Proveedor::class;
+
+        $saldo = "({$tabla}.total
+            + COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.{$fk} = {$tabla}.id AND n.tipo = 'debito' AND n.deleted_at IS NULL), 0)
+            - COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.{$fk} = {$tabla}.id AND n.tipo = 'credito' AND n.deleted_at IS NULL), 0)
+            - COALESCE((SELECT SUM(p.monto) FROM {$pagosTabla} p WHERE p.{$fk} = {$tabla}.id AND p.deleted_at IS NULL), 0)
+            ".SqlCredito::terminos($tabla).')';
+
+        // El saldo por comprobante se calcula en una subconsulta y recién después se agrupa. No se
+        // puede agrupar directo: los subselects correlacionados referencian `ventas.id`, que no
+        // está en el GROUP BY, y MySQL con `ONLY_FULL_GROUP_BY` —el default— devuelve error 1055.
+        // SQLite lo acepta, así que esto NO lo detecta la suite: se encontró probando en el
+        // navegador contra la base real (21/08/2026).
+        $porComprobante = DB::table($tabla)
+            ->whereNull("{$tabla}.deleted_at")
+            ->whereIn("{$tabla}.{$campoEntidad}", $ids)
+            ->selectRaw("{$tabla}.{$campoEntidad} as entidad_id, {$saldo} as saldo");
+
+        $saldos = DB::query()->fromSub($porComprobante, 's')
+            ->groupBy('s.entidad_id')
+            ->selectRaw('s.entidad_id as entidad_id, COALESCE(SUM(s.saldo), 0) as saldo')
+            ->pluck('saldo', 'entidad_id')
+            ->map(fn ($saldo) => (float) $saldo)
+            ->all();
+
+        // El saldo inicial (spec 031) es parte del saldo aunque la entidad no tenga comprobantes.
+        foreach ($modelo::whereIn('id', $ids)->where('saldo_inicial', '!=', 0)->get(['id', 'saldo_inicial']) as $entidad) {
+            $saldos[$entidad->id] = ($saldos[$entidad->id] ?? 0.0) + (float) $entidad->saldo_inicial;
+        }
+
+        return array_map(fn (float $saldo) => round($saldo, 2), $saldos);
     }
 
     /** @return array{total: float, buckets: array{a_vencer: float, vencido: float, "0_30": float, "31_60": float, "61_90": float, mas_90: float}} */

@@ -101,6 +101,7 @@ class VentaController extends Controller
             + COALESCE((SELECT SUM(monto) FROM notas_credito_debito WHERE venta_id = ventas.id AND tipo = 'debito' AND deleted_at IS NULL), 0)
             - COALESCE((SELECT SUM(monto) FROM notas_credito_debito WHERE venta_id = ventas.id AND tipo = 'credito' AND deleted_at IS NULL), 0)
             - COALESCE((SELECT SUM(monto) FROM cobros WHERE venta_id = ventas.id AND deleted_at IS NULL), 0)
+            ".\App\Services\Ingresos\SqlCredito::terminos('ventas')."
         )";
     }
 
@@ -112,7 +113,13 @@ class VentaController extends Controller
         $cobrado = 'COALESCE(c.monto, 0)';
         $nc = 'COALESCE(n.credito, 0)';
         $nd = 'COALESCE(n.debito, 0)';
-        $aCobrar = "(ventas.total + {$nd} - {$nc} - {$cobrado})";
+        // Los dos términos de crédito (spec 072) van como subselect y no como otro JOIN: la
+        // aplicación de saldo a favor es de unidades por semana, así que la subconsulta apenas
+        // toca filas, mientras que un tercer leftJoinSub sobre una tabla polimórfica obligaría a
+        // agrupar por tipo y complicaría el JOIN a cambio de nada.
+        $credito = \App\Services\Ingresos\SqlCredito::terminos('ventas');
+        $aCobrar = "(ventas.total + {$nd} - {$nc} - {$cobrado} {$credito})";
+        // El neto NO lleva los términos de crédito: aplicar saldo a favor no cambia lo facturado.
         $neto = "(ventas.total + {$nd} - {$nc})";
         // "Hoy" va como parámetro y no como `CURDATE()`: esa función no existe fuera de MySQL y
         // dejaba el endpoint reventando en los tests (que corren sobre SQLite). De paso el corte
@@ -586,7 +593,7 @@ class VentaController extends Controller
     public function show(Venta $venta)
     {
         $CurrentPage = 'ventas';
-        $venta->load(['items', 'conceptos', 'cliente.condicionIva', 'categoria', 'listaPrecio', 'vendedor', 'etiquetas', 'cobros.cuentaTesoreria', 'comprobanteFiscal', 'notasCreditoDebito.comprobanteFiscal', 'notasCreditoDebito.notaAjustada.comprobanteFiscal', 'remitos.transportista', 'remitos.items', 'mlOrden.items', 'movimientosStock.deposito']);
+        $venta->load(['items', 'conceptos', 'cliente.condicionIva', 'categoria', 'listaPrecio', 'vendedor', 'etiquetas', 'cobros.cuentaTesoreria', 'comprobanteFiscal', 'notasCreditoDebito.comprobanteFiscal', 'notasCreditoDebito.notaAjustada.comprobanteFiscal', 'remitos.transportista', 'remitos.items', 'mlOrden.items', 'movimientosStock.deposito', 'creditosRecibidos.origen', 'creditosRecibidos.notaCreditoDebito', 'creditosCedidos.destino']);
         $cuentas = CuentaTesoreria::visibles()->paraCobrar()->orderBy('orden')->orderBy('nombre')->get();
         $depositos = Deposito::activos()->orderBy('nombre')->get();
 

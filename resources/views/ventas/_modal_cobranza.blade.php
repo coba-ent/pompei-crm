@@ -32,6 +32,22 @@
                 </div>
                 <label class="form-label">Medio de Cobro</label>
                 <div class="row g-2" id="cobranza-cuentas"></div>
+
+                {{-- Saldo a favor (spec 072). Va en un bloque SEPARADO de las cuentas de tesorería
+                     a propósito: no es plata que entra, no tiene cuenta asociada y no genera
+                     movimiento de tesorería (FR-019). Sólo aparece si el cliente tiene crédito
+                     disponible y la venta tiene saldo pendiente (FR-006) — con un cliente sin
+                     crédito el modal se ve exactamente igual que antes. --}}
+                <div id="cobranza-credito" class="mt-3 pt-3 border-top" style="display:none;">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="form-label mb-0">Saldo a favor del cliente</label>
+                        <span class="badge bg-success-subtle text-success" id="cobranza-credito-total"></span>
+                    </div>
+                    <button type="button" class="btn btn-outline-success w-100" id="btn-usar-saldo-favor">
+                        <i class="fas fa-hand-holding-dollar me-1"></i> Aplicar saldo a favor
+                    </button>
+                    <div class="small text-muted mt-1" id="cobranza-credito-detalle"></div>
+                </div>
             </div>
             <div class="modal-footer" id="cobranza-modal-footer-edicion" style="display:none;">
                 <button type="button" class="btn btn-light" data-bs-dismiss="modal">Volver</button>

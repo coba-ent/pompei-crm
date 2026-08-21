@@ -2133,6 +2133,59 @@ nada por su cuenta.
 
 ---
 
+### 6.3bis Saldo a favor aplicable a nuevas Ventas/Compras (spec 072) — **divergencia deliberada respecto de Contagram**
+
+> ⚠️ **Contagram NO tiene esta funcionalidad. La divergencia es intencional y fue aprobada por el
+> dueño del negocio el 21/08/2026.**
+>
+> **Qué hace Contagram** (relevamiento del 20/08/2026 con capturas reales, ver
+> `docs/informe_contagram_notas_credito_mayores/`): permite emitir Notas de Crédito por un monto
+> **mayor** al del comprobante que ajustan, sin bloqueo ni advertencia, y el excedente queda como
+> saldo a favor del cliente/proveedor en la cuenta corriente. Pero **no ofrece ninguna forma de
+> aplicar ese crédito a un comprobante puntual**: el desplegable "Medio de Cobro" sólo lista cuentas
+> de caja/banco/tarjetas, y el campo "Documento que Ajusta" del asistente de NC/ND nunca se puebla.
+> Cada documento mantiene su propio "A Cobrar"/"A Pagar" independiente; el crédito sólo se ve en el
+> neto acumulado de la cuenta corriente.
+>
+> **Por qué se diverge**: el procedimiento manual que este vacío obliga a usar **destruye datos**.
+> Caso real verificado en producción (cliente FLORENCIA 1159751732, ventas 24582 y 24608, 20/08/2026):
+> ante una devolución de $30.771,29 seguida de una compra de $27.306, el operador emitió la NC,
+> **eliminó la cobranza** de la venta vieja y cargó una cobranza nueva por el importe menor. Las dos
+> ventas quedaron en cero y los **$3.465,29 a favor del cliente desaparecieron de todo registro**. El
+> cálculo del sistema era correcto: lo que falla es que el único camino disponible obliga a borrar la
+> evidencia de que el cliente pagó.
+
+**Qué agrega el CRM** (spec 072):
+
+- **Aplicación de crédito**: el saldo a favor de un comprobante con Nota de Crédito se puede imputar
+  a otro comprobante del mismo cliente/proveedor, desde el modal "Agregar Cobranza" (Ventas) o de
+  Pago (Compras), eligiendo el medio **"Saldo a favor"**. Sólo aparece si hay crédito disponible.
+- **El crédito se mide por el saldo a favor efectivo, no por el monto nominal de la NC**: una NC sobre
+  un comprobante impago sólo cancela deuda y **no genera crédito**. Tomar el monto de la nota
+  inventaría crédito inexistente.
+- **La aplicación es una transferencia de saldo entre dos comprobantes**: baja el saldo a favor del
+  origen y el saldo pendiente del destino por el mismo importe. El saldo de cuenta corriente del
+  cliente queda **idéntico** antes y después. Sin esta regla habría doble conteo (el saldo a favor
+  quedaría entero en el origen y además saldaría el destino).
+- **Tesorería no se toca**: aplicar crédito **no** genera `movimientos_tesoreria` ni altera saldos de
+  cajas/bancos ni el aging. No es plata que entra: es una imputación entre documentos. No existe ni
+  debe existir una cuenta de tesorería "Saldo a favor".
+- **Trazabilidad**: cada aplicación registra comprobante de origen, Nota de Crédito que la justifica,
+  comprobante destino, importe, fecha y usuario. Es soft-delete; anularla devuelve el crédito al
+  origen. No se puede eliminar una NC con crédito aplicado.
+- **Saldo visible en el selector**: al crear una Venta/Compra, el selector muestra el saldo de cuenta
+  corriente junto al nombre del cliente/proveedor (negativo = a favor). **Esto sí lo hace Contagram**
+  (captura del 21/08/2026: `FLORENCIA 1159751732  $18.960,98`) y el CRM no lo tenía.
+- **Se mantiene** la posibilidad de emitir NC mayores al comprobante: es el mecanismo que genera los
+  saldos a favor, y coincide con Contagram.
+
+**Supuesto operativo**: el crédito existe porque el comprobante quedó con saldo a favor, lo que
+requiere que el pago del cliente **siga registrado**. Hay que instruir al local para que deje de
+eliminar la cobranza vieja: con esta feature ya no hace falta, y borrarla es justamente lo que hace
+desaparecer el crédito.
+
+---
+
 ### 6.4 Módulo Informe de Cuenta Corriente — Clientes (implementado — spec 029)
 
 Pantalla propia de **sólo lectura** `/informes/cuenta-corriente` (entrada "Cuenta Corriente" en el

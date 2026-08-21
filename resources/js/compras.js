@@ -45,6 +45,21 @@
     function money(v) {
         return '$ ' + (Number(v) || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
+
+    /**
+     * Nombre + saldo de cuenta corriente para el buscador de cliente/proveedor (spec 072, FR-014).
+     *
+     * Negativo = saldo a favor, positivo = deuda, y con saldo cero se muestra sólo el nombre — que
+     * es el caso de la enorme mayoría y no tiene por qué ensuciarse con un "$ 0,00". La distinción
+     * va en palabras y no sólo en el signo: en un desplegable el signo menos se pierde de vista, y
+     * confundir deuda con crédito es el error caro.
+     */
+    function etiquetaConSaldo(nombre, saldo) {
+        const valor = Number(saldo) || 0;
+        if (Math.abs(valor) < 0.005) { return nombre; }
+        return nombre + (valor < 0 ? '  ·  a favor ' + money(-valor) : '  ·  debe ' + money(valor));
+    }
+
     const PCT_IVA = { '5': 5, '10.5': 10.5, '21': 21, '27': 27 };
     function pctIva(valor) {
         return PCT_IVA[valor] || 0;
@@ -349,7 +364,7 @@
             ajax: {
                 url: rutas.proveedoresOpciones,
                 data: (params) => ({ q: params.term }),
-                processResults: (resp) => ({ results: resp.data.map((p) => ({ id: p.id, text: p.nombre, proveedor: p })) }),
+                processResults: (resp) => ({ results: resp.data.map((p) => ({ id: p.id, text: etiquetaConSaldo(p.nombre, p.saldo), proveedor: p })) }),
             },
         });
 
@@ -766,7 +781,42 @@
                 $col.append($btn);
                 $cuentas.append($col);
             });
+            prepararSaldoAFavor();
             bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-pago')).show();
+        }
+
+        /** Saldo a favor de proveedor (spec 072, US4): mismo comportamiento que en Ventas. */
+        function prepararSaldoAFavor() {
+            const $bloque = $('#pago-credito').hide();
+
+            if (!rutas.creditoDisponible) { return; }
+
+            $.getJSON(rutas.creditoDisponible)
+                .done((resp) => {
+                    if (!resp || !(resp.aplicable > 0)) { return; }
+
+                    $('#pago-credito-total').text(money(resp.disponible_total));
+                    $('#pago-credito-detalle').text(
+                        (resp.origenes || []).map((o) => o.comprobante_label + ': ' + money(o.disponible)).join(' · ')
+                    );
+                    $('#pago-monto').val(Math.min(Number($('#pago-monto').val()) || 0, resp.aplicable) || resp.aplicable);
+                    $bloque.show();
+                })
+                .fail(() => { /* sin crédito el modal queda igual que siempre */ });
+        }
+
+        function aplicarSaldoAFavor() {
+            $.post(rutas.creditoStore, {
+                monto: $('#pago-monto').val(),
+                fecha: AppFecha.get($('#pago-fecha')),
+                nota: $('#pago-nota').val(),
+            })
+                .done((resp) => {
+                    toast('success', resp.mensaje || 'Saldo a favor aplicado.');
+                    bootstrap.Modal.getInstance(document.getElementById('modal-pago'))?.hide();
+                    window.location.reload();
+                })
+                .fail((xhr) => toast('error', xhr.responseJSON?.errors?.monto?.[0] || xhr.responseJSON?.mensaje || 'No se pudo aplicar el saldo a favor.'));
         }
 
         function pagar(cuentaId) {
@@ -787,6 +837,17 @@
         $('#btn-agregar-pago, .js-agregar-pago').on('click', function (e) {
             e.preventDefault();
             abrirPago();
+        });
+
+        $('#btn-usar-saldo-favor-compra').on('click', aplicarSaldoAFavor);
+
+        $(document).on('click', '.js-anular-aplicacion-credito', function (e) {
+            e.preventDefault();
+            const id = $(this).data('id');
+            if (!confirm('¿Anular esta aplicación de saldo a favor? El crédito vuelve a quedar disponible.')) { return; }
+            $.ajax({ url: rutas.creditoDestroyBase + '/' + id, method: 'DELETE' })
+                .done((resp) => { toast('success', resp.mensaje); window.location.reload(); })
+                .fail((xhr) => toast('error', xhr.responseJSON?.mensaje || 'No se pudo anular.'));
         });
 
         $(document).on('click', '.js-eliminar-pago', function (e) {

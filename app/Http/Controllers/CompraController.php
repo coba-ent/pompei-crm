@@ -77,7 +77,11 @@ class CompraController extends Controller
         $pagado = 'COALESCE((SELECT SUM(p.monto) FROM pagos p WHERE p.compra_id = compras.id AND p.deleted_at IS NULL), 0)';
         $nc = "COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.compra_id = compras.id AND n.tipo = 'credito' AND n.deleted_at IS NULL), 0)";
         $nd = "COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.compra_id = compras.id AND n.tipo = 'debito' AND n.deleted_at IS NULL), 0)";
-        $aPagar = "(compras.total + {$nd} - {$nc} - {$pagado})";
+        // Términos de crédito de proveedor (spec 072): la aplicación de saldo a favor es una
+        // transferencia entre dos compras, así que baja el A Pagar del destino y lo devuelve al
+        // origen. El neto NO los lleva: no cambia lo facturado por el proveedor.
+        $credito = \App\Services\Ingresos\SqlCredito::terminos('compras');
+        $aPagar = "(compras.total + {$nd} - {$nc} - {$pagado} {$credito})";
         $neto = "(compras.total + {$nd} - {$nc})";
         // "Hoy" como parámetro y no `CURDATE()`: esa función no existe fuera de MySQL y reventaba
         // el endpoint bajo SQLite, que es donde corren los tests. Además el corte pasa a ser el
@@ -142,7 +146,8 @@ class CompraController extends Controller
             $pagado = 'COALESCE((SELECT SUM(p.monto) FROM pagos p WHERE p.compra_id = compras.id AND p.deleted_at IS NULL), 0)';
             $nc = "COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.compra_id = compras.id AND n.tipo = 'credito' AND n.deleted_at IS NULL), 0)";
             $nd = "COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.compra_id = compras.id AND n.tipo = 'debito' AND n.deleted_at IS NULL), 0)";
-            $aPagar = "(compras.total + {$nd} - {$nc} - {$pagado})";
+            $credito = \App\Services\Ingresos\SqlCredito::terminos('compras');
+            $aPagar = "(compras.total + {$nd} - {$nc} - {$pagado} {$credito})";
             $estados = (array) $request->input('estado_pago');
             $query->where(function (Builder $q) use ($estados, $pagado, $aPagar) {
                 foreach ($estados as $estado) {
@@ -459,7 +464,7 @@ class CompraController extends Controller
     public function show(Compra $compra)
     {
         $CurrentPage = 'compras';
-        $compra->load(['items', 'conceptos', 'proveedor.condicionIva', 'categoria', 'pagos.cuentaTesoreria', 'pagos.retenciones', 'comprobanteFiscal', 'notasCreditoDebito.comprobanteFiscal', 'notasCreditoDebito.notaAjustada.comprobanteFiscal', 'remitos.transportista', 'remitos.items']);
+        $compra->load(['items', 'conceptos', 'proveedor.condicionIva', 'categoria', 'pagos.cuentaTesoreria', 'pagos.retenciones', 'comprobanteFiscal', 'notasCreditoDebito.comprobanteFiscal', 'notasCreditoDebito.notaAjustada.comprobanteFiscal', 'remitos.transportista', 'remitos.items', 'creditosRecibidos.origen', 'creditosRecibidos.notaCreditoDebito']);
         $cuentas = CuentaTesoreria::visibles()->orderBy('orden')->orderBy('nombre')->get();
         $depositos = Deposito::where('activo', true)->orderBy('nombre')->get();
 

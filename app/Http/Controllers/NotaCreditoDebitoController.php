@@ -450,6 +450,13 @@ class NotaCreditoDebitoController extends Controller
             ], 409);
         }
 
+        if ($nota->tieneCreditoAplicado()) {
+            return response()->json([
+                'ok' => false,
+                'mensaje' => 'La Nota de Crédito tiene saldo aplicado a otros comprobantes. Anulá primero esas aplicaciones.',
+            ], 422);
+        }
+
         $dependientes = $nota->notasQueLaAjustan()->pluck('id');
         if ($dependientes->isNotEmpty()) {
             return response()->json([

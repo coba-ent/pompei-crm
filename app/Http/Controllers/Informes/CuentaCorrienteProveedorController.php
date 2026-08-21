@@ -98,6 +98,7 @@ class CuentaCorrienteProveedorController extends Controller
                 "+ COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.compra_id = compras.id AND n.tipo = 'debito' AND n.deleted_at IS NULL), 0) ".
                 "- COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.compra_id = compras.id AND n.tipo = 'credito' AND n.deleted_at IS NULL), 0) ".
                 '- COALESCE((SELECT SUM(p.monto) FROM pagos p WHERE p.compra_id = compras.id AND p.deleted_at IS NULL), 0) '.
+                \App\Services\Ingresos\SqlCredito::terminos('compras').' '.
                 ') as a_pagar, '.
                 'compras.nro_comprobante as nro_comprobante, '.
                 'NULL as medio_pago, '.

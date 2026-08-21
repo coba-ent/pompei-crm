@@ -346,6 +346,55 @@ Etiquetas/Notas/Formas de Pago/Métodos de Envío/Vendedor), con estos agregados
 id, venta_id (FK → ventas, cascade), fecha (date), cuenta_tesoreria_id (FK → `cuentas_tesoreria` —
 **tabla dependiente, ver nota abajo**), monto (decimal(14,2)), nota (text, nullable).
 
+### `aplicaciones_credito` (spec 072 — **divergencia deliberada respecto de Contagram**)
+Imputa el saldo a favor de un comprobante (el que tiene la Nota de Crédito) a otro comprobante del
+mismo cliente/proveedor. **No es dinero**: no tiene cuenta de tesorería y NO genera
+`movimientos_tesoreria` — aplicar crédito es una transferencia entre documentos, no un ingreso.
+
+id, origen_type + origen_id (morph → `App\Models\Venta` | `App\Models\Compra`, comprobante que cede
+el crédito), destino_type + destino_id (morph, mismo tipo que el origen, comprobante que lo recibe),
+nota_credito_debito_id (FK → `notas_credito_debito`, nullable — la NC que justifica el crédito;
+la más antigua con remanente si el origen tuviera varias), monto (decimal(14,2), > 0), fecha (date),
+nota (text, nullable), usuario_id (FK → usuarios, nullable, auditoría), timestamps, **deleted_at
+(soft delete** — obligatorio por constitución III, impacto contable).
+
+Índices: `(origen_type, origen_id)`, `(destino_type, destino_id)`, `nota_credito_debito_id`.
+
+Reglas: `origen_type = destino_type`; `origen_id ≠ destino_id`; mismo cliente (o proveedor) en ambos
+extremos; el origen debe tener al menos una NC vigente; `monto ≤ crédito disponible del origen` y
+`monto ≤ saldo pendiente del destino`.
+
+**Efecto en los saldos derivados** (siguen sin almacenarse):
+
+```
+aCobrar = total + ND − NC − cobrado − credito_recibido + credito_cedido
+aPagar  = total + ND − NC − pagado  − credito_recibido + credito_cedido
+```
+
+`credito_recibido` = Σ aplicaciones donde el comprobante es destino; `credito_cedido` = Σ donde es
+origen. **El término `credito_cedido` es imprescindible**: sin él el saldo a favor quedaría entero en
+el comprobante de origen y además saldaría el destino (doble conteo), y el cliente aparecería con
+$30.771,29 a favor en vez de $3.465,29 en el caso real que originó la spec.
+
+**Crédito disponible de un comprobante** = `max(0, −(total + ND − NC − cobrado)) − credito_cedido`, y
+sólo si tiene alguna NC vigente. Una NC sobre un comprobante impago da crédito disponible **cero**.
+
+Todos los puntos que replican la fórmula de saldo en SQL deben incluir los dos términos nuevos:
+`VentaController::sqlACobrar()` y `kpis()`, el filtro `estado_pago` y KPIs de `CompraController`,
+`Tesoreria\CuentaCorriente` (`porCliente()`, `aging()`, `saldosPorEntidad()`), las dos
+`Informes\CuentaCorriente*Controller::queryMovimientos()` e `Informes\VentasInformeQuery` /
+`ComprasInformeQuery`.
+
+**No se escriben a mano**: los dos términos salen de `App\Services\Ingresos\SqlCredito::terminos($tabla)`,
+que además resuelve el escapado del tipo del morph (en MySQL la barra invertida de `App\Models\Venta`
+es carácter de escape dentro de un literal, así que interpolarlo pelado nunca matchea). Cualquier
+lugar nuevo que replique la fórmula tiene que tomarlos de ahí.
+
+**Ojo con `ONLY_FULL_GROUP_BY`** (default de MySQL): estos términos son subselects correlacionados,
+así que un `GROUP BY` que los use en un `SUM()` da error 1055. Hay que agrupar sobre una subconsulta
+que ya calculó el saldo por comprobante, como hace `saldosPorEntidad()`. SQLite lo acepta, o sea que
+la suite de tests **no** detecta este error.
+
 ### `notas_credito_debito`
 Confirmado contra `help.contagram.com/es/articles/1319041` (24/07/2026) que el alta es un wizard de 2
 pasos — el informe con capturas sólo había relevado el paso 1.

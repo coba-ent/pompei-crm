@@ -106,6 +106,21 @@
         };
     }
 
+
+    /**
+     * Nombre + saldo de cuenta corriente para el buscador de cliente/proveedor (spec 072, FR-014).
+     *
+     * Negativo = saldo a favor, positivo = deuda, y con saldo cero se muestra sólo el nombre — que
+     * es el caso de la enorme mayoría y no tiene por qué ensuciarse con un "$ 0,00". La distinción
+     * va en palabras y no sólo en el signo: en un desplegable el signo menos se pierde de vista, y
+     * confundir deuda con crédito es el error caro.
+     */
+    function etiquetaConSaldo(nombre, saldo) {
+        const valor = Number(saldo) || 0;
+        if (Math.abs(valor) < 0.005) { return nombre; }
+        return nombre + (valor < 0 ? '  ·  a favor ' + money(-valor) : '  ·  debe ' + money(valor));
+    }
+
     function iniciarSelect2Catalogo($el, opciones) {
         if (!hasSelect2 || !$el || !$el.length) { return; }
         const opts = opciones || {};
@@ -567,7 +582,7 @@
                 ajax: {
                     url: rutas.clientesOpciones,
                     data: (params) => ({ q: params.term }),
-                    processResults: (resp) => ({ results: resp.data.map((c) => ({ id: c.id, text: c.nombre, cliente: c })) }),
+                    processResults: (resp) => ({ results: resp.data.map((c) => ({ id: c.id, text: etiquetaConSaldo(c.nombre, c.saldo), cliente: c })) }),
                 },
             },
             textoCrear: 'Crear Cliente',
@@ -1086,6 +1101,7 @@
         inicializarArca((resp) => { if (resp && resp.ok) { window.location.reload(); } });
 
         let cuentaSeleccionadaEdicion = null;
+        let creditoAplicable = 0;
 
         function abrirCobranza(cobro) {
             const editando = !!cobro;
@@ -1118,7 +1134,47 @@
                 $col.append($btn);
                 $cuentas.append($col);
             });
+            prepararSaldoAFavor(editando);
             bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-cobranza')).show();
+        }
+
+        /**
+         * Saldo a favor (spec 072): se consulta al abrir el modal y el bloque sólo aparece si hay
+         * crédito aplicable (FR-006). Editar una cobranza con dinero no ofrece la opción — son dos
+         * circuitos distintos y mezclarlos convertiría una edición en una aplicación de crédito.
+         */
+        function prepararSaldoAFavor(editando) {
+            const $bloque = $('#cobranza-credito').hide();
+
+            if (editando || !rutas.creditoDisponible) { return; }
+
+            $.getJSON(rutas.creditoDisponible)
+                .done((resp) => {
+                    if (!resp || !(resp.aplicable > 0)) { return; }
+
+                    creditoAplicable = resp.aplicable;
+                    $('#cobranza-credito-total').text(money(resp.disponible_total));
+                    $('#cobranza-credito-detalle').text(
+                        (resp.origenes || []).map((o) => o.comprobante_label + ': ' + money(o.disponible)).join(' · ')
+                    );
+                    $('#cobranza-monto').val(Math.min(Number($('#cobranza-monto').val()) || 0, resp.aplicable) || resp.aplicable);
+                    $bloque.show();
+                })
+                .fail(() => { /* sin crédito el modal queda igual que siempre */ });
+        }
+
+        function aplicarSaldoAFavor() {
+            $.post(rutas.creditoStore, {
+                monto: $('#cobranza-monto').val(),
+                fecha: AppFecha.get($('#cobranza-fecha')),
+                nota: $('#cobranza-nota').val(),
+            })
+                .done((resp) => {
+                    toast('success', resp.mensaje || 'Saldo a favor aplicado.');
+                    bootstrap.Modal.getInstance(document.getElementById('modal-cobranza'))?.hide();
+                    recargarSinAutoAbrirCobranza();
+                })
+                .fail((xhr) => toast('error', xhr.responseJSON?.errors?.monto?.[0] || xhr.responseJSON?.mensaje || 'No se pudo aplicar el saldo a favor.'));
         }
 
         function cobrar(cuentaId) {
@@ -1181,6 +1237,16 @@
         }
 
         $('#btn-guardar-cobranza').on('click', guardarEdicionCobranza);
+        $('#btn-usar-saldo-favor').on('click', aplicarSaldoAFavor);
+
+        $(document).on('click', '.js-anular-aplicacion-credito', function (e) {
+            e.preventDefault();
+            const id = $(this).data('id');
+            if (!confirm('¿Anular esta aplicación de saldo a favor? El crédito vuelve a quedar disponible.')) { return; }
+            $.ajax({ url: rutas.creditoDestroyBase + '/' + id, method: 'DELETE' })
+                .done((resp) => { toast('success', resp.mensaje); window.location.reload(); })
+                .fail((xhr) => toast('error', xhr.responseJSON?.mensaje || 'No se pudo anular.'));
+        });
 
         $('#btn-agregar-cobranza, .js-agregar-cobranza').on('click', function (e) {
             e.preventDefault();

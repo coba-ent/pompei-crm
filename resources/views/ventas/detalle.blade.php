@@ -6,6 +6,9 @@
     $totalNd = $venta->totalNotasDebito();
     $aCobrar = $venta->aCobrar();
     $ivaTotal = $venta->items->sum(fn ($i) => (float) $i->subtotal_con_iva - (float) $i->subtotal);
+    // Aplicaciones de saldo a favor que salieron de esta venta, agrupadas por la NC que las
+    // justifica (spec 072, FR-016).
+    $aplicacionesPorNota = $venta->creditosCedidos->groupBy('nota_credito_debito_id');
 @endphp
 
 @section('content')
@@ -206,8 +209,42 @@
                                     <td>{{ $venta->nro_comprobante }}</td>
                                 </tr>
                             @empty
-                                <tr><td colspan="7" class="text-center text-muted">Sin cobranzas</td></tr>
+                                @if ($venta->creditosRecibidos->isEmpty())
+                                    <tr><td colspan="7" class="text-center text-muted">Sin cobranzas</td></tr>
+                                @endif
                             @endforelse
+
+                            {{-- Saldo a favor aplicado (spec 072, FR-015). Va en su propia línea y
+                                 NO suma al total "Cobrado" de la ecuación de arriba: "Cobrado"
+                                 tiene que seguir significando plata que entró. --}}
+                            @foreach ($venta->creditosRecibidos as $aplicacion)
+                                <tr class="table-success-subtle">
+                                    <td>
+                                        <a href="#" class="text-danger js-anular-aplicacion-credito"
+                                           data-id="{{ $aplicacion->id }}" title="Anular aplicación">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </a>
+                                    </td>
+                                    <td>-</td>
+                                    <td>{{ $aplicacion->fecha->format('d/m/Y') }}</td>
+                                    <td>
+                                        <span class="badge bg-success-subtle text-success">Saldo a favor</span>
+                                        @if ($aplicacion->origen)
+                                            <a href="{{ route('ventas.show', $aplicacion->origen_id) }}">
+                                                {{ $aplicacion->origen->nro_comprobante ?: 'Venta '.$aplicacion->origen_id }}
+                                            </a>
+                                        @endif
+                                        @if ($aplicacion->notaCreditoDebito)
+                                            <span class="text-muted small">
+                                                (NC {{ $aplicacion->notaCreditoDebito->nro_comprobante ?: $aplicacion->notaCreditoDebito->id }})
+                                            </span>
+                                        @endif
+                                    </td>
+                                    <td>{{ $aplicacion->nota }}</td>
+                                    <td>$ {{ number_format((float) $aplicacion->monto, 2, ',', '.') }}</td>
+                                    <td>{{ $venta->nro_comprobante }}</td>
+                                </tr>
+                            @endforeach
                         </tbody>
                     </table>
                 </div>
@@ -355,7 +392,7 @@
                 </div>
                 <div class="table-responsive">
                     <table class="table table-sm">
-                        <thead><tr><th>Id</th><th>Tipo</th><th>Fecha</th><th>Afecta Stock</th><th>Mes de Imputación</th><th>N° Comprobante</th><th>Documento que Ajusta</th><th>Monto</th><th>Nota Interna</th><th></th></tr></thead>
+                        <thead><tr><th>Id</th><th>Tipo</th><th>Fecha</th><th>Afecta Stock</th><th>Mes de Imputación</th><th>N° Comprobante</th><th>Documento que Ajusta</th><th>Monto</th><th>Saldo a favor</th><th>Nota Interna</th><th></th></tr></thead>
                         <tbody>
                             @forelse ($venta->notasCreditoDebito as $nota)
                                 <tr>
@@ -367,6 +404,25 @@
                                     <td>{{ $nota->comprobanteFiscal?->numero ?? $nota->nro_comprobante ?? '-' }}</td>
                                     <td>{{ $nota->documentoQueAjusta($venta) ?? '-' }}</td>
                                     <td>$ {{ number_format((float) $nota->monto, 2, ',', '.') }}</td>
+                                    {{-- Saldo a favor de esta NC: cuánto se consumió, cuánto queda
+                                         y en qué comprobantes se aplicó (spec 072, FR-016). --}}
+                                    <td>
+                                        @if ($nota->tipo === 'credito')
+                                            @php $consumido = $aplicacionesPorNota[$nota->id] ?? collect(); @endphp
+                                            @if ($consumido->isNotEmpty())
+                                                Consumido $ {{ number_format((float) $consumido->sum('monto'), 2, ',', '.') }}<br>
+                                                <span class="text-muted small">
+                                                    en
+                                                    @foreach ($consumido as $ap)
+                                                        <a href="{{ route('ventas.show', $ap->destino_id) }}">{{ $ap->destino?->nro_comprobante ?: 'Venta '.$ap->destino_id }}</a>{{ !$loop->last ? ', ' : '' }}
+                                                    @endforeach
+                                                </span><br>
+                                            @endif
+                                            Disponible $ {{ number_format($venta->creditoDisponible(), 2, ',', '.') }}
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
                                     <td>{{ $nota->nota_interna ?: '-' }}</td>
                                     <td class="dropdown">
                                         <a href="#" class="dropdown-toggle" data-bs-toggle="dropdown">Estado</a>
@@ -378,7 +434,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="10" class="text-center text-muted">Sin notas</td></tr>
+                                <tr><td colspan="11" class="text-center text-muted">Sin notas</td></tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -433,6 +489,9 @@
     window.VentasConfig = window.VentasConfig || {};
     window.VentasConfig.rutas = Object.assign(window.VentasConfig.rutas || {}, {
         cobranzaStore: "{{ route('ventas.cobranzas.store', $venta) }}",
+        creditoDisponible: "{{ route('ventas.credito.disponible', $venta) }}",
+        creditoStore: "{{ route('ventas.aplicaciones-credito.store', $venta) }}",
+        creditoDestroyBase: "{{ url('ventas/'.$venta->id.'/aplicaciones-credito') }}",
         cobranzaDestroyBase: "{{ url('ventas/'.$venta->id.'/cobranzas') }}",
         cobranzaUpdateBase: "{{ url('ventas/'.$venta->id.'/cobranzas') }}",
         notasStore: "{{ route('ventas.notas.store', $venta) }}",

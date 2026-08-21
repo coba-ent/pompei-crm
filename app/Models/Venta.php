@@ -186,10 +186,67 @@ class Venta extends Model
         return (float) $this->notasCreditoDebito()->where('tipo', 'debito')->sum('monto');
     }
 
-    /** A Cobrar = Total + Σ ND − Σ NC − Cobrado (derivado, nunca almacenado). */
+    /** Aplicaciones de saldo a favor que ESTA venta recibió de otras (spec 072). */
+    public function creditosRecibidos(): MorphMany
+    {
+        return $this->morphMany(AplicacionCredito::class, 'destino');
+    }
+
+    /** Aplicaciones de saldo a favor que esta venta cedió a otras (spec 072). */
+    public function creditosCedidos(): MorphMany
+    {
+        return $this->morphMany(AplicacionCredito::class, 'origen');
+    }
+
+    /** Σ crédito recibido de otros comprobantes: baja el A Cobrar como si fuera un cobro. */
+    public function creditoRecibido(): float
+    {
+        return (float) $this->creditosRecibidos()->sum('monto');
+    }
+
+    /**
+     * Σ crédito cedido a otros comprobantes: **devuelve** saldo a esta venta.
+     *
+     * Sin este término habría doble conteo: el saldo a favor seguiría entero acá y además habría
+     * saldado el comprobante destino, dejando al cliente con crédito duplicado (FR-003a).
+     */
+    public function creditoCedido(): float
+    {
+        return (float) $this->creditosCedidos()->sum('monto');
+    }
+
+    /**
+     * Saldo a favor de esta venta todavía disponible para imputar a otro comprobante (FR-001).
+     *
+     * Se mide por el saldo a favor **efectivo**, no por el monto de la Nota de Crédito: una NC
+     * sobre una venta impaga sólo cancela deuda y no genera crédito.
+     */
+    public function creditoDisponible(): float
+    {
+        if (! $this->notasCreditoDebito()->where('tipo', 'credito')->exists()) {
+            return 0.0;
+        }
+
+        $saldoBase = (float) $this->total + $this->totalNotasDebito() - $this->totalNotasCredito() - $this->cobrado();
+
+        return round(max(0.0, max(0.0, -$saldoBase) - $this->creditoCedido()), 2);
+    }
+
+    /**
+     * A Cobrar = Total + Σ ND − Σ NC − Cobrado − Crédito recibido + Crédito cedido (derivado,
+     * nunca almacenado).
+     *
+     * Los dos últimos términos hacen que aplicar saldo a favor sea una **transferencia** entre dos
+     * comprobantes del mismo cliente y no una creación de saldo: lo que baja acá sube allá y el
+     * saldo de cuenta corriente del cliente queda idéntico (spec 072, FR-003a).
+     */
     public function aCobrar(): float
     {
-        return round((float) $this->total + $this->totalNotasDebito() - $this->totalNotasCredito() - $this->cobrado(), 2);
+        return round(
+            (float) $this->total + $this->totalNotasDebito() - $this->totalNotasCredito() - $this->cobrado()
+            - $this->creditoRecibido() + $this->creditoCedido(),
+            2
+        );
     }
 
     /**

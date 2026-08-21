@@ -83,8 +83,38 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="6" class="text-center text-muted">Sin pagos</td></tr>
+                                @if ($compra->creditosRecibidos->isEmpty())
+                                    <tr><td colspan="6" class="text-center text-muted">Sin pagos</td></tr>
+                                @endif
                             @endforelse
+
+                            {{-- Saldo a favor aplicado (spec 072, FR-015): línea propia, sin sumar
+                                 al total "Pagado" — ahí sólo va plata que salió. --}}
+                            @foreach ($compra->creditosRecibidos as $aplicacion)
+                                <tr class="table-success-subtle">
+                                    <td>-</td>
+                                    <td>{{ $aplicacion->fecha->format('d/m/Y') }}</td>
+                                    <td>
+                                        <span class="badge bg-success-subtle text-success">Saldo a favor</span>
+                                        @if ($aplicacion->origen)
+                                            <a href="{{ route('compras.show', $aplicacion->origen_id) }}">
+                                                {{ $aplicacion->origen->nro_comprobante ?: 'Compra '.$aplicacion->origen_id }}
+                                            </a>
+                                        @endif
+                                        @if ($aplicacion->notaCreditoDebito)
+                                            <span class="text-muted small">
+                                                (NC {{ $aplicacion->notaCreditoDebito->nro_comprobante ?: $aplicacion->notaCreditoDebito->id }})
+                                            </span>
+                                        @endif
+                                    </td>
+                                    <td>{{ $aplicacion->nota }}</td>
+                                    <td>$ {{ number_format((float) $aplicacion->monto, 2, ',', '.') }}</td>
+                                    <td>{{ $compra->nro_comprobante }}
+                                        <a href="#" class="js-anular-aplicacion-credito text-danger ms-2"
+                                           data-id="{{ $aplicacion->id }}" title="Anular aplicación"><i class="fas fa-trash"></i></a>
+                                    </td>
+                                </tr>
+                            @endforeach
                         </tbody>
                     </table>
                 </div>
@@ -311,6 +341,9 @@
     window.ComprasConfig = window.ComprasConfig || {};
     window.ComprasConfig.rutas = Object.assign(window.ComprasConfig.rutas || {}, {
         pagoStore: "{{ route('compras.pagos.store', $compra) }}",
+        creditoDisponible: "{{ route('compras.credito.disponible', $compra) }}",
+        creditoStore: "{{ route('compras.aplicaciones-credito.store', $compra) }}",
+        creditoDestroyBase: "{{ url('compras/'.$compra->id.'/aplicaciones-credito') }}",
         pagoDestroyBase: "{{ url('compras/'.$compra->id.'/pagos') }}",
         retencionStore: "{{ route('compras.retenciones.store', $compra) }}",
         notasStore: "{{ route('compras.notas.store', $compra) }}",

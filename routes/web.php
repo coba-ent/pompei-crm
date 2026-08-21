@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuditoriaController;
 use App\Http\Controllers\CategoriaController;
 use App\Http\Controllers\ClienteController;
+use App\Http\Controllers\AplicacionCreditoController;
 use App\Http\Controllers\CompraController;
 use App\Http\Controllers\Configuracion\ConfiguracionController;
 use App\Http\Controllers\Configuracion\ConfiguracionVentasController;
@@ -284,6 +285,11 @@ Route::middleware('auth')->group(function () {
         Route::put('{venta}/cobranzas/{cobro}', [VentaController::class, 'cobranzaUpdate'])->name('cobranzas.update');
         Route::delete('{venta}/cobranzas/{cobro}', [VentaController::class, 'cobranzaDestroy'])->name('cobranzas.destroy');
         Route::get('{venta}/cobranzas/{cobro}/recibo', [VentaController::class, 'reciboCobranza'])->name('cobranzas.recibo');
+        // Saldo a favor (spec 072): mismo grupo y por lo tanto mismo permiso que la cobranza — no
+        // se crea un permiso nuevo (FR-022).
+        Route::get('{venta}/credito-disponible', [AplicacionCreditoController::class, 'disponibleVenta'])->name('credito.disponible');
+        Route::post('{venta}/aplicaciones-credito', [AplicacionCreditoController::class, 'storeVenta'])->name('aplicaciones-credito.store');
+        Route::delete('{venta}/aplicaciones-credito/{aplicacion}', [AplicacionCreditoController::class, 'destroyVenta'])->name('aplicaciones-credito.destroy');
         Route::get('{venta}/notas/nueva', [NotaCreditoDebitoController::class, 'create'])->name('notas.create');
         Route::get('{venta}/notas/{notaCreditoDebito}/editar', [NotaCreditoDebitoController::class, 'edit'])->name('notas.edit');
         Route::post('{venta}/notas', [NotaCreditoDebitoController::class, 'store'])->name('notas.store');
@@ -392,6 +398,10 @@ Route::middleware('auth')->group(function () {
         Route::post('{compra}/pagos', [CompraController::class, 'pagoStore'])->name('pagos.store');
         Route::delete('{compra}/pagos/{pago}', [CompraController::class, 'pagoDestroy'])->name('pagos.destroy');
         Route::get('{compra}/pagos/{pago}/recibo', [CompraController::class, 'reciboPago'])->name('pagos.recibo');
+        // Saldo a favor de proveedor (spec 072, US4): mismo permiso que registrar un pago.
+        Route::get('{compra}/credito-disponible', [AplicacionCreditoController::class, 'disponibleCompra'])->name('credito.disponible');
+        Route::post('{compra}/aplicaciones-credito', [AplicacionCreditoController::class, 'storeCompra'])->name('aplicaciones-credito.store');
+        Route::delete('{compra}/aplicaciones-credito/{aplicacion}', [AplicacionCreditoController::class, 'destroyCompra'])->name('aplicaciones-credito.destroy');
         Route::post('{compra}/retenciones', [CompraController::class, 'retencionStore'])->name('retenciones.store');
         Route::get('{compra}/notas/nueva', [NotaCreditoDebitoController::class, 'createCompra'])->name('notas.create');
         Route::get('{compra}/notas/{notaCreditoDebito}/editar', [NotaCreditoDebitoController::class, 'editCompra'])->name('notas.edit');

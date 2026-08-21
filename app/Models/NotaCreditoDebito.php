@@ -76,6 +76,22 @@ class NotaCreditoDebito extends Model
         return $this->hasMany(self::class, 'nota_ajustada_id');
     }
 
+    /** Aplicaciones de saldo a favor que se justificaron con esta nota (spec 072). */
+    public function aplicaciones(): HasMany
+    {
+        return $this->hasMany(AplicacionCredito::class);
+    }
+
+    /**
+     * Bloquea la eliminación mientras haya saldo a favor de esta nota imputado a otro comprobante
+     * (spec 072, FR-012): nunca puede quedar un comprobante saldado por un crédito cuyo origen ya
+     * no existe.
+     */
+    public function tieneCreditoAplicado(): bool
+    {
+        return $this->aplicaciones()->exists();
+    }
+
     /** Bloquea edición/eliminación una vez que la nota tiene CAE aprobado por ARCA (FR-011). */
     public function tieneCaeAprobado(): bool
     {

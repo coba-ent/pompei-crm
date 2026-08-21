@@ -4,6 +4,7 @@ namespace App\Services\Informes;
 
 use App\Models\NotaCreditoDebito;
 use App\Models\Venta;
+use App\Services\Ingresos\SqlCredito;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -500,6 +501,11 @@ class VentasInformeQuery
      * El criterio replica el del listado de Ventas: si divergiera, el informe y la pantalla de
      * origen no conciliarían. La tolerancia de medio centavo evita que un redondeo deje una venta
      * saldada como "Parcial".
+     *
+     * Hasta el 21/08/2026 este filtro calculaba `total − cobrado` a secas: ignoraba las Notas de
+     * Crédito y de Débito, así que una venta anulada por NC figuraba "Pendiente" en el informe y
+     * "Cobrada" en el listado. Se alineó junto con los términos de saldo a favor (spec 072,
+     * FR-023).
      */
     private function filtrarPorEstadoCobro(Builder $query, array $estados): void
     {
@@ -510,14 +516,20 @@ class VentasInformeQuery
         }
 
         $cobrado = 'COALESCE((SELECT SUM(c.monto) FROM cobros c WHERE c.venta_id = ventas.id AND c.deleted_at IS NULL), 0)';
-        $aCobrar = "(ventas.total - {$cobrado})";
+        $nd = "COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.venta_id = ventas.id AND n.tipo = 'debito' AND n.deleted_at IS NULL), 0)";
+        $nc = "COALESCE((SELECT SUM(n.monto) FROM notas_credito_debito n WHERE n.venta_id = ventas.id AND n.tipo = 'credito' AND n.deleted_at IS NULL), 0)";
+        $credito = SqlCredito::terminos('ventas');
+        $aCobrar = "(ventas.total + {$nd} - {$nc} - {$cobrado} {$credito})";
 
         $query->where(function (Builder $q) use ($estados, $cobrado, $aCobrar) {
             foreach ($estados as $estado) {
                 $q->orWhere(fn (Builder $qq) => match ($estado) {
-                    'cobrado' => $qq->whereRaw("{$cobrado} > 0")->whereRaw("{$aCobrar} <= 0.005"),
+                    // Sin exigir `cobrado > 0`, igual que el listado: una venta saldada
+                    // íntegramente con una Nota de Crédito o con saldo a favor no tiene cobros y
+                    // aun así no queda nada por cobrar.
+                    'cobrado' => $qq->whereRaw("{$aCobrar} <= 0.005"),
                     'parcial' => $qq->whereRaw("{$cobrado} > 0")->whereRaw("{$aCobrar} > 0.005"),
-                    default => $qq->whereRaw("{$cobrado} <= 0"),
+                    default => $qq->whereRaw("{$cobrado} <= 0")->whereRaw("{$aCobrar} > 0.005"),
                 });
             }
         });

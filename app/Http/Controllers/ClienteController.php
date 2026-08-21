@@ -129,7 +129,16 @@ class ClienteController extends Controller
             })
             ->orderBy('nombre')
             ->limit(50)
-            ->get(['id', 'nombre', 'categoria_id', 'lista_precio_id', 'descuento_general_pct', 'tipo_comprobante_defecto'])
+            ->get(['id', 'nombre', 'categoria_id', 'lista_precio_id', 'descuento_general_pct', 'tipo_comprobante_defecto']);
+
+        // Saldo de cuenta corriente junto al nombre (spec 072, FR-014): el vendedor se entera de
+        // que el cliente tiene saldo a favor en la pantalla donde carga la venta, sin ir a
+        // buscarlo. Se calcula SÓLO sobre los ids de esta página —no sobre los 20.000 clientes—
+        // para no degradar el buscador.
+        $saldos = app(\App\Services\Tesoreria\CuentaCorriente::class)
+            ->saldosPorEntidad('cliente', $opciones->pluck('id')->all());
+
+        $opciones = $opciones
             ->map(fn (Cliente $c) => [
                 'id' => $c->id,
                 'nombre' => $c->nombre,
@@ -137,6 +146,8 @@ class ClienteController extends Controller
                 'lista_precio_id' => $c->lista_precio_id,
                 'descuento_general_pct' => $c->descuento_general_pct !== null ? (float) $c->descuento_general_pct : null,
                 'tipo_comprobante_defecto' => $c->tipo_comprobante_defecto,
+                // Negativo = saldo a favor del cliente; positivo = deuda.
+                'saldo' => round($saldos[$c->id] ?? 0.0, 2),
             ]);
 
         return response()->json(['data' => $opciones]);

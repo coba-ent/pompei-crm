@@ -31,6 +31,20 @@
                 </div>
                 <label class="form-label">Elija Medio de Pago</label>
                 <div class="row g-2" id="pago-cuentas"></div>
+
+                {{-- Saldo a favor del proveedor (spec 072, US4). Bloque separado de las cuentas de
+                     tesorería: no es plata que sale y no genera movimiento de tesorería (FR-019).
+                     Sólo aparece si hay crédito disponible y la compra tiene saldo (FR-006). --}}
+                <div id="pago-credito" class="mt-3 pt-3 border-top" style="display:none;">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="form-label mb-0">Saldo a favor con el proveedor</label>
+                        <span class="badge bg-success-subtle text-success" id="pago-credito-total"></span>
+                    </div>
+                    <button type="button" class="btn btn-outline-success w-100" id="btn-usar-saldo-favor-compra">
+                        <i class="fas fa-hand-holding-dollar me-1"></i> Aplicar saldo a favor
+                    </button>
+                    <div class="small text-muted mt-1" id="pago-credito-detalle"></div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-light" data-bs-dismiss="modal">Volver</button>

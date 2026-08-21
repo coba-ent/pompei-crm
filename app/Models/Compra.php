@@ -121,10 +121,59 @@ class Compra extends Model
         return (float) $this->notasCreditoDebito()->where('tipo', 'debito')->sum('monto');
     }
 
-    /** A Pagar = Total + Σ ND − Σ NC − Pagado (derivado, nunca almacenado — Clarifications). */
+    /** Aplicaciones de saldo a favor que ESTA compra recibió de otras (spec 072). */
+    public function creditosRecibidos(): MorphMany
+    {
+        return $this->morphMany(AplicacionCredito::class, 'destino');
+    }
+
+    /** Aplicaciones de saldo a favor que esta compra cedió a otras (spec 072). */
+    public function creditosCedidos(): MorphMany
+    {
+        return $this->morphMany(AplicacionCredito::class, 'origen');
+    }
+
+    /** Σ crédito recibido de otros comprobantes: baja el A Pagar como si fuera un pago. */
+    public function creditoRecibido(): float
+    {
+        return (float) $this->creditosRecibidos()->sum('monto');
+    }
+
+    /** Σ crédito cedido a otros comprobantes: **devuelve** saldo a esta compra (evita el doble conteo). */
+    public function creditoCedido(): float
+    {
+        return (float) $this->creditosCedidos()->sum('monto');
+    }
+
+    /**
+     * Saldo a favor de esta compra todavía disponible para imputar a otra del mismo proveedor
+     * (FR-001). Se mide por el saldo a favor efectivo, no por el monto de la Nota de Crédito.
+     */
+    public function creditoDisponible(): float
+    {
+        if (! $this->notasCreditoDebito()->where('tipo', 'credito')->exists()) {
+            return 0.0;
+        }
+
+        $saldoBase = (float) $this->total + $this->totalNotasDebito() - $this->totalNotasCredito() - $this->pagado();
+
+        return round(max(0.0, max(0.0, -$saldoBase) - $this->creditoCedido()), 2);
+    }
+
+    /**
+     * A Pagar = Total + Σ ND − Σ NC − Pagado − Crédito recibido + Crédito cedido (derivado, nunca
+     * almacenado — Clarifications).
+     *
+     * Los dos últimos términos hacen que aplicar saldo a favor de proveedor sea una
+     * **transferencia** entre dos compras y no una creación de saldo (spec 072, FR-003a).
+     */
     public function aPagar(): float
     {
-        return round((float) $this->total + $this->totalNotasDebito() - $this->totalNotasCredito() - $this->pagado(), 2);
+        return round(
+            (float) $this->total + $this->totalNotasDebito() - $this->totalNotasCredito() - $this->pagado()
+            - $this->creditoRecibido() + $this->creditoCedido(),
+            2
+        );
     }
 
     /** Estado de pago derivado: a_pagar / parcial / pagado. Nunca forzable (Clarifications). */

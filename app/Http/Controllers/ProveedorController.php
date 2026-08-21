@@ -76,11 +76,19 @@ class ProveedorController extends Controller
             })
             ->orderBy('nombre')
             ->limit(50)
-            ->get(['id', 'nombre', 'categoria_id'])
+            ->get(['id', 'nombre', 'categoria_id']);
+
+        // Saldo de cuenta corriente junto al nombre (spec 072, FR-014), acotado a los ids de esta
+        // página. Negativo = saldo a favor nuestro con el proveedor; positivo = lo que le debemos.
+        $saldos = app(\App\Services\Tesoreria\CuentaCorriente::class)
+            ->saldosPorEntidad('proveedor', $opciones->pluck('id')->all());
+
+        $opciones = $opciones
             ->map(fn (Proveedor $p) => [
                 'id' => $p->id,
                 'nombre' => $p->nombre,
                 'categoria_id' => $p->categoria_id,
+                'saldo' => round($saldos[$p->id] ?? 0.0, 2),
             ]);
 
         return response()->json(['data' => $opciones]);
