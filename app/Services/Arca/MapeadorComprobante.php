@@ -188,7 +188,7 @@ class MapeadorComprobante
     }
 
     /** @return array{0: int, 1: string} [DocTipo, DocNro] — 99=Consumidor Final sin identificar. */
-    private function documentoReceptor(array $cliente): array
+    public function documentoReceptor(array $cliente): array
     {
         // El cliente guarda todos los documentos en una misma columna (`clientes.cuit`) y es
         // `tipo_documento` quien determina el DocTipo de ARCA. Mandar el número sin mirar el tipo

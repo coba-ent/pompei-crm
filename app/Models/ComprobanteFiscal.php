@@ -64,19 +64,28 @@ class ComprobanteFiscal extends Model
 
         $comprobantable = $this->comprobantable;
         $certificado = \App\Models\CertificadoFiscal::activo();
+        $mapeador = new \App\Services\Arca\MapeadorComprobante();
+
+        // El QR tiene que reproducir exactamente lo que se le mandó a ARCA: si el receptor, el tipo
+        // de comprobante o el importe no coinciden con el CAE, la constatación falla.
+        $cliente = $comprobantable?->cliente ?? $comprobantable?->venta?->cliente;
+        [$docTipo, $docNro] = $mapeador->documentoReceptor($cliente?->datosFiscalesArca() ?? []);
+
+        $tipoNota = $comprobantable instanceof \App\Models\NotaCreditoDebito ? $comprobantable->tipo : null;
+        $importe = (float) ($comprobantable->total ?? $comprobantable->monto ?? 0);
 
         $payload = [
             'ver' => 1,
             'fecha' => optional($comprobantable?->fecha_emision)->format('Y-m-d'),
             'cuit' => (int) preg_replace('/\D/', '', $certificado?->cuit ?? '0'),
-            'ptoVta' => $this->puntoVenta?->numero,
-            'tipoCmp' => (new \App\Services\Arca\MapeadorComprobante())->cbteTipo($this->tipo_comprobante),
+            'ptoVta' => (int) $this->puntoVenta?->numero,
+            'tipoCmp' => $mapeador->cbteTipo($this->tipo_comprobante, $tipoNota),
             'nroCmp' => (int) last(explode('-', $this->numero ?? '0-0')),
-            'importe' => (float) ($comprobantable?->total ?? 0),
+            'importe' => round($importe, 2),
             'moneda' => 'PES',
             'ctz' => 1,
-            'tipoDocRec' => 99,
-            'nroDocRec' => 0,
+            'tipoDocRec' => $docTipo,
+            'nroDocRec' => (int) $docNro,
             'tipoCodAut' => 'E',
             'codAut' => (int) $this->cae,
         ];
