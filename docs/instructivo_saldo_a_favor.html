@@ -1,0 +1,498 @@
+<title>Saldo a favor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap">
+
+<style>
+  :root {
+    --ground:      #FAFAF8;
+    --surface:     #FFFFFF;
+    --surface-alt: #F2F3F0;
+    --line:        #DCDFD8;
+    --line-soft:   #E9EBE5;
+    --ink:         #1A1D19;
+    --ink-soft:    #4E544B;
+    --ink-faint:   #7C8278;
+    --haber:       #1F6B4A;
+    --haber-bg:    #E7F0EA;
+    --debe:        #A6321E;
+    --debe-bg:     #F7E8E4;
+    --alerta:      #8A5A00;
+    --alerta-bg:   #F7EEDC;
+
+    --serif: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+    --sans:  "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono:  "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #141613;
+      --surface:     #1B1E1A;
+      --surface-alt: #22261F;
+      --line:        #333830;
+      --line-soft:   #292E26;
+      --ink:         #EDEFEA;
+      --ink-soft:    #B4BAAE;
+      --ink-faint:   #858B7F;
+      --haber:       #6FC79A;
+      --haber-bg:    #1B3128;
+      --debe:        #E58A72;
+      --debe-bg:     #3A211A;
+      --alerta:      #D9AC5A;
+      --alerta-bg:   #33291533;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #141613;
+    --surface:     #1B1E1A;
+    --surface-alt: #22261F;
+    --line:        #333830;
+    --line-soft:   #292E26;
+    --ink:         #EDEFEA;
+    --ink-soft:    #B4BAAE;
+    --ink-faint:   #858B7F;
+    --haber:       #6FC79A;
+    --haber-bg:    #1B3128;
+    --debe:        #E58A72;
+    --debe-bg:     #3A211A;
+    --alerta:      #D9AC5A;
+    --alerta-bg:   #33291533;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16.5px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .hoja {
+    max-width: 74ch;
+    margin: 0 auto;
+    padding: clamp(2.5rem, 6vw, 5rem) clamp(1.15rem, 5vw, 2.5rem) 6rem;
+  }
+
+  /* ---------- encabezado ---------- */
+
+  .cabecera { border-bottom: 2px solid var(--ink); padding-bottom: 1.6rem; }
+
+  .sello {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: clamp(2.1rem, 6vw, 3.1rem);
+    line-height: 1.08;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+    margin: 0 0 0.7rem;
+  }
+
+  .bajada {
+    font-size: 1.1rem;
+    color: var(--ink-soft);
+    max-width: 58ch;
+    margin: 0;
+  }
+
+  /* ---------- estructura ---------- */
+
+  section { margin-top: 3.4rem; }
+
+  h2 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 1.42rem;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+    margin: 0 0 0.4rem;
+    padding-bottom: 0.55rem;
+    border-bottom: 1px solid var(--line);
+  }
+
+  h3 {
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 1rem;
+    letter-spacing: 0.005em;
+    margin: 2rem 0 0.4rem;
+  }
+
+  p { margin: 0 0 1rem; }
+  p:last-child { margin-bottom: 0; }
+
+  a { color: var(--haber); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, .paso:focus-visible { outline: 2px solid var(--haber); outline-offset: 3px; }
+
+  strong { font-weight: 600; }
+
+  .monto {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.94em;
+  }
+
+  .ui {
+    font-family: var(--mono);
+    font-size: 0.86em;
+    background: var(--surface-alt);
+    border: 1px solid var(--line-soft);
+    border-radius: 3px;
+    padding: 0.08em 0.36em;
+    white-space: nowrap;
+  }
+
+  /* ---------- el caso ---------- */
+
+  .caso {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--debe);
+    padding: 1.4rem 1.5rem;
+    margin-top: 1.4rem;
+  }
+
+  .caso .rotulo {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--debe);
+    display: block;
+    margin-bottom: 0.6rem;
+  }
+
+  .caso p { font-size: 0.97rem; color: var(--ink-soft); }
+  .caso p strong { color: var(--ink); }
+
+  /* ---------- pasos (secuencia real) ---------- */
+
+  .pasos {
+    list-style: none;
+    counter-reset: paso;
+    margin: 1.5rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .paso {
+    counter-increment: paso;
+    display: grid;
+    grid-template-columns: 2.6rem 1fr;
+    gap: 0 1rem;
+    padding: 1.05rem 0;
+    border-top: 1px solid var(--line-soft);
+  }
+  .paso:last-child { border-bottom: 1px solid var(--line-soft); }
+
+  .paso::before {
+    content: counter(paso);
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--haber);
+    background: var(--haber-bg);
+    border-radius: 50%;
+    width: 1.85rem;
+    height: 1.85rem;
+    display: grid;
+    place-items: center;
+    margin-top: 0.1rem;
+  }
+
+  .paso b {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.15rem;
+  }
+
+  .paso span { color: var(--ink-soft); font-size: 0.96rem; }
+
+  /* ---------- reglas ---------- */
+
+  .reglas { margin-top: 1.4rem; display: flex; flex-direction: column; gap: 0.9rem; }
+
+  .regla {
+    display: grid;
+    grid-template-columns: 5.6rem 1fr;
+    gap: 0 1rem;
+    align-items: start;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    padding: 0.95rem 1.1rem;
+  }
+
+  .chip {
+    font-family: var(--mono);
+    font-size: 0.64rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    text-align: center;
+    padding: 0.28em 0.2em;
+    border-radius: 2px;
+    font-weight: 500;
+    margin-top: 0.15rem;
+  }
+
+  .chip.bloquea { background: var(--debe-bg);   color: var(--debe); }
+  .chip.limita  { background: var(--alerta-bg); color: var(--alerta); }
+  .chip.protege { background: var(--haber-bg);  color: var(--haber); }
+
+  .regla div p { font-size: 0.96rem; }
+  .regla div p:first-child { font-weight: 600; margin-bottom: 0.15rem; }
+  .regla div p:last-child { color: var(--ink-soft); }
+
+  /* ---------- tabla ---------- */
+
+  .scroll-x { overflow-x: auto; margin-top: 1.4rem; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.94rem;
+    min-width: 34rem;
+  }
+
+  th {
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 500;
+    padding: 0 0.9rem 0.55rem 0;
+    border-bottom: 1px solid var(--ink);
+  }
+
+  td {
+    padding: 0.8rem 0.9rem 0.8rem 0;
+    border-bottom: 1px solid var(--line-soft);
+    vertical-align: top;
+    color: var(--ink-soft);
+  }
+
+  td:first-child { color: var(--ink); font-weight: 500; }
+  th:last-child, td:last-child { padding-right: 0; }
+
+  /* ---------- aviso fuerte ---------- */
+
+  .aviso {
+    margin-top: 1.5rem;
+    background: var(--debe-bg);
+    border: 1px solid var(--debe);
+    padding: 1.35rem 1.5rem;
+  }
+
+  .aviso h3 {
+    margin: 0 0 0.45rem;
+    color: var(--debe);
+    font-size: 1.05rem;
+  }
+
+  .aviso p { font-size: 0.98rem; color: var(--ink); }
+
+  /* ---------- cierre ---------- */
+
+  .pie {
+    margin-top: 4rem;
+    padding-top: 1.3rem;
+    border-top: 1px solid var(--line);
+    font-size: 0.88rem;
+    color: var(--ink-faint);
+  }
+
+  @media (max-width: 30rem) {
+    .regla { grid-template-columns: 1fr; gap: 0.5rem; }
+    .chip { justify-self: start; padding-left: 0.6em; padding-right: 0.6em; }
+  }
+</style>
+
+<div class="hoja">
+
+  <header class="cabecera">
+    <div class="sello">
+      <span>Pompei Sanitarios</span>
+      <span>Ventas y Compras</span>
+      <span>21/08/2026</span>
+    </div>
+    <h1>Saldo a favor</h1>
+    <p class="bajada">Cuando un cliente devuelve algo que ya pagó y se lleva otra cosa más barata, la diferencia queda registrada y se puede imputar a la venta nueva. Antes se perdía.</p>
+  </header>
+
+  <section>
+    <h2>El problema que resuelve</h2>
+    <p>Hasta ahora el sistema no tenía forma de imputar a una venta nueva la plata que un cliente había pagado de más. El único camino era <strong>borrar la cobranza vieja</strong>, y eso borra la evidencia de que el cliente pagó.</p>
+
+    <div class="caso">
+      <span class="rotulo">Caso real · 20/08/2026 · cliente Florencia</span>
+      <p><strong>19:57</strong> — se cobran <span class="monto">$30.771,29</span> de la venta 24582.<br>
+      <strong>19:58</strong> — el cliente devuelve la mercadería, se emite la Nota de Crédito por el mismo importe.<br>
+      <strong>20:03</strong> — <strong>se elimina el cobro</strong> y se cobra la venta nueva de <span class="monto">$27.306</span>.</p>
+      <p>Las dos ventas quedaron en cero y los <strong class="monto">$3.465,29</strong> que el cliente había pagado de más desaparecieron de todo registro. Nadie hizo nada mal: era el único camino disponible.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Cómo se hace ahora</h2>
+    <p>El procedimiento nuevo tiene cuatro pasos y ninguno implica borrar nada. El orden importa: cada paso depende del anterior.</p>
+
+    <ol class="pasos">
+      <li class="paso">
+        <b>Emitir la Nota de Crédito sobre la venta original</b>
+        <span>Igual que siempre, desde el detalle de esa venta. <strong>La cobranza original no se toca.</strong></span>
+      </li>
+      <li class="paso">
+        <b>Cargar la venta nueva</b>
+        <span>Al buscar el cliente, ahora aparece su saldo al lado del nombre: <span class="ui">Florencia · a favor $ 3.465,29</span>. Así el vendedor se entera del crédito en el momento en que lo necesita.</span>
+      </li>
+      <li class="paso">
+        <b>Agregar Cobranza → Aplicar saldo a favor</b>
+        <span>Debajo de los medios de cobro aparece un bloque aparte con el crédito disponible y de qué comprobante sale. Un botón y listo.</span>
+      </li>
+      <li class="paso">
+        <b>Lo que sobra queda vivo</b>
+        <span>El remanente sigue disponible para la próxima compra y se ve en el saldo del cliente. Ya no hay que acordarse de nada.</span>
+      </li>
+    </ol>
+
+    <h3>Del lado de Compras</h3>
+    <p>Funciona igual. Cuando le devolvemos mercadería a un proveedor y éste emite su Nota de Crédito, ese saldo a favor se aplica a una compra posterior desde el modal de <span class="ui">Pago</span>.</p>
+  </section>
+
+  <section>
+    <h2>Las reglas que el sistema hace cumplir solo</h2>
+    <p>Nada de esto depende de que alguien se acuerde: el sistema lo impide.</p>
+
+    <div class="reglas">
+      <div class="regla">
+        <span class="chip protege">Protege</span>
+        <div>
+          <p>Aplicar crédito no mueve un peso de Tesorería</p>
+          <p>No es plata que entra ni que sale, es plata que ya se movió y se está reubicando. Las cajas, los bancos, las tarjetas, el Disponible y el A Cobrar quedan idénticos.</p>
+        </div>
+      </div>
+
+      <div class="regla">
+        <span class="chip protege">Protege</span>
+        <div>
+          <p>El saldo del cliente no cambia al aplicar</p>
+          <p>Baja el saldo de la venta nueva y baja en la misma medida el saldo a favor de la venta vieja. No se crea ni se destruye deuda: se traslada.</p>
+        </div>
+      </div>
+
+      <div class="regla">
+        <span class="chip limita">Limita</span>
+        <div>
+          <p>Nunca se aplica más de lo que corresponde</p>
+          <p>El tope es el menor entre el crédito disponible y lo que falta cobrar del comprobante. Si el crédito es mayor, el resto queda disponible.</p>
+        </div>
+      </div>
+
+      <div class="regla">
+        <span class="chip limita">Limita</span>
+        <div>
+          <p>Se consume de la Nota de Crédito más vieja a la más nueva</p>
+          <p>Si hay varias con remanente, el sistema las va usando en orden y puede cubrir un comprobante con más de una.</p>
+        </div>
+      </div>
+
+      <div class="regla">
+        <span class="chip bloquea">Bloquea</span>
+        <div>
+          <p>No se puede borrar una Nota de Crédito con saldo ya aplicado</p>
+          <p>Primero hay que anular la aplicación. Nunca puede quedar una venta saldada por un crédito cuyo origen ya no existe.</p>
+        </div>
+      </div>
+
+      <div class="regla">
+        <span class="chip bloquea">Bloquea</span>
+        <div>
+          <p>El crédito de un cliente es sólo de ese cliente</p>
+          <p>No se puede aplicar a la venta de otro. Los créditos de clientes y los de proveedores son mundos separados y no se compensan entre sí.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Lo que el local tiene que cambiar</h2>
+    <p>Es una sola cosa, y es la más importante de todo este documento.</p>
+
+    <div class="aviso">
+      <h3>No borren más la cobranza vieja</h3>
+      <p>Cuando un cliente devuelve algo, se emite la Nota de Crédito y <strong>se deja el cobro original como está</strong>. Con la funcionalidad nueva ya no hace falta borrarlo, y borrarlo es exactamente lo que hace desaparecer el crédito: sin el cobro registrado, el sistema no tiene de dónde saber que el cliente pagó de más.</p>
+    </div>
+
+    <h3>Cuándo el botón no aparece</h3>
+    <p>El bloque de saldo a favor sólo se muestra si el cliente efectivamente tiene crédito. Si no aparece, es porque se da alguno de estos casos:</p>
+
+    <div class="scroll-x">
+      <table>
+        <thead>
+          <tr><th>Situación</th><th>Por qué</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>La venta original nunca se cobró</td>
+            <td>La Nota de Crédito sólo canceló una deuda. El cliente no puso plata, así que no hay nada a favor.</td>
+          </tr>
+          <tr>
+            <td>Se borró el cobro original</td>
+            <td>Mismo efecto que el anterior: para el sistema esa venta quedó impaga.</td>
+          </tr>
+          <tr>
+            <td>El cliente pagó de más sin Nota de Crédito</td>
+            <td>Ese saldo a favor se sigue viendo en la cuenta corriente, pero no se ofrece para aplicar. El crédito aplicable nace sólo de Notas de Crédito.</td>
+          </tr>
+          <tr>
+            <td>El comprobante ya está saldado</td>
+            <td>No queda nada por cobrar, así que no hay dónde imputar.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>El crédito no se aplica solo</h3>
+    <p>Siempre es una decisión del vendedor. Si el cliente prefiere que se le devuelva la plata en mano, no se aplica nada y el saldo a favor queda ahí.</p>
+  </section>
+
+  <section>
+    <h2>Dos cosas que van a notar</h2>
+
+    <h3>Algunos comprobantes cambian de estado en los Informes</h3>
+    <p>El filtro de estado de cobro del Informe de Ventas venía calculando <span class="ui">total − cobrado</span> e ignoraba las Notas de Crédito. Una venta anulada por una NC figuraba <strong>Pendiente</strong> en el informe y <strong>Cobrada</strong> en el listado, al mismo tiempo. Eso se corrigió: ahora los dos dicen lo mismo. Los totales de Tesorería no se movieron — lo que cambia es en qué grupo cae cada comprobante, no cuánto suma.</p>
+
+    <h3>Los créditos ya perdidos no vuelven solos</h3>
+    <p>Los saldos a favor que desaparecieron con el procedimiento viejo —como los <span class="monto">$3.465,29</span> de Florencia— no se reconstruyen automáticamente. Si el negocio quiere recuperarlos, hay que cargarlos a mano uno por uno.</p>
+  </section>
+
+  <section>
+    <h2>Por qué esto no está en Contagram</h2>
+    <p>Se relevó Contagram el 20/08/2026 buscando exactamente esta función: el "Medio de Cobro" sólo lista cuentas de caja, banco y tarjetas, y el campo "Documento que Ajusta" nunca se completa. <strong>Contagram no permite imputar un crédito a un comprobante puntual.</strong></p>
+    <p>Es la primera vez que el CRM se aparta a propósito de cómo funciona Contagram, con el visto bueno del dueño del 21/08/2026. Queda anotado como divergencia deliberada en la documentación del proyecto.</p>
+  </section>
+
+  <p class="pie">Trazabilidad — desde cualquier comprobante saldado con crédito se llega a la Nota de Crédito de origen, y desde la Nota de Crédito se ve cuánto se consumió, cuánto queda y en qué comprobantes se aplicó. Las aplicaciones anuladas no se borran de la base: quedan registradas.</p>
+
+</div>
