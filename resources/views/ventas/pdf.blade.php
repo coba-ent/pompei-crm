@@ -55,7 +55,7 @@
 
     <div class="cliente-box">
         <div class="col">
-            <div><strong>Cliente:</strong> {{ optional($venta->cliente)->nombre }}</div>
+            <div><strong>Cliente:</strong> {{ optional($venta->cliente)->razon_social ?: optional($venta->cliente)->nombre }}</div>
             <div><strong>Nombre:</strong> {{ optional($venta->cliente)->nombre_pila ?: '-' }}</div>
             <div><strong>Apellido:</strong> {{ optional($venta->cliente)->apellido ?: '-' }}</div>
             <div><strong>Teléfono:</strong> {{ optional($venta->cliente)->telefono ?: '-' }}</div>

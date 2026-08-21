@@ -62,7 +62,7 @@
 
     <div class="cliente-box">
         <div class="col">
-            <div><strong>{{ $venta ? 'Cliente' : 'Proveedor' }}:</strong> {{ optional($tercero)->nombre }}</div>
+            <div><strong>{{ $venta ? 'Cliente' : 'Proveedor' }}:</strong> {{ optional($tercero)->razon_social ?: optional($tercero)->nombre }}</div>
             <div><strong>CUIT:</strong> {{ optional($tercero)->cuit ?: '-' }}</div>
         </div>
         <div class="col">

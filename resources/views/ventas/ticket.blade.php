@@ -16,7 +16,7 @@
         {{ optional($venta->fecha_emision)->format('d/m/Y') }}
     </div>
     <hr>
-    <div>Cliente: {{ optional($venta->cliente)->nombre }}</div>
+    <div>Cliente: {{ optional($venta->cliente)->razon_social ?: optional($venta->cliente)->nombre }}</div>
     <hr>
     @foreach ($venta->items as $item)
         <div>{{ $item->descripcion }}</div>
