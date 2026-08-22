@@ -26,6 +26,7 @@ use App\Observers\PresupuestoAuditoriaObserver;
 use App\Observers\TiendanubeVarianteProductoObserver;
 use App\Observers\VentaAuditoriaObserver;
 use App\Observers\VentaObserver;
+use App\Services\AuditoriaService;
 use App\Services\MercadoLibre\Bot\GeneradorDeSugerencias;
 use App\Services\MercadoLibre\Bot\GeneradorDeSugerenciasOpenAI;
 use Carbon\Carbon;
@@ -43,6 +44,11 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(ClientContract::class, fn () => OpenAI::client((string) config('services.openai.api_key')));
         $this->app->bind(GeneradorDeSugerencias::class, GeneradorDeSugerenciasOpenAI::class);
+
+        // Singleton obligatorio (spec 074): el modo buffer de la auditoría es estado de
+        // instancia. El importador lo enciende y el Observer que registra los eventos lo
+        // lee — si cada uno resolviera su propia instancia, el buffer nunca se aplicaría.
+        $this->app->singleton(AuditoriaService::class);
     }
 
     /**

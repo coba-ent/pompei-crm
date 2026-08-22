@@ -280,6 +280,22 @@ producto_id (FK), variante_id (FK → producto_variantes, nullable), deposito_id
 Único por (producto_id, variante_id, deposito_id). Representa el stock **actual** (foto); el histórico va
 en `movimientos_stock`.
 
+> **Fijar stock a un valor absoluto — `StockService::fijar()` (spec 074, 22/08/2026):** cuando el
+> llamador conoce la **cantidad final deseada** (y no un delta), leer el stock actual y después llamar a
+> `ajustar()` con la diferencia **es un bug de concurrencia**: la lectura queda fuera de la transacción
+> que escribe, así que cualquier operación que mueva ese stock en el medio (una venta, una compra, otro
+> ajuste) se pisa — *lost update*. Fue exactamente lo que hacía el importador de productos, con una
+> ventana real de minutos (el asistente procesa en tandas de 1.000 filas con el negocio operando).
+>
+> `fijar(producto, variante, deposito, cantidadDeseada, descripcion, usuario)` resuelve lectura, cálculo
+> del delta y escritura del `MovimientoStock` **dentro de una única transacción con `lockForUpdate()`**
+> sobre la fila de `stocks`. Si la cantidad deseada ya coincide con la actual no escribe nada. `ajustar()`
+> **no se deprecia**: sigue siendo lo correcto cuando el llamador ya conoce el delta (ajuste manual desde
+> la UI, NC/ND, reintegros).
+>
+> **Regla para el futuro:** cualquier llamador que combine `disponibilidad()` + `ajustar()` para llegar a
+> un valor absoluto tiene el mismo bug y debe migrar a `fijar()`.
+
 ### `movimientos_stock`
 | Campo | Tipo | Notas |
 |---|---|---|
@@ -1544,7 +1560,7 @@ Movimiento de Tesorería, Movimiento de Stock). Sin `updated_at`: es un registro
 | `usuario_nombre` | string(150) | Desnormalizado al momento del evento (protege el historial si el usuario se renombra a futuro); si `usuario_id` es nulo, contiene el label de origen (ej. "Ventas Online") |
 | `origen_sistema` | string(50), nullable | `mercadolibre` / `tiendanube` / null (acción humana) |
 | `tipo_accion` | enum(`creo`,`modifico`,`elimino`,`anulo`) | Columna "Tipo" de la pantalla |
-| `tipo_operacion` | enum(`venta`,`presupuesto`,`cobro`,`gasto`,`compra`,`movimiento_tesoreria`,`movimiento_stock`) | Columna "Operación" |
+| `tipo_operacion` | enum(`venta`,`presupuesto`,`cobro`,`gasto`,`compra`,`movimiento_tesoreria`,`movimiento_stock`,`precio_producto`) | Columna "Operación". **`precio_producto` desde la spec 074** — cambios de precio de un producto en una lista de precios (ver nota abajo) |
 | `entidad_tipo` / `entidad_id` | string(100) / bigint | Referencia de sólo lectura (sin FK física) a la entidad de origen — sobrevive al soft delete de esa entidad |
 | `detalle` | string(255) | Texto libre humano-legible generado por el sistema según `tipo_operacion`, fijado en el momento del evento |
 | `total` | decimal(12,2), nullable | Monto de la operación al momento del evento |
@@ -1559,6 +1575,33 @@ de §1), asignado por defecto al rol Admin.
 
 Un solo evento de auditoría por acción humana: los Observers filtran los `updated` que sólo tocan
 campos derivados/recalculados internamente (no cada `save()` interno genera una fila nueva).
+
+> **`precio_producto` — auditoría de cambios de precio por lista (spec 074, 22/08/2026):** todo cambio
+> de `precios_producto` hecho **a través del modelo** genera un evento. Lo captura
+> `PrecioProductoObserver` (el mismo punto único por el que ya pasa el push de precios a Mercado
+> Libre/Tiendanube), así que cubre de una sola vez los cuatro orígenes: **importación masiva**, **edición
+> manual** desde la ficha, **edición masiva de precios/costos** desde el listado (`accionAjustarPrecios`)
+> y **copia de producto**. Particularidades de esta operación:
+>
+> - `entidad_tipo`/`entidad_id` apuntan al **`Producto`**, no a la fila de `precios_producto`: hace que
+>   "todo el historial de precios del producto X" sea una consulta indexada por `(entidad_tipo, entidad_id)`,
+>   y el registro sobrevive a que el precio se borre y se vuelva a crear.
+> - `total` = precio nuevo (`null` cuando la acción es `elimino`). El **precio anterior no tiene columna
+>   propia**: va en `detalle`, con la forma `"{Producto} — {Lista}: {anterior} → {nuevo} ({origen})"`.
+> - El **origen** del cambio va como rótulo dentro de `detalle`, **no** en `origen_sistema` — esa columna
+>   sigue reservada para acciones sin usuario humano (`mercadolibre`/`tiendanube`).
+> - No se registra evento si el precio guardado es igual al anterior (comparado a 2 decimales): sin eso,
+>   reimportar una planilla sin cambios generaría miles de filas espurias.
+> - **Volumen**: es la operación que más filas aporta a esta tabla. Una importación de 5.000 productos
+>   con 3 listas activas puede generar ~15.000 filas en una sola corrida, contra el resto de las
+>   operaciones que llegan de a una. Por eso el importador escribe la auditoría **en lote** (buffer en
+>   memoria + INSERT múltiple cada 200 eventos y al cerrar cada tanda). No se agregaron índices nuevos:
+>   los existentes cubren las consultas de la pantalla y del historial por producto.
+>
+> **Excepción documentada (no se audita):** `MigrarPuntoReposicion` borra precios con
+> `DB::table('precios_producto')->...->delete()`. Un `DELETE` de query builder no instancia modelos y por
+> lo tanto **no dispara eventos**: esos borrados no quedan auditados. Es un comando de migración de única
+> vez y se deja así a propósito; queda asentado acá para que no se asuma cubierto.
 
 ---
 

@@ -124,7 +124,11 @@ class DefinicionCamposImportables
                 'obligatorio' => false,
                 'numerico' => true,
                 'deposito_id' => $deposito->id,
-                'alias' => $deposito->nombre,
+                // Dos alias: el nombre pelado del depósito ("Local") y el encabezado tal cual lo
+                // escribe la exportación de Productos ("Stock Local"). Sin el segundo, exportar →
+                // editar → reimportar dejaba estas columnas sin mapear y el stock no se
+                // actualizaba salvo que el usuario las mapeara a mano (spec 074).
+                'alias' => [$deposito->nombre, "Stock {$deposito->nombre}"],
             ];
         }
 

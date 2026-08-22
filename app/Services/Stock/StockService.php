@@ -62,6 +62,72 @@ class StockService
     }
 
     /**
+     * Fija el stock de un producto en un depósito a un **valor absoluto**, resolviendo
+     * lectura, cálculo del delta y escritura del movimiento de forma atómica (spec 074, US2).
+     *
+     * Diferencia con `ajustar()`: `ajustar()` recibe un **delta ya conocido** por el llamador
+     * (ajuste manual desde la UI, NC/ND, reintegros) y sigue siendo la operación correcta en
+     * esos casos. `fijar()` recibe el **valor final deseado** y deriva el delta por su cuenta,
+     * bajo el mismo lock con el que después escribe.
+     *
+     * Por qué existe: leer con `disponibilidad()`, calcular la diferencia y recién después
+     * llamar a `ajustar()` deja una ventana entre la lectura y la escritura en la que otra
+     * operación puede mover el mismo stock. Ese movimiento se pierde, porque el delta se
+     * calculó contra una foto ya vieja. Acá la lectura pasa a estar **dentro** de la misma
+     * transacción y bajo `lockForUpdate()`, así que ninguna otra transacción puede tocar esa
+     * fila entre el paso de lectura y el de escritura.
+     *
+     * **Regla para el futuro**: cualquier llamador que combine `disponibilidad()` + `ajustar()`
+     * para llegar a un valor absoluto tiene exactamente el mismo bug y debe migrar a `fijar()`.
+     *
+     * Si no hay diferencia no escribe nada —ni `stocks` ni `movimientos_stock`— y devuelve la
+     * cantidad actual.
+     *
+     * @return float El stock resultante en el depósito para esa variante.
+     */
+    public function fijar(
+        Producto $producto,
+        ?ProductoVariante $variante,
+        Deposito $deposito,
+        float $cantidadDeseada,
+        ?string $descripcion = null,
+        ?User $usuario = null,
+    ): float {
+        return DB::transaction(function () use ($producto, $variante, $deposito, $cantidadDeseada, $descripcion, $usuario) {
+            $stock = Stock::lockForUpdate()->firstOrNew([
+                'producto_id' => $producto->id,
+                'variante_id' => $variante?->id,
+                'deposito_id' => $deposito->id,
+            ]);
+
+            $actual = (float) $stock->cantidad;
+            $diferencia = $cantidadDeseada - $actual;
+
+            // Sin diferencia no se escribe nada: ni la foto ni el histórico. Esto es lo que
+            // libera al llamador de tener que chequearlo (el importador ya no lo hace).
+            if (abs($diferencia) < 0.0000001) {
+                return $actual;
+            }
+
+            $stock->cantidad = $cantidadDeseada;
+            $stock->save();
+
+            MovimientoStock::create([
+                'producto_id' => $producto->id,
+                'variante_id' => $variante?->id,
+                'deposito_id' => $deposito->id,
+                'tipo' => 'ajuste',
+                'cantidad' => $diferencia,
+                'descripcion' => $descripcion,
+                'fecha' => now(),
+                'usuario_id' => $usuario?->id,
+            ]);
+
+            return (float) $stock->cantidad;
+        });
+    }
+
+    /**
      * Movimiento de stock entre dos depósitos (transferencia): resta del depósito
      * de salida y suma al de entrada de forma atómica, registrando dos filas en
      * `movimientos_stock` con tipo `transferencia`. No altera el stock total del

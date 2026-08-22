@@ -31,6 +31,7 @@ class AuditoriaController extends Controller
         'compra' => 'Compra',
         'movimiento_tesoreria' => 'Movimiento de Tesorería',
         'movimiento_stock' => 'Movimiento de Stock',
+        'precio_producto' => 'Precio de producto',
     ];
 
     public function __construct(private readonly AuditoriaService $auditoria)

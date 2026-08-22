@@ -11,7 +11,9 @@ use App\Models\Producto;
 use App\Models\Proveedor;
 use App\Models\User;
 use App\Rules\CuitValido;
+use App\Services\AuditoriaService;
 use App\Services\Stock\StockService;
+use App\Support\OrigenCambioPrecio;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
@@ -60,6 +62,46 @@ class ImportadorFilas
         $fallidos = [];
         $advertencias = [];
 
+        // Spec 074: todos los cambios de precio de esta tanda quedan auditados con origen
+        // "importación", y sus eventos se agrupan en un INSERT múltiple en vez de uno por
+        // precio (SC-005). El `finally` es obligatorio: si algo revienta a mitad de la tanda,
+        // el buffer tiene que vaciarse igual y el origen no puede quedar contaminado.
+        $auditoria = app(AuditoriaService::class);
+        $auditoria->iniciarBuffer();
+
+        try {
+            OrigenCambioPrecio::durante(OrigenCambioPrecio::IMPORTACION, function () use ($filasDatos, $offset, $mapeo, $personalizados, $definicion, $catalogosFk, $tipoPorIndiceCuit, $entidad, $reglas, $usuario, &$importados, &$fallidos, &$advertencias) {
+                $this->procesarFilas($filasDatos, $offset, $mapeo, $personalizados, $definicion, $catalogosFk, $tipoPorIndiceCuit, $entidad, $reglas, $usuario, $importados, $fallidos, $advertencias);
+            });
+        } finally {
+            $auditoria->vaciarBuffer();
+        }
+
+        return ['importados' => $importados, 'fallidos' => $fallidos, 'advertencias' => $advertencias, 'total' => $total];
+    }
+
+    /**
+     * Bucle de filas propiamente dicho, extraído de `importar()` para poder envolverlo entero
+     * en el contexto de origen de auditoría sin indentar todo el método (spec 074, T011).
+     *
+     * @param  array<int, array<string, mixed>>  $fallidos
+     * @param  array<int, array<string, mixed>>  $advertencias
+     */
+    private function procesarFilas(
+        array $filasDatos,
+        int $offset,
+        array $mapeo,
+        array $personalizados,
+        array $definicion,
+        array $catalogosFk,
+        array $tipoPorIndiceCuit,
+        string $entidad,
+        array $reglas,
+        ?User $usuario,
+        int &$importados,
+        array &$fallidos,
+        array &$advertencias,
+    ): void {
         foreach ($filasDatos as $i => $celdas) {
             $numeroFila = $offset + $i + 2; // +1 por el encabezado, +1 por ser 1-based
 
@@ -133,8 +175,6 @@ class ImportadorFilas
                 $advertencias[] = ['fila' => $numeroFila, 'motivo' => $motivo];
             }
         }
-
-        return ['importados' => $importados, 'fallidos' => $fallidos, 'advertencias' => $advertencias, 'total' => $total];
     }
 
     /**
@@ -568,9 +608,17 @@ class ImportadorFilas
             // 'solo_verificacion' (Stock Total) no se valida estricto: no se persiste, sólo se usa
             // como chequeo cruzado en verificarStockTotal() — un valor sucio (texto, negativo por
             // redondeo de Excel) no puede tirar abajo la fila entera por un campo que ni se guarda.
-            $esNumericoDinamico = isset($def['lista_precio_id']) || isset($def['deposito_id']);
-            if ($esNumericoDinamico && ! isset($reglas[$campo])) {
+            // Un precio negativo no tiene sentido de negocio, así que las listas conservan `min:0`.
+            // El stock por depósito, en cambio, SÍ puede ser negativo: es el estado real de un
+            // producto sobrevendido, `StockService::ajustar()`/`fijar()` lo permiten explícitamente
+            // (research D7 de la spec de stock) y la exportación de Productos lo escribe tal cual.
+            // Con `min:0` acá, reimportar una exportación propia tiraba la fila entera de todo
+            // producto sobrevendido — 68 de 9.186 en la base real (spec 074).
+            if (isset($def['lista_precio_id']) && ! isset($reglas[$campo])) {
                 $reglas[$campo] = ['nullable', 'numeric', 'min:0'];
+            }
+            if (isset($def['deposito_id']) && ! isset($reglas[$campo])) {
+                $reglas[$campo] = ['nullable', 'numeric'];
             }
             if (! empty($def['fecha']) && ! isset($reglas[$campo])) {
                 $reglas[$campo] = ['nullable', 'date'];
@@ -736,7 +784,11 @@ class ImportadorFilas
 
         if ($producto->controlaStock()) {
             foreach ($stockPorDeposito as $depositoId => $cantidad) {
-                if ($cantidad <= 0) {
+                // Sólo se saltea el cero (no habría movimiento que registrar). El negativo SÍ se
+                // aplica: es el estado real de un producto sobrevendido y la planilla lo trae así
+                // (spec 074). Antes se salteaba junto con el cero, y entonces un alta desde una
+                // exportación propia perdía en silencio el stock negativo del origen.
+                if ((float) $cantidad === 0.0) {
                     continue;
                 }
                 $this->stockService->ajustar(
@@ -756,9 +808,9 @@ class ImportadorFilas
      * el mismo tratamiento que `crearProducto()` para `precio_lista_*`/`stock_deposito_*`,
      * pero contra un producto existente — upsert por lista de precio en vez de `create()`
      * (evita duplicar filas en `precios_producto` si ya tenía precio en esa lista), y
-     * ajuste de stock por diferencia contra la cantidad actual (la planilla trae el
-     * valor final deseado, no un delta) vía `StockService::ajustar()` para que quede
-     * también el `MovimientoStock` correspondiente.
+     * ajuste de stock contra la cantidad actual (la planilla trae el valor final deseado,
+     * no un delta) vía `StockService::fijar()`, que resuelve lectura y escritura bajo un
+     * mismo lock y deja también el `MovimientoStock` correspondiente.
      *
      * @param  array<string, mixed>  $datos
      */
@@ -777,17 +829,15 @@ class ImportadorFilas
 
         if ($producto->controlaStock()) {
             foreach ($stockPorDeposito as $depositoId => $cantidadDeseada) {
-                $deposito = Deposito::findOrFail($depositoId);
-                $actual = $this->stockService->disponibilidad($producto, null, $deposito);
-                $diferencia = $cantidadDeseada - $actual;
-                if ($diferencia === 0.0) {
-                    continue;
-                }
-                $this->stockService->ajustar(
+                // `fijar()` y no `disponibilidad()` + `ajustar()` (spec 074, US2): la planilla
+                // trae el valor final deseado, y derivar el delta afuera del lock dejaba una
+                // ventana en la que una venta concurrente se perdía. El corte por diferencia
+                // cero tampoco es responsabilidad de acá: lo garantiza el contrato de `fijar()`.
+                $this->stockService->fijar(
                     $producto,
                     null,
-                    $deposito,
-                    $diferencia,
+                    Deposito::findOrFail($depositoId),
+                    $cantidadDeseada,
                     'Ajuste (importación)',
                     $usuario,
                 );

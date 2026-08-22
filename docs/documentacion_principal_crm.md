@@ -355,6 +355,39 @@ porque ya son un único modelo (`Producto` con campo `tipo`).
     Paso 2, sin cambios); en una fila de alta (con o sin id preservado) sigue exigiéndose igual que
     siempre. La unicidad de CUIT/SKU en una fila de actualización no bloquea al propio registro que se
     está actualizando (ignora su propio id).
+  - **Robustez del upsert de Productos: stock y precios** (spec 074, 22/08/2026). El circuito real del
+    negocio es *exportar la planilla de Productos → editarla en Excel (típicamente una fórmula de
+    aumento sobre una lista de precios, o corrección de stock) → reimportarla mapeando "Id"*. Ese
+    circuito tenía dos puntos ciegos, ambos corregidos en esta spec:
+    - **Stock (concurrencia).** La planilla trae el **valor final deseado**, no un delta, así que la
+      actualización tiene que calcular la diferencia contra el stock actual. Se hacía leyendo el stock
+      fuera de la transacción que después lo escribía: si entre la lectura y la escritura alguien vendía
+      ese producto, la venta se pisaba (*lost update*), y la ventana era real (tandas de 1.000 filas,
+      minutos de proceso con el local operando). Ahora usa `StockService::fijar()`, que resuelve lectura,
+      cálculo y escritura bajo un mismo lock — ver `docs/modelo_datos.md` §`stocks`. Sin cambios visibles:
+      el movimiento generado sigue siendo de tipo `ajuste` con descripción `Ajuste (importación)` en
+      actualizaciones y `Registro inicial (importación)` en altas, y si la cantidad de la planilla ya
+      coincide con la actual no se genera movimiento.
+    - **Precios (trazabilidad).** Los precios por lista se pisaban sin registrar el valor anterior, así
+      que un error de fórmula detectado días después era irreversible. Ahora **todo cambio de precio
+      queda auditado** (operación "Precio de producto" de la pantalla de Auditoría, §Configuración &
+      Ajustes), con precio anterior, precio nuevo y origen. Reimportar una planilla **sin cambios no
+      genera ningún evento ni ningún movimiento de stock**.
+    - **El ciclo exportar → reimportar cierra sin intervención manual** (agregado 22/08/2026, tras
+      probarlo contra la base real con 9.187 productos). Dos huecos que lo rompían y quedaron
+      corregidos en esta misma spec:
+      - **Las columnas de stock se automapean.** La exportación de Productos escribe los encabezados
+        como `Stock {depósito}` ("Stock Local", "Stock Full"), pero el asistente sólo reconocía el
+        nombre pelado del depósito ("Local"), así que las dejaba en "No importar" y **el stock nunca
+        se actualizaba** salvo que el usuario mapeara esas columnas a mano. Cada depósito acepta ahora
+        los dos encabezados. Las listas de precio ya automapeaban bien por el nombre de la lista.
+      - **El stock negativo se puede reimportar.** La validación exigía `>= 0` en el stock por
+        depósito, pero la exportación escribe los negativos —que son el estado real de un producto
+        sobrevendido— así que **cada producto sobrevendido tiraba la fila entera** (68 de 9.187 en la
+        base real). Era además incoherente con la regla de dominio: un ajuste de stock puede dejar el
+        saldo negativo. Ahora el stock por depósito admite negativos, en el alta y en la actualización.
+        **Los precios siguen exigiendo `>= 0`**: un precio negativo no tiene sentido de negocio y sigue
+        marcando la fila como fallida.
   - **DNI y CUIT en columnas separadas mapeadas al mismo campo "CUIT"** (corrección, 31/07/2026): en Clientes y
     Proveedores, el campo destino "CUIT" acepta mapear hasta 2 columnas del archivo (el resto de los campos
     sigue permitiendo sólo una). Por fila, se toma el valor de la que tenga dato; el tipo de documento
@@ -2693,6 +2726,23 @@ salieron de esta lista:
     tipo de operación), Total (columna final, no se llegó a ver el contenido en las capturas).
   - DataTable estándar: paginación con selector "Registros por página", contador de resultados, botón
     "Exportar", fecha de "Actualizado el [fecha] a las [hora]" al pie.
+  - **Operación "Precio de producto" (spec 074, 22/08/2026):** se suma a la lista de operaciones
+    auditadas (que hasta ahora era Venta, Presupuesto, Cobro, Gasto, Compra, Movimiento de Tesorería y
+    Movimiento de Stock). Registra **cada creación, modificación o eliminación del precio de un producto
+    en una lista de precios**, con el precio anterior y el nuevo. Es una operación propia de este CRM —
+    no se relevó en Contagram real — y nace de un problema concreto del negocio: los aumentos de precio
+    se hacen en masa (fórmula en Excel + reimportación, o la acción "Modificar Precio de Venta" del
+    listado), y hasta esta spec **no quedaba rastro alguno del valor anterior**, así que un error de
+    fórmula detectado días después era irreversible.
+    - Se captura en `PrecioProductoObserver`, el punto único por el que pasan las escrituras de
+      `precios_producto` vía modelo, así que cubre los cuatro orígenes con una sola implementación:
+      **importación masiva**, **edición manual** (ficha del producto), **edición masiva de
+      precios/costos** (§Base de Datos → Productos, acción `accionAjustarPrecios`) y **copia de
+      producto**. El origen queda como rótulo dentro del texto de "Detalle".
+    - Detalle del modelo de datos (campos, formato del texto, escritura en lote, volumen esperado):
+      ver `docs/modelo_datos.md` §`logs_auditoria`.
+    - **Limitación conocida**: las escrituras de precio que no pasan por el modelo (query builder crudo)
+      **no se auditan**. Hoy el único caso es el comando de migración `MigrarPuntoReposicion`.
   - Mapeo de dominio en este CRM: sería una nueva tabla `logs_auditoria` (o similar) poblada por
     observers/eventos de Eloquent en las entidades transaccionales existentes (Venta, Cobro, Gasto,
     Movimiento de stock/caja, etc.), con `usuario_id` nullable (para acciones de sistema/integración

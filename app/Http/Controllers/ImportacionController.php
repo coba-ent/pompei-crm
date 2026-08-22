@@ -105,8 +105,15 @@ class ImportacionController extends Controller
         $porNombre = [];
         foreach ($definicion as $campo => $def) {
             $porNombre[$normalizar($def['etiqueta'])] = $campo;
-            if (! empty($def['alias'])) {
-                $porNombre[$normalizar($def['alias'])] = $campo;
+
+            // `alias` admite un string o una lista: un mismo campo puede tener varios encabezados
+            // válidos. Los depósitos, por ejemplo, aceptan tanto "Local" como "Stock Local", que es
+            // como los escribe la exportación de Productos (spec 074) — sin esto el ciclo
+            // exportar → editar → reimportar dejaba el stock sin mapear y no lo actualizaba nunca.
+            foreach ((array) ($def['alias'] ?? []) as $alias) {
+                if ($alias !== '' && $alias !== null) {
+                    $porNombre[$normalizar((string) $alias)] = $campo;
+                }
             }
         }
 

@@ -15,6 +15,7 @@ use App\Models\TipoProducto;
 use App\Services\Stock\StockService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
+use App\Support\OrigenCambioPrecio;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -337,7 +338,10 @@ class ProductoController extends Controller
             if ($variantes !== null) {
                 $this->sincronizarVariantes($producto, $variantes);
             }
-            $this->sincronizarPrecios($producto, $precios);
+            OrigenCambioPrecio::durante(
+                OrigenCambioPrecio::MANUAL,
+                fn () => $this->sincronizarPrecios($producto, $precios),
+            );
 
             // Stock inicial (equivalente al "Registro inicial" de Contagram): sólo
             // para productos (no servicios) con cantidad > 0 y depósito elegido.
@@ -401,7 +405,10 @@ class ProductoController extends Controller
             if ($variantes !== null) {
                 $this->sincronizarVariantes($producto, $variantes);
             }
-            $this->sincronizarPrecios($producto, $precios);
+            OrigenCambioPrecio::durante(
+                OrigenCambioPrecio::MANUAL,
+                fn () => $this->sincronizarPrecios($producto, $precios),
+            );
         });
 
         return response()->json([
@@ -418,7 +425,7 @@ class ProductoController extends Controller
      */
     public function copia(Producto $producto): JsonResponse
     {
-        $copia = DB::transaction(function () use ($producto) {
+        $copia = DB::transaction(fn () => OrigenCambioPrecio::durante(OrigenCambioPrecio::COPIA, function () use ($producto) {
             $nuevo = $producto->replicate(['codigo', 'imagen']);
             $nuevo->nombre = mb_substr($producto->nombre.' (copia)', 0, 255);
             $nuevo->codigo = null;
@@ -443,7 +450,7 @@ class ProductoController extends Controller
             }
 
             return $nuevo;
-        });
+        }));
 
         return response()->json([
             'ok' => true,
@@ -545,7 +552,7 @@ class ProductoController extends Controller
         $redondear = (bool) ($datos['redondear'] ?? false);
         $campos = $datos['campos'];
 
-        $actualizados = DB::transaction(function () use ($query, $campos, $modo, $redondear) {
+        $actualizados = DB::transaction(fn () => OrigenCambioPrecio::durante(OrigenCambioPrecio::EDICION_MASIVA, function () use ($query, $campos, $modo, $redondear) {
             $productos = (clone $query)->with('precios')->get();
 
             foreach ($productos as $producto) {
@@ -571,7 +578,7 @@ class ProductoController extends Controller
             }
 
             return $productos->count();
-        });
+        }));
 
         return response()->json([
             'ok' => true,
@@ -777,7 +784,11 @@ class ProductoController extends Controller
             $listasRecibidas[] = $fila['lista_precio_id'];
         }
 
-        $producto->precios()->whereNotIn('lista_precio_id', $listasRecibidas)->delete();
+        // Borrado POR MODELO, no `->delete()` sobre el query builder (spec 074, T015): el mass
+        // delete del builder no dispara eventos de Eloquent, asi que el hook `deleted()` del
+        // observer nunca corria y los precios quitados quedaban sin auditar.
+        $producto->precios()->whereNotIn('lista_precio_id', $listasRecibidas)->get()
+            ->each(fn ($precio) => $precio->delete());
     }
 
     /**
