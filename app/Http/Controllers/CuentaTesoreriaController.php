@@ -166,7 +166,7 @@ class CuentaTesoreriaController extends Controller
             ->addColumn('acciones', fn ($row) => view('tesoreria._row_actions', ['id' => $row->id])->render())
             ->rawColumns(['acciones'])
             ->order(function ($query) {
-                $query->orderBy('mov.fecha')->orderBy('mov.id');
+                $query->orderBy('mov.fecha', 'desc')->orderBy('mov.id', 'desc');
             })
             ->toJson();
     }

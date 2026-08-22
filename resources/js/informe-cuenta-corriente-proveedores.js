@@ -98,7 +98,7 @@
                     },
                 },
             ],
-            order: [[0, 'asc']],
+            order: [[6, 'desc']],
             stateSave: true,
             buttons: [
                 { extend: 'colvis', text: '<i class="fas fa-table-columns"></i>', className: 'btn btn-outline-secondary' },

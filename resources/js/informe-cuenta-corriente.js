@@ -104,7 +104,7 @@
                     },
                 },
             ],
-            order: [[0, 'asc']],
+            order: [[6, 'desc']],
             stateSave: true,
             buttons: [
                 {

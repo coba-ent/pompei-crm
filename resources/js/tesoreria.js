@@ -467,7 +467,7 @@
                     { data: 'nro_comprobante', name: 'nro_comprobante', defaultContent: '' },
                     { data: 'observacion', name: 'observacion', defaultContent: '' },
                 ],
-                order: [[2, 'asc'], [1, 'asc']],
+                order: [[2, 'desc'], [1, 'desc']],
                 // Selector de columnas nativo de DataTables (extensión Buttons) +
                 // stateSave: persiste qué columnas quedaron ocultas en localStorage.
                 stateSave: true,
