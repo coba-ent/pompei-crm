@@ -4,8 +4,11 @@
               <div class="collapse navbar-collapse justify-content-end">
                   <ul class="navbar-nav header-right">
                       @can('monitoreo.ver')
-                      {{-- Campanita de notificaciones (spec 073): datos reales, pintados por monitoreo-topbar.js --}}
-                      <li class="nav-item dropdown notification_dropdown">
+                      {{-- Campanita de notificaciones (spec 073): datos reales, pintados por monitoreo-topbar.js.
+                           Oculta a pedido del usuario (22/08/2026): quedaba duplicada con el indicador de
+                           Monitoreo de abajo, que hace lo mismo. Se deja el markup y el JS intactos, sólo
+                           oculta con d-none, por si se decide reactivar más adelante. --}}
+                      <li class="nav-item dropdown notification_dropdown d-none">
                           <a class="nav-link position-relative" href="javascript:void(0);" data-bs-toggle="dropdown" id="notif-monitoreo-toggle">
                               <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" viewBox="0 0 25 25"
                                   fill="none">
