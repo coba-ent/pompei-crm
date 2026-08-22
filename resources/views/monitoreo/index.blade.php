@@ -1,305 +1,384 @@
-{{--
-    Panel de monitoreo interno. Autocontenido a propósito: no extiende `layouts.default`
-    ni usa los assets del template. Así no depende de nada del CRM y nada del CRM depende
-    de esto — si mañana cambia el layout o el pagelevel, esta pantalla sigue igual.
---}}
-<!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="csrf-token" content="{{ csrf_token() }}">
-<title>Monitoreo</title>
+@extends('layouts.default')
+
+@section('content')
 <style>
-    :root {
-        --fondo:#0d1117; --panel:#161b22; --borde:#30363d; --texto:#e6edf3; --tenue:#8b949e;
-        --rojo:#f85149; --rojo-bg:#3d1418; --amarillo:#d29922; --amarillo-bg:#3a2d10;
-        --verde:#3fb950; --verde-bg:#12261a; --azul:#58a6ff;
+    /* Panel de Monitoreo (spec 073) — tabs en vez de acordeón: una tabla densa a la vez, a ancho
+       completo, sin la ambigüedad visual de paneles parcialmente abiertos. El punto que
+       corresponde a cada pestaña se enciende (rojo/naranja) cuando ese bloque tiene algo
+       pendiente, para ver la jerarquía de "qué mirar primero" sin abrir nada. */
+    /* Solapas tipo "carpeta": la pestaña activa queda blanca y se funde con el contenido de
+       abajo; las inactivas quedan en un gris parejo, para que se note cuál está abierta sin
+       depender de una rayita fina abajo. */
+    #monitoreo-tabs {
+        border-bottom: none;
+        gap: 0.35rem;
+        align-items: stretch;
+        /* En pantallas angostas (laptop, ventana no maximizada) las 6 pestañas no entran en una
+           línea. Wrappear a una segunda fila las deja "flotando" desconectadas del contenido de
+           abajo — en vez de eso, se scrollean horizontalmente sin romper el layout. */
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: thin;
     }
-    * { box-sizing:border-box; }
-    body { margin:0; background:var(--fondo); color:var(--texto);
-        font:14px/1.5 ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace; }
-    header { position:sticky; top:0; z-index:10; padding:14px 20px; border-bottom:1px solid var(--borde);
-        background:var(--panel); display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
-    h1 { margin:0; font-size:15px; letter-spacing:.14em; text-transform:uppercase; color:var(--tenue); font-weight:600; }
-    .estado { padding:5px 14px; border-radius:999px; font-weight:700; font-size:13px; }
-    .estado.ok { background:var(--verde-bg); color:var(--verde); border:1px solid var(--verde); }
-    .estado.mal { background:var(--rojo-bg); color:var(--rojo); border:1px solid var(--rojo); }
-    .reloj { margin-left:auto; color:var(--tenue); font-size:12px; }
-    main { padding:20px; display:grid; gap:18px; grid-template-columns:repeat(auto-fit,minmax(min(460px,100%),1fr)); }
-    section { background:var(--panel); border:1px solid var(--borde); border-radius:10px; overflow:hidden; }
-    section.ancho { grid-column:1/-1; }
-    .cab { padding:11px 16px; border-bottom:1px solid var(--borde); display:flex; align-items:center; gap:10px; }
-    .cab h2 { margin:0; font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--tenue); font-weight:600; }
-    .cuenta { margin-left:auto; font-weight:700; font-size:13px; padding:2px 10px; border-radius:999px;
-        background:#21262d; color:var(--tenue); }
-    .cuenta.rojo { background:var(--rojo-bg); color:var(--rojo); }
-    .cuenta.amarillo { background:var(--amarillo-bg); color:var(--amarillo); }
-    .cuerpo { max-height:340px; overflow:auto; }
-    .fila { padding:11px 16px; border-bottom:1px solid #21262d; display:flex; gap:12px; align-items:flex-start; }
-    .fila:last-child { border-bottom:0; }
-    .fila .nom { flex:1; min-width:0; }
-    .fila .nom b { display:block; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .fila .nom small { color:var(--tenue); font-size:11.5px; }
-    .badge { font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:5px; white-space:nowrap;
-        letter-spacing:.04em; text-transform:uppercase; }
-    .b-rojo { background:var(--rojo-bg); color:var(--rojo); }
-    .b-amarillo { background:var(--amarillo-bg); color:var(--amarillo); }
-    .b-verde { background:var(--verde-bg); color:var(--verde); }
-    .b-gris { background:#21262d; color:var(--tenue); }
-    .err { color:var(--rojo); font-size:11.5px; margin-top:3px; word-break:break-word; }
-    button { font:inherit; font-size:11.5px; font-weight:600; cursor:pointer; padding:5px 11px;
-        border-radius:6px; border:1px solid var(--borde); background:#21262d; color:var(--texto); }
-    button:hover { border-color:var(--azul); color:var(--azul); }
-    button:disabled { opacity:.4; cursor:default; }
-    .tira { display:flex; gap:26px; padding:14px 16px; flex-wrap:wrap; }
-    .tira div small { display:block; color:var(--tenue); font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; }
-    .tira div b { font-size:14px; }
-    .vacio { padding:26px 16px; text-align:center; color:var(--tenue); font-size:12.5px; }
-    .aviso { margin:0 20px; padding:10px 14px; border-radius:8px; background:var(--azul); color:#04121f;
-        font-weight:700; font-size:12.5px; }
-
-    /* --- Celular ---------------------------------------------------------
-       El panel se mira sobre todo desde el teléfono, así que acá no se trata
-       de "que entre" sino de que siga siendo legible: una columna, los badges
-       debajo del texto en vez de peleando por el ancho, y el pulso en grilla
-       de dos para no dejar una tira de una sola línea por dato. */
-    @media (max-width: 640px) {
-        body { font-size:13.5px; }
-        header { padding:11px 14px; gap:10px; }
-        h1 { font-size:13px; }
-        .estado { font-size:12px; padding:4px 11px; }
-        #btn-sync { order:3; width:100%; padding:9px; font-size:12.5px; }
-        .reloj { margin-left:0; order:2; width:100%; font-size:11px; }
-        .aviso { margin:0 14px; }
-
-        main { padding:14px; gap:14px; }
-        .cuerpo { max-height:none; }
-
-        /* Los badges pasan a una fila propia abajo: al costado quedaban de 40px de ancho. */
-        .fila { flex-direction:column; gap:8px; padding:12px 14px; }
-        .fila > div:last-child { flex-direction:row !important; align-items:center !important;
-            flex-wrap:wrap; gap:8px !important; width:100%; }
-        .fila .nom b { white-space:normal; }
-
-        .tira { display:grid; grid-template-columns:1fr 1fr; gap:14px; padding:14px; }
-        .tira div { min-width:0; }
-        .tira div b { font-size:13px; word-break:break-word; }
-        .tira div small { word-break:break-word; }
-
-        button { padding:7px 12px; }
+    #monitoreo-tabs .nav-item {
+        display: flex;
+        flex: 0 0 auto;
     }
-
-    /* Pantallas muy angostas: el pulso pasa a una sola columna. */
-    @media (max-width: 380px) {
-        .tira { grid-template-columns:1fr; }
+    #monitoreo-tabs .nav-link {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--bs-secondary-color, #6c757d);
+        background: var(--bs-tertiary-bg, #eef0f4);
+        border: 1px solid var(--bs-border-color, #e2e5eb);
+        border-bottom: none;
+        border-radius: 0.6rem 0.6rem 0 0;
+        padding: 0.7rem 1.1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        height: 100%;
+        white-space: nowrap;
+        transition: background-color .15s ease, color .15s ease;
+    }
+    #monitoreo-tabs .nav-link:hover {
+        background: #e4e7ec;
+        color: var(--primary);
+    }
+    #monitoreo-tabs .nav-link.active {
+        color: var(--primary);
+        background: #fff;
+        border-color: var(--bs-border-color, #e2e5eb);
+        position: relative;
+        top: 1px;
+    }
+    #monitoreo-tabs .tab-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #ced4da;
+        flex: none;
+    }
+    #monitoreo-tabs .tab-dot.dot-critico { background: var(--bs-danger, #e5555c); }
+    #monitoreo-tabs .tab-dot.dot-atencion { background: var(--bs-warning, #f89d16); }
+    #monitoreo-tab-content {
+        background: #fff;
+        border: 1px solid var(--bs-border-color, #e2e5eb);
+        border-radius: 0 0.6rem 0.6rem 0.6rem;
+        padding: 1.25rem;
+        position: relative;
+        z-index: 1;
     }
 </style>
-</head>
-<body>
+<div class="content-body">
+    <div class="container-fluid">
 
-<header>
-    <h1>Monitoreo</h1>
-    <span id="estado" class="estado ok">cargando…</span>
-    <button id="btn-sync" onclick="sincronizar()">Sincronizar stock ahora</button>
-    <span class="reloj">servidor <b id="reloj">—</b> · refresca cada 30s</span>
-</header>
+        <div class="row align-items-center mb-3">
+            <div class="col-sm-6 mb-2">
+                <h4 class="mb-0 text-primary fw-bold">Monitoreo</h4>
+                <small class="text-muted">Estado de las integraciones y del stock que hay que atender.</small>
+            </div>
+            <div class="col-sm-6 mb-2 text-sm-end">
+                <span class="text-muted small me-2">Servidor: <span id="pulso-servidor">—</span></span>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-refrescar-todo">
+                    <i class="fas fa-rotate me-1"></i> Refrescar
+                </button>
+            </div>
+        </div>
 
-<div id="aviso" class="aviso" style="display:none"></div>
+        {{-- ====================== PULSO ====================== --}}
+        <div class="mb-3" id="bloque-pulso">
+            <div id="pulso-error" class="alert alert-warning d-none">
+                No se pudo leer el estado de las sincronizaciones.
+            </div>
+            <div class="row mb-0 g-2" id="pulso-contenido">
+                <div class="col-6" style="flex:1 1 33.333%; max-width:33.333%;">
+                    <div class="widget-stat card mb-0 h-100">
+                        <div class="card-body p-3">
+                            <div class="media ai-icon">
+                                <span class="me-3 bgl-info text-info"><i class="fas fa-cart-shopping"></i></span>
+                                <div class="media-body">
+                                    <p class="mb-1">Sincronización de órdenes</p>
+                                    <h4 class="mb-0" id="pulso-sync-ordenes">—</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6" style="flex:1 1 33.333%; max-width:33.333%;">
+                    <div class="widget-stat card mb-0 h-100">
+                        <div class="card-body p-3">
+                            <div class="media ai-icon">
+                                <span class="me-3 bgl-warning text-warning"><i class="fas fa-boxes-stacked"></i></span>
+                                <div class="media-body">
+                                    <p class="mb-1">Sincronización de stock</p>
+                                    <h4 class="mb-0" id="pulso-sync-stock">—</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6" style="flex:1 1 33.333%; max-width:33.333%;">
+                    <div class="widget-stat card mb-0 h-100">
+                        <div class="card-body p-3">
+                            <div class="media ai-icon">
+                                <span class="me-3 bgl-success text-success"><i class="fas fa-tags"></i></span>
+                                <div class="media-body">
+                                    <p class="mb-1">Publicaciones vinculadas</p>
+                                    <h4 class="mb-0" id="pulso-publicaciones">—</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-<main>
-    <section>
-        <div class="cab"><h2>No puede actualizar en Mercado Libre</h2><span id="c-fallando" class="cuenta">0</span></div>
-        <div id="p-fallando" class="cuerpo"></div>
-    </section>
+        {{-- ====================== BLOQUES ====================== --}}
+        {{-- Tabs en vez de acordeón: una tabla densa a la vez, a ancho completo. Las DataTables
+             siguen inicializándose todas al cargar (ocultas o no); `shown.bs.tab` dispara
+             `columns.adjust()` para corregir el ancho calculado mientras la pestaña no estaba
+             visible (ver monitoreo.js). --}}
+        <ul class="nav" id="monitoreo-tabs" role="tablist">
+            <li class="nav-item" role="presentation" id="bloque-reponer">
+                <button class="nav-link active" id="tab-btn-reponer" data-bs-toggle="tab" data-bs-target="#tab-reponer" type="button" role="tab">
+                    <span class="tab-dot" id="dot-reponer"></span>
+                    A reponer
+                    <span class="badge bg-warning text-dark ms-1 d-none" id="conteo-reponer">0</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation" id="bloque-publicaciones">
+                <button class="nav-link" id="tab-btn-publicaciones" data-bs-toggle="tab" data-bs-target="#tab-publicaciones" type="button" role="tab">
+                    <span class="tab-dot" id="dot-publicaciones"></span>
+                    Publicaciones con error
+                    <span class="badge bg-danger ms-1 d-none" id="conteo-publicaciones">0</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation" id="bloque-riesgo-ml">
+                <button class="nav-link" id="tab-btn-riesgo-ml" data-bs-toggle="tab" data-bs-target="#tab-riesgo-ml" type="button" role="tab">
+                    <span class="tab-dot" id="dot-riesgo-ml"></span>
+                    Riesgo de publicación
+                    <span class="badge bg-warning text-dark ms-1 d-none" id="conteo-riesgo-ml">0</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation" id="bloque-sin-stock">
+                <button class="nav-link" id="tab-btn-sin-stock" data-bs-toggle="tab" data-bs-target="#tab-sin-stock" type="button" role="tab">
+                    Sin stock
+                    <span class="badge bg-secondary ms-1 d-none" id="conteo-sin-stock">0</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation" id="bloque-ordenes">
+                <button class="nav-link" id="tab-btn-ordenes" data-bs-toggle="tab" data-bs-target="#tab-ordenes" type="button" role="tab">
+                    Órdenes sin venta
+                    <span class="badge bg-secondary ms-1 d-none" id="conteo-ordenes">0</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation" id="bloque-ventas">
+                <button class="nav-link" id="tab-btn-ventas" data-bs-toggle="tab" data-bs-target="#tab-ventas" type="button" role="tab">
+                    Últimas ventas
+                </button>
+            </li>
+        </ul>
 
-    <section>
-        <div class="cab"><h2>Quedándose sin stock</h2><span id="c-bajo" class="cuenta">0</span></div>
-        <div id="p-bajo" class="cuerpo"></div>
-    </section>
+        <div class="tab-content" id="monitoreo-tab-content">
 
-    <section>
-        <div class="cab"><h2>Sin stock en Local y en Full</h2><span id="c-sin" class="cuenta">0</span></div>
-        <div id="p-sin" class="cuerpo"></div>
-    </section>
+            {{-- ====================== PUBLICACIONES QUE NO ACTUALIZAN STOCK ====================== --}}
+            <div class="tab-pane fade js-bloque-body" id="tab-publicaciones" role="tabpanel">
+                <p class="text-muted small">Mercado Libre rechazó el stock que el CRM le intentó publicar.</p>
 
-    <section>
-        <div class="cab"><h2>Órdenes de ML sin venta creada</h2><span id="c-ordenes" class="cuenta">0</span></div>
-        <div id="p-ordenes" class="cuerpo"></div>
-    </section>
+                <div class="alert alert-warning d-none" data-error="publicaciones">
+                    No se pudo cargar este bloque.
+                </div>
+                <div class="alert alert-success d-none" data-vacio="publicaciones">
+                    <i class="fas fa-check me-1"></i> Todas las publicaciones están sincronizadas.
+                </div>
 
-    <section>
-        <div class="cab"><h2>Últimas ventas de integraciones</h2></div>
-        <div id="p-ventas" class="cuerpo"></div>
-    </section>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover w-100" id="tabla-publicaciones">
+                        <thead>
+                            <tr>
+                                <th>Publicación</th>
+                                <th>Título</th>
+                                <th>Stock CRM</th>
+                                <th>Publicado</th>
+                                <th>Intentos</th>
+                                <th>Desde</th>
+                                <th>Motivo</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                    </table>
+                </div>
+            </div>
 
-    <section class="ancho">
-        <div class="cab"><h2>Pulso del sistema</h2></div>
-        <div id="p-pulso" class="tira"></div>
-    </section>
-</main>
+            {{-- ====================== A REPONER ====================== --}}
+            <div class="tab-pane fade show active js-bloque-body" id="tab-reponer" role="tabpanel">
+                <p class="text-muted small">
+                    Stock en <strong>Local</strong> en o por debajo del punto de reposición. Es la pregunta
+                    &laquo;¿le compro al proveedor o traigo de Full?&raquo;. Los productos sin punto de
+                    reposición no se controlan.
+                </p>
 
+                <div class="alert alert-warning d-none" data-error="reponer">No se pudo cargar este bloque.</div>
+                <div class="alert alert-success d-none" data-vacio="reponer">
+                    <i class="fas fa-check me-1"></i> No hay nada por debajo de su punto de reposición.
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover w-100" id="tabla-reponer">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Producto</th>
+                                <th>Local</th>
+                                <th>Full</th>
+                                <th>Punto rep.</th>
+                                <th>Faltan</th>
+                                <th>Proveedor</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                    </table>
+                </div>
+            </div>
+
+            {{-- ====================== RIESGO DE PUBLICACIÓN ====================== --}}
+            <div class="tab-pane fade js-bloque-body" id="tab-riesgo-ml" role="tabpanel">
+                <p class="text-muted small">
+                    Publicados en Mercado Libre con <strong>Local + Full</strong> en o por debajo del punto
+                    de reposición. Es la pregunta &laquo;¿se me cae la publicación?&raquo;. Ordenado por
+                    días de stock según lo vendido en las últimas dos semanas.
+                </p>
+
+                <div class="alert alert-warning d-none" data-error="riesgo-ml">No se pudo cargar este bloque.</div>
+                <div class="alert alert-success d-none" data-vacio="riesgo-ml">
+                    <i class="fas fa-check me-1"></i> Ninguna publicación está en riesgo por stock.
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover w-100" id="tabla-riesgo-ml">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>Publicación</th>
+                                <th>Local</th>
+                                <th>Full</th>
+                                <th>Vendible</th>
+                                <th>Punto rep.</th>
+                                <th>Por día</th>
+                                <th>Días</th>
+                            </tr>
+                        </thead>
+                    </table>
+                </div>
+            </div>
+
+            {{-- ====================== SIN STOCK ====================== --}}
+            <div class="tab-pane fade js-bloque-body" id="tab-sin-stock" role="tabpanel">
+                <p class="text-muted small">Sin stock ni en el depósito de Mercado Libre ni en Full. No vende, pero no es una falla.</p>
+
+                <div class="alert alert-warning d-none" data-error="sin-stock">No se pudo cargar este bloque.</div>
+                <div class="alert alert-success d-none" data-vacio="sin-stock">
+                    <i class="fas fa-check me-1"></i> Todas las publicaciones tienen stock en algún depósito.
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover w-100" id="tabla-sin-stock">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>Publicación</th>
+                                <th>Local</th>
+                                <th>Full</th>
+                            </tr>
+                        </thead>
+                    </table>
+                </div>
+            </div>
+
+            {{-- ====================== ÓRDENES SIN VENTA ====================== --}}
+            <div class="tab-pane fade js-bloque-body" id="tab-ordenes" role="tabpanel">
+                <p class="text-muted small">Órdenes de Mercado Libre que todavía no generaron una Venta, con su motivo.</p>
+
+                <div class="alert alert-warning d-none" data-error="ordenes">No se pudo cargar este bloque.</div>
+                <div class="alert alert-success d-none" data-vacio="ordenes">
+                    <i class="fas fa-check me-1"></i> Todas las órdenes tienen su venta.
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover w-100" id="tabla-ordenes">
+                        <thead>
+                            <tr>
+                                <th>Orden</th>
+                                <th>Comprador</th>
+                                <th>Total</th>
+                                <th>Cuándo</th>
+                                <th>Estado</th>
+                                <th>Motivo</th>
+                            </tr>
+                        </thead>
+                    </table>
+                </div>
+            </div>
+
+            {{-- ====================== ÚLTIMAS VENTAS ====================== --}}
+            <div class="tab-pane fade js-bloque-body" id="tab-ventas" role="tabpanel">
+                <p class="text-muted small">La cadena de punta a punta: la venta y sus movimientos de stock.</p>
+
+                <div class="alert alert-warning d-none" data-error="ventas">No se pudo cargar este bloque.</div>
+                <div class="alert alert-secondary d-none" data-vacio="ventas">
+                    Todavía no hay ventas creadas por las integraciones.
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-sm w-100">
+                        <thead>
+                            <tr>
+                                <th>Venta</th>
+                                <th>Origen</th>
+                                <th>Total</th>
+                                <th>Depósito</th>
+                                <th>Cuándo</th>
+                                <th>Movimientos</th>
+                                <th>Neto</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-ventas"></tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+</div>
+
+@can('monitoreo.gestionar')
+    @include('monitoreo._modal_punto_reposicion')
+@endcan
+@endsection
+
+@section('local-js')
 <script>
-const CSRF = document.querySelector('meta[name="csrf-token"]').content;
-const $ = (id) => document.getElementById(id);
-const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const num = (n) => new Intl.NumberFormat('es-AR').format(n);
-
-function avisar(texto) {
-    const a = $('aviso');
-    a.textContent = texto;
-    a.style.display = 'block';
-    setTimeout(() => { a.style.display = 'none'; }, 6000);
-}
-
-function pintar(d) {
-    $('reloj').textContent = d.servidor;
-
-    // --- 1. No puede actualizar ---
-    const f = d.fallando;
-    $('c-fallando').textContent = f.length;
-    $('c-fallando').className = 'cuenta' + (f.some((x) => !x.moderacion) ? ' rojo' : (f.length ? ' amarillo' : ''));
-    $('p-fallando').innerHTML = f.length ? f.map((x) => `
-        <div class="fila">
-            <div class="nom">
-                <b>${esc(x.titulo)}</b>
-                <small>${esc(x.item)} · producto ${x.productoId} · CRM ${num(x.stock)}${x.publicado !== null ? ' → publicado ' + num(x.publicado) : ''}</small>
-                <div class="err">${esc(x.error)}</div>
-                <small>${x.intentos} intento(s)${x.desde ? ' · desde ' + esc(x.desde) : ''}</small>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
-                <span class="badge ${x.moderacion ? 'b-amarillo' : 'b-rojo'}">${x.moderacion ? 'moderación ML' : 'falla'}</span>
-                ${x.bloqueada ? '<span class="badge b-gris">bloqueada</span>' : ''}
-                <button onclick="accion('reactivar','${esc(x.item)}')">Reintentar</button>
-            </div>
-        </div>`).join('') : '<div class="vacio">Todas las publicaciones sincronizando bien.</div>';
-
-    // --- 2. Quedándose sin stock ---
-    const b = d.stockBajo;
-    $('c-bajo').textContent = b.length;
-    $('c-bajo').className = 'cuenta' + (b.some((x) => x.dias !== null && x.dias < 3) ? ' rojo' : (b.length ? ' amarillo' : ''));
-    $('p-bajo').innerHTML = b.length ? b.map((x) => {
-        const cls = x.dias === null ? 'b-gris' : (x.dias < 3 ? 'b-rojo' : (x.dias < 7 ? 'b-amarillo' : 'b-verde'));
-        const txt = x.dias === null ? 'sin rotación' : `${x.dias} días`;
-        return `<div class="fila">
-            <div class="nom">
-                <b>${esc(x.nombre)}</b>
-                <small>id ${x.id} · ${num(x.stock)} en depósito · ${x.porDia}/día${x.enMl ? ' · publicado en ML' : ''}</small>
-            </div>
-            <span class="badge ${cls}">${txt}</span>
-        </div>`;
-    }).join('') : '<div class="vacio">Ningún producto por debajo de 3 unidades.</div>';
-
-    // --- 3. Sin stock en ambos ---
-    const s = d.sinStock;
-    $('c-sin').textContent = s.length;
-    $('p-sin').innerHTML = s.length ? s.map((x) => `
-        <div class="fila">
-            <div class="nom">
-                <b>${esc(x.nombre)}</b>
-                <small>id ${x.id} · ${esc(x.item)} · Local ${num(x.local)} · Full ${num(x.full)}</small>
-            </div>
-            <span class="badge b-gris">no vende</span>
-        </div>`).join('') : '<div class="vacio">Todos los productos publicados tienen stock.</div>';
-
-    // --- 4. Órdenes sin venta ---
-    const o = d.ordenesSinVenta;
-    const trabadas = o.filter((x) => x.accionable).length;
-    $('c-ordenes').textContent = o.length;
-    $('c-ordenes').className = 'cuenta' + (trabadas ? ' rojo' : '');
-    $('p-ordenes').innerHTML = o.length ? o.map((x) => {
-        const cls = x.accionable ? 'b-rojo' : (x.estado === 'cancelada' ? 'b-gris' : 'b-amarillo');
-        return `<div class="fila">
-            <div class="nom">
-                <b>${esc(x.comprador ?? 'sin comprador')} · $ ${num(x.total.toFixed(2))}</b>
-                <small>orden ${esc(x.orden)}${x.cuando ? ' · ' + esc(x.cuando) : ''}</small>
-                <div class="${x.accionable ? 'err' : ''}" style="font-size:11.5px;margin-top:3px">${esc(x.causa)}</div>
-                ${x.detalle ? `<small>${esc(x.detalle)}</small>` : ''}
-            </div>
-            <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
-                <span class="badge ${cls}">${esc(x.estado.replace('_', ' '))}</span>
-                ${x.mediacion ? '<span class="badge b-amarillo">mediación</span>' : ''}
-                ${x.fraude ? '<span class="badge b-rojo">fraude</span>' : ''}
-            </div>
-        </div>`;
-    }).join('') : '<div class="vacio">Todas las órdenes se convirtieron en venta.</div>';
-
-    // --- 5. Últimas ventas ---
-    $('p-ventas').innerHTML = d.ultimasVentas.map((v) => {
-        const bien = v.movimientos > 0 && v.neto < 0;
-        return `<div class="fila">
-            <div class="nom">
-                <b>Venta ${v.id} · $ ${num(v.total.toFixed(2))}</b>
-                <small>${esc(v.origen)} · ${esc(v.cuando)} · depósito ${esc(v.deposito)}</small>
-            </div>
-            <span class="badge ${bien ? 'b-verde' : 'b-rojo'}">${bien ? 'descontó ' + num(-v.neto) : 'sin descontar'}</span>
-        </div>`;
-    }).join('');
-
-    // --- Pulso ---
-    const p = d.sincronizacion;
-    const hace = (m) => m === null ? 'nunca' : (m === 0 ? 'recién' : `hace ${m} min`);
-    $('p-pulso').innerHTML = `
-        <div><small>Órdenes</small><b class="${p.ordenes.alerta ? 'err' : ''}">${hace(p.ordenes.hace)}</b>
-             <small style="text-transform:none;letter-spacing:0">${esc(p.ordenes.resultado ?? '—')}</small></div>
-        <div><small>Stock</small><b class="${p.stock.alerta ? 'err' : ''}">${hace(p.stock.hace)}</b>
-             <small style="text-transform:none;letter-spacing:0">${esc(p.stock.resultado ?? '—')}</small></div>
-        <div><small>Último movimiento</small><b>${esc(p.ultimoMovimiento ?? '—')}</b></div>
-        <div><small>Publicaciones</small><b>${p.publicaciones}</b></div>
-        <div><small>Órdenes sin venta</small><b>${p.ordenesSinVenta}</b></div>
-        <div><small>Sólo lectura</small><b class="${p.soloLectura ? 'err' : ''}">${p.soloLectura ? 'SÍ' : 'no'}</b></div>
-        <div><small>Creación automática</small><b>${p.creacionAutomatica ? 'sí' : 'NO'}</b></div>`;
-
-    // --- Semáforo general: sólo lo que es falla nuestra ---
-    const problemas = f.filter((x) => !x.moderacion).length
-        + b.filter((x) => x.dias !== null && x.dias < 3).length
-        + trabadas
-        + (p.ordenes.alerta ? 1 : 0) + (p.stock.alerta ? 1 : 0);
-    $('estado').textContent = problemas ? `${problemas} alerta${problemas > 1 ? 's' : ''}` : 'todo en orden';
-    $('estado').className = 'estado ' + (problemas ? 'mal' : 'ok');
-    document.title = (problemas ? `(${problemas}) ` : '') + 'Monitoreo';
-}
-
-async function cargar() {
-    try {
-        const r = await fetch('{{ route('monitoreo.datos') }}', { headers: { 'Accept': 'application/json' } });
-        pintar(await r.json());
-    } catch (e) {
-        $('estado').textContent = 'sin conexión';
-        $('estado').className = 'estado mal';
-    }
-}
-
-async function accion(cual, item) {
-    const r = await fetch(`/monitoreo/${cual}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
-        body: JSON.stringify({ ml_item_id: item }),
-    });
-    const d = await r.json();
-    avisar(d.mensaje);
-    cargar();
-}
-
-async function sincronizar() {
-    const b = $('btn-sync');
-    b.disabled = true;
-    b.textContent = 'Sincronizando…';
-    try {
-        const r = await fetch('{{ route('monitoreo.sincronizar') }}', {
-            method: 'POST',
-            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
-        });
-        avisar((await r.json()).mensaje);
-    } finally {
-        b.disabled = false;
-        b.textContent = 'Sincronizar stock ahora';
-        cargar();
-    }
-}
-
-cargar();
-setInterval(cargar, 30000);
+    window.MonitoreoConfig = {
+        rutas: {
+            pulso: "{{ route('monitoreo.pulso') }}",
+            publicaciones: "{{ route('monitoreo.publicaciones') }}",
+            reponer: "{{ route('monitoreo.reponer') }}",
+            riesgoMl: "{{ route('monitoreo.riesgoMl') }}",
+            sinStock: "{{ route('monitoreo.sinStock') }}",
+            ordenes: "{{ route('monitoreo.ordenes') }}",
+            ventas: "{{ route('monitoreo.ventas') }}",
+            @can('monitoreo.gestionar')
+                destrabar: "{{ route('monitoreo.destrabar') }}",
+                reactivar: "{{ route('monitoreo.reactivar') }}",
+                sincronizar: "{{ route('monitoreo.sincronizar') }}",
+                puntoReposicion: "{{ route('monitoreo.puntoReposicion') }}",
+            @endcan
+        },
+        puedeGestionar: @json(auth()->user()->tienePermiso('monitoreo.gestionar')),
+        bloque: @json($bloque),
+    };
 </script>
-</body>
-</html>
+@vite(['resources/js/monitoreo.js'])
+@endsection

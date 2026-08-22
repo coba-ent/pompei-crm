@@ -94,6 +94,10 @@ class PermisoSeeder extends Seeder
                 'importar' => 'Importar Datos por Excel',
                 'ajustes' => 'Administrar Ajustes',
             ],
+            'monitoreo' => [
+                'ver' => 'Ver el panel de Monitoreo, su indicador en la barra superior y sus notificaciones',
+                'gestionar' => 'Destrabar y reactivar publicaciones, forzar sincronizaciones y editar el punto de reposición desde el panel',
+            ],
             'auditoria' => [
                 'ver' => 'Ver el registro de Auditoría (log de operaciones)',
             ],

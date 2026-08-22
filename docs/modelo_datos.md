@@ -35,8 +35,45 @@ id, nombre (ej. Admin, Vendedor), descripcion (nullable), es_sistema (boolean, d
 id, codigo único (`modulo.accion`, ej. `clientes.ver`, `configuracion.usuarios`), descripcion,
 modulo (agrupador para la matriz de permisos de la UI de Roles).
 
+> **Módulo `monitoreo` (spec 073, 21/08/2026)**: `monitoreo.ver` (pantalla de Monitoreo, indicador de
+> la barra superior y notificaciones) y `monitoreo.gestionar` (destrabar/reactivar publicaciones,
+> forzar sincronizaciones y editar el punto de reposición desde el panel). Mismo par que
+> `integraciones.ver`/`integraciones.gestionar`. Al inicio se asignan **sólo a Admin** — que los recibe
+> solo, porque `RolSeeder` sincroniza Admin con todos los permisos existentes. Marcar una notificación
+> como leída requiere sólo `monitoreo.ver`: es una acción sobre el propio estado de lectura del
+> usuario, no sobre la integración.
+
 ### `permiso_rol` (pivot)
 rol_id, permiso_id.
+
+### `notificaciones_leidas` (spec 073, 21/08/2026)
+Única parte **persistida** de las notificaciones de la campanita. No guarda el contenido del aviso:
+sólo que un usuario ya vio un episodio determinado. Las notificaciones en sí se calculan sobre el
+estado vigente en cada consulta — **no hay tabla de histórico** (decisión explícita del negocio).
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| id | bigint PK | |
+| user_id | FK → `users`, cascadeOnDelete | de quién es la lectura |
+| clave | string(190) | identificador del **episodio** (ver abajo). 190 y no 255 por el largo del índice único compuesto en utf8mb4 |
+| leida_en | timestamp | cuándo la marcó |
+
+Único por `(user_id, clave)`, más índice por `user_id` para el conteo.
+
+**Formato de `clave`**: `reposicion:{producto_id}` y `ml_stock:{ml_item_id}`.
+
+> **El episodio es implícito**: si la marca fuera permanente, marcarla leída una vez silenciaría ese
+> producto **para siempre**. Lo que evita eso es que las filas cuya clave ya no corresponde a ninguna
+> alerta vigente **se borran** de forma oportunista al calcular el resumen (sin cron ni política de
+> retención): al reponerse el stock la marca desaparece, y cuando el producto vuelve a caer no hay
+> nada que la silencie.
+>
+> **Por qué la clave NO lleva timestamp**: la primera versión de esta spec la armaba como
+> `reposicion:{producto_id}:{MAX(movimientos_stock.created_at)}`. Cada venta del producto cambia ese
+> timestamp, así que un producto que se mantiene por debajo de su punto volvería a alertar en cada
+> venta — los que más rotan serían los más molestos, y el usuario terminaría ignorando la campanita.
+> Riesgo residual asumido a cambio: si el problema se resuelve y reaparece entre dos consultas del
+> mismo usuario, la limpieza no llegó a correr y la alerta le figura como ya leída.
 
 ### `rol_usuario` (pivot)
 usuario_id (FK), rol_id (FK).
@@ -161,6 +198,7 @@ Espejo exacto de `cliente_contactos` — mismos campos (`nombre`, `apellido`, `t
 | iva_compra_pct | string(12) | Mismas opciones y semántica que `iva_venta_pct`. Default `21` |
 | activo | boolean | reemplaza al "eliminar" — no se puede eliminar con operaciones cargadas |
 | proveedor_id | unsignedBigInteger, nullable, FK → `proveedores` | reincorporado en spec 003 (24/07/2026): la columna ya existía en el esquema (nunca tuvo FK real — ver nota abajo), se reincorporan el fillable/relación `Producto::proveedor()` y la FK de base |
+| punto_reposicion | unsignedInteger, nullable, default `null` | **Columna nueva (spec 073, 21/08/2026)**. Cantidad mínima deseada. `null` o `0` → el producto **no se controla** (no genera alerta ni notificación). Sólo aplica a `tipo='producto'` y `activo=true`. Sin fila en `stocks` para el depósito evaluado = stock 0; stock negativo = caso más urgente; con variantes se compara contra el total del producto en ese depósito. Ver nota abajo |
 
 > **Historia de `proveedor_id` (spec 003):** la migración de `productos` corrió (2026-07-19) **antes**
 > de que existiera `proveedores` (2026-07-20 originalmente), así que su `if (Schema::hasTable(...))`
@@ -168,6 +206,27 @@ Espejo exacto de `cliente_contactos` — mismos campos (`nombre`, `apellido`, `t
 > aparte sólo para la FK (`ON DELETE SET NULL`), como defensa en profundidad — la regla de negocio real
 > ("no eliminar proveedor con productos asociados") se aplica en `ProveedorController::destroy()` vía
 > `Proveedor::tieneOperaciones()`, no depende del constraint de base.
+
+> **`punto_reposicion` (spec 073, 21/08/2026):** un producto está **en punto de reposición** cuando su
+> stock es **≤** este valor. El mismo número alimenta **dos controles**: **A reponer** (stock en
+> **Local**, todo el catálogo → "¿le compro al proveedor o traigo de Full?") y **Riesgo de
+> publicación** (stock **Local + Full**, sólo publicados en ML → "¿se me cae la publicación?").
+> Reemplaza el umbral fijo de 3 unidades que el panel de Monitoreo tenía escrito a mano.
+>
+> **Ojo con los depósitos**: los únicos vigentes son **Local (5)** y **Full (6)**, y
+> `ml_configuracion.deposito_id = 5` — o sea, "el depósito de Mercado Libre" **es** el Local. No
+> definir el segundo control "contra el depósito de ML": daría la misma lista que el primero. Lo que
+> los distingue es **Full**.
+>
+> **Historia**: la importación de datos reales dejó este dato modelado como una `lista_precio` más
+> (id 14, "Punto Reposición") para no tocar schema. La spec 073 lo migra a esta columna con
+> `migracion:punto-reposicion` (dry-run por defecto) y **elimina esa fila de `listas_precio` junto con
+> sus `precios_producto`**. El borrado **aborta sin modo forzado** si la lista está referenciada por
+> `clientes.lista_precio_id`, `ventas.lista_precio_id`, `presupuestos.lista_precio_id`,
+> `ml_configuracion.lista_precio_id`/`lista_precio_id_premium`,
+> `tiendanube_configuracion.lista_precio_id` o `empresa.lista_precio_id` — lo que se rompería del otro
+> lado son precios de venta reales. Efecto colateral esperado: como el listado de Productos genera una
+> columna por lista activa, esa columna desaparece sola del listado y del export.
 
 > **Stock inicial al crear (24/07/2026):** el formulario "Nuevo Producto" acepta `stock_inicial`
 > (numérico) y `stock_inicial_deposito_id` como campos de **request únicamente** — no son columnas de
@@ -196,6 +255,11 @@ modal (ver doc principal §2.2).
 
 ### `listas_precio`
 id, nombre (ej. Mayorista, Minorista, Tarjeta), activo.
+
+> **Baja de "Punto Reposición" (spec 073, 21/08/2026)**: la fila id 14 llamada "Punto Reposición" —que
+> la importación de datos reales había usado para guardar un dato que **no es un precio**— se elimina
+> junto con sus `precios_producto`, después de migrar sus valores a `productos.punto_reposicion`. Ver
+> la nota de esa columna en `productos` para el procedimiento y la verificación previa obligatoria.
 
 ### `precios_producto`
 producto_id (FK), lista_precio_id (FK), precio (decimal(14,2), ≥ 0). Único por (producto_id, lista_precio_id).

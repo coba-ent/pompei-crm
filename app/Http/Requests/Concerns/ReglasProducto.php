@@ -35,6 +35,9 @@ trait ReglasProducto
             'mostrar_en_compras' => ['nullable', 'boolean'],
             'activo' => ['nullable', 'boolean'],
 
+            // Punto de reposición (spec 073). `null`/`0` = el producto no se controla.
+            'punto_reposicion' => ['nullable', 'integer', 'min:0'],
+
             // Stock inicial (sólo se aplica al crear un producto de tipo=producto)
             'stock_inicial' => ['nullable', 'numeric', 'min:0'],
             'stock_inicial_deposito_id' => ['nullable', 'integer', 'exists:depositos,id'],

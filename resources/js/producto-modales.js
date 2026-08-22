@@ -217,6 +217,9 @@
             const esEdicion = !!$('#producto-id').val();
             const esProducto = $('#producto-tipo').val() === 'producto';
             $('#stock-inicial-wrap, #stock-inicial-deposito-wrap').toggleClass('d-none', esEdicion || !esProducto);
+            // El punto de reposición sólo tiene sentido para lo que lleva stock (spec 073).
+            $('#punto-reposicion-wrap').toggleClass('d-none', !esProducto);
+            if (!esProducto) { $('#punto-reposicion-wrap input[name="punto_reposicion"]').val(''); }
         }
 
         function resetForm() {

@@ -3,74 +3,41 @@
           <nav class="navbar navbar-expand">
               <div class="collapse navbar-collapse justify-content-end">
                   <ul class="navbar-nav header-right">
-                      <li class="nav-item dropdown notification_dropdown d-none">
-                          <a class="nav-link " href="javascript:void(0);" data-bs-toggle="dropdown">
+                      @can('monitoreo.ver')
+                      {{-- Campanita de notificaciones (spec 073): datos reales, pintados por monitoreo-topbar.js --}}
+                      <li class="nav-item dropdown notification_dropdown">
+                          <a class="nav-link position-relative" href="javascript:void(0);" data-bs-toggle="dropdown" id="notif-monitoreo-toggle">
                               <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" viewBox="0 0 25 25"
                                   fill="none">
                                   <path
                                       d="M5.10317 19.6315C4.85704 19.6315 4.65213 19.5493 4.48844 19.3848C4.32476 19.2202 4.24292 19.0162 4.24292 18.7725C4.24292 18.5289 4.32476 18.3263 4.48844 18.1647C4.65213 18.0031 4.85616 17.9223 5.10055 17.9223H6.39672V10.4397C6.39672 9.03281 6.81719 7.75736 7.65814 6.61333C8.49908 5.4693 9.61249 4.7488 10.9984 4.45185V3.75925C10.9984 3.34602 11.1438 3.00394 11.4346 2.733C11.7255 2.46209 12.0786 2.32663 12.4941 2.32663C12.9096 2.32663 13.2647 2.46209 13.5595 2.733C13.8542 3.00394 14.0016 3.34602 14.0016 3.75925V4.45185C15.3915 4.7488 16.5111 5.4693 17.3603 6.61333C18.2096 7.75736 18.6342 9.03281 18.6342 10.4397V17.9223H19.9054C20.1453 17.9223 20.3483 18.0045 20.5142 18.1691C20.6801 18.3336 20.763 18.5377 20.763 18.7813C20.763 19.0249 20.6801 19.2276 20.5142 19.3891C20.3483 19.5507 20.1453 19.6315 19.9054 19.6315H5.10317ZM12.503 22.6495C11.9559 22.6495 11.4773 22.449 11.0673 22.0479C10.6572 21.6469 10.4522 21.1648 10.4522 20.6016H14.5538C14.5538 21.1676 14.3525 21.6504 13.95 22.05C13.5474 22.4496 13.0651 22.6495 12.503 22.6495V22.6495ZM8.09999 17.9223H16.925V10.4397C16.925 9.18966 16.5042 8.13549 15.6625 7.27716C14.8208 6.41882 13.7792 5.98966 12.5375 5.98966C11.2958 5.98966 10.2458 6.41882 9.38749 7.27716C8.52916 8.13549 8.09999 9.18966 8.09999 10.4397V17.9223Z"
                                       fill="black" />
                               </svg>
+                              <span class="badge bg-danger rounded-pill position-absolute d-none" id="notif-monitoreo-badge"
+                                  style="top:0; right:0; font-size:.6rem;">0</span>
                           </a>
                           <div class="dropdown-menu dropdown-menu-end">
-                              <div id="DZ_W_TimeLine02" class="widget-timeline dz-scroll style-1 p-3 height370">
-                                  <ul class="timeline">
-                                      <li>
-                                          <div class="timeline-badge primary"></div>
-                                          <a class="timeline-panel text-muted" href="javascript:void(0);">
-                                              <span>10 minutes ago</span>
-                                              <h6 class="mb-0">Youtube, a video-sharing website, goes live <strong
-                                                      class="text-primary">$500</strong>.</h6>
-                                          </a>
-                                      </li>
-                                      <li>
-                                          <div class="timeline-badge info">
-                                          </div>
-                                          <a class="timeline-panel text-muted" href="javascript:void(0);">
-                                              <span>20 minutes ago</span>
-                                              <h6 class="mb-0">New order placed <strong
-                                                      class="text-info">#XF-2356.</strong></h6>
-                                              <p class="mb-0">Quisque a consequat ante Sit amet magna at volutapt...
-                                              </p>
-                                          </a>
-                                      </li>
-                                      <li>
-                                          <div class="timeline-badge danger">
-                                          </div>
-                                          <a class="timeline-panel text-muted" href="javascript:void(0);">
-                                              <span>30 minutes ago</span>
-                                              <h6 class="mb-0">john just buy your product <strong
-                                                      class="text-warning">Sell $250</strong></h6>
-                                          </a>
-                                      </li>
-                                      <li>
-                                          <div class="timeline-badge success">
-                                          </div>
-                                          <a class="timeline-panel text-muted" href="javascript:void(0);">
-                                              <span>15 minutes ago</span>
-                                              <h6 class="mb-0">StumbleUpon is acquired by eBay. </h6>
-                                          </a>
-                                      </li>
-                                      <li>
-                                          <div class="timeline-badge warning">
-                                          </div>
-                                          <a class="timeline-panel text-muted" href="javascript:void(0);">
-                                              <span>20 minutes ago</span>
-                                              <h6 class="mb-0">Mashable, a news website and blog, goes live.</h6>
-                                          </a>
-                                      </li>
-                                      <li>
-                                          <div class="timeline-badge dark">
-                                          </div>
-                                          <a class="timeline-panel text-muted" href="javascript:void(0);">
-                                              <span>20 minutes ago</span>
-                                              <h6 class="mb-0">Mashable, a news website and blog, goes live.</h6>
-                                          </a>
-                                      </li>
-                                  </ul>
+                              <div class="widget-timeline dz-scroll style-1 p-2 height370" id="notif-monitoreo-lista">
+                                  <p class="text-muted text-center py-4 mb-0" id="notif-monitoreo-vacio">Sin notificaciones pendientes.</p>
+                              </div>
+                              <div class="p-2 border-top text-center">
+                                  <a href="javascript:void(0);" class="small" id="notif-monitoreo-marcar-todas">Marcar todas como leídas</a>
                               </div>
                           </div>
                       </li>
+
+                      {{-- Indicador de Monitoreo (spec 073): se resalta sólo cuando hay algo que atender --}}
+                      <li class="nav-item dropdown notification_dropdown">
+                          <a class="nav-link position-relative" href="javascript:void(0);" data-bs-toggle="dropdown" id="monitoreo-indicador-toggle" title="Monitoreo">
+                              <i class="fas fa-gauge-high"></i>
+                              <span class="badge bg-warning rounded-pill position-absolute d-none" id="monitoreo-indicador-badge"
+                                  style="top:0; right:0; font-size:.6rem;">!</span>
+                          </a>
+                          <div class="dropdown-menu dropdown-menu-end p-3" style="min-width:320px;" id="monitoreo-indicador-panel">
+                              <p class="text-muted text-center mb-0" id="monitoreo-indicador-vacio">Todo en orden.</p>
+                          </div>
+                      </li>
+                      @endcan
                       <li class="nav-item dropdown notification_dropdown ">
                           <a class="nav-link dz-fullscreen" href="javascript:void(0);">
                               <svg width="19" height="19" viewBox="0 0 19 19" fill="none"
@@ -147,6 +114,12 @@
                                                           stroke-linecap="round" stroke-linejoin="round" />
                                                   </svg>
                                                   <span class="ms-2">Auditoría</span>
+                                              </a>
+                                          @endcan
+                                          @can('monitoreo.ver')
+                                              <a href="{{ route('monitoreo.index') }}" class="dropdown-item ai-icon ">
+                                                  <i class="fas fa-gauge-high text-primary"></i>
+                                                  <span class="ms-2">Monitoreo</span>
                                               </a>
                                           @endcan
                                       </div>

@@ -541,14 +541,34 @@ Route::middleware('auth')->group(function () {
         });
     });
 
-    // Panel de monitoreo interno — SIN link en ningún menú, se entra por la URL.
-    // Aislado a propósito: controlador y vista propios, sin lógica compartida con el resto.
+    // Monitoreo (spec 073) — dejó de ser una URL secreta: tiene permiso propio, indicador en la
+    // barra superior y notificaciones. Lectura con `monitoreo.ver`, escritura con `monitoreo.gestionar`.
     Route::prefix('monitoreo')->name('monitoreo.')->group(function () {
-        Route::get('/', [\App\Http\Controllers\Monitoreo\MonitoreoController::class, 'index'])->name('index');
-        Route::get('datos', [\App\Http\Controllers\Monitoreo\MonitoreoController::class, 'datos'])->name('datos');
-        Route::post('destrabar', [\App\Http\Controllers\Monitoreo\MonitoreoController::class, 'destrabar'])->name('destrabar');
-        Route::post('reactivar', [\App\Http\Controllers\Monitoreo\MonitoreoController::class, 'reactivar'])->name('reactivar');
-        Route::post('sincronizar', [\App\Http\Controllers\Monitoreo\MonitoreoController::class, 'sincronizarAhora'])->name('sincronizar');
+        $panel = \App\Http\Controllers\Monitoreo\MonitoreoController::class;
+        $resumen = \App\Http\Controllers\Monitoreo\MonitoreoResumenController::class;
+
+        Route::middleware('permiso:monitoreo.ver')->group(function () use ($panel, $resumen) {
+            Route::get('/', [$panel, 'index'])->name('index');
+            Route::get('pulso', [$panel, 'pulso'])->name('pulso');
+            Route::get('publicaciones', [$panel, 'publicaciones'])->name('publicaciones');
+            Route::get('reponer', [$panel, 'reponer'])->name('reponer');
+            Route::get('riesgo-ml', [$panel, 'riesgoMl'])->name('riesgoMl');
+            Route::get('sin-stock', [$panel, 'sinStock'])->name('sinStock');
+            Route::get('ordenes', [$panel, 'ordenes'])->name('ordenes');
+            Route::get('ventas', [$panel, 'ventas'])->name('ventas');
+
+            Route::get('resumen', [$resumen, 'resumen'])->name('resumen');
+            // Marcar leído es una acción sobre el propio estado de lectura del usuario, no sobre
+            // la integración: alcanza con `monitoreo.ver`.
+            Route::post('notificaciones/leer', [$resumen, 'leer'])->name('notificaciones.leer');
+        });
+
+        Route::middleware('permiso:monitoreo.gestionar')->group(function () use ($panel) {
+            Route::post('destrabar', [$panel, 'destrabar'])->name('destrabar');
+            Route::post('reactivar', [$panel, 'reactivar'])->name('reactivar');
+            Route::post('sincronizar', [$panel, 'sincronizar'])->name('sincronizar');
+            Route::post('punto-reposicion', [$panel, 'puntoReposicion'])->name('puntoReposicion');
+        });
     });
 
 }); // fin Route::middleware('auth')

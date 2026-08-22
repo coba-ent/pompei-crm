@@ -44,6 +44,7 @@ class Producto extends Model
         'mostrar_en_compras',
         'costo',
         'iva_compra_pct',
+        'punto_reposicion',
         'activo',
     ];
 
@@ -54,6 +55,7 @@ class Producto extends Model
         'mostrar_en_compras' => 'boolean',
         'precio_venta' => 'decimal:2',
         'costo' => 'decimal:2',
+        'punto_reposicion' => 'integer',
         'activo' => 'boolean',
     ];
 

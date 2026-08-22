@@ -124,6 +124,21 @@
      tiene que cargar ANTES que los bundles de pantalla que lo montan. --}}
 @vite(['resources/js/buscador-catalogo.js'])
 
+{{-- Barra superior de Monitoreo (spec 073): indicador + campanita. Sólo con permiso, para que sin
+     él no haya ni una llamada al endpoint de resumen (FR-025). --}}
+@can('monitoreo.ver')
+<script>
+    window.MonitoreoTopbarConfig = {
+        rutas: {
+            resumen: "{{ route('monitoreo.resumen') }}",
+            leer: "{{ route('monitoreo.notificaciones.leer') }}",
+            panel: "{{ route('monitoreo.index') }}",
+        },
+    };
+</script>
+@vite(['resources/js/monitoreo-topbar.js'])
+@endcan
+
 {{-- Guarda el estado del sidebar cada vez que se lo abre/cierra; el que lo aplica al cargar es
      el script inline de arriba. El toggle de la clase lo sigue haciendo el template
      (`handleNavigation`), acá sólo se lee el resultado — de ahí el `setTimeout`, para leer

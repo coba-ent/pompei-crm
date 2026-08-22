@@ -82,6 +82,14 @@
                             </select>
                             <div class="invalid-feedback" data-field="stock_inicial_deposito_id"></div>
                         </div>
+                        {{-- Punto de reposición (spec 073): cantidad mínima deseada. Vacío o 0 =
+                             el producto no se controla y nunca genera alerta ni notificación. --}}
+                        <div class="col-lg-3" id="punto-reposicion-wrap">
+                            <label class="form-label">Punto de Reposición</label>
+                            <input type="number" step="1" min="0" class="form-control" name="punto_reposicion" placeholder="Sin control">
+                            <div class="form-text">Vacío o 0: el producto no se controla.</div>
+                            <div class="invalid-feedback" data-field="punto_reposicion"></div>
+                        </div>
                         <div class="col-lg-6">
                             <label class="form-label">Descripción</label>
                             <textarea class="form-control" name="descripcion" rows="2"></textarea>

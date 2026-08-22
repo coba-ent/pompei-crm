@@ -299,6 +299,20 @@ return [
 				'js/custom.js',
 			],
 		],
+		// spec 073 — panel de Monitoreo. Sin Select2 ni daterangepicker: no tiene selects
+		// dinámicos ni filtros por fecha.
+		'monitoreo' => [
+			'title' => 'Monitoreo',
+			'css' => [
+				'vendor/datatables/css/jquery.dataTables.min.css',
+				'vendor/toastr/css/toastr.min.css',
+			],
+			'js' => [
+				'vendor/datatables/js/jquery.dataTables.min.js',
+				'vendor/toastr/js/toastr.min.js',
+				'js/custom.js',
+			],
+		],
 		'auditoria' => [
 			'title' => 'Auditoría',
 			'css' => [

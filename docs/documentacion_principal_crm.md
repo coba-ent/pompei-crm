@@ -217,12 +217,32 @@ asociadas").
   por producto (acción "Movimientos").
 - Productos inactivos: no se pueden eliminar productos con operaciones cargadas (movimientos de stock)
   — se marcan como "Inactivo".
-- **Brecha pendiente — Punto de Reposición** (detectada en spec 026, 31/07/2026): el archivo real de
-  Productos del negocio trae una columna "Punto Reposición" sin campo equivalente en el modelo
-  `Producto` hoy (no está en `$fillable` ni en la migración). Fuera de alcance de spec 026 (decisión
-  explícita del usuario, ver `specs/026-importador-datos-campos-completos/spec.md` Assumptions) —
-  queda pendiente de un spec futuro de Productos que agregue el campo (y su regla de negocio de
-  alerta de stock bajo) antes de poder ofrecerlo como destino de mapeo en el importador.
+- **Punto de Reposición** (brecha detectada en spec 026 el 31/07/2026, **cerrada por spec 073** el
+  21/08/2026): cantidad mínima deseada de un producto. Es un **atributo del producto**
+  (`productos.punto_reposicion`, entero ≥ 0, nullable). Reglas:
+  - `null` o `0` → el producto **no se controla**: no genera alerta ni notificación, por bajo que
+    esté su stock. No hay valor por defecto para el catálogo (poblarlo es decisión del negocio).
+  - Sólo aplica a `tipo = 'producto'` y `activo = true`. Un producto sin fila en `stocks` para el
+    depósito evaluado cuenta como stock 0; un stock negativo es el caso más urgente. Con variantes,
+    se compara contra el **total del producto** en ese depósito.
+  - Un producto está **en punto de reposición** cuando su stock es **≤** su punto de reposición. El
+    mismo número alimenta **dos controles distintos**, que se ven en la pantalla de Monitoreo
+    (§5.1):
+    - **A reponer**: stock en **Local** ≤ punto de reposición → hay que comprarle al proveedor o
+      traer de Full. Aplica a todo el catálogo, publicado o no.
+    - **Riesgo de publicación**: producto **publicado en Mercado Libre** con stock **Local + Full**
+      ≤ punto de reposición → no hay de dónde vender y la publicación se cae.
+    > **Ojo**: `ml_configuracion.deposito_id` **es** el depósito Local (id 5) — no existe un
+    > "depósito de Mercado Libre" aparte. Los únicos depósitos vigentes son Local (5) y Full (6).
+    > Definir el segundo control "contra el depósito de ML" produciría la misma lista que el
+    > primero; lo que de verdad los distingue es **Full**: un producto con 1 en Local y 50 en Full
+    > hay que reponerlo, pero su publicación no corre riesgo.
+  - **Historia**: la importación de datos reales (04/08/2026) lo dejó modelado como una `lista_precio`
+    más (id 14, "Punto Reposición") para no tocar schema. La spec 073 migra esos valores a la columna
+    y **elimina esa lista de precios**, que conceptualmente nunca fue un precio y ensuciaba todo
+    selector de listas de la app. La migración corre con `migracion:punto-reposicion` (dry-run por
+    defecto) y **aborta sin borrar** si alguna configuración todavía referencia la lista.
+  - Reemplaza el umbral fijo de 3 unidades que el panel de Monitoreo tenía escrito a mano.
 - **Variantes** (talle, color): la UI de alta de variantes está **oculta** en el modal — Contagram no
   la expone (su propio tooltip del Nombre sugiere cargar talle/color en el nombre). Se conserva la
   infraestructura (`producto_variantes`) para cuando se retome la integración con canales externos, y
@@ -1997,6 +2017,44 @@ Developers; `admin-mcp.tiendanube.com` (observado empíricamente, sin doc públi
 
 ---
 
+## 5.1 Monitoreo (pantalla propia, spec 073 — 21/08/2026)
+
+Pantalla de salud operativa del negocio y de las integraciones. **No forma parte del Contagram real**:
+es una pantalla propia de este CRM, nacida como URL interna sin link durante la migración de datos y
+convertida en pantalla del producto por la spec 073 a pedido del negocio. Por eso no aplica acá el
+principio de fidelidad estructural a Contagram — no hay pantalla original que calcar.
+
+**Acceso**: link e indicador en la **barra superior** (no en el sidebar), con permisos propios
+`monitoreo.ver` (pantalla, indicador y notificaciones) y `monitoreo.gestionar` (acciones de escritura).
+Al inicio ambos van sólo al rol Admin.
+
+**Bloques de la pantalla**:
+
+| Bloque | Qué muestra |
+|---|---|
+| Pulso | Estado de las 2 sincronizaciones de ML (órdenes y stock): hace cuánto corrieron, resultado, y alerta si superan 15 min o nunca corrieron. Interruptores `modo_solo_lectura` y `creacion_automatica` |
+| Publicaciones que no actualizan stock | Publicaciones de ML con error al empujar stock: item, título, stock real vs. último publicado, intentos, desde cuándo, error. Distingue los errores de **moderación** de ML (`under_review`, `forbidden`), donde no hay acción posible desde el CRM |
+| A reponer | Todo el catálogo con stock en **Local** ≤ su punto de reposición → comprarle al proveedor o traer de Full |
+| Riesgo de stock publicable | Productos **publicados en ML** con stock **Local + Full** ≤ su punto de reposición, ordenados por urgencia real (velocidad de venta de los últimos 14 días). Lo que lo distingue del bloque anterior es que suma Full |
+| Sin stock | Productos publicados en ML sin stock ni en el depósito de ML ni en Full. Informativo: no vende, pero no es una falla. **No** depende del punto de reposición |
+| Órdenes sin venta | Órdenes de ML que no generaron Venta, con el motivo en castellano. Lo accionable es `requiere_atencion`; canceladas y pendientes de pago son el curso normal |
+| Últimas ventas de integraciones | Las 6 últimas, con sus movimientos de stock, para ver la cadena de punta a punta |
+
+**Acciones** (requieren `monitoreo.gestionar`): destrabar una publicación (encolarla para el próximo
+empuje), reactivar una bloqueada por reintentos fallidos, forzar una sincronización, y editar el punto
+de reposición de un producto sin salir de la pantalla (no exige `productos.editar`).
+
+**Notificaciones** (campanita de la barra superior): productos en punto de reposición y publicaciones
+de ML que fallan. **No hay tabla de histórico** — se calculan sobre el estado vigente en cada consulta
+y sólo se persiste el "leído" por usuario (`notificaciones_leidas`). La marca de lectura **se borra en
+cuanto el problema se resuelve**, así que si el problema reaparece la notificación nace de nuevo como
+**no leída** en vez de quedar silenciada para siempre. Refresco: al cargar cada pantalla y cada 5
+minutos con la pestaña abierta.
+
+*(Referencias: `specs/073-monitoreo-punto-reposicion/`)*
+
+---
+
 ## 6. Reglas de negocio clave (alcance actual)
 
 - Un producto no se puede eliminar si tiene operaciones cargadas (movimientos de stock); se marca como
@@ -2596,6 +2654,16 @@ salieron de esta lista:
   `bootstrap/app.php` — sincronización de órdenes/stock/precios de Mercado Libre y Tiendanube) falla o
   cuando una cuenta de integración pasa a `caida`/`desconectada`, en vez de que ese estado sólo quede
   registrado en un log que nadie mira proactivamente.
+  > **Parcialmente cubierto por la spec 073** (21/08/2026): la campanita de la barra superior ya
+  > existe y avisa dos cosas —productos en punto de reposición y publicaciones de ML que no
+  > actualizan stock— con el modelo "estado vigente + leído por usuario, sin histórico" (ver §5.1).
+  > **Lo que sigue pendiente** es justamente el disparador original: avisar cuando un **comando
+  > programado falla** o cuando una **cuenta de integración se cae/desconecta**. La 073 sí muestra en
+  > el panel y en el desplegable si una sincronización lleva más de 15 minutos sin correr, que es la
+  > señal indirecta de ese problema, pero no genera notificación propia por la falla del cron ni
+  > manda email. Cuando se especifique, conviene reusar la infraestructura de la 073 (mismo endpoint
+  > `monitoreo/resumen`, misma tabla `notificaciones_leidas`, misma clave de episodio) en vez de
+  > armar un segundo sistema de notificaciones en paralelo.
 - **Ranking de Clientes/Productos del Dashboard sin netear NC/ND**: el neteo de Notas de
   Crédito/Débito en KPIs/Totales/Gráfico Mensual/Donas del Dashboard ya se implementó (spec 046,
   ver §6.3), pero el Ranking de Clientes (por monto vendido) y de Productos (por cantidad vendida)
