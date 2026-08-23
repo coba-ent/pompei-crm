@@ -31,10 +31,17 @@ class SincronizarOrdenesMercadoLibre extends Command
 
         $resultado = $sincronizador->ejecutar();
 
-        if (! $resultado['ok']) {
+        // Sólo un fallo REAL devuelve un exit distinto de cero. `bloqueada` (modo sólo lectura,
+        // o la función desactivada en Funciones Avanzadas) y `salteada` (ya hay otra corrida en
+        // curso) son no-ops deliberados: el comando hizo exactamente lo que correspondía, que era
+        // no hacer nada. Devolverlos como fallo hacía que el scheduler los registrara como
+        // `production.ERROR` en CADA corrida del cron — con frecuencia por minuto eso llenó 127 MB
+        // de `laravel.log` en el VPS (16.649 entradas en 20 días), enterrando cualquier error de
+        // verdad entre miles de falsas alarmas. El motivo se sigue informando por salida estándar.
+        if (($resultado['tipo'] ?? null) === 'error') {
             $this->error($resultado['mensaje']);
 
-            return ($resultado['tipo'] ?? null) === 'error' ? 2 : 1;
+            return 2;
         }
 
         $this->info($resultado['mensaje']);

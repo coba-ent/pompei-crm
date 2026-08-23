@@ -80,12 +80,19 @@ class MercadoLibreProgramacionTest extends TestCase
         Http::assertSent(fn ($request) => str_contains($request->url(), '/orders/search'));
     }
 
+    /**
+     * `--forzar` saltea la frecuencia pero NO los bloqueos: con la función desactivada, el comando
+     * no llama a la API. El exit code es **0**, no 1: un bloqueo es un no-op deliberado, no un
+     * fallo, y devolverlo como fallo hacía que el scheduler lo registrara como `production.ERROR`
+     * en cada corrida del cron. Lo que prueba que el bloqueo funcionó es `assertNothingSent()`,
+     * no el exit code.
+     */
     public function test_forzar_ignora_la_frecuencia_pero_no_los_bloqueos(): void
     {
         MercadoLibreConfiguracion::actual()->update(['frecuencia_sync_minutos' => 60, 'ultima_sync_en' => now()->subMinute()]);
         FuncionAvanzada::where('clave', 'mercadolibre')->update(['activa' => false]);
 
-        $this->artisan('mercadolibre:sincronizar-ordenes --forzar')->assertExitCode(1);
+        $this->artisan('mercadolibre:sincronizar-ordenes --forzar')->assertExitCode(0);
 
         Http::assertNothingSent();
     }
