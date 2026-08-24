@@ -17,6 +17,9 @@
                 </a>
             </div>
             <div class="col-sm-6 text-sm-end">
+                <a href="{{ route('compras.edit', $compra) }}" class="btn btn-primary me-1">
+                    <i class="fas fa-pencil-alt me-1"></i> Editar
+                </a>
                 <a href="{{ route('compras.remitos.create', $compra) }}" class="btn btn-warning">
                     <i class="fas fa-truck me-1"></i> Crear Remito
                 </a>

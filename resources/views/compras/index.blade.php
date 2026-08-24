@@ -219,6 +219,7 @@
                                 <th>Emisión</th>
                                 <th>Vencimiento</th>
                                 <th>Proveedor</th>
+                                <th>Nro. Factura</th>
                                 <th>Categoría</th>
                                 <th>Subtotal sin Descuento</th>
                                 <th>Descuento</th>

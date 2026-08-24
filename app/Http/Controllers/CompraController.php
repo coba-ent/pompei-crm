@@ -227,12 +227,13 @@ class CompraController extends Controller
 
     public function data(Request $request): JsonResponse
     {
-        $query = $this->queryFiltrada($request)->with('etiquetas:id,nombre');
+        $query = $this->queryFiltrada($request)->with(['etiquetas:id,nombre', 'comprobanteFiscal']);
 
         return DataTables::eloquent($query)
             ->addColumn('acciones', fn (Compra $c) => view('compras._row_actions', ['compra' => $c])->render())
             ->addColumn('estado_pago', fn (Compra $c) => $c->estadoPago())
             ->addColumn('proveedor', fn (Compra $c) => optional($c->proveedor)->nombre)
+            ->addColumn('numero_factura', fn (Compra $c) => optional($c->comprobanteFiscal)->numero)
             ->addColumn('categoria', fn (Compra $c) => optional($c->categoria)->nombre)
             ->addColumn('pagado', fn (Compra $c) => $c->pagado())
             ->addColumn('a_pagar', fn (Compra $c) => $c->aPagar())

@@ -61,14 +61,51 @@
         const ID_CREAR_CATEGORIA = '__crear_categoria__';
         const PREFIJO_CREAR_SUB = '__crear_sub__:';
 
+        // Categorías plegadas por defecto: al abrir el select sólo se ven las categorías raíz, y
+        // cada una se despliega con el chevron (las subcategorías y su fila "Crear Subcategoría"
+        // llevan `padreId`, y el matcher las descarta mientras el padre no esté en `expandidas`).
+        const expandidas = new Set();
+
         function catalogoCategoriasGasto() {
             const out = [{ id: ID_CREAR_CATEGORIA, tipo: 'crear', text: 'Crear Categoría de Gasto' }];
             categoriasJerarquia().forEach(({ raiz, hijos }) => {
-                out.push({ id: raiz.id, tipo: 'categoria', text: raiz.nombre, esSistema: !!raiz.es_sistema });
-                out.push({ id: PREFIJO_CREAR_SUB + raiz.id, tipo: 'crear_sub', text: 'Crear Subcategoría', categoriaId: raiz.id });
-                hijos.forEach((h) => out.push({ id: h.id, tipo: 'subcategoria', text: h.nombre, esSistema: !!h.es_sistema }));
+                out.push({ id: raiz.id, tipo: 'categoria', text: raiz.nombre, esSistema: !!raiz.es_sistema, padre: true });
+                out.push({ id: PREFIJO_CREAR_SUB + raiz.id, tipo: 'crear_sub', text: 'Crear Subcategoría', categoriaId: raiz.id, padreId: raiz.id });
+                hijos.forEach((h) => out.push({ id: h.id, tipo: 'subcategoria', text: h.nombre, esSistema: !!h.es_sistema, padreId: raiz.id }));
             });
             return out;
+        }
+
+        function normalizar(t) {
+            return String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        }
+
+        // Con el buscador vacío se respeta el plegado; al tipear se busca sobre TODAS las
+        // subcategorías aunque su padre esté cerrado (si no, el buscador quedaría inservible).
+        function matcherCategoriaGasto(params, data) {
+            const termino = normalizar(params && params.term).trim();
+            if (!termino) {
+                if (data.padreId != null && !expandidas.has(String(data.padreId))) { return null; }
+                return data;
+            }
+            if (data.tipo === 'crear' || data.tipo === 'crear_sub') { return null; }
+            return normalizar(data.text).indexOf(termino) > -1 ? data : null;
+        }
+
+        // Re-pide los resultados sin cerrar el desplegable (`query` es el evento interno que
+        // dispara el propio buscador de Select2 en cada tecla), así el chevron pliega/despliega
+        // en el lugar y no se pierde el foco ni el término tipeado.
+        function refrescarResultadosCategorias() {
+            const s2 = $('#gasto-categoria').data('select2');
+            if (!s2) { return; }
+            const $busqueda = s2.$dropdown ? s2.$dropdown.find('.select2-search__field') : $();
+            s2.trigger('query', { term: $busqueda.length ? $busqueda.val() : '' });
+        }
+
+        function alternarCategoria(id) {
+            const clave = String(id);
+            if (expandidas.has(clave)) { expandidas.delete(clave); } else { expandidas.add(clave); }
+            refrescarResultadosCategorias();
         }
 
         function templateResultCategoriaGasto(data) {
@@ -87,7 +124,22 @@
             }
             const esSub = data.tipo === 'subcategoria';
             const $fila = $('<span class="d-flex align-items-center justify-content-between w-100"></span>').toggleClass('ps-3', esSub).toggleClass('fw-semibold', !esSub);
-            $fila.append($('<span></span>').text(data.text));
+            const $izq = $('<span class="d-flex align-items-center"></span>');
+            if (data.padre) {
+                const abierta = expandidas.has(String(data.id));
+                const $chevron = $('<a href="#" class="js-toggle-categoria-gasto text-muted me-2" style="width:1rem"></a>')
+                    .attr('title', abierta ? 'Plegar' : 'Desplegar')
+                    .append('<i class="fas fa-chevron-' + (abierta ? 'down' : 'right') + '"></i>');
+                $chevron.on('mousedown mouseup', (e) => e.stopPropagation());
+                $chevron.on('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    alternarCategoria(data.id);
+                });
+                $izq.append($chevron);
+            }
+            $izq.append($('<span></span>').text(data.text));
+            $fila.append($izq);
             if (!data.esSistema) {
                 const $lapiz = $('<a href="#" class="js-editar-categoria-gasto text-muted ms-2" title="Editar"><i class="fas fa-pencil-alt"></i></a>');
                 $lapiz.on('mousedown mouseup', (e) => e.stopPropagation());
@@ -107,10 +159,16 @@
             const $sel = $('#gasto-categoria');
             if (hasSelect2 && $sel.hasClass('select2-hidden-accessible')) { $sel.select2('destroy'); }
             $sel.empty().append('<option></option>');
+            // Todo plegado al abrir el modal; única excepción: si lo que viene seleccionado es una
+            // subcategoría, se deja abierto su padre para que se vea dónde está parado.
+            expandidas.clear();
+            const elegida = sel ? (cfg.categorias || []).find((c) => String(c.id) === sel) : null;
+            if (elegida && elegida.categoria_padre_id) { expandidas.add(String(elegida.categoria_padre_id)); }
             initSelect2($sel, {
                 placeholder: 'Seleccionar Categoría',
                 data: catalogoCategoriasGasto(),
                 templateResult: templateResultCategoriaGasto,
+                matcher: matcherCategoriaGasto,
             });
             if (sel) { $sel.val(sel); }
             $sel.trigger('change.select2');
