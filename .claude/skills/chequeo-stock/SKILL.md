@@ -223,6 +223,7 @@ Actualizar al terminar cada uno. El corte es `movimientos_stock.id`.
 
 | Fecha | Corte | Resultado |
 |---|---|---|
+| 24/08/2026 | 792 | 28 ventas, 35 líneas, 0 problemas; el neto por producto cierra en los 31 del período. 268/270 alineadas con ML. Movida fuerte de compras: +147 unidades en 27 entradas. |
 | 21/08/2026 | 597 | 25 ventas, 36 líneas, 0 problemas. 268/270 alineadas con ML. La venta 24594 se anuló entera con la NC 854 y repuso en Local, el depósito correcto: el fix `3e3bc49` funcionando con un caso real. Panel `/monitoreo` en producción. |
 | 20/08/2026 (10:13) | 542 | 1 venta, 0 problemas. 268/270 alineadas con ML. Sin ventas Full todavía: el fix `2696f0a` sigue sin probarse con una venta real. |
 | 20/08/2026 | 539 | Fix: la venta de una publicación Full se imputa según el envío, no según la publicación (`2696f0a`). Validado contra el informe de movimientos de Contagram. 5 de 6 diferencias alineadas; queda 12700 en Full, que el reflejo no deja fijar. |
