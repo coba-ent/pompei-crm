@@ -126,7 +126,7 @@
                             Costo Mercadería Vendida
                             <i class="fas fa-circle-info text-muted ms-1" data-bs-toggle="tooltip"
                                id="tooltip-cmv"
-                               title="Costo promedio ponderado de las compras registradas de cada producto, por la cantidad vendida. Un producto que nunca se compró aporta 0."></i>
+                               title="Costo que tenía cada producto al momento de la venta, por la cantidad vendida. No se recalcula si después cambia el costo del producto. Las ventas anteriores a la puesta en marcha de este cálculo no tienen ese costo guardado: para ésas se usa el promedio ponderado de las compras registradas del producto, y un producto que nunca se compró aporta 0."></i>
                         </p>
                         <h4 class="mb-0" id="kpi-cmv">$ 0,00</h4>
                     </div>

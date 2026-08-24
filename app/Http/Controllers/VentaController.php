@@ -2,15 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\MercadoLibre\EstadoConversion;
+use App\Enums\MercadoLibre\MotivoRequiereAtencion;
 use App\Http\Requests\StoreCobroRequest;
-use App\Http\Requests\UpdateCobroRequest;
 use App\Http\Requests\StoreVentaRequest;
+use App\Http\Requests\UpdateCobroRequest;
 use App\Http\Requests\UpdateVentaRequest;
 use App\Models\Categoria;
+use App\Models\CertificadoFiscal;
 use App\Models\Cobro;
 use App\Models\CondicionIva;
 use App\Models\ConfiguracionVentas;
 use App\Models\CuentaTesoreria;
+use App\Models\DatosEmpresa;
 use App\Models\Deposito;
 use App\Models\Etiqueta;
 use App\Models\ListaPrecio;
@@ -18,6 +22,7 @@ use App\Models\Presupuesto;
 use App\Models\Proveedor;
 use App\Models\Provincia;
 use App\Models\TipoProducto;
+use App\Models\User;
 use App\Models\Vendedor;
 use App\Models\Venta;
 use App\Models\VentaItem;
@@ -27,12 +32,16 @@ use App\Services\Arca\Excepciones\ArcaRechazoException;
 use App\Services\Arca\Excepciones\CertificadoNoConfiguradoException;
 use App\Services\Ingresos\CalculoComprobante;
 use App\Services\Ingresos\Cobranzas;
+use App\Services\Ingresos\SqlCredito;
 use App\Services\Ingresos\StockDeVenta;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Yajra\DataTables\Facades\DataTables;
 
 /** Ventas (US2): listado, formulario de página completa, detalle con cobranza. */
@@ -43,8 +52,7 @@ class VentaController extends Controller
         private readonly Cobranzas $cobranzas,
         private readonly StockDeVenta $stockDeVenta,
         private readonly EmisorComprobante $emisorComprobante,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request)
     {
@@ -59,7 +67,7 @@ class VentaController extends Controller
             // paraCobrar(): en una cobranza sólo tienen sentido las cuentas donde entra plata.
             'cuentasTesoreria' => CuentaTesoreria::visibles()->paraCobrar()->orderBy('orden')->orderBy('nombre')->get(['id', 'nombre']),
             'depositos' => Deposito::activos()->orderBy('nombre')->get(['id', 'nombre']),
-            'usuarios' => \App\Models\User::orderBy('name')->get(['id', 'name']),
+            'usuarios' => User::orderBy('name')->get(['id', 'name']),
         ]);
     }
 
@@ -101,8 +109,8 @@ class VentaController extends Controller
             + COALESCE((SELECT SUM(monto) FROM notas_credito_debito WHERE venta_id = ventas.id AND tipo = 'debito' AND deleted_at IS NULL), 0)
             - COALESCE((SELECT SUM(monto) FROM notas_credito_debito WHERE venta_id = ventas.id AND tipo = 'credito' AND deleted_at IS NULL), 0)
             - COALESCE((SELECT SUM(monto) FROM cobros WHERE venta_id = ventas.id AND deleted_at IS NULL), 0)
-            ".\App\Services\Ingresos\SqlCredito::terminos('ventas')."
-        )";
+            ".SqlCredito::terminos('ventas').'
+        )';
     }
 
     private function kpis(Request $request): array
@@ -117,7 +125,7 @@ class VentaController extends Controller
         // aplicación de saldo a favor es de unidades por semana, así que la subconsulta apenas
         // toca filas, mientras que un tercer leftJoinSub sobre una tabla polimórfica obligaría a
         // agrupar por tipo y complicaría el JOIN a cambio de nada.
-        $credito = \App\Services\Ingresos\SqlCredito::terminos('ventas');
+        $credito = SqlCredito::terminos('ventas');
         $aCobrar = "(ventas.total + {$nd} - {$nc} - {$cobrado} {$credito})";
         // El neto NO lleva los términos de crédito: aplicar saldo a favor no cambia lo facturado.
         $neto = "(ventas.total + {$nd} - {$nc})";
@@ -326,8 +334,8 @@ class VentaController extends Controller
                 // spec 063 (T015, FR-008): indicador de aviso pendiente (cancelación/reembolso
                 // parcial/mediación posterior a la conversión) en el listado de Ventas.
                 if ($v->mlOrden
-                    && $v->mlOrden->estado_conversion === \App\Enums\MercadoLibre\EstadoConversion::RequiereAtencion
-                    && in_array($v->mlOrden->motivo, \App\Enums\MercadoLibre\MotivoRequiereAtencion::motivosDeCancelacionPosterior(), true)) {
+                    && $v->mlOrden->estado_conversion === EstadoConversion::RequiereAtencion
+                    && in_array($v->mlOrden->motivo, MotivoRequiereAtencion::motivosDeCancelacionPosterior(), true)) {
                     $html .= ' <span class="badge bg-warning text-dark" title="'.e($v->mlOrden->motivo_detalle).'">'
                         .'<i class="fas fa-triangle-exclamation me-1"></i>'.e($v->mlOrden->motivo->etiqueta()).'</span>';
                 }
@@ -356,7 +364,7 @@ class VentaController extends Controller
     public function create(Request $request)
     {
         $CurrentPage = 'ventas';
-        $submitToken = (string) \Illuminate\Support\Str::uuid();
+        $submitToken = (string) Str::uuid();
         $presupuesto = null;
 
         if ($request->filled('presupuesto')) {
@@ -435,7 +443,7 @@ class VentaController extends Controller
             ], 201);
         }
 
-        $venta = DB::transaction(function () use ($datos, $request) {
+        $venta = DB::transaction(function () use ($datos) {
             $descuentoGeneralTipo = $datos['descuento_general_tipo'] ?? 'porcentaje';
             $descuentoGeneralValor = $descuentoGeneralTipo === 'monto'
                 ? ($datos['descuento_general_monto'] ?? null)
@@ -565,11 +573,13 @@ class VentaController extends Controller
 
             $venta->items()->delete();
             $venta->conceptos()->delete();
-            $this->guardarItems($venta, $resultado['items']);
+            // La edición borra y recrea los ítems, así que sin esto una venta editada
+            // recongelaría el costo del día y el CMV volvería a moverse (spec 075, FR-009).
+            $this->guardarItems($venta, $this->conservarCostosCongelados($resultado['items'], $itemsAnteriores));
             $this->guardarConceptos($venta, $datos['conceptos'] ?? []);
             $this->sincronizarEtiquetas($venta, $datos['etiquetas'] ?? []);
 
-            $depositoAnterior = $depositoAnteriorId ? \App\Models\Deposito::find($depositoAnteriorId) : null;
+            $depositoAnterior = $depositoAnteriorId ? Deposito::find($depositoAnteriorId) : null;
             $this->stockDeVenta->reaplicarPorEdicion($venta->load('items.producto'), $itemsAnteriores, $depositoAnterior);
         });
 
@@ -665,16 +675,16 @@ class VentaController extends Controller
     public function pdf(Venta $venta)
     {
         $venta->load(['items', 'conceptos', 'cliente.condicionIva', 'categoria', 'listaPrecio', 'vendedor', 'comprobanteFiscal.puntoVenta', 'cobros.cuentaTesoreria']);
-        $datosEmpresa = \App\Models\DatosEmpresa::instancia();
+        $datosEmpresa = DatosEmpresa::instancia();
 
         $qrDataUri = null;
         if ($url = $venta->comprobanteFiscal?->urlQrAfip()) {
-            $qrDataUri = (new \Endroid\QrCode\Builder\Builder())
+            $qrDataUri = (new \Endroid\QrCode\Builder\Builder)
                 ->build(data: $url, size: 150)
                 ->getDataUri();
         }
 
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('ventas.pdf', compact('venta', 'qrDataUri', 'datosEmpresa'));
+        $pdf = Pdf::loadView('ventas.pdf', compact('venta', 'qrDataUri', 'datosEmpresa'));
 
         return $pdf->stream('venta-'.$venta->nro_comprobante.'.pdf', ['Content-Disposition' => 'inline']);
     }
@@ -683,7 +693,7 @@ class VentaController extends Controller
     {
         $venta->load(['items', 'cliente']);
 
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('ventas.ticket', compact('venta'))->setPaper([0, 0, 226.77, 800]);
+        $pdf = Pdf::loadView('ventas.ticket', compact('venta'))->setPaper([0, 0, 226.77, 800]);
 
         return $pdf->stream('ticket-'.$venta->nro_comprobante.'.pdf', ['Content-Disposition' => 'inline']);
     }
@@ -726,7 +736,7 @@ class VentaController extends Controller
             ], 422);
         }
 
-        if (! \App\Models\CertificadoFiscal::activo()) {
+        if (! CertificadoFiscal::activo()) {
             return response()->json([
                 'ok' => false,
                 'mensaje' => 'No hay un certificado fiscal configurado — cargalo en Configuración & Ajustes → Facturación Electrónica antes de enviar.',
@@ -782,9 +792,9 @@ class VentaController extends Controller
 
         $cobro->load('cuentaTesoreria');
         $venta->load('cliente');
-        $datosEmpresa = \App\Models\DatosEmpresa::instancia();
+        $datosEmpresa = DatosEmpresa::instancia();
 
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('recibos.pdf', [
+        $pdf = Pdf::loadView('recibos.pdf', [
             'numero' => $cobro->id,
             'fecha' => $cobro->fecha,
             'tipoContraparte' => 'Cliente',
@@ -846,6 +856,56 @@ class VentaController extends Controller
     /**
      * @param  array<int, array<string, mixed>>  $items
      */
+    /**
+     * Conserva el costo congelado de los ítems que ya existían antes de la edición (spec 075).
+     *
+     * `update()` borra y recrea todas las líneas, así que sin este paso editar cualquier cosa
+     * —hasta sólo la fecha de vencimiento— recongelaría el costo del día y el CMV de esa venta se
+     * movería, que es exactamente lo que la feature vino a impedir.
+     *
+     * La correspondencia se resuelve por `producto_id`, **consumiendo cada costo anterior una
+     * sola vez** y en orden de `id`: una venta con el mismo producto en dos líneas tiene que
+     * conservar los dos costos, no repetir el primero. Las líneas sin correspondencia (producto
+     * nuevo en esta edición, o línea sin producto) se quedan con lo que ya resolvió
+     * `CalculoComprobante`: el costo vigente hoy, o 0.
+     *
+     * Un `null` anterior **también se conserva**, y es la parte que parece un olvido y no lo es:
+     * una línea histórica importada de Contagram no tiene costo congelado, y editar esa venta no
+     * puede inventarle uno con el costo de hoy —le pondría a una venta de 2021 el costo de 2026 y
+     * le cambiaría el CMV en silencio—. Sigue en NULL, y sigue cayendo al promedio de compras.
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     * @param  Collection<int, VentaItem>  $itemsAnteriores
+     * @return array<int, array<string, mixed>>
+     */
+    private function conservarCostosCongelados(array $items, $itemsAnteriores): array
+    {
+        $costosPorProducto = [];
+
+        foreach ($itemsAnteriores->sortBy('id') as $anterior) {
+            if ($anterior->producto_id === null) {
+                continue;
+            }
+
+            // El `null` entra a la cola igual que un número: es un valor conservable, no un hueco.
+            $costosPorProducto[(int) $anterior->producto_id][] = $anterior->costo_unitario === null
+                ? null
+                : (float) $anterior->costo_unitario;
+        }
+
+        foreach ($items as $indice => $item) {
+            $productoId = $item['producto_id'] ?? null;
+
+            if (empty($productoId) || ($costosPorProducto[(int) $productoId] ?? []) === []) {
+                continue;
+            }
+
+            $items[$indice]['costo_unitario'] = array_shift($costosPorProducto[(int) $productoId]);
+        }
+
+        return $items;
+    }
+
     private function guardarItems(Venta $venta, array $items): void
     {
         foreach ($items as $item) {

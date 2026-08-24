@@ -15,6 +15,7 @@ use App\Models\VentaItem;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
+use PhpOffice\PhpSpreadsheet\Shared\Date;
 
 /**
  * @deprecated 10/08/2026 — reemplazado por `migracion:ventas` (MigrarVentasContagram).
@@ -50,14 +51,21 @@ class ImportarVentasHistoricas extends Command
     protected $description = 'Importa las Ventas históricas de los Excel de public/imports/ventas (idempotente)';
 
     private const COMPROBANTES_VENTA = ['FC', 'FCA', 'FCB', 'FCC'];
+
     private const COMPROBANTES_NC_ND = ['NC', 'NCA', 'NCB', 'ND', 'NDA', 'NDB'];
 
     private array $cacheClientes = [];
+
     private array $cacheProductos = [];
+
     private array $cacheProveedores = [];
+
     private array $cacheTiposProducto = [];
+
     private array $cacheCategorias = [];
+
     private array $cacheListas = [];
+
     private array $cacheVendedores = [];
 
     private array $stats = [
@@ -86,6 +94,7 @@ class ImportarVentasHistoricas extends Command
             $path = public_path("imports/ventas/Ventas {$anio}.xlsx");
             if (! file_exists($path)) {
                 $this->warn("No existe: {$path}");
+
                 continue;
             }
 
@@ -191,7 +200,7 @@ class ImportarVentasHistoricas extends Command
             return null;
         }
         if (is_numeric($valor)) {
-            return \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject((float) $valor)->format('Y-m-d');
+            return Date::excelToDateTimeObject((float) $valor)->format('Y-m-d');
         }
 
         return (string) $valor;
@@ -234,7 +243,7 @@ class ImportarVentasHistoricas extends Command
             return;
         }
 
-        DB::transaction(function () use ($anio, $legacyId, $rows, $primera, $tipoAB, $dryRun) {
+        DB::transaction(function () use ($legacyId, $rows, $primera, $tipoAB, $dryRun) {
             $clienteId = $this->resolverCliente($primera['Cliente'] ?? null, $dryRun);
             $categoriaId = $this->resolverCategoria($primera['Categoría'] ?? $primera['Categor�a'] ?? null);
             $listaPrecioId = $this->resolverListaPrecio($primera['Lista de Precios'] ?? null);
@@ -282,6 +291,10 @@ class ImportarVentasHistoricas extends Command
                 $cantidad = (float) ($row['Cantidad'] ?? 0);
                 $precioUnitario = (float) ($row['Precio Unitario'] ?? 0);
 
+                // Sin `costo_unitario` A PROPÓSITO (spec 075): una venta histórica no tiene
+                // costo congelado, y dejarlo en NULL es lo que hace que el informe le aplique el
+                // promedio ponderado de compras. Congelar acá el costo de hoy falsearía el CMV de
+                // todo el histórico.
                 VentaItem::create([
                     'venta_id' => $venta->id,
                     'producto_id' => $productoId,

@@ -2561,23 +2561,59 @@ ellas SÍ se replican por decisión expresa del cliente (15/08/2026)** y dos no.
   > nullable— no tiene id, y con el id solo habría quedado imposible de destildar. La clave viaja
   > al servidor en `excluidas[]` al exportar.
 
-**Regla de negocio nueva — cómo se calcula el CMV (resuelve la decisión que bloqueaba esta tanda):**
+**Regla de negocio — cómo se calcula el CMV:**
 
-`venta_items` **no guarda costo histórico** y `productos.costo` es el costo vigente, así que el CMV
-real no es reconstruible desde el movimiento. Se adopta, **sin migración**:
+> ⚠️ **CORREGIDO el 24/08/2026 (spec 075).** Lo que la spec 068 fijó acá era **incorrecto**. Se deja
+> el texto original más abajo, tachado conceptualmente, porque la corrección sólo se entiende
+> sabiendo qué se creía antes y por qué se creía.
+
+**Regla vigente (spec 075):**
 
 ```
-CMV Total (línea) = costo_promedio_compras(producto) × cantidad
-costo_promedio_compras = SUM(compra_items.precio_unitario × cantidad) / SUM(cantidad)
-                         sobre las compras no eliminadas del producto, sin recorte temporal
+CMV Total (línea) = costo_unitario_congelado_al_momento_de_la_venta × cantidad
 ```
 
-Producto sin compras registradas → CMV 0. Es la única derivación compatible con los datos del
-relevamiento (los ítems de la venta Id 5 tienen Costo Total Actual > 0 y CMV 0 porque esos productos
-nunca se compraron; la Camisa del Id 6, comprada en el período, tiene CMV 200). Queda explícitamente
-distinguida de **Costo Actual**, que sí es `productos.costo × cantidad` y es un indicador de
-valorización vigente, no de costo real de compra. Si en el futuro se quiere CMV histórico exacto,
-hace falta congelar `costo_unitario` en `venta_items` al confirmar la venta — es una spec aparte.
+Contagram guarda el **costo del producto congelado en el ítem de la venta**. Ese costo no se mueve
+nunca más: ni cuando el proveedor aumenta la lista, ni cuando se edita la ficha del producto, ni
+cuando se registran compras nuevas.
+
+*Evidencia* (`actualziacion/julio/Informe_de_Ventas_Detallado_*.xlsx`, 1.016 líneas de julio 2026,
+cuadran al centavo con las cards de Contagram): el ratio `CMV Total / Costo Total Actual` por línea
+no es continuo, son **pocos valores discretos agrupados por proveedor y dependientes de la fecha de
+la venta** — FV usa 0,96618 hasta el 24/07 y 1,0 desde el 20/07; KURYMAR 0,92593 hasta el 07/07 y
+1,0 desde el 16/07; Ferrum/Ideal/Pompei SRL/GOOD LOOKING/Mauricio/RAO dan 1,0 en el 100% de sus
+líneas; Peirano tiene ratios **mayores a 1** (1,11 y 1,20: el costo bajó después de la venta). Son
+aumentos de lista por proveedor. Un promedio de compras no puede producir eso.
+
+*Fallback* para líneas sin costo congelado (todas las ventas anteriores a la spec 075, que no se
+backfillean): se usa el promedio ponderado de compras descripto abajo. El informe convive con los
+dos criterios a propósito, y está asumido.
+
+**Lo que decía la spec 068 y por qué estaba mal:**
+
+Decía que el CMV se derivaba del promedio ponderado de las compras registradas del producto
+(`SUM(compra_items.precio_unitario × cantidad) / SUM(cantidad)`, sin recorte temporal; producto sin
+compras → 0). Lo dedujo de un único caso en la cuenta demo: "los ítems de la venta Id 5 tienen Costo
+Total Actual > 0 y CMV 0 **porque esos productos nunca se compraron**".
+
+Esa última parte era una **inferencia sobre la causa, no un dato observado**. La explicación
+alternativa —"esos productos no tenían costo cargado cuando se hicieron esas ventas"— explica lo
+mismo, y con datos reales explica más: en julio hay 45 líneas de 1.016 (4,4%) con CMV 0, y el CRM
+tiene 227 productos con costo 0. Medido contra producción, la fórmula vieja daba **$24.603.190,02
+contra $40.574.923 reales**, dejando el KPI "Resultado" inflado en ~$16M.
+
+**Lección**: una regla de cálculo no se deriva de un caso único en una cuenta demo vacía. Se valida
+contra un export con volumen, cruzando al menos dos variables independientes (acá: proveedor y fecha).
+
+El CMV sigue estando explícitamente distinguido de **Costo Actual**, que es `productos.costo ×
+cantidad` (valorización vigente). Que las dos difieran es esperado y es la razón de existir de ambas.
+
+> **El Informe de Compras NO tiene este problema** — verificado el 24/08/2026 contra
+> `migracion-nueva/excel-origen/Compras/2026 Compras.xlsx`: su card "Costo Actual" es
+> `SUM(Costo × Cantidad) = 194.444.921,65`, que coincide con la card de Contagram, y 699 de 700
+> productos tienen un único valor de costo en todo el año (no varía por fecha ⇒ no está congelado).
+> Además Compras no tiene card de CMV, y el costo real de una compra ya vive en
+> `compra_items.precio_unitario`.
 
 **Divergencias deliberadas de la tanda 2 respecto de Contagram:**
 

@@ -4,7 +4,18 @@
 
 **Created**: 2026-08-15
 
-**Status**: Draft
+**Status**: Draft — ⚠️ **con una decisión corregida por la spec 075 (24/08/2026)**
+
+> **Corrección**: la regla del **Costo Mercadería Vendida** que fija esta spec (promedio ponderado de
+> las compras registradas del producto) es **incorrecta**. Contagram usa el costo del producto
+> **congelado al momento de la venta**. Medido contra julio 2026, la fórmula de esta spec daba
+> $24.603.190,02 contra $40.574.923 reales, dejando el KPI "Resultado" inflado en ~$16M.
+>
+> La premisa se dedujo de un caso único en la cuenta demo ("CMV 0 porque esos productos nunca se
+> compraron"), que era una inferencia sobre la causa y no un dato observado.
+>
+> El promedio ponderado **sigue vigente como fallback** para las líneas sin costo congelado. Todo lo
+> demás de esta spec sigue en pie. Ver `specs/075-cmv-costo-congelado/`.
 
 **Input**: User description: "Módulo Informes — Tanda 2: Informe de Ventas y Reporte Final. Fuente de verdad estructural: docs/Informe-Modulo-Informes-2026-08-14/. Continúa la Tanda 1 (spec 067) y sigue sus mismas convenciones. Fidelidad total a Contagram, incluso donde Contagram está mal: se replica el cálculo de 'Resultado' de las líneas de Nota de Crédito y el doble estándar de signos del Reporte Final. Rankings / Arma tu Informe / PivotTable.js y la vista /graphs quedan fuera de alcance."
 

@@ -3,8 +3,8 @@
 namespace App\Services\Tiendanube;
 
 use App\Enums\Tiendanube\EstadoConversion;
-use App\Models\CuentaTesoreria;
 use App\Models\Cliente;
+use App\Models\CuentaTesoreria;
 use App\Models\FuncionAvanzada;
 use App\Models\Integraciones\TiendanubeConexionRest;
 use App\Models\Integraciones\TiendanubeOrden;
@@ -37,8 +37,7 @@ class ConversorOrdenAVenta
         private readonly StockDeVenta $stockDeVenta,
         private readonly Cobranzas $cobranzas,
         private readonly CalculoComprobante $calculo,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  ?int  $clienteIdOverride  Corrección manual del Cliente resuelto (p. ej. para desambiguar, FR-038).
@@ -229,6 +228,11 @@ class ConversorOrdenAVenta
                 ]);
 
                 foreach ($lineas['items'] as $item) {
+                    // `$lineas` viene de `CalculoComprobante::calcular()`, así que cada ítem ya
+                    // trae `costo_unitario` congelado con el costo del producto vigente al momento
+                    // de crear la Venta en el CRM —no al momento de la orden en el canal— (spec
+                    // 075, `data-model.md §1`). Una línea cuyo producto no se pudo emparejar
+                    // congela 0, que en el informe significa "costo cero", no "sin costo".
                     $venta->items()->create($item);
                 }
 

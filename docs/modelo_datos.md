@@ -1720,11 +1720,12 @@ porque el desglose impositivo del Informe de Compras parece exigir campos nuevos
   (`InformeComprasDesgloseImpositivoTest::test_clasificacion_php_y_sql_coinciden`). Si en datos reales "Otras
   Percepciones" resultara el caso mayoritario, la salida es agregar un `subtipo` a la tabla y
   tipificar el concepto en el formulario de Compra — spec propia, toca el alta de Compras.
-- **`venta_items` no tiene `costo_unitario`** — sin costo histórico congelado no hay CMV real.
-  **Resuelto para la tanda 2 sin migración** (spec 068, 15/08/2026): el CMV se deriva del **costo
-  promedio ponderado de las compras registradas del producto** (ver §21). Congelar el costo al
-  confirmar la venta sigue siendo la solución exacta, pero es una spec propia que toca el alta de
-  Ventas; hasta entonces el CMV del informe es una aproximación declarada, no un dato histórico.
+- **~~`venta_items` no tiene `costo_unitario`~~ — RESUELTO por la spec 075 (24/08/2026).** La spec 068
+  había "resuelto" esto sin migración derivando el CMV del promedio ponderado de compras, sobre la
+  premisa —**refutada**— de que así lo calculaba Contagram. Medido contra datos reales, esa fórmula
+  daba $24,6M contra $40,57M y dejaba el KPI "Resultado" inflado en ~$16M. La spec 075 agrega
+  `venta_items.costo_unitario` y `nota_credito_debito_items.costo_unitario` (ver §23). El promedio
+  ponderado queda como **fallback** para las líneas históricas, que no se backfillean.
 - **`compra_items` no tiene `variante_id`** — los informes no pueden desagregar por variante. Brecha
   ya documentada en `documentacion_principal_crm.md §4.3`.
 - **El caso "gasto sin categoría" no existe en la base** — la spec 067 lo contemplaba (rótulo
@@ -1751,6 +1752,11 @@ porque el desglose impositivo del Informe de Compras parece exigir campos nuevos
 Se documenta acá porque tres cifras del módulo **parecen** exigir campos nuevos y no los exigen.
 
 ### 21.1 Costo Mercadería Vendida — columna calculada, no persistida
+
+> ⚠️ **SUPERADO por la spec 075 (24/08/2026).** Lo de abajo describe cómo funcionaba el CMV entre el
+> 15/08 y el 24/08/2026, y **sigue vigente como fallback** para las líneas de venta sin costo
+> congelado (todas las históricas). Pero **ya no es la regla**: el CMV real es el costo del producto
+> congelado al crear la venta. Ver **§23** y `specs/075-cmv-costo-congelado/`.
 
 `venta_items` no guarda el costo del momento de la venta (§Deuda de modelo). El CMV del informe se
 deriva en SQL, sin migración:
@@ -1857,3 +1863,99 @@ sumarlo lo contaría de más — la misma trampa ya documentada para el detalle 
 Productos" es la suma de `cantidad`.
 
 *Fuente(s): `specs/069-informes-rankings-pivot/` (`research.md` R1-R9; `data-model.md`)*
+
+---
+
+## 23. Costo congelado en el ítem de venta (spec 075): **dos columnas nuevas**
+
+> **Resumen**: se agrega `costo_unitario` a `venta_items` y a `nota_credito_debito_items`. Corrige el
+> CMV del Informe de Ventas, que la spec 068 había derivado sobre una premisa refutada (§21.1).
+
+### 23.1 Las columnas
+
+| Tabla | Columna | Tipo | Nullable | Default |
+|---|---|---|---|---|
+| `venta_items` | `costo_unitario` | `decimal(14,2)` | **Sí** | **ninguno** |
+| `nota_credito_debito_items` | `costo_unitario` | `decimal(14,2)` | **Sí** | **ninguno** |
+
+Costo del producto vigente en el momento en que se creó el comprobante. Inmutable: ninguna edición
+posterior ni cambio en la ficha del producto lo recalcula.
+
+### 23.2 Por qué nullable y SIN default (lo más importante de este cambio)
+
+- **`NULL`** = "esta línea no tiene costo congelado" ⇒ el CMV cae al promedio ponderado de compras
+  (§21.1, que pasa a ser el fallback). Es el estado de **todas** las líneas históricas.
+- **`0`** = "esta línea tiene costo congelado y vale cero" ⇒ el CMV es 0. Es el caso del producto sin
+  costo cargado (227 productos hoy) o de la línea sin producto asociado.
+
+Un `default 0` haría estos dos casos indistinguibles: el fallback nunca se activaría y **todas las
+ventas históricas pasarían a aportar 0 al CMV**. Es la regresión que la spec 075 prohíbe
+explícitamente (SC-003). Mismo tipo de trampa ya documentada para `compra_items.iva_pct`.
+
+Por la misma razón está **prohibido** escribir `NULLIF(costo_unitario, 0)` en la expresión del
+informe: convertiría el 0 legítimo en "sin congelar" y los productos sin costo tomarían el promedio
+de compras, dejando de reproducir a Contagram.
+
+### 23.3 Expresión del CMV
+
+Una sola expresión para ventas, NC y ND, sin ramas por tipo de comprobante:
+
+```
+CMV_linea = COALESCE(<tabla>.costo_unitario, costo_compras.costo_promedio, 0) × <cantidad_firmada>
+```
+
+El `leftJoinSub` de `CostoMercaderiaVendida` se conserva tal cual: deja de ser la regla y pasa a ser
+el segundo término del `COALESCE`. El costo se guarda **en positivo**; el signo lo aporta la cantidad.
+
+### 23.4 Cuándo se congela
+
+| Situación | Valor |
+|---|---|
+| Alta de venta, línea con producto | `productos.costo` vigente |
+| Alta de venta, sin `producto_id` o producto sin costo | `0` |
+| Edición, línea preexistente | **se conserva** el valor anterior |
+| Edición, línea agregada en esa edición | `productos.costo` del día de la edición |
+| Mercado Libre / Tiendanube | `productos.costo` al crear la venta en el CRM |
+| Desde presupuesto | `productos.costo` al crear la **venta**, no el presupuesto |
+| Línea de NC/ND cuyo producto está en la venta de origen | copia del costo congelado de esa línea de la venta |
+| Línea de NC/ND cuyo producto no está en la venta, o nota sin `venta_id` | `productos.costo` al emitir la nota |
+| Comandos de migración histórica | **no se toca** ⇒ `NULL` ⇒ fallback |
+
+`nota_credito_debito_items` no guarda referencia al `venta_item` de origen: la correspondencia se
+resuelve por `notas_credito_debito.venta_id` + `producto_id`, consumiendo cada costo una sola vez y
+en orden de línea (una venta con el mismo producto en dos líneas revierte los dos costos).
+
+**Corrección del 24/08/2026, durante la implementación**: la regla NO mira la columna `origen`,
+aunque la spec 075 estaba redactada en función de ella. En `NotaCreditoDebitoController` `origen`
+no distingue "revierte la venta original" de "ajuste nuevo": distingue si la nota **afecta stock**
+o no. Una NC que anula una venta entera sin tocar stock guarda todas sus líneas como `nuevo`, así
+que la regla original le habría aplicado el costo de hoy y anular una venta habría dejado un
+residuo en el Resultado — justo lo que FR-008 quería evitar. La correspondencia por venta +
+producto refleja la intención y no depende de ese flag.
+
+Un `NULL` heredado también se conserva: la NC de una venta histórica cae al mismo fallback que la
+venta que revierte, y el neto entre las dos sigue dando cero.
+
+**Segunda corrección, de la validación en navegador (24/08/2026)**: el formulario de NC/ND **agrupa
+por producto** los ítems de la venta original, así que una línea de nota con cantidad N puede estar
+revirtiendo N líneas de venta con costos congelados distintos. El costo de la línea de nota es
+entonces el **promedio ponderado** de las líneas de venta que consume hasta cubrir su cantidad, no
+el de la primera. Sin esto, anular una venta con el mismo producto en dos líneas de costos
+distintos dejaba residuo en el Resultado.
+
+### 23.5 Sin backfill (y cómo se haría si algún día se quiere)
+
+Las filas existentes quedan en `NULL` a propósito. El backfill es **viable y exacto** desde los
+exports "Informe de Ventas Detallado" de Contagram: `costo_unitario = CMV Total ÷ Cantidad`, con
+llave `Id` de venta + `Código` de producto. Limitaciones: 4,4% de las líneas tienen CMV 0 y no hay
+nada que recuperar, y las ventas creadas en el CRM después del corte del 13/08/2026 no existen en
+Contagram.
+
+### 23.6 El Informe de Compras no cambia
+
+Verificado contra `migracion-nueva/excel-origen/Compras/2026 Compras.xlsx`: su card "Costo Actual" ya
+es costo vigente × cantidad (coincide al peso con la suma del export), el costo no varía por fecha de
+compra (699 de 700 productos con un único valor en todo el año) y el informe no tiene card de CMV.
+Además el costo real de una compra ya vive en `compra_items.precio_unitario`.
+
+*Fuente(s): `specs/075-cmv-costo-congelado/` (`research.md` R1-R9; `data-model.md`; `contracts/cmv-api.md`)*

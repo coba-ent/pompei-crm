@@ -2,6 +2,7 @@
 
 namespace App\Services\Informes;
 
+use App\Exports\Informes\InformeVentasExport;
 use App\Models\NotaCreditoDebito;
 use App\Models\Venta;
 use App\Services\Ingresos\SqlCredito;
@@ -34,7 +35,7 @@ use Illuminate\Support\Facades\DB;
  * cálculo por tipo de comprobante (FR-016).
  *
  * La réplica del bug de Contagram sobre esa celda (R1) **no está acá**: vive confinada en
- * {@see \App\Exports\Informes\InformeVentasExport}, sobre la hoja legible del Excel y nada más.
+ * {@see InformeVentasExport}, sobre la hoja legible del Excel y nada más.
  */
 class VentasInformeQuery
 {
@@ -87,6 +88,10 @@ class VentasInformeQuery
                 producto: 'COALESCE(productos.nombre, venta_items.descripcion)',
                 cantidad: $cantidad,
                 precioUnitario: 'venta_items.precio_unitario',
+                // Costo congelado al crear la línea (spec 075). Es la regla del CMV; el promedio
+                // ponderado de compras del `leftJoinSub` quedó como fallback para las líneas
+                // históricas, que tienen esta columna en `NULL`.
+                costoCongelado: 'venta_items.costo_unitario',
                 // `venta_items.subtotal` ya viene neto de IVA y con los dos descuentos aplicados
                 // (el de línea y el general), que es exactamente "Precio Total Neto" (FR-016b).
                 precioNeto: 'venta_items.subtotal',
@@ -129,7 +134,9 @@ class VentasInformeQuery
      * $0,00 aunque la plata estuviera bien cargada en `monto`. Una nota sin ítems aporta ahora una
      * fila con cantidad y precio en cero, pero **con su `monto`**, que es lo que alimenta el KPI
      * (ver {@see self::kpis()}, que suma a nivel nota y no a nivel línea). Las columnas que sólo
-     * viven en el ítem —unidades, costo, CMV— quedan en cero hasta que se migre ese detalle.
+     * viven en el ítem —unidades, costo, CMV— quedan en cero hasta que se migre ese detalle: eso
+     * sigue valiendo con el costo congelado de la spec 075, porque sin fila de ítem
+     * `costo_unitario` es `NULL`, el promedio de compras también, y el `COALESCE` cierra en 0.
      */
     private function queryNotas(Request $request): Builder
     {
@@ -166,6 +173,12 @@ class VentasInformeQuery
                 producto: "COALESCE(productos.nombre, notas_credito_debito.descripcion, '')",
                 cantidad: $cantidad,
                 precioUnitario: "{$signo} * COALESCE({$tabla}.precio, 0)",
+                // Costo congelado de la línea de la nota (spec 075). Se guarda en positivo: el
+                // signo ya lo trae `$cantidad`. Una nota migrada sin detalle no trae fila por el
+                // LEFT JOIN, así que esto es `NULL`, el promedio de compras también, y el
+                // `COALESCE` cierra en 0 — el KPI "Total Nota de Crédito" sigue saliendo del
+                // `monto` de la nota y no se toca.
+                costoCongelado: $tabla.'.costo_unitario',
                 precioNeto: $this->sqlNetoNota($tabla, $signo),
                 totalComprobante: "{$signo} * notas_credito_debito.monto",
                 productoId: $tabla.'.producto_id',
@@ -203,7 +216,7 @@ class VentasInformeQuery
         // por el LEFT JOIN, y su neto es 0 —no NULL, que envenenaría el SUM del KPI—.
         $brutoLinea = "COALESCE({$tabla}.cantidad * {$tabla}.precio * (1 - COALESCE({$tabla}.descuento_pct, 0) / 100), 0)";
 
-        $brutoNota = "(SELECT SUM(i2.cantidad * i2.precio * (1 - COALESCE(i2.descuento_pct, 0) / 100)) ".
+        $brutoNota = '(SELECT SUM(i2.cantidad * i2.precio * (1 - COALESCE(i2.descuento_pct, 0) / 100)) '.
             "FROM {$tabla} i2 WHERE i2.nota_credito_debito_id = notas_credito_debito.id)";
 
         $factor = "(CASE WHEN notas_credito_debito.descuento_general_tipo = 'monto' ".
@@ -244,6 +257,7 @@ class VentasInformeQuery
         string $producto,
         string $cantidad,
         string $precioUnitario,
+        ?string $costoCongelado,
         string $precioNeto,
         string $totalComprobante,
         string $productoId,
@@ -258,7 +272,7 @@ class VentasInformeQuery
         string $etiquetas,
     ): string {
         $costoActual = "COALESCE(productos.costo, 0) * ({$cantidad})";
-        $cmv = $this->cmv->sqlCmv($cantidad);
+        $cmv = $this->cmv->sqlCmv($cantidad, $costoCongelado);
 
         return implode(', ', [
             "{$id} as id",

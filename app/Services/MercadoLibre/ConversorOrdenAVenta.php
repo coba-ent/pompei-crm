@@ -40,8 +40,7 @@ class ConversorOrdenAVenta
         private readonly Cobranzas $cobranzas,
         private readonly CalculoComprobante $calculo,
         private readonly ClienteMercadoLibre $cliente,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  ?int  $clienteIdOverride  Corrección manual del Cliente resuelto (p. ej. para desambiguar, FR-038).
@@ -176,7 +175,7 @@ class ConversorOrdenAVenta
      * (FR-036/FR-037/FR-039), porque Contagram resuelve el Cliente como el
      * primer paso del mismo flujo, no como un efecto exclusivo del guardado.
      *
-     * @return array{datos_fiscales: array, cliente: ?\App\Models\Cliente, cliente_ambiguo: bool, lineas: array}
+     * @return array{datos_fiscales: array, cliente: ?Cliente, cliente_ambiguo: bool, lineas: array}
      */
     public function previsualizar(MercadoLibreOrden $orden): array
     {
@@ -312,6 +311,11 @@ class ConversorOrdenAVenta
                 ]);
 
                 foreach ($lineas['items'] as $item) {
+                    // `$lineas` viene de `CalculoComprobante::calcular()`, así que cada ítem ya
+                    // trae `costo_unitario` congelado con el costo del producto vigente al momento
+                    // de crear la Venta en el CRM —no al momento de la orden en el canal— (spec
+                    // 075, `data-model.md §1`). Una línea cuyo producto no se pudo emparejar
+                    // congela 0, que en el informe significa "costo cero", no "sin costo".
                     $venta->items()->create($item);
                 }
 

@@ -7,16 +7,21 @@ use App\Http\Requests\UpdateNotaCreditoDebitoRequest;
 use App\Models\Compra;
 use App\Models\DatosEmpresa;
 use App\Models\Deposito;
+use App\Models\FuncionAvanzada;
 use App\Models\NotaCreditoDebito;
 use App\Models\Producto;
 use App\Models\Venta;
+use App\Services\AjustesPendientesNotaCreditoDebito;
 use App\Services\Arca\EmisorComprobante;
 use App\Services\Arca\Excepciones\ArcaNoDisponibleException;
 use App\Services\Arca\Excepciones\ArcaRechazoException;
 use App\Services\Arca\Excepciones\CertificadoNoConfiguradoException;
-use App\Services\AjustesPendientesNotaCreditoDebito;
+use App\Services\Arca\MapeadorComprobante;
 use App\Services\Stock\StockService;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Endroid\QrCode\Builder\Builder;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 /** NC/ND (US4): wizard de 2 pasos sobre una venta, opcionalmente afecta stock. */
@@ -26,8 +31,7 @@ class NotaCreditoDebitoController extends Controller
         private readonly StockService $stockService,
         private readonly EmisorComprobante $emisorComprobante,
         private readonly AjustesPendientesNotaCreditoDebito $ajustesPendientes,
-    ) {
-    }
+    ) {}
 
     /** Spec 045 (T006): productos del comprobante original con su cantidad pendiente de ajuste. */
     public function itemsDisponiblesVenta(Venta $venta): JsonResponse
@@ -125,6 +129,8 @@ class NotaCreditoDebitoController extends Controller
                 'impuestos' => $datos['conceptos'] ?? [],
             ]);
 
+            $costosOriginales = $this->costosCongeladosDeLaVenta($venta);
+
             if ($afectaStock) {
                 $deposito = Deposito::findOrFail($datos['deposito_id']);
                 // NC repone stock (entrada); ND lo descuenta (salida) — research.md §9.
@@ -133,14 +139,9 @@ class NotaCreditoDebitoController extends Controller
                 foreach ($datos['items'] as $item) {
                     $producto = Producto::findOrFail($item['producto_id']);
 
-                    $nota->items()->create([
-                        'producto_id' => $producto->id,
-                        'cantidad' => $item['cantidad'],
-                        'precio' => $item['precio'] ?? 0,
-                        'descuento_pct' => $item['descuento_pct'] ?? 0,
-                        'iva_pct' => $item['iva_pct'] ?? null,
-                        'origen' => 'venta_original',
-                    ]);
+                    $nota->items()->create($this->atributosItemNota(
+                        ['producto_id' => $producto->id] + $item, 'venta_original', $costosOriginales
+                    ));
 
                     $this->stockService->ajustar(
                         $producto,
@@ -159,14 +160,7 @@ class NotaCreditoDebitoController extends Controller
                 // en silencio y el form de editar quedaba con el IVA en "Elegir" (detectado en
                 // QA manual 11/08/2026).
                 foreach ($datos['items'] as $item) {
-                    $nota->items()->create([
-                        'producto_id' => $item['producto_id'] ?? null,
-                        'cantidad' => $item['cantidad'] ?? 1,
-                        'precio' => $item['precio'] ?? 0,
-                        'descuento_pct' => $item['descuento_pct'] ?? 0,
-                        'iva_pct' => $item['iva_pct'] ?? null,
-                        'origen' => 'nuevo',
-                    ]);
+                    $nota->items()->create($this->atributosItemNota($item, 'nuevo', $costosOriginales));
                 }
             }
 
@@ -202,12 +196,12 @@ class NotaCreditoDebitoController extends Controller
 
         $qrDataUri = null;
         if ($url = $notaCreditoDebito->comprobanteFiscal?->urlQrAfip()) {
-            $qrDataUri = (new \Endroid\QrCode\Builder\Builder())
+            $qrDataUri = (new Builder)
                 ->build(data: $url, size: 150)
                 ->getDataUri();
         }
 
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('notas-credito-debito.pdf', compact('notaCreditoDebito', 'qrDataUri', 'datosEmpresa'));
+        $pdf = Pdf::loadView('notas-credito-debito.pdf', compact('notaCreditoDebito', 'qrDataUri', 'datosEmpresa'));
 
         return $pdf->stream('nota-'.$notaCreditoDebito->id.'.pdf', ['Content-Disposition' => 'inline']);
     }
@@ -215,7 +209,7 @@ class NotaCreditoDebitoController extends Controller
     /** US3: la NC/ND obtiene su propio CAE referenciando el comprobante original de la Venta. */
     private function emitirComprobanteFiscalNota($nota, Venta $venta, $comprobanteVenta): ?string
     {
-        if (! \App\Models\FuncionAvanzada::activa('facturacion_electronica')) {
+        if (! FuncionAvanzada::activa('facturacion_electronica')) {
             return null;
         }
 
@@ -231,7 +225,7 @@ class NotaCreditoDebitoController extends Controller
             'total' => (float) $nota->monto,
             'comprobante_ajustado_id' => $comprobanteVenta->id,
             'comprobante_ajustado' => [
-                'tipo' => (new \App\Services\Arca\MapeadorComprobante())->cbteTipo($comprobanteVenta->tipo_comprobante),
+                'tipo' => (new MapeadorComprobante)->cbteTipo($comprobanteVenta->tipo_comprobante),
                 'punto_venta' => $comprobanteVenta->puntoVenta?->numero ?? 0,
                 'numero' => (int) last(explode('-', $comprobanteVenta->numero ?? '0-0')),
             ],
@@ -271,6 +265,10 @@ class NotaCreditoDebitoController extends Controller
                 'impuestos' => $datos['conceptos'] ?? [],
             ]);
 
+            // Una nota de COMPRA no tiene venta de origen de la que copiar costo: sus líneas
+            // congelan el costo vigente, como cualquier línea nueva.
+            $costosOriginales = [];
+
             if ($afectaStock) {
                 $deposito = Deposito::findOrFail($datos['deposito_id']);
                 // NC de compra (proveedor te acredita, devolución) descuenta stock; ND lo suma — inverso a Venta.
@@ -279,14 +277,9 @@ class NotaCreditoDebitoController extends Controller
                 foreach ($datos['items'] as $item) {
                     $producto = Producto::findOrFail($item['producto_id']);
 
-                    $nota->items()->create([
-                        'producto_id' => $producto->id,
-                        'cantidad' => $item['cantidad'],
-                        'precio' => $item['precio'] ?? 0,
-                        'descuento_pct' => $item['descuento_pct'] ?? 0,
-                        'iva_pct' => $item['iva_pct'] ?? null,
-                        'origen' => 'venta_original',
-                    ]);
+                    $nota->items()->create($this->atributosItemNota(
+                        ['producto_id' => $producto->id] + $item, 'venta_original', $costosOriginales
+                    ));
 
                     $this->stockService->ajustar(
                         $producto,
@@ -302,14 +295,7 @@ class NotaCreditoDebitoController extends Controller
             } elseif (! empty($datos['items'])) {
                 // Sin stock: idem store() — persistir el ítem para que la edición lo reconstruya.
                 foreach ($datos['items'] as $item) {
-                    $nota->items()->create([
-                        'producto_id' => $item['producto_id'] ?? null,
-                        'cantidad' => $item['cantidad'] ?? 1,
-                        'precio' => $item['precio'] ?? 0,
-                        'descuento_pct' => $item['descuento_pct'] ?? 0,
-                        'iva_pct' => $item['iva_pct'] ?? null,
-                        'origen' => 'nuevo',
-                    ]);
+                    $nota->items()->create($this->atributosItemNota($item, 'nuevo', $costosOriginales));
                 }
             }
 
@@ -373,6 +359,8 @@ class NotaCreditoDebitoController extends Controller
 
             $nota->items()->delete();
 
+            $costosOriginales = $this->costosCongeladosDeLaVenta($venta);
+
             if ($afectaStock) {
                 $deposito = Deposito::findOrFail($datos['deposito_id']);
                 // Mismo signo que store()/storeCompra() — venta y compra son inversas entre sí.
@@ -383,14 +371,9 @@ class NotaCreditoDebitoController extends Controller
                 foreach ($datos['items'] as $item) {
                     $producto = Producto::findOrFail($item['producto_id']);
 
-                    $nota->items()->create([
-                        'producto_id' => $producto->id,
-                        'cantidad' => $item['cantidad'],
-                        'precio' => $item['precio'] ?? 0,
-                        'descuento_pct' => $item['descuento_pct'] ?? 0,
-                        'iva_pct' => $item['iva_pct'] ?? null,
-                        'origen' => 'venta_original',
-                    ]);
+                    $nota->items()->create($this->atributosItemNota(
+                        ['producto_id' => $producto->id] + $item, 'venta_original', $costosOriginales
+                    ));
 
                     $this->stockService->ajustar(
                         $producto,
@@ -405,14 +388,7 @@ class NotaCreditoDebitoController extends Controller
                 }
             } elseif (! empty($datos['items'])) {
                 foreach ($datos['items'] as $item) {
-                    $nota->items()->create([
-                        'producto_id' => $item['producto_id'] ?? null,
-                        'cantidad' => $item['cantidad'] ?? 1,
-                        'precio' => $item['precio'] ?? 0,
-                        'descuento_pct' => $item['descuento_pct'] ?? 0,
-                        'iva_pct' => $item['iva_pct'] ?? null,
-                        'origen' => 'nuevo',
-                    ]);
+                    $nota->items()->create($this->atributosItemNota($item, 'nuevo', $costosOriginales));
                 }
             }
         });
@@ -430,18 +406,18 @@ class NotaCreditoDebitoController extends Controller
     }
 
     /** US2 (spec 057): elimina (soft delete) una NC/ND de Venta — bloquea por CAE o por cadena. */
-    public function destroy(\Illuminate\Http\Request $request, Venta $venta, NotaCreditoDebito $notaCreditoDebito): JsonResponse
+    public function destroy(Request $request, Venta $venta, NotaCreditoDebito $notaCreditoDebito): JsonResponse
     {
         return $this->aplicarEliminacion($request, $notaCreditoDebito, $venta, null);
     }
 
     /** Idem para Compra. */
-    public function destroyCompra(\Illuminate\Http\Request $request, Compra $compra, NotaCreditoDebito $notaCreditoDebito): JsonResponse
+    public function destroyCompra(Request $request, Compra $compra, NotaCreditoDebito $notaCreditoDebito): JsonResponse
     {
         return $this->aplicarEliminacion($request, $notaCreditoDebito, null, $compra);
     }
 
-    private function aplicarEliminacion(\Illuminate\Http\Request $request, NotaCreditoDebito $nota, ?Venta $venta, ?Compra $compra): JsonResponse
+    private function aplicarEliminacion(Request $request, NotaCreditoDebito $nota, ?Venta $venta, ?Compra $compra): JsonResponse
     {
         if ($nota->tieneCaeAprobado()) {
             return response()->json([
@@ -476,5 +452,142 @@ class NotaCreditoDebitoController extends Controller
             'a_cobrar' => $venta?->fresh()->aCobrar(),
             'a_pagar' => $compra?->fresh()->aPagar(),
         ]);
+    }
+
+    /**
+     * Costos congelados de la venta de origen, por `producto_id` y en orden de línea (spec 075).
+     *
+     * Cada entrada de la cola es `['cantidad' => x, 'costo' => y]`, **no** un costo suelto, y la
+     * razón la encontró una prueba en navegador: el formulario de NC/ND **agrupa por producto**
+     * los ítems de la venta original, así que una sola línea de nota con cantidad 2 puede estar
+     * revirtiendo dos líneas de venta con costos congelados distintos. Con una cola de costos
+     * sueltos se consumía uno solo, la NC revertía 2 × el primer costo y anular la venta dejaba un
+     * residuo en el Resultado — justo lo que FR-008 prohíbe.
+     *
+     * Un `null` en la cola es un valor válido y significativo: la venta original es histórica y no
+     * tiene costo congelado, así que la nota que la revierte también cae al promedio de compras y
+     * el neto entre las dos sigue dando cero.
+     *
+     * @return array<int, list<array{cantidad: float, costo: float|null}>>
+     */
+    private function costosCongeladosDeLaVenta(?Venta $venta): array
+    {
+        if (! $venta) {
+            return [];
+        }
+
+        $cola = [];
+
+        foreach ($venta->items()->orderBy('id')->get() as $item) {
+            if ($item->producto_id === null) {
+                continue;
+            }
+
+            $cola[(int) $item->producto_id][] = [
+                'cantidad' => abs((float) $item->cantidad),
+                'costo' => $item->costo_unitario === null ? null : (float) $item->costo_unitario,
+            ];
+        }
+
+        return $cola;
+    }
+
+    /**
+     * Atributos de una línea de nota, con su costo congelado resuelto (spec 075, `data-model.md §2`).
+     *
+     * Estaba repetido en los seis puntos de creación de los tres métodos del controlador; con la
+     * regla del costo encima, mantener seis copias sincronizadas era cuestión de tiempo hasta que
+     * una quedara atrás.
+     *
+     * El costo se guarda **siempre en positivo**: el signo de la nota lo aporta la cantidad en la
+     * expresión del informe, no el costo (invariante I5). `null` sólo aparece heredado de una
+     * venta histórica; una línea nueva sin producto o con producto sin costo congela `0`.
+     *
+     * @param  array<string, mixed>  $item
+     * @param  array<int, list<array{cantidad: float, costo: float|null}>>  $costosOriginales  cola por producto, consumida acá
+     * @return array<string, mixed>
+     */
+    private function atributosItemNota(array $item, string $origen, array &$costosOriginales): array
+    {
+        $productoId = $item['producto_id'] ?? null;
+        $cantidad = $item['cantidad'] ?? 1;
+
+        return [
+            'producto_id' => $productoId,
+            'cantidad' => $cantidad,
+            'precio' => $item['precio'] ?? 0,
+            'costo_unitario' => $this->costoCongeladoDeLaNota($productoId, (float) $cantidad, $costosOriginales),
+            'descuento_pct' => $item['descuento_pct'] ?? 0,
+            'iva_pct' => $item['iva_pct'] ?? null,
+            'origen' => $origen,
+        ];
+    }
+
+    /**
+     * Costo unitario a congelar en una línea de nota, consumiendo la cola de la venta de origen.
+     *
+     * Consume tantas líneas de la venta como haga falta para cubrir `$cantidad` y devuelve el
+     * **promedio ponderado** de los costos consumidos. Con eso el CMV que la nota revierte iguala
+     * exactamente el que aportaron esas líneas, aunque la nota las traiga agrupadas en una sola.
+     *
+     * Si la cola se agota antes de cubrir la cantidad, el remanente se valúa al costo vigente
+     * (es una cantidad que no salió de la venta original). Si todo lo consumido era `null` se
+     * devuelve `null` y la línea cae al mismo fallback que la venta que revierte; en el caso
+     * mixto —una venta histórica que después se editó agregando una línea nueva— se promedia
+     * sobre las que sí tienen costo, que es lo más cerca del valor real que se puede llegar.
+     *
+     * @param  array<int, list<array{cantidad: float, costo: float|null}>>  $costosOriginales
+     */
+    private function costoCongeladoDeLaNota(mixed $productoId, float $cantidad, array &$costosOriginales): ?float
+    {
+        if (empty($productoId)) {
+            return 0.0;
+        }
+
+        $productoId = (int) $productoId;
+        $pendiente = abs($cantidad);
+        $cantidadValuada = 0.0;
+        $costoAcumulado = 0.0;
+        $huboNull = false;
+
+        // La condición NO mira `origen`, aunque `data-model.md §2` esté redactado en función de
+        // él: en este controlador `origen` no distingue "revierte la venta" de "ajuste nuevo",
+        // distingue si la nota afecta stock o no —una NC que anula una venta entera sin tocar
+        // stock guarda sus líneas como `nuevo`—. Keyear la regla en `origen` hacía que ese caso,
+        // que es el común, tomara el costo de hoy y dejara un residuo en el Resultado.
+        while ($pendiente > 0 && ($costosOriginales[$productoId] ?? []) !== []) {
+            $linea = $costosOriginales[$productoId][0];
+            $toma = $linea['cantidad'] <= 0 ? $pendiente : min($pendiente, $linea['cantidad']);
+
+            if ($linea['costo'] === null) {
+                $huboNull = true;
+            } else {
+                $cantidadValuada += $toma;
+                $costoAcumulado += $toma * $linea['costo'];
+            }
+
+            $pendiente -= $toma;
+            $restante = $linea['cantidad'] - $toma;
+
+            if ($restante > 0.0000001) {
+                $costosOriginales[$productoId][0]['cantidad'] = $restante;
+            } else {
+                array_shift($costosOriginales[$productoId]);
+            }
+        }
+
+        if ($cantidadValuada > 0) {
+            return round($costoAcumulado / $cantidadValuada, 2);
+        }
+
+        // Todo lo consumido venía de una venta histórica sin costo congelado: se hereda el `null`
+        // para que la nota caiga al mismo fallback que la venta.
+        if ($huboNull) {
+            return null;
+        }
+
+        $costo = Producto::whereKey($productoId)->value('costo');
+
+        return $costo === null ? 0.0 : round((float) $costo, 2);
     }
 }

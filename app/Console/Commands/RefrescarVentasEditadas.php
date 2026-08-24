@@ -122,6 +122,9 @@ class RefrescarVentasEditadas extends Command
 
                 foreach ($items as $item) {
                     unset($item['_sin_descuento']);
+                    // `$item` no trae `costo_unitario`, así que la línea recreada queda en NULL
+                    // y sigue cayendo al promedio de compras. Es lo correcto: esto refresca ventas
+                    // históricas de Contagram, que nunca tuvieron costo congelado (spec 075).
                     $vi = new VentaItem($item + ['venta_id' => $venta->id]);
                     $vi->created_at = $venta->created_at;
                     $vi->updated_at = $venta->created_at;

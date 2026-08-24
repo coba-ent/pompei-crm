@@ -64,10 +64,15 @@ class MigrarVentasContagram extends Command
 
     /** @var array<string,int|null> cachés nombre => id, para no consultar 24.000 veces */
     private array $clientes = [];
+
     private array $categorias = [];
+
     private array $listas = [];
+
     private array $vendedores = [];
+
     private array $depositos = [];
+
     private array $productos = [];
 
     private array $problemas = [];
@@ -342,6 +347,8 @@ class MigrarVentasContagram extends Command
             $venta->save();
 
             foreach ($c['items'] as $item) {
+                // Sin `costo_unitario` A PROPÓSITO: ver el comentario equivalente en
+                // `ImportarVentasHistoricas` (spec 075, `data-model.md §1`).
                 $vi = new VentaItem([
                     'venta_id' => $venta->id,
                     'producto_id' => $this->producto($item, $dryRun),
