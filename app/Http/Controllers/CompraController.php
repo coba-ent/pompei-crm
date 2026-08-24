@@ -169,7 +169,11 @@ class CompraController extends Controller
         }
         if ($request->filled('factura_buscar')) {
             $kw = $request->input('factura_buscar');
+            // El Nro. de Factura del proveedor vive en `compras.nro_comprobante`; la tabla
+            // `comprobantes_fiscales` sólo guarda los comprobantes que emitimos nosotros por ARCA
+            // (Ventas) o el CAE que el proveedor declara a mano, que casi ninguna Compra tiene.
             $query->where(fn (Builder $q) => $q->where('tipo_comprobante', 'like', "%{$kw}%")
+                ->orWhere('nro_comprobante', 'like', "%{$kw}%")
                 ->orWhereHas('comprobanteFiscal', fn (Builder $qq) => $qq->where('numero', 'like', "%{$kw}%")));
         }
         if ($request->filled('etiqueta_id')) {
@@ -227,13 +231,12 @@ class CompraController extends Controller
 
     public function data(Request $request): JsonResponse
     {
-        $query = $this->queryFiltrada($request)->with(['etiquetas:id,nombre', 'comprobanteFiscal']);
+        $query = $this->queryFiltrada($request)->with('etiquetas:id,nombre');
 
         return DataTables::eloquent($query)
             ->addColumn('acciones', fn (Compra $c) => view('compras._row_actions', ['compra' => $c])->render())
             ->addColumn('estado_pago', fn (Compra $c) => $c->estadoPago())
             ->addColumn('proveedor', fn (Compra $c) => optional($c->proveedor)->nombre)
-            ->addColumn('numero_factura', fn (Compra $c) => optional($c->comprobanteFiscal)->numero)
             ->addColumn('categoria', fn (Compra $c) => optional($c->categoria)->nombre)
             ->addColumn('pagado', fn (Compra $c) => $c->pagado())
             ->addColumn('a_pagar', fn (Compra $c) => $c->aPagar())

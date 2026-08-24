@@ -223,7 +223,7 @@
                 { data: 'fecha_emision', name: 'fecha_emision' },
                 { data: 'fecha_vto_pago', name: 'fecha_vto_pago' },
                 { data: 'proveedor', name: 'proveedor.nombre' },
-                { data: 'numero_factura', name: 'numero_factura', orderable: false, searchable: false },
+                { data: 'nro_comprobante', name: 'nro_comprobante' },
                 { data: 'categoria', name: 'categoria.nombre' },
                 { data: 'subtotal_sin_descuento', name: 'subtotal_sin_descuento', render: money },
                 { data: 'descuento', name: 'descuento', render: money },
