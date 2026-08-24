@@ -2468,6 +2468,17 @@ cálculo del cruce al servidor antes que subir el tope.
   Precio, Total Comprobante — este último repetido por fila, **no sumable por fila**). Panel de 12
   filtros: Id, Producto/Servicio, Tipo de Producto/Servicio, Etiqueta, Productos, Facturado,
   Categoría de Compra, Proveedor, Tipo y N° de Factura, Usuario, Observación, Estado del Pago.
+
+  > **Brecha detectada por la spec 076 (24/08/2026, CHK036/T045) — sin cerrar**: el párrafo de
+  > arriba ("repetido por fila, no sumable") es **exactamente** la misma afirmación que tenía esta
+  > sección para el Informe de Ventas antes de que la spec 076 la corrigiera (§ Informe de Ventas,
+  > arriba) — y en Ventas resultó ser falsa: Contagram muestra el importe de cada línea, no el
+  > total del comprobante repetido. `InformeComprasExport` y `resources/js/informe-compras.js`
+  > todavía usan/muestran `total_comprobante` (repetido) en vez de un importe por línea, igual que
+  > hacía Ventas antes de esta spec. **No se corrigió acá**: la spec 076 tiene alcance explícito
+  > sólo sobre Ventas (`spec.md` Assumptions, `research.md §R6`). Queda pendiente una spec propia
+  > para Compras que repita el mismo diagnóstico y arreglo (importe de línea + prorrateo de
+  > conceptos extra si los tiene) antes de dar por buena esta descripción.
 - **Informe de Gastos** (`/informes/gastos`): el más simple. Bloque Desde/Hasta/Gasto Total y
   estructura jerárquica Categoría → Subcategoría expandible con subtotal por nivel y detalle (Id,
   Fecha, Descripción, Medio de Pago, Total). Filtros: Categoría y/o Subcategoría, Medio de pago,

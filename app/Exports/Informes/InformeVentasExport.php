@@ -66,7 +66,8 @@ class InformeVentasExport implements WithMultipleSheets
             $f->id,
             $this->fecha($f->fecha),
             $f->cliente,
-            $f->tipo_comprobante,
+            // Sigla completa (FCA/FCB/FC, NCA/NCB/NC, NDA/NDB/ND) y no la letra sola (FR-021).
+            $f->sigla_comprobante,
             $f->producto,
             $this->num($f->cantidad),
             $this->num($f->precio_unitario),
@@ -74,7 +75,7 @@ class InformeVentasExport implements WithMultipleSheets
             $this->num($f->cmv_total),
             $this->num($f->precio_neto),
             $this->resultadoComoContagram($f),
-            $this->num($f->total_comprobante),
+            $this->num($f->total_venta),
         ], $filas);
 
         // Los totales salen de los KPIs, **no** de sumar columnas del detalle: "Total
@@ -138,7 +139,8 @@ class InformeVentasExport implements WithMultipleSheets
             $operacion[$f->tipo_operacion] ?? $f->tipo_operacion,
             $this->fecha($f->fecha),
             $f->comprobante,
-            $f->tipo_comprobante,
+            // Sigla completa y no la letra sola (FR-021).
+            $f->sigla_comprobante,
             $f->nro_comprobante,
             $f->cliente,
             $f->producto,
@@ -149,7 +151,7 @@ class InformeVentasExport implements WithMultipleSheets
             $this->num($f->precio_neto),
             // Fórmula correcta en TODAS las filas: es la hoja destinada a reprocesamiento.
             $this->num($f->resultado),
-            $this->num($f->total_comprobante),
+            $this->num($f->total_venta),
         ], $filas);
 
         return new HojaInforme(

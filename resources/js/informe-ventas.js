@@ -41,10 +41,29 @@
         const money = (v) => (v === null || v === undefined || v === '')
             ? ''
             : new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
+        // Formato contable: negativos en rojo y entre paréntesis, SÓLO en pantalla (FR-016). Los
+        // archivos exportados siguen con números negativos crudos, para que Excel los sume.
+        const moneyContable = (v) => {
+            if (v === null || v === undefined || v === '') { return ''; }
+            const numero = Number(v);
+            const formateado = money(Math.abs(numero));
+
+            return numero < 0
+                ? '<span class="text-danger">(' + formateado + ')</span>'
+                : formateado;
+        };
         const cantidad = (v) => (v === null || v === undefined || v === '')
             ? ''
             : new Intl.NumberFormat('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 3 }).format(v);
         const fecha = (v) => (v ? String(v).slice(0, 10).split('-').reverse().join('/') : '');
+        // FR-014: en PANTALLA la columna de comprobante muestra el tipo de OPERACIÓN, no el tipo y
+        // número de comprobante fiscal. Los exports mantienen su columna "Comprobante" (tipo +
+        // número) tal cual, porque ya tienen una columna aparte para el tipo de operación — cambiar
+        // acá la fuente (`tipo_operacion`, ya proyectada) evita duplicar el criterio en el export.
+        const OPERACION = { venta: 'Venta', nc: 'Nota de Crédito', nd: 'Nota de Débito' };
+        const operacion = (v) => OPERACION[v] || v || '';
+        // FR-015: sólo en pantalla, el código del producto va ANTES del nombre.
+        const productoPantalla = (v, tipo, fila) => (fila.codigo ? fila.codigo + ' - ' + v : v);
 
         // Catálogos chicos: los <option> ya vienen renderizados por Blade.
         ['#filtro-tipo-producto', '#filtro-vendedor', '#filtro-categoria', '#filtro-etiqueta',
@@ -154,16 +173,19 @@
             columns: [
                 { data: 'id', name: 'id' },
                 { data: 'fecha', name: 'fecha', render: fecha },
-                { data: 'comprobante', name: 'comprobante', defaultContent: '' },
+                { data: 'tipo_operacion', name: 'tipo_operacion', defaultContent: '', render: operacion },
                 { data: 'cliente', name: 'cliente', defaultContent: '' },
-                { data: 'producto', name: 'producto', defaultContent: '' },
+                { data: 'producto', name: 'producto', defaultContent: '', render: productoPantalla },
                 { data: 'cantidad', name: 'cantidad', className: 'text-end', render: cantidad },
-                { data: 'precio_unitario', name: 'precio_unitario', className: 'text-end', render: money },
-                { data: 'costo_total_actual', name: 'costo_total_actual', className: 'text-end', render: money },
-                { data: 'cmv_total', name: 'cmv_total', className: 'text-end', render: money },
-                { data: 'precio_neto', name: 'precio_neto', className: 'text-end', render: money },
-                { data: 'resultado', name: 'resultado', className: 'text-end', render: money },
-                { data: 'total_comprobante', name: 'total_comprobante', className: 'text-end', render: money },
+                { data: 'precio_unitario', name: 'precio_unitario', className: 'text-end', render: moneyContable },
+                { data: 'costo_total_actual', name: 'costo_total_actual', className: 'text-end', render: moneyContable },
+                { data: 'cmv_total', name: 'cmv_total', className: 'text-end', render: moneyContable },
+                { data: 'precio_neto', name: 'precio_neto', className: 'text-end', render: moneyContable },
+                { data: 'resultado', name: 'resultado', className: 'text-end', render: moneyContable },
+                // Importe DE LA LÍNEA, no el del comprobante repetido (spec 076, FR-001). El
+                // rótulo de cabecera sigue diciendo "Total Comprobante" (FR-017): es sólo la
+                // columna de datos la que cambia.
+                { data: 'total_venta', name: 'total_venta', className: 'text-end', render: moneyContable },
             ],
             // Fecha descendente: lo más reciente arriba (FR-017).
             order: [[1, 'desc']],
@@ -213,6 +235,10 @@
             // La descarga del Excel no puede ir por AJAX (el navegador tiene que recibir el
             // archivo), pero tampoco navega: se dispara sobre la misma URL con los filtros.
             window.location.assign(rutas.exportar + '?' + query());
+        });
+
+        $('#btn-exportar-detallado').on('click', function () {
+            window.location.assign(rutas.exportarDetallado + '?' + query());
         });
 
         $('#btn-exportar-pdf').on('click', function () {

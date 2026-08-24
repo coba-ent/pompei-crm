@@ -13,6 +13,9 @@
                 <button type="button" class="btn btn-outline-secondary" id="btn-exportar-pdf">
                     <i class="fas fa-file-pdf me-1"></i> Exportar a PDF
                 </button>
+                <button type="button" class="btn btn-outline-success" id="btn-exportar-detallado">
+                    <i class="fas fa-file-excel me-1"></i> Exportar Excel Detallado
+                </button>
                 <button type="button" class="btn btn-success" id="btn-exportar">
                     <i class="fas fa-file-excel me-1"></i> Exportar Resumen
                 </button>
@@ -363,6 +366,7 @@
             data: @json(route('informes.ventas.data')),
             stats: @json(route('informes.ventas.stats')),
             exportar: @json(route('informes.ventas.exportar')),
+            exportarDetallado: @json(route('informes.ventas.exportar-detallado')),
             pdf: @json(route('informes.ventas.pdf')),
             pivotDataset: @json(route('informes.ventas.pivot.dataset')),
             pivotExportar: @json(route('informes.ventas.pivot.exportar')),

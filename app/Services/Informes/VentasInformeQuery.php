@@ -39,7 +39,10 @@ use Illuminate\Support\Facades\DB;
  */
 class VentasInformeQuery
 {
-    public function __construct(private CostoMercaderiaVendida $cmv) {}
+    public function __construct(
+        private CostoMercaderiaVendida $cmv,
+        private DesgloseImpositivoVenta $desglose,
+    ) {}
 
     // -----------------------------------------------------------------------------------
     // Detalle
@@ -76,6 +79,8 @@ class VentasInformeQuery
             ->leftJoin('categorias as cat_padre', 'cat_padre.id', '=', 'cat_venta.categoria_padre_id')
             ->leftJoin('vendedores', 'vendedores.id', '=', 'ventas.vendedor_id')
             ->leftJoin('proveedores', 'proveedores.id', '=', 'productos.proveedor_id')
+            // Uno-a-uno: no multiplica filas (spec 076, export detallado — research §R3).
+            ->leftJoin('listas_precio', 'listas_precio.id', '=', 'ventas.lista_precio_id')
             ->leftJoinSub($this->cmv->subconsulta(), CostoMercaderiaVendida::ALIAS,
                 CostoMercaderiaVendida::ALIAS.'.producto_id', '=', 'venta_items.producto_id')
             ->whereNull('ventas.deleted_at')
@@ -110,9 +115,32 @@ class VentasInformeQuery
                 // que el IVA desaparecía en los tests mientras en MySQL andaba bien. El test del
                 // invariante lo detectó — dejarlo así habría hecho que producción y tests
                 // calcularan distinto.
-                totalConImpuestos: 'venta_items.subtotal * (1 + COALESCE(venta_items.iva_pct, 0) / 100.0)',
+                // Más el prorrateo de los conceptos extra del comprobante (percepciones, impuestos
+                // internos): sin esto la suma de las líneas no cierra contra `ventas.total` en
+                // cuanto hay un concepto cargado (spec 076, data-model §2).
+                totalConImpuestos: 'venta_items.subtotal * (1 + COALESCE(venta_items.iva_pct, 0) / 100.0)'
+                    .' + ('.$this->sqlProrateoConceptos().')',
                 descuentoPct: 'COALESCE(venta_items.descuento_pct, 0)',
                 etiquetas: $this->sqlEtiquetas('ventas.id', Venta::class),
+                // ---- Sólo para el export detallado (spec 076, US2) ----
+                vencimiento: 'ventas.fecha_vto_cobro',
+                cuitDni: 'clientes.cuit',
+                comprobanteFiscal: $this->sqlComprobanteFiscal('ventas.id', Venta::class),
+                codigo: 'productos.codigo',
+                listaPrecio: 'listas_precio.nombre',
+                subtotalSinDescuento: 'ventas.subtotal_sin_descuento',
+                descuentoMonto: 'ventas.descuento',
+                subtotalConDescuento: 'ventas.subtotal_con_descuento',
+                desgloseNetoExpr: 'venta_items.subtotal',
+                desgloseIvaPctExpr: 'venta_items.iva_pct',
+                desgloseConIvaExpr: 'venta_items.subtotal_con_iva',
+                percIva: $this->desglose->sqlConceptoProrateado('perc_iva', 'venta_items'),
+                percIibb: $this->desglose->sqlConceptoProrateado('perc_iibb', 'venta_items'),
+                impInternos: $this->desglose->sqlConceptoProrateado('imp_internos', 'venta_items'),
+                notaCliente: 'ventas.nota_cliente',
+                notaInterna: 'ventas.nota_interna',
+                afectaStock: "CASE WHEN productos.tipo = 'producto' THEN 'Si' ELSE 'No' END",
+                siglaComprobante: $this->sqlSiglaComprobante("'venta'", 'ventas.tipo_comprobante'),
             ));
 
         $this->aplicarFiltrosVenta($query, $request);
@@ -143,6 +171,7 @@ class VentasInformeQuery
         $tabla = 'nota_credito_debito_items';
         $signo = "(CASE notas_credito_debito.tipo WHEN 'credito' THEN -1 ELSE 1 END)";
         $cantidad = "{$signo} * COALESCE({$tabla}.cantidad, 0)";
+        $tipoOperacionNota = "CASE notas_credito_debito.tipo WHEN 'credito' THEN 'nc' ELSE 'nd' END";
 
         $query = DB::table('notas_credito_debito')
             ->leftJoin($tabla, $tabla.'.nota_credito_debito_id', '=', 'notas_credito_debito.id')
@@ -156,6 +185,7 @@ class VentasInformeQuery
             ->leftJoin('categorias as cat_padre', 'cat_padre.id', '=', 'cat_venta.categoria_padre_id')
             ->leftJoin('vendedores', 'vendedores.id', '=', 'ventas.vendedor_id')
             ->leftJoin('proveedores', 'proveedores.id', '=', 'productos.proveedor_id')
+            ->leftJoin('listas_precio', 'listas_precio.id', '=', 'ventas.lista_precio_id')
             ->leftJoinSub($this->cmv->subconsulta(), CostoMercaderiaVendida::ALIAS,
                 CostoMercaderiaVendida::ALIAS.'.producto_id', '=', $tabla.'.producto_id')
             ->whereNull('notas_credito_debito.deleted_at')
@@ -166,7 +196,7 @@ class VentasInformeQuery
             ->whereNull('notas_credito_debito.compra_id')
             ->selectRaw($this->proyeccion(
                 id: 'notas_credito_debito.id',
-                tipoOperacion: "CASE notas_credito_debito.tipo WHEN 'credito' THEN 'nc' ELSE 'nd' END",
+                tipoOperacion: $tipoOperacionNota,
                 fecha: 'notas_credito_debito.fecha_emision',
                 comprobante: ExpresionSql::concatEspacio(['notas_credito_debito.tipo_comprobante', 'notas_credito_debito.nro_comprobante']),
                 cliente: "COALESCE(clientes.nombre, 'Sin cliente')",
@@ -189,16 +219,84 @@ class VentasInformeQuery
                 tipoComprobante: 'notas_credito_debito.tipo_comprobante',
                 nroComprobante: 'notas_credito_debito.nro_comprobante',
                 // La nota ya trae su neto con signo; el IVA de la línea se le aplica igual que en
-                // ventas. Una nota migrada sin detalle da 0 acá, como el resto de sus columnas
-                // de ítem (ver el comentario de este método).
-                totalConImpuestos: $this->sqlNetoNota($tabla, $signo)." * (1 + COALESCE({$tabla}.iva_pct, 0) / 100.0)",
+                // ventas. Una nota migrada sin detalle no tiene fila de ítem (`{$tabla}.id` es
+                // NULL por el LEFT JOIN): para esa fila el importe de línea ES el monto completo
+                // de la nota, el único caso en que ambos coinciden (data-model §2, caso especial).
+                totalConImpuestos: "CASE WHEN {$tabla}.id IS NULL THEN {$signo} * notas_credito_debito.monto ".
+                    'ELSE '.$this->sqlNetoNota($tabla, $signo)." * (1 + COALESCE({$tabla}.iva_pct, 0) / 100.0) END",
                 descuentoPct: "COALESCE({$tabla}.descuento_pct, 0)",
                 etiquetas: $this->sqlEtiquetas('notas_credito_debito.id', NotaCreditoDebito::class),
+                // ---- Sólo para el export detallado (spec 076, US2) ----
+                // Las notas no tienen fecha de vencimiento propia.
+                vencimiento: 'NULL',
+                cuitDni: 'clientes.cuit',
+                comprobanteFiscal: $this->sqlComprobanteFiscal('notas_credito_debito.id', NotaCreditoDebito::class),
+                codigo: 'productos.codigo',
+                listaPrecio: 'listas_precio.nombre',
+                // La nota no guarda desglose de subtotal propio: se aproxima con su monto, sin
+                // descuento propio (el descuento general de la nota ya está incorporado en
+                // `sqlNetoNota`, que no separa esa parte del subtotal).
+                subtotalSinDescuento: "{$signo} * notas_credito_debito.monto",
+                descuentoMonto: '0',
+                subtotalConDescuento: "{$signo} * notas_credito_debito.monto",
+                desgloseNetoExpr: $this->sqlNetoNota($tabla, $signo),
+                desgloseIvaPctExpr: "{$tabla}.iva_pct",
+                // Los ítems de nota no guardan `subtotal_con_iva`: el IVA por alícuota se
+                // recalcula (`DesgloseImpositivoVenta::sqlIva` sin `$conIvaExpr`).
+                desgloseConIvaExpr: null,
+                // Los conceptos extra (percepciones, impuestos internos) viven en la venta de
+                // origen, no en la nota: no se les prorratea acá, para no atribuirle a una NC/ND
+                // una percepción que es de un comprobante distinto.
+                percIva: '0',
+                percIibb: '0',
+                impInternos: '0',
+                notaCliente: 'NULL',
+                notaInterna: 'notas_credito_debito.nota_interna',
+                afectaStock: "CASE WHEN productos.tipo = 'producto' THEN 'Si' ELSE 'No' END",
+                siglaComprobante: $this->sqlSiglaComprobante($tipoOperacionNota, 'notas_credito_debito.tipo_comprobante'),
             ));
 
         $this->aplicarFiltrosNota($query, $request);
 
         return $query;
+    }
+
+    /**
+     * Prorrateo de los conceptos extra del comprobante (percepciones, impuestos internos,
+     * intereses — `venta_conceptos`) sobre cada línea de `venta_items`, en proporción a su neto.
+     *
+     * Reparto: `concepto_total × (neto_de_la_línea / neto_del_comprobante)`, redondeado a 2
+     * decimales por línea. Como esa división puede no cerrar exacto contra `concepto_total`, el
+     * residuo lo absorbe la **última línea** del comprobante (mayor `id`), vía funciones de
+     * ventana — soportadas por MySQL 8 y SQLite 3.25+, los dos motores que corren esta consulta.
+     *
+     * Si el neto del comprobante es cero (todas las líneas a $0, con un concepto igual cargado) la
+     * proporción `0/0` no tiene sentido: se reparte en partes iguales entre las líneas en lugar de
+     * romper con división por cero o perder el importe (CHK010).
+     */
+    private function sqlProrateoConceptos(): string
+    {
+        $conceptosTotal = 'COALESCE((SELECT SUM(vc.monto) FROM venta_conceptos vc '.
+            'WHERE vc.venta_id = ventas.id), 0)';
+
+        $netoComprobante = '(SELECT COALESCE(SUM(vi2.subtotal), 0) FROM venta_items vi2 '.
+            'WHERE vi2.venta_id = ventas.id)';
+
+        $cantidadLineas = '(SELECT COUNT(*) FROM venta_items vi3 WHERE vi3.venta_id = ventas.id)';
+
+        // `* 1.0 /` y no `/` a secas: mismo gotcha que el IVA de la línea (ver arriba) — con
+        // enteros SQLite hace división ENTERA y 300/1000 da 0, no 0.3.
+        $ratio = "(CASE WHEN {$netoComprobante} <> 0 THEN venta_items.subtotal * 1.0 / {$netoComprobante} ".
+            "ELSE 1.0 / NULLIF({$cantidadLineas}, 0) END)";
+
+        $shareRedondeado = "ROUND({$conceptosTotal} * {$ratio}, 2)";
+
+        $sumaShares = "SUM({$shareRedondeado}) OVER (PARTITION BY ventas.id)";
+        $maxId = 'MAX(venta_items.id) OVER (PARTITION BY ventas.id)';
+
+        $residuo = "(CASE WHEN venta_items.id = {$maxId} THEN ({$conceptosTotal} - ({$sumaShares})) ELSE 0 END)";
+
+        return "({$shareRedondeado}) + ({$residuo})";
     }
 
     /**
@@ -248,6 +346,48 @@ class VentasInformeQuery
             'WHERE et.etiquetable_type = '.ExpresionSql::literal($clase)." AND et.etiquetable_id = {$columnaId}), 'Sin etiquetas')";
     }
 
+    /**
+     * Sigla completa del comprobante —`FCA`, `FCB`, `FC`, `NCA`, `NCB`, `NC`, `NDA`, `NDB`, `ND`—
+     * y no sólo la letra (spec 076, FR-021, US3). Se arma acá, una sola vez para las dos ramas y
+     * los dos exports, en vez de que cada uno la recalcule con su propio criterio.
+     */
+    private function sqlSiglaComprobante(string $tipoOperacionExpr, string $tipoComprobanteExpr): string
+    {
+        $prefijo = "(CASE {$tipoOperacionExpr} WHEN 'venta' THEN 'FC' WHEN 'nc' THEN 'NC' WHEN 'nd' THEN 'ND' ELSE '' END)";
+
+        return ExpresionSql::concatPlano([$prefijo, $tipoComprobanteExpr]);
+    }
+
+    /**
+     * Comprobante fiscal (ARCA) vigente de una venta o de una nota — export detallado, spec 076.
+     *
+     * `comprobantes_fiscales` es polimórfica y una venta puede tener más de una fila (un rechazo y
+     * su reintento aprobado): **nunca por join directo**, o se duplica la fila del detalle y se
+     * rompen todos los totales (data-model §4, research §R3). Se resuelve con tres subconsultas
+     * escalares que primero eligen el **id del comprobante vigente** —el aprobado con CAE si
+     * existe, si no el más reciente— y después leen sus tres columnas de ese mismo id.
+     *
+     * @return array{arca: string, punto_venta: string, nro_factura: string}
+     */
+    private function sqlComprobanteFiscal(string $idExpr, string $clase): array
+    {
+        $tipoLiteral = ExpresionSql::literal($clase);
+
+        $vigente = "(SELECT cf.id FROM comprobantes_fiscales cf ".
+            "WHERE cf.comprobantable_id = {$idExpr} AND cf.comprobantable_type = {$tipoLiteral} ".
+            'AND cf.deleted_at IS NULL '.
+            'ORDER BY (CASE WHEN cf.estado = \'aprobado\' AND cf.cae IS NOT NULL THEN 1 ELSE 0 END) DESC, cf.id DESC '.
+            'LIMIT 1)';
+
+        return [
+            'arca' => "COALESCE((SELECT CASE WHEN cf.estado = 'aprobado' AND cf.cae IS NOT NULL THEN 'Aprobado' ELSE 'Sin Enviar' END ".
+                "FROM comprobantes_fiscales cf WHERE cf.id = {$vigente}), '---')",
+            'punto_venta' => "COALESCE((SELECT pv.numero FROM comprobantes_fiscales cf ".
+                "LEFT JOIN puntos_venta pv ON pv.id = cf.punto_venta_id WHERE cf.id = {$vigente}), '-')",
+            'nro_factura' => "COALESCE((SELECT cf.numero FROM comprobantes_fiscales cf WHERE cf.id = {$vigente}), '-')",
+        ];
+    }
+
     private function proyeccion(
         string $id,
         string $tipoOperacion,
@@ -270,6 +410,24 @@ class VentasInformeQuery
         string $totalConImpuestos,
         string $descuentoPct,
         string $etiquetas,
+        string $vencimiento,
+        string $cuitDni,
+        array $comprobanteFiscal,
+        string $codigo,
+        string $listaPrecio,
+        string $subtotalSinDescuento,
+        string $descuentoMonto,
+        string $subtotalConDescuento,
+        string $desgloseNetoExpr,
+        string $desgloseIvaPctExpr,
+        ?string $desgloseConIvaExpr,
+        string $percIva,
+        string $percIibb,
+        string $impInternos,
+        string $notaCliente,
+        string $notaInterna,
+        string $afectaStock,
+        string $siglaComprobante,
     ): string {
         $costoActual = "COALESCE(productos.costo, 0) * ({$cantidad})";
         $cmv = $this->cmv->sqlCmv($cantidad, $costoCongelado);
@@ -327,6 +485,40 @@ class VentasInformeQuery
             // venta y una nota con el mismo número se fusionaban en un comprobante — medido: en
             // 2021 el conteo perdía 12 comprobantes.
             ExpresionSql::concatPlano([$tipoOperacion, "'-'", $id]).' as comprobante_id',
+
+            // ---- Sólo para el export detallado (spec 076, US2) ----
+            //
+            // Igual criterio que el bloque de arriba: al final, sin tocar nada existente.
+            "{$vencimiento} as vencimiento",
+            "{$cuitDni} as cuit_dni",
+            "{$comprobanteFiscal['arca']} as arca",
+            "{$comprobanteFiscal['punto_venta']} as punto_venta",
+            "{$comprobanteFiscal['nro_factura']} as nro_factura",
+            "{$codigo} as codigo",
+            "{$listaPrecio} as lista_precio",
+            "{$subtotalSinDescuento} as subtotal_sin_descuento",
+            "{$descuentoMonto} as descuento_monto",
+            "{$subtotalConDescuento} as subtotal_con_descuento",
+            $this->desglose->sqlNeto('no_gravado', $desgloseNetoExpr, $desgloseIvaPctExpr).' as neto_no_gravado',
+            $this->desglose->sqlNeto('exento', $desgloseNetoExpr, $desgloseIvaPctExpr).' as neto_exento',
+            $this->desglose->sqlNeto('gravado', $desgloseNetoExpr, $desgloseIvaPctExpr).' as neto_gravado',
+            $this->desglose->sqlIva('2.5', $desgloseNetoExpr, $desgloseIvaPctExpr, $desgloseConIvaExpr).' as iva_2_5',
+            $this->desglose->sqlIva('5', $desgloseNetoExpr, $desgloseIvaPctExpr, $desgloseConIvaExpr).' as iva_5',
+            $this->desglose->sqlIva('10.5', $desgloseNetoExpr, $desgloseIvaPctExpr, $desgloseConIvaExpr).' as iva_10_5',
+            $this->desglose->sqlIva('21', $desgloseNetoExpr, $desgloseIvaPctExpr, $desgloseConIvaExpr).' as iva_21',
+            $this->desglose->sqlIva('27', $desgloseNetoExpr, $desgloseIvaPctExpr, $desgloseConIvaExpr).' as iva_27',
+            // Columnas 35/36 del contrato: mismo valor que "Importe Neto Exento"/"Importe Neto No
+            // Gravado" (columnas 27/28) — Contagram las repite tal cual, no son un cálculo aparte
+            // (research §R4, contract §5).
+            $this->desglose->sqlNeto('exento', $desgloseNetoExpr, $desgloseIvaPctExpr).' as exento_col',
+            $this->desglose->sqlNeto('no_gravado', $desgloseNetoExpr, $desgloseIvaPctExpr).' as no_gravado_col',
+            "{$percIva} as perc_iva",
+            "{$percIibb} as perc_iibb",
+            "{$impInternos} as imp_internos",
+            "{$notaCliente} as nota_cliente",
+            "{$notaInterna} as nota_interna",
+            "{$afectaStock} as afecta_stock",
+            "{$siglaComprobante} as sigla_comprobante",
         ]);
     }
 

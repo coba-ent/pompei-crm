@@ -8,6 +8,9 @@
 <body>
     @php($fmt = fn ($n) => number_format((float) $n, 2, ',', '.'))
     @php($fecha = fn ($d) => $d ? \Illuminate\Support\Carbon::parse($d)->format('d/m/Y') : '')
+    {{-- FR-014: la columna de comprobante muestra el tipo de OPERACIÓN, igual que en pantalla —el
+         PDF es el espejo imprimible del detalle de pantalla, no de la hoja plana del export. --}}
+    @php($operacion = ['venta' => 'Venta', 'nc' => 'Nota de Crédito', 'nd' => 'Nota de Débito'])
     {{-- Se pide una fila de más que el tope justamente para poder detectar que hubo corte. --}}
     @php($hayCorte = $filas->count() > $topeFilas)
     @php($visibles = $filas->take($topeFilas))
@@ -61,7 +64,7 @@
                 <tr>
                     <td>{{ $f->id }}</td>
                     <td>{{ $fecha($f->fecha) }}</td>
-                    <td>{{ $f->comprobante }}</td>
+                    <td>{{ $operacion[$f->tipo_operacion] ?? $f->tipo_operacion }}</td>
                     <td>{{ $f->cliente }}</td>
                     <td>{{ $f->producto }}</td>
                     <td class="num">{{ $f->cantidad === null ? '' : $fmt($f->cantidad) }}</td>
@@ -72,7 +75,7 @@
                     {{-- El PDF usa SIEMPRE la fórmula correcta: la réplica R1 vive sólo en la hoja
                          legible del Excel, y no puede tener una segunda superficie. --}}
                     <td class="num">{{ $fmt($f->resultado) }}</td>
-                    <td class="num">{{ $fmt($f->total_comprobante) }}</td>
+                    <td class="num">{{ $fmt($f->total_venta) }}</td>
                 </tr>
             @empty
                 <tr><td colspan="12">No hay ventas en el período seleccionado.</td></tr>

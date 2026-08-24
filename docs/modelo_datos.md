@@ -1959,3 +1959,62 @@ compra (699 de 700 productos con un único valor en todo el año) y el informe n
 Además el costo real de una compra ya vive en `compra_items.precio_unitario`.
 
 *Fuente(s): `specs/075-cmv-costo-congelado/` (`research.md` R1-R9; `data-model.md`; `contracts/cmv-api.md`)*
+
+---
+
+## 24. Importe por línea del Informe de Ventas (spec 076)
+
+**Sin cambios de esquema.** Es una regla de cálculo, no una columna: el dato ya está guardado y lo
+que faltaba era proyectarlo bien.
+
+### 24.1 La regla
+
+```
+importe_linea = subtotal_neto_de_la_linea
+              + IVA_de_la_linea
+              + conceptos_extra_del_comprobante × (neto_de_la_linea / neto_del_comprobante)
+```
+
+`venta_items.subtotal` **ya viene neto de IVA y con los dos descuentos aplicados** (el de línea y el
+general), así que el primer término no requiere cálculo adicional. Los conceptos extra
+(`venta_conceptos`: percepciones, impuestos internos, intereses) viven a nivel comprobante y se
+reparten **en proporción al neto de cada línea** —el mismo criterio que `CalculoComprobante` usa
+para un descuento general cargado como monto fijo—. El residuo del redondeo lo absorbe la última
+línea, como ya hacen los conversores de Mercado Libre y Tiendanube.
+
+**Invariante**: la suma del importe de línea de un comprobante es igual a su total, **al centavo**.
+Esa es la propiedad que hace sumable la columna, y tiene test.
+
+### 24.2 Por qué esto figura como corrección y no como novedad
+
+La documentación afirmaba que esta columna iba "repetido por fila, no sumable" (ver la corrección
+del 24/08/2026 en `documentacion_principal_crm.md` § Informe de Ventas). Era falso. Lo llamativo es
+que el motor **ya tenía la columna bien calculada**: `VentasInformeQuery::proyeccion()` emite
+`total_venta` desde la spec 069, con un comentario que dice exactamente lo contrario de lo que decía
+el doc. Se había aplicado sólo al motor de tablas dinámicas; la pantalla, los exports y el PDF se
+quedaron con `total_comprobante`.
+
+### 24.3 Desglose impositivo del export detallado — derivado, no guardado
+
+Las columnas de neto por condición y de IVA por alícuota salen de `venta_items.iva_pct`, que es
+texto y puede ser un porcentaje (`'21'`, `'10.5'`) o una condición (`'exento'`, `'no_gravado'`):
+
+| `iva_pct` | Columna de neto | Columna de IVA |
+|---|---|---|
+| `'exento'` | Importe Neto Exento | — |
+| `'no_gravado'`, nulo o vacío | Importe Neto No Gravado | — |
+| numérico | Importe Neto Gravado | la columna de esa alícuota |
+
+Cada línea imputa a **exactamente una** columna de neto y a **como mucho una** de alícuota. No se
+agregan columnas a `venta_items`: sería duplicar información derivable y estrenar deuda de
+sincronización sin ganar nada.
+
+### 24.4 Lectura del comprobante fiscal desde el informe
+
+`comprobantes_fiscales` es polimórfica y **una venta puede tener más de una fila** (un rechazo de
+ARCA y su reintento aprobado). Un `LEFT JOIN` directo duplicaría la línea y rompería todos los
+totales del informe. Se lee con una **subconsulta de una sola fila**, el mismo patrón que la
+proyección ya usa para las etiquetas.
+
+*Fuente(s): `specs/076-fidelidad-informe-ventas/` (`research.md` R1-R7; `data-model.md`;
+`contracts/export-detallado.md`)*

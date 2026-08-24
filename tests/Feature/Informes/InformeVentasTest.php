@@ -57,20 +57,31 @@ class InformeVentasTest extends TestCase
         $this->assertCount(3, $this->informe()->detalle($this->request())->get());
     }
 
-    public function test_total_comprobante_se_repite_en_cada_fila_de_la_misma_venta(): void
+    /**
+     * Hasta el 24/08/2026 este test se llamaba
+     * `test_total_comprobante_se_repite_en_cada_fila_de_la_misma_venta` y afirmaba que CADA fila
+     * debía mostrar el total del comprobante repetido — con un comentario que lo llamaba "la
+     * trampa principal del informe", como si fuera el comportamiento correcto. Era falso: Contagram
+     * muestra el importe DE CADA LÍNEA, no el total repetido (capturado el 24/08/2026 contra la
+     * venta 23501, con 12 líneas de importes distintos que suman el total). La columna técnica
+     * `total_comprobante` sigue existiendo sin cambios —el pivot y otros consumidores la usan
+     * (research §R7)— pero dejó de ser lo que se muestra; lo que se muestra y tiene que sumar es
+     * `total_venta` (spec 076, FR-001/FR-002, research §R5).
+     */
+    public function test_los_importes_de_linea_de_una_venta_suman_su_total(): void
     {
-        // Es la trampa principal del informe: sumar esta columna por fila contaría la venta de
-        // más. Por eso no es un KPI (data-model §Invariantes, punto 3).
         $venta = $this->venta([
-            ['cantidad' => 1, 'precio' => 100],
-            ['cantidad' => 1, 'precio' => 400],
+            ['cantidad' => 1, 'precio' => 100, 'iva_pct' => '21'],
+            ['cantidad' => 1, 'precio' => 400, 'iva_pct' => '21'],
         ]);
 
         $filas = $this->informe()->detalle($this->request())->get();
 
-        foreach ($filas as $fila) {
-            $this->assertEqualsWithDelta((float) $venta->total, (float) $fila->total_comprobante, 0.01);
-        }
+        $suma = round($filas->sum(fn ($f) => (float) $f->total_venta), 2);
+
+        $this->assertEqualsWithDelta((float) $venta->total, $suma, 0.01);
+        // Y no todas las líneas son iguales entre sí, a diferencia del criterio viejo.
+        $this->assertNotEquals((float) $filas[0]->total_venta, (float) $filas[1]->total_venta);
     }
 
     public function test_la_nota_de_credito_aporta_sus_filas_en_negativo_y_la_de_debito_en_positivo(): void
@@ -331,6 +342,41 @@ class InformeVentasTest extends TestCase
         $this->getJson(route('informes.ventas.data', ['desde' => '2026-08-20', 'hasta' => '2026-08-01']))
             ->assertStatus(422)
             ->assertJsonStructure(['message']);
+    }
+
+    // -----------------------------------------------------------------------------------
+    // spec 076 US3 — contenido de columnas (FR-014, FR-015, FR-021)
+    // -----------------------------------------------------------------------------------
+
+    /** FR-014/FR-021: la proyección distingue tipo de operación y sigla completa del comprobante. */
+    public function test_la_sigla_del_comprobante_es_completa_y_no_solo_la_letra(): void
+    {
+        $venta = $this->venta([['cantidad' => 1, 'precio' => 100]], ['tipo_comprobante' => 'B']);
+        $this->nota($venta, 'credito', [['cantidad' => 1, 'precio' => 50]], ['tipo_comprobante' => 'B']);
+        $this->nota($venta, 'debito', [['cantidad' => 1, 'precio' => 20]], ['tipo_comprobante' => 'A']);
+
+        $filas = $this->informe()->detalle($this->request())->get()->keyBy('tipo_operacion');
+
+        $this->assertSame('FCB', $filas['venta']->sigla_comprobante);
+        $this->assertSame('NCB', $filas['nc']->sigla_comprobante);
+        $this->assertSame('NDA', $filas['nd']->sigla_comprobante);
+    }
+
+    /** FR-015 (alcance pantalla): la proyección expone el código del producto en su propia columna. */
+    public function test_la_proyeccion_expone_el_codigo_del_producto_para_anteponerlo_en_pantalla(): void
+    {
+        $producto = Producto::factory()->create(['codigo' => 'ABC123']);
+        $this->venta([['producto_id' => $producto->id, 'cantidad' => 1, 'precio' => 100]]);
+        $this->venta([['producto_id' => null, 'descripcion' => 'Flete', 'cantidad' => 1, 'precio' => 50]]);
+
+        $filas = $this->informe()->detalle($this->request())->get();
+
+        $conCodigo = $filas->firstWhere('producto_id', $producto->id);
+        $sinCodigo = $filas->firstWhere('producto_id', null);
+
+        $this->assertSame('ABC123', $conCodigo->codigo);
+        $this->assertSame('Flete', $sinCodigo->producto);
+        $this->assertNull($sinCodigo->codigo);
     }
 
     private function productoConCosto(float $costoCompra): Producto

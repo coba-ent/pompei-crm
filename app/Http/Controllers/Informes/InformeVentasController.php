@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Informes;
 
+use App\Exports\Informes\InformeVentasDetalladoExport;
 use App\Exports\Informes\InformeVentasExport;
 use App\Http\Controllers\Controller;
 use App\Models\Categoria;
@@ -134,6 +135,23 @@ class InformeVentasController extends Controller
         return Excel::download(
             new InformeVentasExport($this->informe, $request),
             'Informe de Ventas Resumen '.now()->format('d-m-Y Hi').' Hs.xlsx'
+        );
+    }
+
+    /**
+     * "Exportar Excel Detallado" (spec 076, US2): tercer botón, 44 columnas en una sola hoja,
+     * comparable celda a celda con el export real de Contagram. Mismos filtros que `data`/`stats`
+     * y que "Exportar Resumen" (`contracts/export-detallado.md §1`).
+     */
+    public function exportarDetallado(Request $request)
+    {
+        if ($error = $this->rangoInvalido($request)) {
+            return $error;
+        }
+
+        return Excel::download(
+            new InformeVentasDetalladoExport($this->informe, $request),
+            'Informe de Ventas Detallado '.now()->format('d-m-Y Hi').' Hs.xlsx'
         );
     }
 

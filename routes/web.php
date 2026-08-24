@@ -189,6 +189,7 @@ Route::middleware('auth')->group(function () {
         Route::get('informes/ventas/data', [InformeVentasController::class, 'data'])->name('informes.ventas.data');
         Route::get('informes/ventas/stats', [InformeVentasController::class, 'stats'])->name('informes.ventas.stats');
         Route::get('informes/ventas/exportar', [InformeVentasController::class, 'exportar'])->name('informes.ventas.exportar');
+        Route::get('informes/ventas/exportar-detallado', [InformeVentasController::class, 'exportarDetallado'])->name('informes.ventas.exportar-detallado');
         Route::get('informes/ventas/pdf', [InformeVentasController::class, 'pdf'])->name('informes.ventas.pdf');
 
         Route::prefix('informes/reporte-final')->name('informes.reporte-final.')->group(function () {
