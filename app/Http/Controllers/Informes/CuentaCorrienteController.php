@@ -41,8 +41,9 @@ class CuentaCorrienteController extends Controller
     {
         $porCliente = app(CuentaCorriente::class)->porCliente('cliente');
 
-        if ($request->filled('cliente_id')) {
-            $porCliente = $porCliente->where('cliente_id', (int) $request->input('cliente_id'))->values();
+        $clientes = array_filter(array_map('intval', (array) $request->input('cliente_id', [])));
+        if ($clientes !== []) {
+            $porCliente = $porCliente->whereIn('cliente_id', $clientes)->values();
         }
 
         return DataTables::collection($porCliente)
@@ -130,12 +131,19 @@ class CuentaCorrienteController extends Controller
     /** Aplica los filtros externos de pantalla (nunca dentro de la UNION). */
     private function aplicarFiltrosMovimientos(\Illuminate\Database\Query\Builder $query, Request $request): void
     {
-        if ($request->filled('cliente_id')) {
-            $query->where('mov.cliente_id', $request->input('cliente_id'));
+        // Cliente y Operación son multi-select (llegan como array), pero se sigue
+        // aceptando un valor suelto por el deep-link `?cliente_id=N`.
+        $clientes = array_filter(array_map('intval', (array) $request->input('cliente_id', [])));
+        if ($clientes !== []) {
+            $query->whereIn('mov.cliente_id', $clientes);
         }
 
-        if ($request->filled('operacion') && in_array($request->input('operacion'), self::OPERACIONES_DISPONIBLES, true)) {
-            $query->where('mov.operacion', $request->input('operacion'));
+        $operaciones = array_values(array_intersect(
+            array_filter((array) $request->input('operacion', [])),
+            self::OPERACIONES_DISPONIBLES
+        ));
+        if ($operaciones !== []) {
+            $query->whereIn('mov.operacion', $operaciones);
         }
 
         if ($request->filled('fecha_desde')) {

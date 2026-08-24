@@ -130,8 +130,8 @@
 
         // --- Tab: Movimientos ---
         const $tablaMovimientos = $('#tabla-movimientos');
-        initSelect2($('#filtro-movimientos-cliente'), clientePickerOptions());
-        initSelect2($('#filtro-movimientos-operacion'));
+        initSelect2($('#filtro-movimientos-cliente'), Object.assign(clientePickerOptions(), { multiple: true }));
+        initSelect2($('#filtro-movimientos-operacion'), { placeholder: 'Todas', allowClear: true, multiple: true });
 
         let fechaDesde = '';
         let fechaHasta = '';
@@ -177,8 +177,8 @@
             ajax: {
                 url: rutas.movimientosData,
                 data: function (d) {
-                    d.cliente_id = $('#filtro-movimientos-cliente').val();
-                    d.operacion = $('#filtro-movimientos-operacion').val();
+                    d.cliente_id = $('#filtro-movimientos-cliente').val() || [];
+                    d.operacion = $('#filtro-movimientos-operacion').val() || [];
                     d.fecha_desde = fechaDesde;
                     d.fecha_hasta = fechaHasta;
                 },
@@ -217,7 +217,7 @@
             tablaMovimientos.buttons().container().appendTo('#dt-buttons-movimientos');
         });
 
-        $('#filtro-movimientos-cliente, #filtro-movimientos-operacion').on('select2:select select2:clear change', function () {
+        $('#filtro-movimientos-cliente, #filtro-movimientos-operacion').on('select2:select select2:unselect select2:clear change', function () {
             tablaMovimientos.ajax.reload();
         });
 

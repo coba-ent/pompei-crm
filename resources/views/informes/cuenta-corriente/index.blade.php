@@ -73,8 +73,7 @@
                         <div class="row g-2 mb-3">
                             <div class="col-md-3">
                                 <label class="form-label">Cliente</label>
-                                <select id="filtro-movimientos-cliente" class="form-select">
-                                    <option value="">Todos</option>
+                                <select id="filtro-movimientos-cliente" class="form-select" multiple>
                                     @if ($clientePreseleccionado)
                                         <option value="{{ $clientePreseleccionado->id }}" selected>{{ $clientePreseleccionado->nombre }}</option>
                                     @endif
@@ -82,8 +81,7 @@
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label">Operación</label>
-                                <select id="filtro-movimientos-operacion" class="form-select">
-                                    <option value="">Todas</option>
+                                <select id="filtro-movimientos-operacion" class="form-select" multiple>
                                     <option value="venta">Venta</option>
                                     <option value="cobro">Cobro</option>
                                     <option value="nota_credito">Nota de Crédito</option>
