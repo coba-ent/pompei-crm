@@ -189,8 +189,46 @@
             else if (d.tipo === 'crear_sub') { e.preventDefault(); abrirCrearCategoriaGasto(d.categoriaId); }
         });
 
+        // Panel de Filtros (informe §3.2, captura [138]) + el rango de Emisión del control superior.
+        initSelect2($('#filtro-categoria'), { placeholder: 'Todos', allowClear: true, dropdownParent: $(document.body) });
+        initSelect2($('#filtro-medio-pago'), { placeholder: 'Todos', allowClear: true, dropdownParent: $(document.body) });
+        initSelect2($('#filtro-estado-pago'), { placeholder: 'Todos', allowClear: true, dropdownParent: $(document.body) });
+        initSelect2($('#filtro-usuario'), { placeholder: 'Todos', allowClear: true, dropdownParent: $(document.body) });
+
+        let emisionDesde = '';
+        let emisionHasta = '';
+
+        if ($.fn.daterangepicker && window.RangoEmision) {
+            $('#filtro-rango-emision').daterangepicker(window.RangoEmision.opciones());
+            $('#filtro-rango-emision').on('apply.daterangepicker', function (e, picker) {
+                emisionDesde = picker.startDate.format('YYYY-MM-DD');
+                emisionHasta = picker.endDate.format('YYYY-MM-DD');
+                $(this).val('Emisión: ' + picker.startDate.format('DD/MM/YYYY') + ' - ' + picker.endDate.format('DD/MM/YYYY'));
+                tabla.ajax.reload();
+            });
+            $('#filtro-rango-emision').on('cancel.daterangepicker', function () {
+                emisionDesde = ''; emisionHasta = '';
+                $(this).val('');
+                tabla.ajax.reload();
+            });
+            $('#btn-limpiar-rango-emision').on('click', function () {
+                emisionDesde = ''; emisionHasta = '';
+                $('#filtro-rango-emision').val('');
+                tabla.ajax.reload();
+            });
+        }
+
         function filtrosActuales() {
-            return { buscar: $('#filtro-buscar').val() };
+            return {
+                id: $('#filtro-id').val(),
+                categoria_id: $('#filtro-categoria').val(),
+                medio_pago_id: $('#filtro-medio-pago').val(),
+                estado_pago: $('#filtro-estado-pago').val(),
+                descripcion: $('#filtro-descripcion').val(),
+                usuario_id: $('#filtro-usuario').val(),
+                emision_desde: emisionDesde,
+                emision_hasta: emisionHasta,
+            };
         }
 
         const tabla = $tabla.DataTable({
@@ -231,7 +269,13 @@
         });
 
         $('#btn-aplicar-filtros').on('click', () => tabla.ajax.reload());
-        $('#btn-limpiar-filtros').on('click', () => { $('#filtro-buscar').val(''); tabla.ajax.reload(); });
+        $('#btn-limpiar-filtros').on('click', () => {
+            $('#filtro-id, #filtro-descripcion').val('');
+            $('#filtro-categoria, #filtro-medio-pago, #filtro-estado-pago, #filtro-usuario').val(null).trigger('change');
+            emisionDesde = ''; emisionHasta = '';
+            $('#filtro-rango-emision').val('');
+            tabla.ajax.reload();
+        });
 
         function togglePendiente() {
             const pendiente = $('#gasto-pendiente').is(':checked');

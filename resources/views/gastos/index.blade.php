@@ -23,15 +23,62 @@
                             <i class="fas fa-filter me-1"></i> Filtros
                         </button>
                     </div>
-                    <span id="dt-buttons-gastos"></span>
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        {{-- Gastos tiene un solo selector de fecha, "Emisión" (informe §3.1): un gasto
+                             no maneja vencimiento de pago separado de su fecha, como sí Compras. --}}
+                        <div class="input-group" style="width:190px">
+                            <input type="text" id="filtro-rango-emision" class="form-control" placeholder="Emisión">
+                            <button type="button" class="btn btn-outline-secondary" id="btn-limpiar-rango-emision" title="Quitar filtro de Emisión"><i class="fas fa-times"></i></button>
+                        </div>
+                        <span id="dt-buttons-gastos"></span>
+                    </div>
                 </div>
 
                 <div class="collapse mb-3" id="panel-filtros">
                     <div class="border rounded p-3">
                         <div class="row g-2">
-                            <div class="col-md-4">
+                            <div class="col-md-3">
+                                <label class="form-label">Id</label>
+                                <input type="text" id="filtro-id" class="form-control" placeholder="Buscar por número de ID">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Categoría y/o Subcategoría</label>
+                                <select id="filtro-categoria" class="form-select" multiple>
+                                    @foreach ($categorias->whereNull('categoria_padre_id') as $raiz)
+                                        <option value="{{ $raiz->id }}">{{ $raiz->nombre }}</option>
+                                        @foreach ($categorias->where('categoria_padre_id', $raiz->id) as $hija)
+                                            <option value="{{ $hija->id }}">{{ $raiz->nombre }} → {{ $hija->nombre }}</option>
+                                        @endforeach
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Medio de pago</label>
+                                <select id="filtro-medio-pago" class="form-select" multiple>
+                                    @foreach ($cuentas as $c)
+                                        <option value="{{ $c->id }}">{{ $c->nombre }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Estado del Pago</label>
+                                <select id="filtro-estado-pago" class="form-select" multiple>
+                                    <option value="pagado">Pagado</option>
+                                    <option value="pendiente">Pendiente</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-3">
                                 <label class="form-label">Descripción</label>
-                                <input type="text" id="filtro-buscar" class="form-control">
+                                <input type="text" id="filtro-descripcion" class="form-control" placeholder="Contiene">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Usuario</label>
+                                <select id="filtro-usuario" class="form-select" multiple>
+                                    @foreach ($usuarios as $u)
+                                        <option value="{{ $u->id }}">{{ $u->name }}</option>
+                                    @endforeach
+                                </select>
                             </div>
                             <div class="col-12 text-end">
                                 <button type="button" class="btn btn-light" id="btn-limpiar-filtros">Limpiar</button>
@@ -105,7 +152,7 @@
         cuentas: @json($datosCuentas),
     };
 </script>
-@vite(['resources/js/gastos.js'])
+@vite(['resources/js/rango-emision.js', 'resources/js/gastos.js'])
 @if (request()->boolean('crear'))
 <script>
     (function () {

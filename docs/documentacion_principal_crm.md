@@ -2543,8 +2543,23 @@ ellas SÍ se replican por decisión expresa del cliente (15/08/2026)** y dos no.
   Cantidad Prod./Serv. (suma de cantidades) / Cantidad Ventas Creadas / Venta Promedio / Costo
   Actual; **Precio Neto − Costo Mercadería Vendida = Resultado**. Tabla con **una fila por ítem de
   venta** y 12 columnas: Id, Fecha, Comprobante, Cliente, Prod./Serv., Cant., Precio Unitario, Costo
-  Total Actual, CMV Total, Precio Total Neto, Result., Total Comprobante (este último repetido por
-  fila, **no sumable**). Botones "Exportar Resumen" y "Exportar a PDF".
+  Total Actual, CMV Total, Precio Total Neto, Result., Total Comprobante (el importe **de esa
+  línea** con impuestos, **sumable**: la columna suma el total del período). Botones "Exportar
+  Resumen", "Exportar Excel Detallado" y "Exportar a PDF".
+
+  > **Corrección del 24/08/2026 (spec 076).** Hasta esta fecha este párrafo afirmaba que Total
+  > Comprobante iba *"repetido por fila, **no sumable**"* y que había sólo dos botones. **Las dos
+  > cosas eran falsas**, y venían de un relevamiento incompleto de la tanda 2. Una captura de la
+  > pantalla real de Contagram del 01/07/2026 lo desmiente: la venta 23501, de 12 líneas, muestra
+  > **12 importes distintos** que suman $1.349.647,48 —el total del comprobante—, y al pie hay
+  > **tres** botones. El CRM, construido sobre la afirmación equivocada, repetía el total en las 12
+  > filas: sumar esa columna daba doce veces el valor real.
+  >
+  > Lección, la misma que dejó la spec 075 con el CMV: cuando un relevamiento y un archivo o
+  > captura reales se contradicen, **gana el archivo**. Y conviene sospechar de las afirmaciones
+  > que explican por qué algo *no* se puede hacer (acá, "no sumable"): suelen ser racionalizaciones
+  > de un dato mal leído. El motor ya tenía la columna bien calculada desde la spec 069 para el
+  > pivot; sólo la pantalla y los exports se habían quedado con el criterio viejo.
 - **Reporte Final** (`/informes/reporte-final`): resultado del período en dos vistas.
   **Ventas Vs. Compras** (base devengado): `Ingresos → Ventas → Categoría`,
   `Ingresos → Otros Ingresos → Categoría`, `Egresos → Compras → Categoría`,
@@ -2618,7 +2633,10 @@ cantidad` (valorización vigente). Que las dos difieran es esperado y es la raz�
 **Divergencias deliberadas de la tanda 2 respecto de Contagram:**
 
 1. **Excel de doble hoja también en Ventas y Reporte Final** (Contagram los exporta en una sola
-   hoja), por coherencia con el estándar del módulo fijado en la tanda 1.
+   hoja), por coherencia con el estándar del módulo fijado en la tanda 1. **Excepción desde la spec
+   076**: el "Exportar Excel Detallado" de Ventas sale en **una sola hoja**, como en Contagram — es
+   un archivo nuevo, no tiene coherencia previa que romper, y su valor está en ser comparable
+   celda a celda con el original.
 2. **Sin barra de pestañas en el Informe de Ventas**: "Rankings" y "Arma tu Informe" quedan para la
    tanda 3 (con el alcance acotado de arriba), así que por ahora la pantalla es única.
 3. **El Reporte Final no usa DataTables server-side** (única excepción a la regla obligatoria #1):
