@@ -53,16 +53,21 @@ class InformeVentasDetalladoExport implements FromArray, WithStrictNullCompariso
     {
         $kpis = $this->informe->kpis($this->request);
 
+        // Cada bloque: una fila de RÓTULOS y, debajo, la fila de VALORES en las mismas columnas
+        // (no rótulo-valor intercalados en la misma fila — así lo tiene el archivo real de
+        // Contagram). La fila en blanco entre bloques va como `[null]` y NO `[]`: un array vacío
+        // lo descarta el `flatMap` de Maatwebsite al aplanar filas, así que no aparece como fila
+        // en blanco en el Excel sino que directamente desaparece, corriendo todo lo de abajo.
         $filas = [
-            ['Total Ventas Creadas', $kpis['total_ventas_creadas'], 'Total Nota de Débito', $kpis['total_nota_debito']],
-            ['Total Nota de Crédito', $kpis['total_nota_credito'], 'Total Ventas', $kpis['total_ventas']],
-            [],
-            ['Cantidad de Productos/Servicios', $kpis['cantidad_prod_serv'], 'Cantidad Ventas Creadas', $kpis['cantidad_ventas_creadas']],
-            ['Venta Promedio', $kpis['venta_promedio'], 'Costo Actual', $kpis['costo_actual']],
-            [],
-            ['Precio Neto', $kpis['precio_neto'], 'Costo Mercadería Vendida', $kpis['cmv']],
-            ['Resultado', $kpis['resultado']],
-            [],
+            ['Total Ventas Creadas', 'Total Nota de Débito', 'Total Nota de Crédito', 'Total Ventas'],
+            [$kpis['total_ventas_creadas'], $kpis['total_nota_debito'], $kpis['total_nota_credito'], $kpis['total_ventas']],
+            [null],
+            ['Cantidad de Productos/Servicios', 'Cantidad Ventas Creadas', 'Venta Promedio', 'Costo Actual'],
+            [$kpis['cantidad_prod_serv'], $kpis['cantidad_ventas_creadas'], $kpis['venta_promedio'], $kpis['costo_actual']],
+            [null],
+            ['Precio Neto', 'Costo Mercadería Vendida', 'Resultado'],
+            [$kpis['precio_neto'], $kpis['cmv'], $kpis['resultado']],
+            [null],
             self::RÓTULOS,
         ];
 
@@ -129,10 +134,18 @@ class InformeVentasDetalladoExport implements FromArray, WithStrictNullCompariso
         ];
     }
 
-    /** Fecha de Excel de verdad, no texto (FR-010a, invariante I8). */
-    private function fechaExcel(mixed $valor): ?\DateTimeInterface
+    /**
+     * Fecha de Excel de verdad (serial numérico), no texto (FR-010a, invariante I8).
+     *
+     * El `DefaultValueBinder` de PhpSpreadsheet **no** convierte un `DateTimeInterface` a serial:
+     * lo formatea como texto (`Y-m-d H:i:s`) y listo — se probó pasando un `DateTimeImmutable`
+     * directo y el archivo generado lo escribía como string, no como fecha. Hay que convertirlo
+     * explícitamente con `Date::PHPToExcel()`; el número de formato (`dd/mm/yyyy`) que hace que
+     * Excel lo MUESTRE como fecha se aplica aparte, en `styles()`.
+     */
+    private function fechaExcel(mixed $valor): ?float
     {
-        return $valor ? new \DateTimeImmutable((string) $valor) : null;
+        return $valor ? \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel(new \DateTimeImmutable((string) $valor)) : null;
     }
 
     private function num(mixed $valor, int $decimales = 2): ?float
@@ -145,10 +158,17 @@ class InformeVentasDetalladoExport implements FromArray, WithStrictNullCompariso
         $ultima = $sheet->getHighestColumn();
         $filaEncabezado = self::FILA_ENCABEZADO;
 
-        $sheet->getStyle("A{$filaEncabezado}:{$ultima}{$filaEncabezado}")->applyFromArray([
+        $negrita = [
             'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
             'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '2B2B2B']],
-        ]);
+        ];
+
+        // Las filas de RÓTULO de los 3 bloques de KPIs llevan el mismo estilo que el encabezado
+        // de las 44 columnas — así lo tiene el archivo real de Contagram. Sólo la fila de rótulos,
+        // nunca la de valores debajo.
+        foreach ([1, 4, 7, $filaEncabezado] as $fila) {
+            $sheet->getStyle("A{$fila}:{$ultima}{$fila}")->applyFromArray($negrita);
+        }
 
         $ultimaFila = $sheet->getHighestRow();
         $primeraFilaDatos = $filaEncabezado + 1;

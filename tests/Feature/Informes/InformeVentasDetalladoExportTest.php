@@ -8,6 +8,7 @@ use App\Models\Producto;
 use App\Models\Venta;
 use App\Services\Informes\VentasInformeQuery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Maatwebsite\Excel\Facades\Excel;
 use Tests\TestCase;
 
 /**
@@ -49,8 +50,12 @@ class InformeVentasDetalladoExportTest extends TestCase
         $hoja = $this->export();
         $filas = $hoja->array();
 
-        $this->assertStringContainsString('Total Ventas Creadas', $filas[0][0]);
-        $this->assertStringContainsString('Total Ventas', json_encode($filas[1]));
+        // Rótulos en una fila, valores en la de abajo (como el archivo real de Contagram) — no
+        // rótulo-valor intercalados en la misma fila.
+        $this->assertSame(['Total Ventas Creadas', 'Total Nota de Débito', 'Total Nota de Crédito', 'Total Ventas'], $filas[0]);
+        $this->assertIsFloat($filas[1][0]);
+        $this->assertIsFloat($filas[1][3]);
+        // La fila en blanco entre bloques tiene que EXISTIR (índice 2 real), no desaparecer.
         $this->assertSame([], array_values(array_filter($filas[2], fn ($v) => $v !== null && $v !== '')));
         $this->assertSame(self::RÓTULOS, $filas[9]);
     }
@@ -168,14 +173,24 @@ class InformeVentasDetalladoExportTest extends TestCase
         }
     }
 
-    /** I8: las fechas van como fecha de Excel, no como texto (y de paso, el export resumen). */
+    /**
+     * I8: las fechas van como fecha de Excel, no como texto. Acá se verifica el valor que produce
+     * `array()` (serial numérico de Excel, ver `fechaExcel()`); el round-trip completo contra el
+     * archivo REAL escrito está en `test_el_archivo_real_tiene_el_encabezado_en_la_fila_10_y_fechas_como_excel()`,
+     * que es el que de verdad prueba que Excel lo va a mostrar como fecha y no como número pelado.
+     */
     public function test_las_fechas_van_como_fecha_de_excel(): void
     {
         $venta = $this->venta([['cantidad' => 1, 'precio' => 100, 'iva_pct' => '21']], ['fecha_emision' => '2026-03-15']);
 
         $fila = $this->filasDeVenta($venta->id, ['desde' => '2026-03-01', 'hasta' => '2026-03-31'])[0];
 
-        $this->assertInstanceOf(\DateTimeInterface::class, $fila[1]);
+        $this->assertIsFloat($fila[1]);
+        $this->assertEqualsWithDelta(
+            \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel(new \DateTimeImmutable('2026-03-15')),
+            $fila[1],
+            0.001
+        );
     }
 
     /** Una línea con condición de IVA nula, vacía o no reconocida imputa a Importe Neto No Gravado. */
@@ -198,5 +213,41 @@ class InformeVentasDetalladoExportTest extends TestCase
         $todas = array_slice($this->export($params)->array(), 10);
 
         return array_values(array_filter($todas, fn ($f) => (int) $f[0] === $ventaId));
+    }
+
+    /**
+     * Round-trip real: escribe el .xlsx de verdad (no el array de PHP) y lo vuelve a leer con
+     * PhpSpreadsheet. Hace falta esto y no alcanza con inspeccionar `array()`: Maatwebsite
+     * aplana las filas con `Collection::flatMap()` antes de escribirlas, y un `flatMap` sobre una
+     * fila `[]` (array vacío) la hace desaparecer en vez de dejarla en blanco — el array de PHP
+     * puede tener la fila en blanco en el índice correcto y el archivo real igual salir corrido.
+     * Este es el test que hubiera atrapado ese bug (spec 076, hallazgo post-deploy 24/08/2026).
+     */
+    public function test_el_archivo_real_tiene_el_encabezado_en_la_fila_10_y_fechas_como_excel(): void
+    {
+        $venta = $this->venta([['cantidad' => 1, 'precio' => 100, 'iva_pct' => '21']], ['fecha_emision' => '2026-03-15']);
+
+        $params = ['desde' => '2026-03-01', 'hasta' => '2026-03-31'];
+        $path = 'test-detallado-'.uniqid().'.xlsx';
+        Excel::store($this->export($params), $path, 'local');
+
+        $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load(storage_path('app/private/'.$path));
+        $sheet = $spreadsheet->getActiveSheet();
+
+        try {
+            $this->assertSame('Id', $sheet->getCell('A10')->getValue());
+            $this->assertSame('Emisión', $sheet->getCell('B10')->getValue());
+            $this->assertTrue($sheet->getStyle('A10')->getFont()->getBold());
+
+            // Fila 11: primer dato. El id de la venta tiene que estar ahí, no corrido.
+            $this->assertEquals($venta->id, $sheet->getCell('A11')->getValue());
+
+            // La fecha tiene que ser numérica (serial de Excel), no un string.
+            $fechaCelda = $sheet->getCell('B11')->getValue();
+            $this->assertIsNumeric($fechaCelda);
+            $this->assertTrue(\PhpOffice\PhpSpreadsheet\Shared\Date::isDateTime($sheet->getCell('B11')));
+        } finally {
+            @unlink(storage_path('app/private/'.$path));
+        }
     }
 }
