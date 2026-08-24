@@ -71,10 +71,12 @@ class CuentaCorrienteController extends Controller
     private function queryMovimientos(): \Illuminate\Database\Query\Builder
     {
         $ventas = DB::table('ventas')
+            ->leftJoin('clientes', 'clientes.id', '=', 'ventas.cliente_id')
             ->leftJoin('categorias', 'categorias.id', '=', 'ventas.categoria_id')
             ->whereNull('ventas.deleted_at')
             ->selectRaw(
                 "ventas.id as id, ventas.fecha_emision as fecha_emision, ventas.cliente_id as cliente_id, ".
+                'clientes.nombre as cliente, '.
                 "'venta' as operacion, categorias.nombre as categoria, ventas.total as total_venta, ".
                 'COALESCE((SELECT SUM(c.monto) FROM cobros c WHERE c.venta_id = ventas.id AND c.deleted_at IS NULL), 0) as cobrado, '.
                 '(ventas.total '.
@@ -90,10 +92,12 @@ class CuentaCorrienteController extends Controller
 
         $cobros = DB::table('cobros')
             ->join('ventas', 'ventas.id', '=', 'cobros.venta_id')
+            ->leftJoin('clientes', 'clientes.id', '=', 'ventas.cliente_id')
             ->leftJoin('cuentas_tesoreria', 'cuentas_tesoreria.id', '=', 'cobros.cuenta_tesoreria_id')
             ->whereNull('cobros.deleted_at')
             ->selectRaw(
                 "cobros.id as id, cobros.fecha as fecha_emision, ventas.cliente_id as cliente_id, ".
+                'clientes.nombre as cliente, '.
                 // El monto va en `cobrado`: una fila de cobro sin importe no dice nada. Estaba en
                 // NULL y la cuenta corriente mostraba el cobro en blanco, así que no se podía
                 // seguir el movimiento de la plata. `nro_comprobante` trae el de la venta cobrada,
@@ -104,14 +108,22 @@ class CuentaCorrienteController extends Controller
                 'cuentas_tesoreria.nombre as medio_cobro, cobros.nota as descripcion'
             );
 
+        // Las notas salían con toda la fila en blanco salvo la fecha. Contagram muestra la
+        // categoría de la venta afectada, el importe de la nota en "Cobrado" y el Nº de
+        // comprobante propio de la nota (no el de la venta: mostrar el de la venta haría
+        // pasar el comprobante de la factura por el de la nota).
         $notas = DB::table('notas_credito_debito')
             ->join('ventas', 'ventas.id', '=', 'notas_credito_debito.venta_id')
+            ->leftJoin('clientes', 'clientes.id', '=', 'ventas.cliente_id')
+            ->leftJoin('categorias', 'categorias.id', '=', 'ventas.categoria_id')
             ->whereNull('notas_credito_debito.deleted_at')
             ->whereNotNull('notas_credito_debito.venta_id')
             ->selectRaw(
                 'notas_credito_debito.id as id, notas_credito_debito.fecha_emision as fecha_emision, '.
-                "ventas.cliente_id as cliente_id, CASE notas_credito_debito.tipo WHEN 'credito' THEN 'nota_credito' ELSE 'nota_debito' END as operacion, ".
-                'NULL as categoria, NULL as total_venta, NULL as cobrado, NULL as a_cobrar, NULL as nro_comprobante, '.
+                "ventas.cliente_id as cliente_id, clientes.nombre as cliente, CASE notas_credito_debito.tipo WHEN 'credito' THEN 'nota_credito' ELSE 'nota_debito' END as operacion, ".
+                'categorias.nombre as categoria, NULL as total_venta, notas_credito_debito.monto as cobrado, '.
+                'NULL as a_cobrar, '.
+                'notas_credito_debito.nro_comprobante as nro_comprobante, '.
                 'NULL as medio_cobro, notas_credito_debito.descripcion as descripcion'
             );
 
@@ -119,6 +131,7 @@ class CuentaCorrienteController extends Controller
             ->where('clientes.saldo_inicial', '!=', 0)
             ->selectRaw(
                 'clientes.id as id, clientes.saldo_inicial_fecha as fecha_emision, clientes.id as cliente_id, '.
+                'clientes.nombre as cliente, '.
                 "'saldo_inicial' as operacion, NULL as categoria, NULL as total_venta, NULL as cobrado, ".
                 'clientes.saldo_inicial as a_cobrar, NULL as nro_comprobante, NULL as medio_cobro, NULL as descripcion'
             );

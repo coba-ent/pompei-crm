@@ -186,7 +186,7 @@
             columns: [
                 { data: 'id', name: 'mov.id' },
                 { data: 'fecha_emision', name: 'mov.fecha_emision', render: fmtFecha },
-                { data: 'cliente_id', name: 'mov.cliente_id', visible: false },
+                { data: 'cliente', name: 'mov.cliente', defaultContent: '' },
                 {
                     data: 'operacion', name: 'mov.operacion',
                     render: function (val) { return ETIQUETAS_OPERACION[val] || val; },
@@ -201,14 +201,17 @@
             ],
             order: [[1, 'desc']],
             stateSave: true,
+            // La columna 2 era "cliente_id", técnica y oculta; ahora es el nombre del
+            // cliente y va visible (como en Contagram). Sin esto, un estado guardado de
+            // antes la seguiría escondiendo para siempre.
+            stateLoadParams: function (settings, state) {
+                if (state.columns && state.columns[2]) { state.columns[2].visible = true; }
+            },
             buttons: [
                 {
                     extend: 'colvis',
                     text: '<i class="fas fa-table-columns"></i>',
                     className: 'btn btn-outline-secondary',
-                    // "cliente_id" (idx 2) es una columna técnica oculta usada para
-                    // el deep-link, no se ofrece en el selector.
-                    columns: function (idx) { return idx !== 2; },
                 },
             ],
         });
