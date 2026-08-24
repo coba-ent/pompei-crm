@@ -376,6 +376,36 @@
             tabla.ajax.reload();
         });
 
+        // "Agregar Cobranza" desde el menú de fila: abre el mismo modal de la ficha sin salir del
+        // listado. Los importes (Total / A Cobrar) y las cuentas se piden al server en el momento —
+        // no se toman de la fila, que puede estar desactualizada respecto de NC/ND o de una
+        // cobranza que alguien registró en paralelo.
+        $(document).on('click', '.js-agregar-cobranza', function (e) {
+            e.preventDefault();
+            const id = $(this).data('id');
+            const $item = $(this);
+            $item.addClass('disabled');
+            $.getJSON(rutas.show + '/' + id + '/cobranza-contexto')
+                .done((resp) => {
+                    if (resp.aCobrar <= 0) {
+                        toast('info', 'Esta venta ya está cobrada.');
+                        return;
+                    }
+                    ModalCobranza.abrir(
+                        {
+                            titulo: 'Cobranza — Venta ' + (resp.comprobante || '#' + id),
+                            total: resp.total,
+                            aCobrar: resp.aCobrar,
+                            cuentas: resp.cuentas,
+                            rutas: ModalCobranza.rutasDe(id),
+                        },
+                        () => { tabla.ajax.reload(null, false); }
+                    );
+                })
+                .fail(() => toast('error', 'No se pudo abrir la cobranza de esta venta.'))
+                .always(() => $item.removeClass('disabled'));
+        });
+
         $(document).on('click', '.js-imprimir', function (e) {
             e.preventDefault();
             const url = rutas.pdf + '/' + $(this).data('id') + '/pdf';
@@ -1092,31 +1122,109 @@
     // ---------------------------------------------------------------------
     // Detalle (barra de ecuación + Cobranza)
     // ---------------------------------------------------------------------
-    function inicializarDetalle() {
-        const data = window.VentaDetalleData;
-        if (!data) { return; }
-
-        // Tras un envío exitoso a ARCA se recarga el detalle: el botón queda deshabilitado y
-        // aparecen el CAE y los datos fiscales ya declarados.
-        inicializarArca((resp) => { if (resp && resp.ok) { window.location.reload(); } });
-
-        let cuentaSeleccionadaEdicion = null;
+    // ---------------------------------------------------------------------
+    // Modal de Cobranza (compartido: ficha de Venta y menú de fila del listado)
+    // ---------------------------------------------------------------------
+    /**
+     * Igual que `ModalPago` en compras.js: el modal se abre desde la ficha y desde el listado, así
+     * que no puede depender de `window.VentaDetalleData`. Recibe el contexto de la venta y un
+     * `onHecho` (la ficha recarga; el listado refresca la tabla sin cambiar de vista).
+     *
+     * La **edición** de una cobranza existente sigue viviendo en la ficha (`guardarEdicionCobranza`):
+     * toca el DOM del detalle —la fila del cobro, el "A Cobrar" de la barra— que en el listado no
+     * existe. Acá se comparte el alta, que es lo que se pedía desde la tabla.
+     */
+    const ModalCobranza = (function () {
+        let ctx = null;
+        let onHecho = null;
         let creditoAplicable = 0;
+        let cuentaSeleccionadaEdicion = null;
+        let listo = false;
 
-        function abrirCobranza(cobro) {
+        function el() { return document.getElementById('modal-cobranza'); }
+
+        function prepararSaldoAFavor(editando) {
+            const $bloque = $('#cobranza-credito').hide();
+
+            creditoAplicable = 0;
+
+            if (editando || !ctx.rutas.creditoDisponible) { return; }
+
+            $.getJSON(ctx.rutas.creditoDisponible)
+                .done((resp) => {
+                    if (!resp || !(resp.aplicable > 0)) { return; }
+
+                    creditoAplicable = resp.aplicable;
+                    $('#cobranza-credito-total').text(money(resp.disponible_total));
+                    $('#cobranza-credito-detalle').text(
+                        (resp.origenes || []).map((o) => o.comprobante_label + ': ' + money(o.disponible)).join(' · ')
+                    );
+                    // El campo Cobrar NO se toca: es lo que entra en plata y tiene que seguir
+                    // proponiendo el saldo pendiente. Antes se lo pisaba con `min(pendiente,
+                    // aplicable)`, así que un cliente con saldo a favor hacía que el modal
+                    // ofreciera cobrar el crédito disponible en vez de la deuda.
+                    $bloque.show();
+                })
+                .fail(() => { /* sin crédito el modal queda igual que siempre */ });
+        }
+
+        function aplicarSaldoAFavor() {
+            // Acá sí se acota: no se puede aplicar más crédito del disponible (el backend igual lo
+            // valida). Con el campo en el pendiente, esto propone lo mismo que proponía antes.
+            const montoCredito = Math.min(Number($('#cobranza-monto').val()) || 0, creditoAplicable) || creditoAplicable;
+
+            $.post(ctx.rutas.creditoStore, {
+                monto: montoCredito,
+                fecha: AppFecha.get($('#cobranza-fecha')),
+                nota: $('#cobranza-nota').val(),
+            })
+                .done((resp) => {
+                    toast('success', resp.mensaje || 'Saldo a favor aplicado.');
+                    bootstrap.Modal.getInstance(el())?.hide();
+                    onHecho();
+                })
+                .fail((xhr) => toast('error', xhr.responseJSON?.errors?.monto?.[0] || xhr.responseJSON?.mensaje || 'No se pudo aplicar el saldo a favor.'));
+        }
+
+        function cobrar(cuentaId) {
+            $.post(ctx.rutas.cobranzaStore, {
+                cuenta_tesoreria_id: cuentaId,
+                monto: $('#cobranza-monto').val(),
+                fecha: AppFecha.get($('#cobranza-fecha')),
+            })
+                .done((resp) => {
+                    toast('success', resp.mensaje || 'Venta actualizada con éxito.');
+                    bootstrap.Modal.getInstance(el())?.hide();
+                    onHecho();
+                })
+                .fail((xhr) => toast('error', xhr.responseJSON?.message || xhr.responseJSON?.errors?.monto?.[0] || 'No se pudo registrar la cobranza.'));
+        }
+
+        function abrir(contexto, alTerminar) {
+            ctx = contexto;
+            onHecho = alTerminar || function () { window.location.reload(); };
+
+            if (!listo) {
+                $('#btn-usar-saldo-favor').on('click', aplicarSaldoAFavor);
+                listo = true;
+            }
+
+            const cobro = ctx.cobro || null;
             const editando = !!cobro;
             $('#cobranza-id').val(editando ? cobro.id : '');
-            $('#cobranza-modal-titulo').text(editando ? 'Editar cobranza' : 'Cobranza');
+            // Desde el listado el título tiene que decir de qué venta se trata: en la ficha el
+            // contexto ya es obvio, en la tabla no.
+            $('#cobranza-modal-titulo').text(editando ? 'Editar cobranza' : (ctx.titulo || 'Cobranza'));
             $('#cobranza-modal-footer-edicion').toggle(editando);
-            $('#cobranza-total').text(money(data.total));
-            $('#cobranza-a-cobrar').text(money(data.aCobrar));
-            $('#cobranza-monto').val(editando ? cobro.monto : data.aCobrar);
+            $('#cobranza-total').text(money(ctx.total));
+            $('#cobranza-a-cobrar').text(money(ctx.aCobrar));
+            $('#cobranza-monto').val(editando ? cobro.monto : ctx.aCobrar);
             AppFecha.set($('#cobranza-fecha'), editando ? cobro.fecha : AppFecha.hoy());
             $('#cobranza-nota').val(editando ? (cobro.nota || '') : '');
             cuentaSeleccionadaEdicion = editando ? cobro.cuentaId : null;
 
             const $cuentas = $('#cobranza-cuentas').empty();
-            data.cuentas.forEach((cuenta) => {
+            (ctx.cuentas || []).forEach((cuenta) => {
                 const $col = $('<div class="col-6">');
                 const activa = editando && Number(cuenta.id) === Number(cuentaSeleccionadaEdicion);
                 const $btn = $('<button type="button" class="btn w-100">')
@@ -1135,61 +1243,32 @@
                 $cuentas.append($col);
             });
             prepararSaldoAFavor(editando);
-            bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-cobranza')).show();
+            bootstrap.Modal.getOrCreateInstance(el()).show();
         }
 
-        /**
-         * Saldo a favor (spec 072): se consulta al abrir el modal y el bloque sólo aparece si hay
-         * crédito aplicable (FR-006). Editar una cobranza con dinero no ofrece la opción — son dos
-         * circuitos distintos y mezclarlos convertiría una edición en una aplicación de crédito.
-         */
-        function prepararSaldoAFavor(editando) {
-            const $bloque = $('#cobranza-credito').hide();
-
-            if (editando || !rutas.creditoDisponible) { return; }
-
-            $.getJSON(rutas.creditoDisponible)
-                .done((resp) => {
-                    if (!resp || !(resp.aplicable > 0)) { return; }
-
-                    creditoAplicable = resp.aplicable;
-                    $('#cobranza-credito-total').text(money(resp.disponible_total));
-                    $('#cobranza-credito-detalle').text(
-                        (resp.origenes || []).map((o) => o.comprobante_label + ': ' + money(o.disponible)).join(' · ')
-                    );
-                    $('#cobranza-monto').val(Math.min(Number($('#cobranza-monto').val()) || 0, resp.aplicable) || resp.aplicable);
-                    $bloque.show();
-                })
-                .fail(() => { /* sin crédito el modal queda igual que siempre */ });
+        /** Rutas de cobranza/crédito de una venta: el patrón es fijo, no hace falta pedirlas al server. */
+        function rutasDe(ventaId) {
+            const base = (rutas.show || '/ventas') + '/' + ventaId;
+            return {
+                cobranzaStore: base + '/cobranzas',
+                creditoDisponible: base + '/credito-disponible',
+                creditoStore: base + '/aplicaciones-credito',
+            };
         }
 
-        function aplicarSaldoAFavor() {
-            $.post(rutas.creditoStore, {
-                monto: $('#cobranza-monto').val(),
-                fecha: AppFecha.get($('#cobranza-fecha')),
-                nota: $('#cobranza-nota').val(),
-            })
-                .done((resp) => {
-                    toast('success', resp.mensaje || 'Saldo a favor aplicado.');
-                    bootstrap.Modal.getInstance(document.getElementById('modal-cobranza'))?.hide();
-                    recargarSinAutoAbrirCobranza();
-                })
-                .fail((xhr) => toast('error', xhr.responseJSON?.errors?.monto?.[0] || xhr.responseJSON?.mensaje || 'No se pudo aplicar el saldo a favor.'));
-        }
+        return { abrir, rutasDe, cuentaSeleccionada: () => cuentaSeleccionadaEdicion };
+    })();
 
-        function cobrar(cuentaId) {
-            $.post(rutas.cobranzaStore, {
-                cuenta_tesoreria_id: cuentaId,
-                monto: $('#cobranza-monto').val(),
-                fecha: AppFecha.get($('#cobranza-fecha')),
-            })
-                .done((resp) => {
-                    toast('success', resp.mensaje || 'Venta actualizada con éxito.');
-                    bootstrap.Modal.getInstance(document.getElementById('modal-cobranza'))?.hide();
-                    recargarSinAutoAbrirCobranza();
-                })
-                .fail((xhr) => toast('error', xhr.responseJSON?.message || xhr.responseJSON?.errors?.monto?.[0] || 'No se pudo registrar la cobranza.'));
-        }
+    // ---------------------------------------------------------------------
+    // Detalle (barra de ecuación + Cobranza)
+    // ---------------------------------------------------------------------
+    function inicializarDetalle() {
+        const data = window.VentaDetalleData;
+        if (!data) { return; }
+
+        // Tras un envío exitoso a ARCA se recarga el detalle: el botón queda deshabilitado y
+        // aparecen el CAE y los datos fiscales ya declarados.
+        inicializarArca((resp) => { if (resp && resp.ok) { window.location.reload(); } });
 
         function recargarSinAutoAbrirCobranza() {
             const url = new URL(window.location.href);
@@ -1197,16 +1276,27 @@
             window.location.href = url.toString();
         }
 
+        function abrirCobranza(cobro) {
+            ModalCobranza.abrir({
+                total: data.total,
+                aCobrar: data.aCobrar,
+                cuentas: data.cuentas,
+                cobro: cobro || null,
+                rutas: rutas,
+            }, recargarSinAutoAbrirCobranza);
+        }
+
         function guardarEdicionCobranza() {
             const id = $('#cobranza-id').val();
             if (!id) { return; }
-            if (!cuentaSeleccionadaEdicion) { toast('error', 'Seleccioná un medio de cobro.'); return; }
+            const cuentaId = ModalCobranza.cuentaSeleccionada();
+            if (!cuentaId) { toast('error', 'Seleccioná un medio de cobro.'); return; }
 
             $.ajax({
                 url: rutas.cobranzaUpdateBase + '/' + id,
                 method: 'PUT',
                 data: {
-                    cuenta_tesoreria_id: cuentaSeleccionadaEdicion,
+                    cuenta_tesoreria_id: cuentaId,
                     monto: $('#cobranza-monto').val(),
                     fecha: AppFecha.get($('#cobranza-fecha')),
                     nota: $('#cobranza-nota').val(),
@@ -1237,7 +1327,6 @@
         }
 
         $('#btn-guardar-cobranza').on('click', guardarEdicionCobranza);
-        $('#btn-usar-saldo-favor').on('click', aplicarSaldoAFavor);
 
         $(document).on('click', '.js-anular-aplicacion-credito', function (e) {
             e.preventDefault();

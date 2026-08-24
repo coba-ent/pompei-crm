@@ -288,6 +288,9 @@
     </div>
 </div>
 
+{{-- El mismo modal de la ficha: "Agregar Cobranza" del menú de fila lo abre sin cambiar de vista. --}}
+@include('ventas._modal_cobranza')
+
 <div class="modal fade" id="modal-eliminar-venta" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">

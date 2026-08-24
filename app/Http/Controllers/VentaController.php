@@ -699,6 +699,23 @@ class VentaController extends Controller
     }
 
     /**
+     * Datos que necesita el modal de Cobranza para abrirse desde el menú de fila del listado, sin
+     * pasar por la ficha. Se calculan en el momento (no se toman de la fila ya renderizada) para
+     * que el "A Cobrar" contemple las NC/ND y las cobranzas registradas mientras la tabla estaba
+     * abierta. Las cuentas son las mismas de la ficha: `paraCobrar()`, donde entra plata.
+     */
+    public function cobranzaContexto(Venta $venta): JsonResponse
+    {
+        return response()->json([
+            'id' => $venta->id,
+            'comprobante' => $venta->nro_comprobante,
+            'total' => (float) $venta->total,
+            'aCobrar' => $venta->aCobrar(),
+            'cuentas' => CuentaTesoreria::visibles()->paraCobrar()->orderBy('orden')->orderBy('nombre')->get(['id', 'nombre']),
+        ]);
+    }
+
+    /**
      * "Cobrar" / "Agregar Cobranza" (informe §3.2). Spec 040: ya NO dispara la emisión de CAE — el
      * envío a ARCA es una acción manual explícita del usuario (ver enviarArca()), a raíz del
      * incidente del 04/08/2026 (envío real no deseado a ARCA producción por un trigger automático).

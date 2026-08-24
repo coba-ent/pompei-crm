@@ -484,6 +484,22 @@ class CompraController extends Controller
         return $pdf->stream('compra-'.$compra->nro_comprobante.'.pdf', ['Content-Disposition' => 'inline']);
     }
 
+    /**
+     * Datos que necesita el modal de Pago para abrirse desde el menú de fila del listado, sin
+     * pasar por la ficha. Se calculan en el momento (no se toman de la fila ya renderizada) para
+     * que el "A Pagar" contemple las NC/ND y los pagos registrados mientras la tabla estaba abierta.
+     */
+    public function pagoContexto(Compra $compra): JsonResponse
+    {
+        return response()->json([
+            'id' => $compra->id,
+            'nroComprobante' => $compra->nro_comprobante,
+            'total' => (float) $compra->total,
+            'aPagar' => $compra->aPagar(),
+            'cuentas' => CuentaTesoreria::visibles()->orderBy('orden')->orderBy('nombre')->get(['id', 'nombre']),
+        ]);
+    }
+
     /** "Agregar Pago" (informe §2.4). */
     public function pagoStore(StorePagoRequest $request, Compra $compra): JsonResponse
     {

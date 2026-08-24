@@ -243,6 +243,9 @@
     </div>
 </div>
 
+{{-- El mismo modal de la ficha: "Agregar Pago" del menú de fila lo abre sin cambiar de vista. --}}
+@include('compras._modal_pago')
+
 <div class="modal fade" id="modal-eliminar-compra" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">

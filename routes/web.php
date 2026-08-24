@@ -281,6 +281,8 @@ Route::middleware('auth')->group(function () {
         Route::get('{venta}/pdf', [VentaController::class, 'pdf'])->name('pdf');
         Route::get('{venta}/ticket', [VentaController::class, 'ticket'])->name('ticket');
         Route::post('{venta}/enviar-arca', [VentaController::class, 'enviarArca'])->name('enviarArca');
+        // Datos del modal de Cobranza para abrirlo desde el menú de fila del listado (ver Compras).
+        Route::get('{venta}/cobranza-contexto', [VentaController::class, 'cobranzaContexto'])->name('cobranzas.contexto');
         Route::post('{venta}/cobranzas', [VentaController::class, 'cobranzaStore'])->name('cobranzas.store');
         Route::put('{venta}/cobranzas/{cobro}', [VentaController::class, 'cobranzaUpdate'])->name('cobranzas.update');
         Route::delete('{venta}/cobranzas/{cobro}', [VentaController::class, 'cobranzaDestroy'])->name('cobranzas.destroy');
@@ -395,6 +397,8 @@ Route::middleware('auth')->group(function () {
         Route::put('{compra}', [CompraController::class, 'update'])->name('update');
         Route::delete('{compra}', [CompraController::class, 'destroy'])->name('destroy');
         Route::get('{compra}/pdf', [CompraController::class, 'pdf'])->name('pdf');
+        // Datos del modal de Pago para abrirlo desde el menú de fila del listado, sin ir a la ficha.
+        Route::get('{compra}/pago-contexto', [CompraController::class, 'pagoContexto'])->name('pagos.contexto');
         Route::post('{compra}/pagos', [CompraController::class, 'pagoStore'])->name('pagos.store');
         Route::delete('{compra}/pagos/{pago}', [CompraController::class, 'pagoDestroy'])->name('pagos.destroy');
         Route::get('{compra}/pagos/{pago}/recibo', [CompraController::class, 'reciboPago'])->name('pagos.recibo');

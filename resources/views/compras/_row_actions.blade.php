@@ -20,7 +20,7 @@
         <li><a class="dropdown-item" href="{{ route('compras.show', $compra) }}">Ver</a></li>
         <li><a class="dropdown-item" href="{{ route('compras.edit', $compra) }}">Editar</a></li>
         <li><a class="dropdown-item" href="{{ route('compras.show', $compra) }}">Ver Detalle</a></li>
-        <li><a class="dropdown-item js-agregar-pago" href="{{ route('compras.show', $compra) }}">Agregar Pago</a></li>
+        <li><a class="dropdown-item js-agregar-pago" href="#" data-id="{{ $compra->id }}">Agregar Pago</a></li>
         <li><a class="dropdown-item" href="{{ route('compras.show', $compra) }}#notas">Crear NC/ND</a></li>
         <li><a class="dropdown-item" href="{{ route('compras.show', $compra) }}">Crear Remito</a></li>
         <li><hr class="dropdown-divider"></li>

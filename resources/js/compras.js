@@ -285,6 +285,36 @@
             tabla.ajax.reload();
         });
 
+        // "Agregar Pago" desde el menú de fila: abre el mismo modal de la ficha sin salir del
+        // listado. Los importes (Total / A Pagar) y las cuentas se piden al server en el momento —
+        // no se toman de la fila, que puede estar desactualizada respecto de NC/ND o de un pago
+        // que alguien registró en paralelo.
+        $(document).on('click', '.js-agregar-pago', function (e) {
+            e.preventDefault();
+            const id = $(this).data('id');
+            const $item = $(this);
+            $item.addClass('disabled');
+            $.getJSON(rutas.show + '/' + id + '/pago-contexto')
+                .done((resp) => {
+                    if (resp.aPagar <= 0) {
+                        toast('info', 'Esta compra ya está paga.');
+                        return;
+                    }
+                    ModalPago.abrir(
+                        {
+                            titulo: 'Pago — Compra ' + (resp.nroComprobante || '#' + id),
+                            total: resp.total,
+                            aPagar: resp.aPagar,
+                            cuentas: resp.cuentas,
+                            rutas: ModalPago.rutasDe(id),
+                        },
+                        () => { tabla.ajax.reload(null, false); }
+                    );
+                })
+                .fail(() => toast('error', 'No se pudo abrir el pago de esta compra.'))
+                .always(() => $item.removeClass('disabled'));
+        });
+
         $(document).on('click', '.js-imprimir', function (e) {
             e.preventDefault();
             const url = rutas.pdf + '/' + $(this).data('id') + '/pdf';
@@ -763,36 +793,29 @@
     // ---------------------------------------------------------------------
     // Detalle (barra de ecuación + Pago + Retención)
     // ---------------------------------------------------------------------
-    function inicializarDetalle() {
-        const data = window.CompraDetalleData;
-        if (!data) { return; }
+    // ---------------------------------------------------------------------
+    // Modal de Pago (compartido: ficha de Compra y menú de fila del listado)
+    // ---------------------------------------------------------------------
+    /**
+     * El mismo modal se abre desde dos lugares, así que la lógica no puede depender de
+     * `window.CompraDetalleData`: recibe un `contexto` con los datos de la compra y sus rutas, y
+     * un `onHecho` que decide qué pasa después (la ficha se recarga; el listado refresca la tabla
+     * sin cambiar de vista). Los handlers se registran una sola vez y leen el contexto vigente.
+     */
+    const ModalPago = (function () {
+        let ctx = null;
+        let onHecho = null;
+        let creditoAplicable = 0;
+        let listo = false;
 
-        function abrirPago() {
-            $('#pago-total').text(money(data.total));
-            $('#pago-a-pagar').text(money(data.aPagar));
-            $('#pago-monto').val(data.aPagar);
-            AppFecha.set($('#pago-fecha'), AppFecha.hoy());
-            $('#pago-nota').val('');
+        function el() { return document.getElementById('modal-pago'); }
 
-            const $cuentas = $('#pago-cuentas').empty();
-            data.cuentas.forEach((cuenta) => {
-                const $col = $('<div class="col-6">');
-                const $btn = $('<button type="button" class="btn btn-outline-primary w-100">').text(cuenta.nombre)
-                    .on('click', () => pagar(cuenta.id));
-                $col.append($btn);
-                $cuentas.append($col);
-            });
-            prepararSaldoAFavor();
-            bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-pago')).show();
-        }
-
-        /** Saldo a favor de proveedor (spec 072, US4): mismo comportamiento que en Ventas. */
         function prepararSaldoAFavor() {
             const $bloque = $('#pago-credito').hide();
 
-            if (!rutas.creditoDisponible) { return; }
+            if (!ctx.rutas.creditoDisponible) { return; }
 
-            $.getJSON(rutas.creditoDisponible)
+            $.getJSON(ctx.rutas.creditoDisponible)
                 .done((resp) => {
                     if (!resp || !(resp.aplicable > 0)) { return; }
 
@@ -800,28 +823,36 @@
                     $('#pago-credito-detalle').text(
                         (resp.origenes || []).map((o) => o.comprobante_label + ': ' + money(o.disponible)).join(' · ')
                     );
-                    $('#pago-monto').val(Math.min(Number($('#pago-monto').val()) || 0, resp.aplicable) || resp.aplicable);
+                    // El campo Monto NO se toca: es lo que se paga con plata y tiene que seguir
+                    // proponiendo el saldo pendiente. Antes se lo pisaba con `min(pendiente,
+                    // aplicable)`, así que un proveedor con saldo a favor hacía que el modal
+                    // ofreciera pagar el crédito disponible en vez de la deuda.
+                    creditoAplicable = resp.aplicable;
                     $bloque.show();
                 })
                 .fail(() => { /* sin crédito el modal queda igual que siempre */ });
         }
 
         function aplicarSaldoAFavor() {
-            $.post(rutas.creditoStore, {
-                monto: $('#pago-monto').val(),
+            // Acá sí se acota: no se puede aplicar más crédito del disponible (el backend igual lo
+            // valida). Con el campo en el pendiente, esto propone lo mismo que proponía antes.
+            const montoCredito = Math.min(Number($('#pago-monto').val()) || 0, creditoAplicable) || creditoAplicable;
+
+            $.post(ctx.rutas.creditoStore, {
+                monto: montoCredito,
                 fecha: AppFecha.get($('#pago-fecha')),
                 nota: $('#pago-nota').val(),
             })
                 .done((resp) => {
                     toast('success', resp.mensaje || 'Saldo a favor aplicado.');
-                    bootstrap.Modal.getInstance(document.getElementById('modal-pago'))?.hide();
-                    window.location.reload();
+                    bootstrap.Modal.getInstance(el())?.hide();
+                    onHecho();
                 })
                 .fail((xhr) => toast('error', xhr.responseJSON?.errors?.monto?.[0] || xhr.responseJSON?.mensaje || 'No se pudo aplicar el saldo a favor.'));
         }
 
         function pagar(cuentaId) {
-            $.post(rutas.pagoStore, {
+            $.post(ctx.rutas.pagoStore, {
                 cuenta_tesoreria_id: cuentaId,
                 monto: $('#pago-monto').val(),
                 fecha: AppFecha.get($('#pago-fecha')),
@@ -829,18 +860,72 @@
             })
                 .done((resp) => {
                     toast('success', resp.mensaje || 'Compra actualizada con éxito.');
-                    bootstrap.Modal.getInstance(document.getElementById('modal-pago'))?.hide();
-                    window.location.reload();
+                    bootstrap.Modal.getInstance(el())?.hide();
+                    onHecho();
                 })
                 .fail((xhr) => toast('error', xhr.responseJSON?.message || xhr.responseJSON?.errors?.monto?.[0] || 'No se pudo registrar el pago.'));
         }
 
+        function abrir(contexto, alTerminar) {
+            ctx = contexto;
+            onHecho = alTerminar || function () { window.location.reload(); };
+            creditoAplicable = 0;
+
+            if (!listo) {
+                $('#btn-usar-saldo-favor-compra').on('click', aplicarSaldoAFavor);
+                listo = true;
+            }
+
+            // Desde el listado el título tiene que decir de qué compra se trata: en la ficha el
+            // contexto ya es obvio, en la tabla no.
+            $('#modal-pago .modal-title').text(ctx.titulo || 'Pago');
+            $('#pago-total').text(money(ctx.total));
+            $('#pago-a-pagar').text(money(ctx.aPagar));
+            $('#pago-monto').val(ctx.aPagar);
+            AppFecha.set($('#pago-fecha'), AppFecha.hoy());
+            $('#pago-nota').val('');
+
+            const $cuentas = $('#pago-cuentas').empty();
+            (ctx.cuentas || []).forEach((cuenta) => {
+                const $col = $('<div class="col-6">');
+                const $btn = $('<button type="button" class="btn btn-outline-primary w-100">').text(cuenta.nombre)
+                    .on('click', () => pagar(cuenta.id));
+                $col.append($btn);
+                $cuentas.append($col);
+            });
+            prepararSaldoAFavor();
+            bootstrap.Modal.getOrCreateInstance(el()).show();
+        }
+
+        /** Rutas de pago/crédito de una compra: el patrón es fijo, no hace falta pedirlas al server. */
+        function rutasDe(compraId) {
+            const base = (rutas.show || '/compras') + '/' + compraId;
+            return {
+                pagoStore: base + '/pagos',
+                creditoDisponible: base + '/credito-disponible',
+                creditoStore: base + '/aplicaciones-credito',
+            };
+        }
+
+        return { abrir, rutasDe };
+    })();
+
+    // ---------------------------------------------------------------------
+    // Detalle (barra de ecuación + Pago + Retención)
+    // ---------------------------------------------------------------------
+    function inicializarDetalle() {
+        const data = window.CompraDetalleData;
+        if (!data) { return; }
+
         $('#btn-agregar-pago, .js-agregar-pago').on('click', function (e) {
             e.preventDefault();
-            abrirPago();
+            ModalPago.abrir({
+                total: data.total,
+                aPagar: data.aPagar,
+                cuentas: data.cuentas,
+                rutas: rutas,
+            });
         });
-
-        $('#btn-usar-saldo-favor-compra').on('click', aplicarSaldoAFavor);
 
         $(document).on('click', '.js-anular-aplicacion-credito', function (e) {
             e.preventDefault();

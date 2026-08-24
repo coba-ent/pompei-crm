@@ -21,7 +21,7 @@
         @endif
         <li><a class="dropdown-item text-danger js-eliminar" href="#" data-id="{{ $venta->id }}">Eliminar</a></li>
         <li><hr class="dropdown-divider"></li>
-        <li><a class="dropdown-item js-agregar-cobranza" href="{{ route('ventas.show', $venta) }}">Agregar Cobranza</a></li>
+        <li><a class="dropdown-item js-agregar-cobranza" href="#" data-id="{{ $venta->id }}">Agregar Cobranza</a></li>
         <li><a class="dropdown-item" href="{{ route('ventas.show', $venta) }}#notas">Crear NC/ND</a></li>
         <li><a class="dropdown-item" href="{{ route('ventas.remitos.create', $venta) }}">Crear Remito</a></li>
         @if ($venta->puedeEnviarseAArca())
