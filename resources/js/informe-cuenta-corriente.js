@@ -100,7 +100,8 @@
                     data: 'total', name: 'total', className: 'text-end fw-bold',
                     render: function (val, type, row) {
                         if (type !== 'display') { return val; }
-                        return '<a href="#" class="link-saldo-total text-reset" data-cliente-id="' + row.cliente_id + '">' + fmtMoney(val) + '</a>';
+                        const url = rutas.index + '?cliente_id=' + row.cliente_id;
+                        return '<a href="' + url + '" class="link-saldo-total text-reset">' + fmtMoney(val) + '</a>';
                     },
                 },
             ],
@@ -119,14 +120,9 @@
             tablaSaldos.buttons().container().appendTo('#dt-buttons-saldos-clientes');
         });
 
-        // Click en el Total de una fila: ir a Movimientos filtrado por ese cliente.
-        $tablaSaldos.on('click', '.link-saldo-total', function (e) {
-            e.preventDefault();
-            const clienteId = $(this).data('cliente-id');
-            if (clienteId) {
-                window.location.href = rutas.index + '?cliente_id=' + clienteId;
-            }
-        });
+        // El Total de cada fila es un <a> con href real a Movimientos filtrado por ese
+        // cliente: la navegación normal la hace el navegador, y así funcionan tambien
+        // el clic con la rueda / Ctrl+clic (abrir en pestaña nueva).
 
         $('#filtro-saldos-cliente').on('select2:select select2:clear change', function () {
             tablaSaldos.ajax.reload();
