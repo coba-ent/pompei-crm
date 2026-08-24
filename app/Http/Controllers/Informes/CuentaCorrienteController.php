@@ -111,7 +111,9 @@ class CuentaCorrienteController extends Controller
         // Las notas salían con toda la fila en blanco salvo la fecha. Contagram muestra la
         // categoría de la venta afectada, el importe de la nota en "Cobrado" y el Nº de
         // comprobante propio de la nota (no el de la venta: mostrar el de la venta haría
-        // pasar el comprobante de la factura por el de la nota).
+        // pasar el comprobante de la factura por el de la nota). Cuando la nota se emitió por
+        // ARCA el número no vive en `nro_comprobante` sino en su comprobante fiscal aprobado
+        // (mismo caso que Compras, commit 723b7a24), así que se lee de ahí como fallback.
         $notas = DB::table('notas_credito_debito')
             ->join('ventas', 'ventas.id', '=', 'notas_credito_debito.venta_id')
             ->leftJoin('clientes', 'clientes.id', '=', 'ventas.cliente_id')
@@ -123,8 +125,14 @@ class CuentaCorrienteController extends Controller
                 "ventas.cliente_id as cliente_id, clientes.nombre as cliente, CASE notas_credito_debito.tipo WHEN 'credito' THEN 'nota_credito' ELSE 'nota_debito' END as operacion, ".
                 'categorias.nombre as categoria, NULL as total_venta, notas_credito_debito.monto as cobrado, '.
                 'NULL as a_cobrar, '.
-                'notas_credito_debito.nro_comprobante as nro_comprobante, '.
-                'NULL as medio_cobro, notas_credito_debito.descripcion as descripcion'
+                "COALESCE(NULLIF(notas_credito_debito.nro_comprobante, ''), (".
+                '    SELECT cf.numero FROM comprobantes_fiscales cf '.
+                '    WHERE cf.comprobantable_type = ? AND cf.comprobantable_id = notas_credito_debito.id '.
+                "      AND cf.estado = 'aprobado' AND cf.deleted_at IS NULL ".
+                '    ORDER BY cf.id DESC LIMIT 1'.
+                ')) as nro_comprobante, '.
+                'NULL as medio_cobro, notas_credito_debito.descripcion as descripcion',
+                [\App\Models\NotaCreditoDebito::class]
             );
 
         $saldosIniciales = DB::table('clientes')
