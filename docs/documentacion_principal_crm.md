@@ -2192,14 +2192,19 @@ nada por su cuenta.
   (spec 046 agregó "Hoy", comparado contra "Ayer") — recalcula KPIs, Totales, Donas y Rankings.
   Tesorería y Cuentas a Cobrar/Pagar **no** se recalculan por período (siempre "a hoy"), para no
   repetir cómputo que no cambia con el filtro.
-- **Neteo de Notas de Crédito/Débito en KPIs/Totales/Gráfico/Donas (spec 046)**: a diferencia del
-  aging de Cuentas a Cobrar/Pagar (que usa el saldo acumulado a hoy, sin acotar por período), estos
-  cálculos restan el monto de NC y suman el de ND **por la fecha de emisión de cada nota**, no por
-  la fecha de la Venta/Compra que ajustan — una NC emitida en agosto resta de "Ventas" de agosto
-  aunque la venta que anula sea de julio. Dentro del mismo período que la Venta/Compra, el neto
-  nunca baja de $0 (piso); si la nota cae en un período distinto, no hay piso (se resta/suma cruda,
-  sin "base" contra la cual acotar en ese período). Sin techo superior para ND. El Ranking de
-  Clientes/Productos **no** se netea (queda pendiente, ver §7).
+- **Neteo de Notas de Crédito/Débito en KPIs/Totales/Gráfico/Donas/Rankings (spec 046, revisión
+  18/08/2026, y spec 079)**: a diferencia del aging de Cuentas a Cobrar/Pagar (que usa el saldo
+  acumulado a hoy, sin acotar por período), estos cálculos restan el monto de NC y suman el de ND
+  **por la fecha de emisión de cada nota**, no por la fecha de la Venta/Compra que ajustan — una NC
+  emitida en agosto resta de "Ventas" de agosto aunque la venta que anula sea de julio. **Sin piso
+  en $0**: una NC/ND puede dejar el neto de un período en negativo (se sacó el piso el 18/08/2026,
+  verificado contra Contagram real — ver comentario de `DashboardController::montoNetoQuery()`).
+  Sin techo superior para ND. **El Ranking de Clientes (por monto) y de Productos (por cantidad)
+  del Dashboard también se netean con este mismo criterio (spec 079)** — a nivel de línea de
+  producto para el Ranking de Productos (`nota_credito_debito_items.producto_id`/`cantidad`); una
+  NC/ND sin ítems desglosados afecta el Ranking de Clientes pero no el de Productos. El Ranking de
+  Clientes/Productos del módulo **Informes** (spec 069) es una pantalla distinta y no se netea por
+  esta spec.
 - **Resumen de Tesorería**: Total Disponible/Cajas/Bancos (reutiliza `Tesoreria::saldos()`, spec 007,
   sin lógica propia) + mini-tabla de últimos movimientos.
 - **Cuentas a Cobrar / a Pagar con aging**: dos bloques (Ventas a Cobrar en verde, Compras a Pagar en
@@ -2848,11 +2853,9 @@ salieron de esta lista:
   > manda email. Cuando se especifique, conviene reusar la infraestructura de la 073 (mismo endpoint
   > `monitoreo/resumen`, misma tabla `notificaciones_leidas`, misma clave de episodio) en vez de
   > armar un segundo sistema de notificaciones en paralelo.
-- **Ranking de Clientes/Productos del Dashboard sin netear NC/ND**: el neteo de Notas de
-  Crédito/Débito en KPIs/Totales/Gráfico Mensual/Donas del Dashboard ya se implementó (spec 046,
-  ver §6.3), pero el Ranking de Clientes (por monto vendido) y de Productos (por cantidad vendida)
-  quedaron explícitamente fuera de alcance de esa spec — siguen calculándose sobre el monto/cantidad
-  bruto de la Venta, sin restar NC ni sumar ND. Pendiente de spec propia si se decide resolverlo.
+- ~~Ranking de Clientes/Productos del Dashboard sin netear NC/ND~~ — **resuelto por spec 079**
+  (24/08/2026): ambos rankings ya restan NC y suman ND con el mismo criterio de KPIs/Totales/Donas
+  (sin piso, sin techo). Ver §6.3.
 - **Auditoría (`Menú de usuario → Auditoría`, pantalla "Operaciones") — spec 054, implementada
   (07/08/2026).** En este CRM el link vive en el dropdown de usuario de la
   topbar (`resources/views/elements/header.blade.php`), inmediatamente debajo de "Configuración &

@@ -233,7 +233,12 @@ class DashboardController extends Controller
         return response()->json($respuesta);
     }
 
-    /** Ranking de Clientes (por monto vendido) y de Productos (por cantidad vendida), dentro del período (US6), filtrados por permiso (spec 070). */
+    /**
+     * Ranking de Clientes (por monto vendido) y de Productos (por cantidad vendida), dentro del
+     * período (US6), filtrados por permiso (spec 070). Netea Notas de Crédito/Débito (spec 079),
+     * con el mismo criterio sin piso/sin techo que {@see montoNetoQuery()} (spec 046): el Top 10
+     * se calcula sobre el conjunto ya neteado, no sobre el bruto.
+     */
     public function rankings(Request $request): JsonResponse
     {
         $permisos = $this->permisosRubros($request->user());
@@ -243,41 +248,138 @@ class DashboardController extends Controller
         $respuesta = [];
 
         if ($permisos['ventas'] && $permisos['clientes']) {
-            $porCliente = Venta::whereBetween('fecha_emision', [$desde->toDateString(), $hasta->toDateString()])
-                ->selectRaw('cliente_id, SUM(total) as monto')
-                ->groupBy('cliente_id')
-                ->orderByDesc('monto')
-                ->limit(self::TOP_N_RANKING)
-                ->get();
+            $netoPorCliente = $this->montoNetoPorClienteQuery($desde, $hasta);
+            arsort($netoPorCliente);
+            $topClientes = array_slice($netoPorCliente, 0, self::TOP_N_RANKING, preserve_keys: true);
 
-            $nombresClientes = Cliente::whereIn('id', $porCliente->pluck('cliente_id'))->pluck('nombre', 'id');
+            $nombresClientes = Cliente::whereIn('id', array_keys($topClientes))->pluck('nombre', 'id');
 
-            $respuesta['clientes'] = $porCliente->map(fn ($fila) => [
-                'nombre' => $nombresClientes[$fila->cliente_id] ?? 'Sin cliente',
-                'monto' => round((float) $fila->monto, 2),
+            $respuesta['clientes'] = collect($topClientes)->map(fn ($monto, $clienteId) => [
+                'nombre' => $nombresClientes[$clienteId] ?? 'Sin cliente',
+                'monto' => round($monto, 2),
             ])->values();
         }
 
         if ($permisos['ventas'] && $permisos['productos']) {
-            $porProducto = VentaItem::query()
-                ->join('ventas', 'ventas.id', '=', 'venta_items.venta_id')
-                ->whereNull('ventas.deleted_at')
-                ->whereBetween('ventas.fecha_emision', [$desde->toDateString(), $hasta->toDateString()])
-                ->selectRaw('venta_items.producto_id as producto_id, SUM(venta_items.cantidad) as cantidad')
-                ->groupBy('venta_items.producto_id')
-                ->orderByDesc('cantidad')
-                ->limit(self::TOP_N_RANKING)
-                ->get();
+            $netoPorProducto = $this->cantidadNetaPorProductoQuery($desde, $hasta);
+            arsort($netoPorProducto);
+            $topProductos = array_slice($netoPorProducto, 0, self::TOP_N_RANKING, preserve_keys: true);
 
-            $nombresProductos = Producto::whereIn('id', $porProducto->pluck('producto_id'))->pluck('nombre', 'id');
+            $nombresProductos = Producto::whereIn('id', array_keys($topProductos))->pluck('nombre', 'id');
 
-            $respuesta['productos'] = $porProducto->map(fn ($fila) => [
-                'nombre' => $nombresProductos[$fila->producto_id] ?? 'Sin producto',
-                'cantidad' => round((float) $fila->cantidad, 3),
+            $respuesta['productos'] = collect($topProductos)->map(fn ($cantidad, $productoId) => [
+                'nombre' => $nombresProductos[$productoId] ?? 'Sin producto',
+                'cantidad' => round($cantidad, 3),
             ])->values();
         }
 
         return response()->json($respuesta);
+    }
+
+    /**
+     * Monto neto de Venta por cliente en `[$desde, $hasta]` (spec 079), mismo criterio que
+     * {@see montoNetoQuery()}: sin piso en $0, sin techo para ND, NC/ND imputada al período de su
+     * propia `fecha_emision` (no al de la Venta que ajusta). Matemáticamente equivalente a los "2
+     * componentes" de `montoNetoQuery()`: sumar el bruto de Ventas del rango más el efecto de toda
+     * NC/ND cuya `fecha_emision` cae en el rango, sin importar si la Venta que ajustan cayó
+     * también en el rango — para el total agregado da lo mismo separar por componente que sumar
+     * directo, la única razón de los "2 componentes" en `montoNetoQuery()` es expresarlo por SQL
+     * correlacionado; acá no hace falta esa correlación porque se agrupa por `cliente_id`, que ya
+     * viene de la Venta en ambos casos.
+     *
+     * @return array<int, float> `[cliente_id => monto_neto]`
+     */
+    private function montoNetoPorClienteQuery(Carbon $desde, Carbon $hasta): array
+    {
+        $rango = [$desde->toDateString(), $hasta->copy()->endOfDay()->toDateTimeString()];
+
+        $bruto = Venta::whereNull('deleted_at')
+            ->whereBetween('fecha_emision', $rango)
+            ->selectRaw('cliente_id, SUM(total) as monto')
+            ->groupBy('cliente_id')
+            ->pluck('monto', 'cliente_id');
+
+        $debitos = DB::table('notas_credito_debito as n')
+            ->join('ventas as t', 't.id', '=', 'n.venta_id')
+            ->whereNull('n.deleted_at')
+            ->whereNull('t.deleted_at')
+            ->where('n.tipo', 'debito')
+            ->whereBetween('n.fecha_emision', $rango)
+            ->selectRaw('t.cliente_id, SUM(n.monto) as monto')
+            ->groupBy('t.cliente_id')
+            ->pluck('monto', 'cliente_id');
+
+        $creditos = DB::table('notas_credito_debito as n')
+            ->join('ventas as t', 't.id', '=', 'n.venta_id')
+            ->whereNull('n.deleted_at')
+            ->whereNull('t.deleted_at')
+            ->where('n.tipo', 'credito')
+            ->whereBetween('n.fecha_emision', $rango)
+            ->selectRaw('t.cliente_id, SUM(n.monto) as monto')
+            ->groupBy('t.cliente_id')
+            ->pluck('monto', 'cliente_id');
+
+        $clientesIds = collect($bruto->keys())->merge($debitos->keys())->merge($creditos->keys())->unique();
+
+        return $clientesIds->mapWithKeys(fn ($clienteId) => [
+            (int) $clienteId => (float) ($bruto[$clienteId] ?? 0)
+                + (float) ($debitos[$clienteId] ?? 0)
+                - (float) ($creditos[$clienteId] ?? 0),
+        ])->all();
+    }
+
+    /**
+     * Cantidad neta vendida por producto en `[$desde, $hasta]` (spec 079), a nivel de línea:
+     * mismo criterio sin piso/sin techo que {@see montoNetoPorClienteQuery()}, pero usando
+     * `nota_credito_debito_items.cantidad`/`producto_id` en vez del monto de cabecera. Una NC/ND
+     * sin ítems desglosados (`producto_id` nulo) no participa — no hay a qué producto imputarle la
+     * cantidad (research.md Decisión 3).
+     *
+     * @return array<int, float> `[producto_id => cantidad_neta]`
+     */
+    private function cantidadNetaPorProductoQuery(Carbon $desde, Carbon $hasta): array
+    {
+        $rango = [$desde->toDateString(), $hasta->copy()->endOfDay()->toDateTimeString()];
+
+        $bruto = VentaItem::query()
+            ->join('ventas', 'ventas.id', '=', 'venta_items.venta_id')
+            ->whereNull('ventas.deleted_at')
+            ->whereBetween('ventas.fecha_emision', $rango)
+            ->selectRaw('venta_items.producto_id as producto_id, SUM(venta_items.cantidad) as cantidad')
+            ->groupBy('venta_items.producto_id')
+            ->pluck('cantidad', 'producto_id');
+
+        $debitos = DB::table('nota_credito_debito_items as i')
+            ->join('notas_credito_debito as n', 'n.id', '=', 'i.nota_credito_debito_id')
+            ->join('ventas as t', 't.id', '=', 'n.venta_id')
+            ->whereNull('n.deleted_at')
+            ->whereNull('t.deleted_at')
+            ->whereNotNull('i.producto_id')
+            ->where('n.tipo', 'debito')
+            ->whereBetween('n.fecha_emision', $rango)
+            ->selectRaw('i.producto_id, SUM(i.cantidad) as cantidad')
+            ->groupBy('i.producto_id')
+            ->pluck('cantidad', 'producto_id');
+
+        $creditos = DB::table('nota_credito_debito_items as i')
+            ->join('notas_credito_debito as n', 'n.id', '=', 'i.nota_credito_debito_id')
+            ->join('ventas as t', 't.id', '=', 'n.venta_id')
+            ->whereNull('n.deleted_at')
+            ->whereNull('t.deleted_at')
+            ->whereNotNull('i.producto_id')
+            ->where('n.tipo', 'credito')
+            ->whereBetween('n.fecha_emision', $rango)
+            ->selectRaw('i.producto_id, SUM(i.cantidad) as cantidad')
+            ->groupBy('i.producto_id')
+            ->pluck('cantidad', 'producto_id');
+
+        $productoIds = collect($bruto->keys())->merge($debitos->keys())->merge($creditos->keys())->unique();
+
+        return $productoIds->mapWithKeys(fn ($productoId) => [
+            (int) $productoId => (float) ($bruto[$productoId] ?? 0)
+                + (float) ($debitos[$productoId] ?? 0)
+                - (float) ($creditos[$productoId] ?? 0),
+        ])->all();
     }
 
     /** @return array{ventas_creadas: float, venta_promedio: float, cantidad_ventas: int, resultado: float, otros_ingresos: float, compras: float, gastos: float} */
