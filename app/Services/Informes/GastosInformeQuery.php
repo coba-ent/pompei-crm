@@ -4,16 +4,17 @@ namespace App\Services\Informes;
 
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Informe de Gastos (spec 067, US2): detalle plano + subtotales por Categoría → Subcategoría.
  *
- * La jerarquía se dibuja en el cliente con DataTables RowGroup sobre un endpoint **paginado**,
- * así que el detalle viene ordenado por Categoría → Subcategoría → Fecha y los subtotales
- * llegan por separado desde {@see self::subtotales()}. Es la diferencia clave con una tabla
- * agrupada del lado del cliente: los subtotales se calculan sobre **todo el conjunto filtrado**,
- * no sobre la página visible (FR-023), porque si no la página 2 mostraría otros números.
+ * La pantalla dibuja el árbol Categoría → Subcategoría colapsado, con los subtotales que
+ * devuelve {@see self::subtotales()}, y recién al desplegar una subcategoría pide sus filas a
+ * {@see self::filasDeGrupo()}. Los subtotales se calculan siempre sobre **todo el conjunto
+ * filtrado** (FR-023), nunca sobre lo que hay dibujado en pantalla. El detalle plano completo
+ * de {@see self::detalle()} sigue alimentando el export y el PDF.
  */
 class GastosInformeQuery
 {
@@ -22,7 +23,7 @@ class GastosInformeQuery
     public const SIN_SUBCATEGORIA = 'Sin subcategoría';
 
     /**
-     * Query de detalle, ya filtrada y ordenada para RowGroup.
+     * Query de detalle plano, ya filtrada (export, PDF y base de las demás consultas).
      *
      * Un gasto cuya categoría es una **raíz** se agrupa bajo esa categoría con subcategoría
      * "Sin subcategoría"; uno sin categoría cae en "Sin categoría"/"Sin subcategoría". Ninguno
@@ -95,6 +96,24 @@ class GastosInformeQuery
         if ($request->filled('estado_pago')) {
             $query->where('gastos.pendiente', $request->input('estado_pago') === 'pendiente');
         }
+    }
+
+    /**
+     * Filas de detalle de un grupo Categoría → Subcategoría concreto.
+     *
+     * Es lo que se carga al desplegar una subcategoría en pantalla. Se filtra sobre la subquery
+     * de {@see self::detalle()} y no por ids, porque los grupos son **rótulos** resueltos en SQL
+     * (COALESCE / CASE): "Sin categoría" y "Sin subcategoría" no tienen id que consultar.
+     */
+    public function filasDeGrupo(Request $request, string $categoria, string $subcategoria): Collection
+    {
+        return DB::query()
+            ->fromSub($this->detalle($request), 'g')
+            ->where('g.categoria', $categoria)
+            ->where('g.subcategoria', $subcategoria)
+            ->orderBy('g.fecha')
+            ->orderBy('g.id')
+            ->get();
     }
 
     /** Rango de emisión efectivo. Por defecto, el mes actual (FR-004b). */

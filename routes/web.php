@@ -192,6 +192,7 @@ Route::middleware('auth')->group(function () {
         Route::get('informes/gastos', [InformeGastosController::class, 'index'])->name('informes.gastos.index');
         Route::get('informes/gastos/data', [InformeGastosController::class, 'data'])->name('informes.gastos.data');
         Route::get('informes/gastos/stats', [InformeGastosController::class, 'stats'])->name('informes.gastos.stats');
+        Route::get('informes/gastos/grupo', [InformeGastosController::class, 'grupo'])->name('informes.gastos.grupo');
         Route::get('informes/gastos/exportar', [InformeGastosController::class, 'exportar'])->name('informes.gastos.exportar');
         Route::get('informes/gastos/pdf', [InformeGastosController::class, 'pdf'])->name('informes.gastos.pdf');
 

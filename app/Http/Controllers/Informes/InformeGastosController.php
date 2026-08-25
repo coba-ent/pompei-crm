@@ -68,6 +68,28 @@ class InformeGastosController extends Controller
         return response()->json($this->informe->subtotales($request));
     }
 
+    /**
+     * Filas de una subcategoría concreta, para el despliegue en pantalla.
+     *
+     * El árbol se dibuja colapsado a partir de `stats`: sin esto habría que traer el detalle
+     * completo del período para mostrar los primeros totales.
+     */
+    public function grupo(Request $request): JsonResponse
+    {
+        if ($error = $this->rangoInvalido($request)) {
+            return $error;
+        }
+
+        $datos = $request->validate([
+            'categoria' => ['required', 'string'],
+            'subcategoria' => ['required', 'string'],
+        ]);
+
+        return response()->json([
+            'filas' => $this->informe->filasDeGrupo($request, $datos['categoria'], $datos['subcategoria']),
+        ]);
+    }
+
     public function exportar(Request $request)
     {
         if ($error = $this->rangoInvalido($request)) {

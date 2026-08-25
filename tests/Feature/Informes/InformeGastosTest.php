@@ -191,6 +191,68 @@ class InformeGastosTest extends TestCase
         $this->assertCount(1, $this->informe()->detalle($this->request())->get());
     }
 
+    /**
+     * Detalle de una subcategoría concreta: es lo que se pide al desplegarla en pantalla.
+     * El árbol se dibuja colapsado, así que sólo llega lo del grupo abierto.
+     */
+    public function test_el_detalle_de_un_grupo_trae_solo_las_filas_de_esa_subcategoria(): void
+    {
+        $oficina = $this->categoria('Oficina');
+        $luz = $this->categoria('Luz', $oficina);
+        $gas = $this->categoria('Gas', $oficina);
+
+        $deLuz = $this->gasto(300, $luz);
+        $this->gasto(700, $gas);
+
+        $filas = $this->getJson(route('informes.gastos.grupo', [
+            'categoria' => 'Oficina', 'subcategoria' => 'Luz',
+        ]))->assertOk()->json('filas');
+
+        $this->assertCount(1, $filas);
+        $this->assertEquals($deLuz->id, $filas[0]['id']);
+        $this->assertEquals(300.0, $filas[0]['total']);
+    }
+
+    /**
+     * Un gasto imputado a una categoría raíz cae bajo el rótulo "Sin subcategoría", y ese
+     * grupo tiene que poder desplegarse igual que los demás: es un rótulo resuelto en SQL,
+     * no una categoría con id.
+     */
+    public function test_el_grupo_sin_subcategoria_tambien_se_puede_desplegar(): void
+    {
+        $oficina = $this->categoria('Oficina');
+        $gasto = $this->gasto(250, $oficina);
+
+        $filas = $this->getJson(route('informes.gastos.grupo', [
+            'categoria' => 'Oficina', 'subcategoria' => GastosInformeQuery::SIN_SUBCATEGORIA,
+        ]))->assertOk()->json('filas');
+
+        $this->assertCount(1, $filas);
+        $this->assertEquals($gasto->id, $filas[0]['id']);
+    }
+
+    public function test_el_detalle_de_un_grupo_respeta_los_filtros_del_informe(): void
+    {
+        $oficina = $this->categoria('Oficina');
+        $luz = $this->categoria('Luz', $oficina);
+
+        $this->gasto(300, $luz, ['pendiente' => false]);
+        $this->gasto(700, $luz, ['pendiente' => true, 'cuenta_tesoreria_id' => null]);
+
+        $filas = $this->getJson(route('informes.gastos.grupo', [
+            'categoria' => 'Oficina', 'subcategoria' => 'Luz', 'estado_pago' => 'pendiente',
+        ]))->assertOk()->json('filas');
+
+        $this->assertCount(1, $filas);
+        $this->assertEquals(700.0, $filas[0]['total']);
+    }
+
+    public function test_el_detalle_de_un_grupo_exige_categoria_y_subcategoria(): void
+    {
+        $this->getJson(route('informes.gastos.grupo', ['categoria' => 'Oficina']))
+            ->assertStatus(422);
+    }
+
     public function test_periodo_sin_datos_devuelve_total_cero_y_sin_grupos(): void
     {
         $stats = $this->getJson(route('informes.gastos.stats', [
@@ -208,7 +270,7 @@ class InformeGastosTest extends TestCase
         ]))->assertStatus(422)->assertJsonStructure(['message']);
     }
 
-    public function test_el_detalle_llega_ordenado_para_rowgroup(): void
+    public function test_el_detalle_plano_llega_ordenado_por_categoria(): void
     {
         $oficina = $this->categoria('Oficina');
         $luz = $this->categoria('Luz', $oficina);
@@ -221,8 +283,8 @@ class InformeGastosTest extends TestCase
         $data = $this->getJson(route('informes.gastos.data', ['draw' => 1, 'start' => 0, 'length' => 10]))
             ->assertOk()->json('data');
 
-        // RowGroup agrupa filas contiguas: si el orden no viniera resuelto del servidor, "Oficina"
-        // aparecería partida en dos grupos.
+        // El export y el PDF agrupan recorriendo el detalle en orden: si no viniera ordenado
+        // desde el servidor, "Oficina" aparecería partida en dos bloques.
         $categorias = array_column($data, 'categoria');
         $ordenadas = $categorias;
         sort($ordenadas);

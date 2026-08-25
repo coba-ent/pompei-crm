@@ -868,3 +868,181 @@ table.dataTable > thead > tr > td {
 .pvtUi td.pvtRendererArea {
     width: 100%;
 }
+
+
+/* ==========================================================================
+ * Informe de Gastos — árbol Categoría → Subcategoría
+ *
+ * Calca la estructura de Contagram (tarjeta por categoría, subcategorías
+ * colapsables que muestran sólo su total, pie con el total de la categoría)
+ * con la estética del template. Los montos usan `tabular-nums` porque en una
+ * columna de totales alineada a la derecha las cifras tienen que caer una
+ * debajo de la otra: con la figura proporcional del template, un "1" angosto
+ * corre toda la fila y la lectura vertical se pierde.
+ * ------------------------------------------------------------------------ */
+
+.gastos-resumen {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--bs-border-color, #e6e6e6);
+    border: 1px solid var(--bs-border-color, #e6e6e6);
+    border-radius: .5rem;
+    overflow: hidden;
+}
+
+.gastos-resumen__celda {
+    background: var(--bs-body-bg, #fff);
+    padding: .75rem 1rem;
+    text-align: center;
+}
+
+.gastos-resumen__rotulo {
+    display: block;
+    font-size: .75rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--bs-secondary-color, #7b7b7b);
+}
+
+.gastos-resumen__valor {
+    display: block;
+    font-size: 1.05rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.gastos-resumen__valor--total {
+    font-size: 1.35rem;
+    color: var(--bs-primary, #0d6efd);
+}
+
+.gasto-cat {
+    background: var(--bs-body-bg, #fff);
+    border: 1px solid var(--bs-border-color, #e6e6e6);
+    border-radius: .5rem;
+    overflow: hidden;
+    margin-bottom: 1rem;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
+}
+
+.gasto-cat__head {
+    padding: .6rem 1rem;
+    font-weight: 600;
+    font-size: .95rem;
+    letter-spacing: .01em;
+    color: #fff;
+    background: var(--bs-primary, #0d6efd);
+}
+
+/* Subcategoría: el header entero es el disparador, no sólo el chevron. */
+.gasto-sub + .gasto-sub {
+    border-top: 1px solid var(--bs-border-color, #eee);
+}
+
+.gasto-sub__head {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    width: 100%;
+    padding: .55rem 1rem;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    transition: background-color .15s ease;
+}
+
+.gasto-sub__head:hover,
+.gasto-sub--abierta > .gasto-sub__head {
+    background: rgba(0, 0, 0, .025);
+}
+
+.gasto-sub__chevron {
+    width: .75rem;
+    color: var(--bs-secondary-color, #7b7b7b);
+    transition: transform .15s ease;
+}
+
+.gasto-sub--abierta > .gasto-sub__head .gasto-sub__chevron {
+    transform: rotate(90deg);
+}
+
+.gasto-sub__nombre {
+    font-weight: 500;
+    color: var(--bs-primary, #0d6efd);
+}
+
+.gasto-sub__rotulo {
+    margin-left: auto;
+    font-size: .8rem;
+    color: var(--bs-secondary-color, #7b7b7b);
+}
+
+.gasto-sub__monto {
+    min-width: 8.5rem;
+    padding: .15rem .5rem;
+    border-radius: .35rem;
+    background: rgba(0, 0, 0, .05);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.gasto-sub__body {
+    padding: 0 1rem 0 2rem;
+    animation: gasto-sub-in .16s ease;
+}
+
+@keyframes gasto-sub-in {
+    from { opacity: 0; transform: translateY(-2px); }
+    to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .gasto-sub__body { animation: none; }
+    .gasto-sub__chevron { transition: none; }
+}
+
+.gasto-sub__vacio,
+.gasto-sub__cargando {
+    margin: 0;
+    padding: .5rem 0 .75rem;
+    color: var(--bs-secondary-color, #7b7b7b);
+}
+
+.gasto-detalle th {
+    font-size: .75rem;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    color: var(--bs-secondary-color, #7b7b7b);
+}
+
+.gasto-detalle td {
+    font-variant-numeric: tabular-nums;
+}
+
+.gasto-detalle__id {
+    color: var(--bs-secondary-color, #7b7b7b);
+}
+
+.gasto-cat__foot {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .75rem;
+    padding: .6rem 1rem;
+    border-top: 1px solid var(--bs-border-color, #e6e6e6);
+    background: rgba(0, 0, 0, .02);
+}
+
+.gasto-cat__foot-rotulo {
+    font-weight: 600;
+}
+
+.gasto-cat__foot-monto {
+    min-width: 8.5rem;
+    font-size: 1.05rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
