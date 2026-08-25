@@ -6,10 +6,14 @@ use App\Http\Requests\Import\ReglasClienteImportacion;
 use App\Http\Requests\Import\ReglasProductoImportacion;
 use App\Http\Requests\Import\ReglasProveedorImportacion;
 use App\Models\Cliente;
+use App\Models\CompraItem;
 use App\Models\Deposito;
+use App\Models\ImportacionCorrida;
+use App\Models\MovimientoStock;
 use App\Models\Producto;
 use App\Models\Proveedor;
 use App\Models\User;
+use App\Models\VentaItem;
 use App\Rules\CuitValido;
 use App\Services\AuditoriaService;
 use App\Services\Stock\StockService;
@@ -40,9 +44,12 @@ class ImportadorFilas
      *   requests cortas en vez de una sola (el proxy delante de PHP-FPM en el hosting compartido corta la conexión ~60s, muy por debajo de lo que
      *   tarda un archivo de varios miles de filas procesado entero).
      * @param  int|null  $limite  cantidad de filas a procesar en esta tanda; null = todas (comportamiento original, usado por tests/CLI)
-     * @return array{importados: int, fallidos: array<int, array{fila: int, motivo: string}>, advertencias: array<int, array{fila: int, motivo: string}>, total: int}
+     * @param  int|null  $corridaId  id de la `ImportacionCorrida` de esta corrida (spec 078) — null en la primera tanda (o llamada única) para
+     *   que se cree acá; las tandas siguientes de la misma corrida lo pasan para acumular sobre el mismo registro. Sólo aplica a `entidad = 'productos'`.
+     * @param  string|null  $archivoOriginal  nombre del archivo subido en el Paso 1, para el registro de la corrida (sólo se usa al crearla)
+     * @return array{importados: int, fallidos: array<int, array{fila: int, motivo: string}>, advertencias: array<int, array{fila: int, motivo: string}>, total: int, corrida_id: int|null}
      */
-    public function importar(string $entidad, string $rutaCompleta, array $mapeo, array $personalizados, ?User $usuario = null, array $columnasOriginales = [], int $offset = 0, ?int $limite = null): array
+    public function importar(string $entidad, string $rutaCompleta, array $mapeo, array $personalizados, ?User $usuario = null, array $columnasOriginales = [], int $offset = 0, ?int $limite = null, ?int $corridaId = null, ?string $archivoOriginal = null): array
     {
         // Procesamiento síncrono sin cola (Assumptions del spec): un archivo de varios
         // miles de filas puede superar el límite por defecto de PHP (max_execution_time).
@@ -58,9 +65,26 @@ class ImportadorFilas
         $reglas = $this->construirReglas($entidad, $definicion);
         $tipoPorIndiceCuit = $this->resolverTipoPorIndiceCuit($mapeo, $columnasOriginales);
 
+        // Spec 078: sólo Productos & Servicios registra snapshot/undo. La corrida se crea en la
+        // primera tanda (offset 0 o llamada única) y se reutiliza en las siguientes tandas del
+        // mismo archivo.
+        $corrida = null;
+        if ($entidad === 'productos') {
+            $corrida = $corridaId !== null
+                ? ImportacionCorrida::find($corridaId)
+                : ImportacionCorrida::create([
+                    'entidad' => $entidad,
+                    'usuario_id' => $usuario?->id,
+                    'archivo_original' => $archivoOriginal ?? basename($rutaCompleta),
+                    'confirmado_en' => now(),
+                    'deshacer_disponible_hasta' => now()->addHours(48),
+                ]);
+        }
+
         $importados = 0;
         $fallidos = [];
         $advertencias = [];
+        $snapshotsBuffer = [];
 
         // Spec 074: todos los cambios de precio de esta tanda quedan auditados con origen
         // "importación", y sus eventos se agrupan en un INSERT múltiple en vez de uno por
@@ -70,14 +94,22 @@ class ImportadorFilas
         $auditoria->iniciarBuffer();
 
         try {
-            OrigenCambioPrecio::durante(OrigenCambioPrecio::IMPORTACION, function () use ($filasDatos, $offset, $mapeo, $personalizados, $definicion, $catalogosFk, $tipoPorIndiceCuit, $entidad, $reglas, $usuario, &$importados, &$fallidos, &$advertencias) {
-                $this->procesarFilas($filasDatos, $offset, $mapeo, $personalizados, $definicion, $catalogosFk, $tipoPorIndiceCuit, $entidad, $reglas, $usuario, $importados, $fallidos, $advertencias);
+            OrigenCambioPrecio::durante(OrigenCambioPrecio::IMPORTACION, function () use ($filasDatos, $offset, $mapeo, $personalizados, $definicion, $catalogosFk, $tipoPorIndiceCuit, $entidad, $reglas, $usuario, $corrida, &$importados, &$fallidos, &$advertencias, &$snapshotsBuffer) {
+                $this->procesarFilas($filasDatos, $offset, $mapeo, $personalizados, $definicion, $catalogosFk, $tipoPorIndiceCuit, $entidad, $reglas, $usuario, $corrida, $importados, $fallidos, $advertencias, $snapshotsBuffer);
             });
         } finally {
             $auditoria->vaciarBuffer();
+            if ($snapshotsBuffer !== []) {
+                \App\Models\ImportacionFilaSnapshot::insert($snapshotsBuffer);
+            }
+            if ($corrida) {
+                $corrida->increment('filas_creadas', count(array_filter($snapshotsBuffer, fn ($s) => $s['modo'] === 'alta')));
+                $corrida->increment('filas_actualizadas', count(array_filter($snapshotsBuffer, fn ($s) => $s['modo'] === 'actualizacion')));
+                $corrida->increment('filas_fallidas', count($fallidos));
+            }
         }
 
-        return ['importados' => $importados, 'fallidos' => $fallidos, 'advertencias' => $advertencias, 'total' => $total];
+        return ['importados' => $importados, 'fallidos' => $fallidos, 'advertencias' => $advertencias, 'total' => $total, 'corrida_id' => $corrida?->id];
     }
 
     /**
@@ -98,9 +130,11 @@ class ImportadorFilas
         string $entidad,
         array $reglas,
         ?User $usuario,
+        ?\App\Models\ImportacionCorrida $corrida,
         int &$importados,
         array &$fallidos,
         array &$advertencias,
+        array &$snapshotsBuffer,
     ): void {
         foreach ($filasDatos as $i => $celdas) {
             $numeroFila = $offset + $i + 2; // +1 por el encabezado, +1 por ser 1-based
@@ -131,7 +165,16 @@ class ImportadorFilas
                 // Actualización parcial real: `update()`/`actualizarProducto()` sólo
                 // persisten las columnas presentes en $datos (research.md §3, FR-003).
                 if ($entidad === 'productos') {
+                    $snapshotPrevio = $corrida ? $this->armarSnapshotFila($corrida->id, $resolucion['registro'], 'actualizacion', $numeroFila) : null;
                     $this->actualizarProducto($resolucion['registro'], $datos, $usuario);
+                    if ($corrida) {
+                        // Los `limite_*` se capturan DESPUÉS de aplicar la fila (no antes, como el
+                        // resto del snapshot): el propio `fijar()` de esta fila genera un
+                        // MovimientoStock, y ese movimiento tiene que quedar DENTRO del límite —
+                        // si se capturara antes, el import se auto-marcaría como "actividad
+                        // posterior" y el undo bloquearía su propia fila.
+                        $snapshotsBuffer[] = array_merge($snapshotPrevio, $this->limitesActuales($resolucion['registro']));
+                    }
                 } else {
                     $resolucion['registro']->update($datos);
                 }
@@ -160,7 +203,10 @@ class ImportadorFilas
             // atómico sin envolverlo en una transacción explícita; evita el costo de un
             // BEGIN/COMMIT extra por cada una de las miles de filas del archivo.
             try {
-                $this->crear($entidad, $datos, $usuario, $idForzado);
+                $productoCreado = $this->crear($entidad, $datos, $usuario, $idForzado);
+                if ($corrida && $entidad === 'productos' && $productoCreado) {
+                    $snapshotsBuffer[] = $this->armarSnapshotFilaAlta($corrida->id, $productoCreado, $numeroFila);
+                }
             } catch (\Illuminate\Database\QueryException $e) {
                 // Choque de primary key: el id forzado ya lo tomó otro registro (auto-increment
                 // o una fila anterior de esta misma corrida) entre que se resolvió como "no
@@ -692,12 +738,10 @@ class ImportadorFilas
      *   esto porque `id` no es `fillable`; se arma el modelo con `forceFill()` (bypassea esa guarda
      *   sólo para el `id`, el resto de `$datos` ya pasó por `validarFila()`).
      */
-    private function crear(string $entidad, array $datos, ?User $usuario, ?int $idForzado = null): void
+    private function crear(string $entidad, array $datos, ?User $usuario, ?int $idForzado = null): ?Producto
     {
         if ($entidad === 'productos') {
-            $this->crearProducto($datos, $usuario, $idForzado);
-
-            return;
+            return $this->crearProducto($datos, $usuario, $idForzado);
         }
 
         $claseModelo = match ($entidad) {
@@ -708,10 +752,12 @@ class ImportadorFilas
         if ($idForzado === null) {
             $claseModelo::create($datos);
 
-            return;
+            return null;
         }
 
         (new $claseModelo)->forceFill($datos + ['id' => $idForzado])->save();
+
+        return null;
     }
 
     /**
@@ -763,7 +809,7 @@ class ImportadorFilas
         return [$precios, $stockPorDeposito];
     }
 
-    private function crearProducto(array $datos, ?User $usuario, ?int $idForzado = null): void
+    private function crearProducto(array $datos, ?User $usuario, ?int $idForzado = null): Producto
     {
         [$precios, $stockPorDeposito] = $this->extraerPreciosYStock($datos);
 
@@ -801,6 +847,8 @@ class ImportadorFilas
                 );
             }
         }
+
+        return $producto;
     }
 
     /**
@@ -843,5 +891,72 @@ class ImportadorFilas
                 );
             }
         }
+    }
+
+    /**
+     * Arma la fila del buffer de snapshots para una fila de actualización — capturada
+     * inmediatamente ANTES de `actualizarProducto()` (spec 078). `limite_*` son los ids
+     * máximos existentes en este momento: cualquier venta/compra/movimiento con id mayor
+     * ocurrió después de que el import tocó esta fila, y bloquea el undo de esa fila
+     * (research.md R4/R5, DeshacerImportacionService).
+     *
+     * @return array<string, mixed>
+     */
+    private function armarSnapshotFila(int $corridaId, Producto $producto, string $modo, int $numeroFila): array
+    {
+        return [
+            'importacion_corrida_id' => $corridaId,
+            'producto_id' => $producto->id,
+            'modo' => $modo,
+            'existia' => true,
+            'estado_anterior' => json_encode($producto->getAttributes()),
+            'precios_anteriores' => json_encode($producto->precios()->get(['lista_precio_id', 'precio'])->toArray()),
+            'stock_anterior' => json_encode($producto->stocks()->get(['deposito_id', 'cantidad'])->toArray()),
+            'numero_fila' => $numeroFila,
+            'limite_movimiento_stock_id' => MovimientoStock::where('producto_id', $producto->id)->max('id'),
+            'limite_venta_item_id' => VentaItem::where('producto_id', $producto->id)->max('id'),
+            'limite_compra_item_id' => CompraItem::where('producto_id', $producto->id)->max('id'),
+            'estado_undo' => 'pendiente',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ];
+    }
+
+    /** Ids máximos actuales de actividad de negocio sobre el producto — ver nota en el call site de `armarSnapshotFila()`. */
+    private function limitesActuales(Producto $producto): array
+    {
+        return [
+            'limite_movimiento_stock_id' => MovimientoStock::where('producto_id', $producto->id)->max('id'),
+            'limite_venta_item_id' => VentaItem::where('producto_id', $producto->id)->max('id'),
+            'limite_compra_item_id' => CompraItem::where('producto_id', $producto->id)->max('id'),
+        ];
+    }
+
+    /**
+     * Arma la fila del buffer de snapshots para una fila de alta — capturada inmediatamente
+     * DESPUÉS de `crear()` (a diferencia de `armarSnapshotFila()`): recién ahí existe el
+     * producto y su movimiento "Registro inicial", que tiene que quedar DENTRO del límite
+     * (no marcarse como "posterior" a sí mismo).
+     *
+     * @return array<string, mixed>
+     */
+    private function armarSnapshotFilaAlta(int $corridaId, Producto $producto, int $numeroFila): array
+    {
+        return [
+            'importacion_corrida_id' => $corridaId,
+            'producto_id' => $producto->id,
+            'modo' => 'alta',
+            'existia' => false,
+            'estado_anterior' => null,
+            'precios_anteriores' => null,
+            'stock_anterior' => null,
+            'numero_fila' => $numeroFila,
+            'limite_movimiento_stock_id' => MovimientoStock::where('producto_id', $producto->id)->max('id'),
+            'limite_venta_item_id' => VentaItem::where('producto_id', $producto->id)->max('id'),
+            'limite_compra_item_id' => CompraItem::where('producto_id', $producto->id)->max('id'),
+            'estado_undo' => 'pendiente',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ];
     }
 }

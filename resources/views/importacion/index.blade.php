@@ -10,8 +10,13 @@
     <div class="container-fluid">
 
         <div class="row align-items-center mb-4">
-            <div class="col-sm-12">
+            <div class="col-sm-12 d-flex justify-content-between align-items-center">
                 <h4 class="mb-0 text-primary fw-bold">Importar Datos</h4>
+                @if ($entidad === 'productos')
+                    <a href="{{ route('importacion.historial', 'productos') }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-history me-1"></i> Historial de Importaciones
+                    </a>
+                @endif
             </div>
         </div>
 

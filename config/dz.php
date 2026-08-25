@@ -89,6 +89,22 @@ return [
 			],
 		],
 
+		'importacion-historial' => [
+			'title' => 'Historial de Importaciones',
+			'css' => [
+				'vendor/datatables/css/jquery.dataTables.min.css',
+				'vendor/datatables/css/buttons.dataTables.min.css',
+				'vendor/toastr/css/toastr.min.css',
+			],
+			'js' => [
+				'vendor/datatables/js/jquery.dataTables.min.js',
+				'vendor/datatables/js/dataTables.buttons.min.js',
+				'vendor/datatables/js/buttons.colVis.min.js',
+				'vendor/toastr/js/toastr.min.js',
+				'js/custom.js',
+			],
+		],
+
 		'proveedores' => [
 			'title' => 'Proveedores',
 			'css' => [

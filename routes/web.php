@@ -150,6 +150,11 @@ Route::middleware('auth')->group(function () {
     Route::post('importar-datos/{entidad}/cancelar', [ImportacionController::class, 'cancelar'])->name('importacion.cancelar');
     Route::get('importar-datos/{entidad}/resumen', [ImportacionController::class, 'resumen'])->name('importacion.resumen');
 
+    // Deshacer import (spec 078) — sólo Productos & Servicios
+    Route::get('importar-datos/{entidad}/historial', [ImportacionController::class, 'historial'])->name('importacion.historial');
+    Route::get('importar-datos/{entidad}/historial/datos', [ImportacionController::class, 'historialDatos'])->name('importacion.historial.datos');
+    Route::post('importar-datos/{entidad}/historial/{corrida}/deshacer', [ImportacionController::class, 'deshacer'])->name('importacion.deshacer');
+
     // Informes → Stock
     Route::get('informes/stock', [InformeStockController::class, 'index'])->name('informes.stock.index');
     Route::get('informes/stock/data', [InformeStockController::class, 'data'])->name('informes.stock.data');

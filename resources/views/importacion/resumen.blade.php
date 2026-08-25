@@ -48,6 +48,71 @@
             <i class="fas fa-arrow-left me-1"></i> Ver mis {{ $titulos[$entidad] }}
         </a>
 
+        @if ($entidad === 'productos' && $corrida && $corrida->puedeDeshacer())
+            <button type="button" class="btn btn-outline-danger" id="btn-deshacer-import" data-corrida="{{ $corrida->id }}">
+                <i class="fas fa-undo me-1"></i> Deshacer este import
+            </button>
+            <a href="{{ route('importacion.historial', 'productos') }}" class="btn btn-link">Ver historial de importaciones</a>
+        @endif
+
     </div>
 </div>
+
+@if ($entidad === 'productos' && $corrida && $corrida->puedeDeshacer())
+<div class="modal fade" id="modal-confirmar-deshacer" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Deshacer import</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                ¿Confirmás que querés deshacer esta importación? Los productos creados quedarán inactivos y los actualizados volverán a sus valores anteriores. Esta acción no se puede repetir.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="btn-confirmar-deshacer">Sí, deshacer</button>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
 @endsection
+
+@if ($entidad === 'productos' && $corrida && $corrida->puedeDeshacer())
+@section('local-js')
+<script>
+window.jQuery(function ($) {
+    $.ajaxSetup({ headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') } });
+
+    var corridaId = $('#btn-deshacer-import').data('corrida');
+
+    $('#btn-deshacer-import').on('click', function () {
+        var modal = new bootstrap.Modal(document.getElementById('modal-confirmar-deshacer'));
+        modal.show();
+    });
+
+    $('#btn-confirmar-deshacer').on('click', function () {
+        var $btn = $(this).prop('disabled', true);
+
+        $.post('{{ url('importar-datos/productos/historial') }}/' + corridaId + '/deshacer')
+            .done(function (resp) {
+                if (resp.no_revertidas && resp.no_revertidas.length) {
+                    toastr.warning(resp.mensaje);
+                } else {
+                    toastr.success(resp.mensaje);
+                }
+                $('#btn-deshacer-import').prop('disabled', true).text('Import deshecho');
+            })
+            .fail(function (xhr) {
+                toastr.error(xhr.responseJSON?.error || 'No se pudo deshacer la importación.');
+            })
+            .always(function () {
+                $btn.prop('disabled', false);
+                bootstrap.Modal.getInstance(document.getElementById('modal-confirmar-deshacer')).hide();
+            });
+    });
+});
+</script>
+@endsection
+@endif

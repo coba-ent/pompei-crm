@@ -18,6 +18,8 @@ class OrigenCambioPrecio
 {
     public const IMPORTACION = 'importacion';
 
+    public const DESHACER_IMPORT = 'deshacer_import';
+
     public const MANUAL = 'manual';
 
     public const EDICION_MASIVA = 'edicion_masiva';
@@ -29,6 +31,7 @@ class OrigenCambioPrecio
     /** Rótulo legible de cada origen, tal como aparece en el `detalle` del evento. */
     private const ROTULOS = [
         self::IMPORTACION => 'importación',
+        self::DESHACER_IMPORT => 'deshacer import',
         self::MANUAL => 'edición manual',
         self::EDICION_MASIVA => 'edición masiva',
         self::COPIA => 'copia de producto',

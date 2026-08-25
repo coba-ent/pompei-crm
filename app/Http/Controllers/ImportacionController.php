@@ -52,6 +52,7 @@ class ImportacionController extends Controller
         session(['importacion' => [
             'entidad' => $entidad,
             'archivo' => $nombreArchivo,
+            'archivo_original' => $archivo->getClientOriginalName(),
             'columnas' => $filas[0] ?? [],
             'preview' => array_slice($filas, 1, 5),
         ]]);
@@ -157,7 +158,7 @@ class ImportacionController extends Controller
         }
 
         $rutaCompleta = Storage::disk('local')->path('imports/'.$estado['archivo']);
-        $resultado = $importador->importar($entidad, $rutaCompleta, $mapeo, $personalizados, $request->user(), $estado['columnas']);
+        $resultado = $importador->importar($entidad, $rutaCompleta, $mapeo, $personalizados, $request->user(), $estado['columnas'], 0, null, null, $estado['archivo_original'] ?? $estado['archivo']);
 
         Storage::disk('local')->delete('imports/'.$estado['archivo']);
         session()->forget('importacion');
@@ -200,7 +201,12 @@ class ImportacionController extends Controller
         }
 
         $rutaCompleta = Storage::disk('local')->path('imports/'.$estado['archivo']);
-        $lote = $importador->importar($entidad, $rutaCompleta, $mapeo, $personalizados, $request->user(), $estado['columnas'], $offset, self::FILAS_POR_LOTE);
+        $corridaId = session('importacion_corrida_id');
+        $lote = $importador->importar($entidad, $rutaCompleta, $mapeo, $personalizados, $request->user(), $estado['columnas'], $offset, self::FILAS_POR_LOTE, $corridaId, $estado['archivo_original'] ?? $estado['archivo']);
+
+        if ($corridaId === null && $lote['corrida_id'] !== null) {
+            session(['importacion_corrida_id' => $lote['corrida_id']]);
+        }
 
         $acumulado = session('importacion_resultado_parcial', ['importados' => 0, 'fallidos' => [], 'advertencias' => []]);
         $acumulado['importados'] += $lote['importados'];
@@ -213,7 +219,8 @@ class ImportacionController extends Controller
 
         if ($terminado) {
             Storage::disk('local')->delete('imports/'.$estado['archivo']);
-            session()->forget(['importacion', 'importacion_resultado_parcial']);
+            $acumulado['corrida_id'] = $lote['corrida_id'];
+            session()->forget(['importacion', 'importacion_resultado_parcial', 'importacion_corrida_id']);
             session(['importacion_resultado' => ['entidad' => $entidad] + $acumulado]);
         }
 
@@ -250,10 +257,91 @@ class ImportacionController extends Controller
         }
         session()->forget('importacion_resultado');
 
+        $corrida = ! empty($resultado['corrida_id'])
+            ? \App\Models\ImportacionCorrida::find($resultado['corrida_id'])
+            : null;
+
         return view('importacion.resumen', [
             'CurrentPage' => 'importacion',
             'entidad' => $entidad,
             'resultado' => $resultado,
+            'corrida' => $corrida,
+        ]);
+    }
+
+    /** Historial de corridas de import — sólo Productos & Servicios (spec 078). */
+    public function historial(string $entidad)
+    {
+        $this->validarEntidad($entidad);
+
+        return view('importacion.historial', [
+            'CurrentPage' => 'importacion-historial',
+            'entidad' => $entidad,
+        ]);
+    }
+
+    /** Datos server-side del DataTable de historial. */
+    public function historialDatos(Request $request, string $entidad)
+    {
+        $this->validarEntidad($entidad);
+
+        $query = \App\Models\ImportacionCorrida::query()
+            ->where('entidad', $entidad)
+            ->with('usuario')
+            ->orderByDesc('confirmado_en');
+
+        $total = (clone $query)->count();
+
+        $draw = (int) $request->input('draw', 1);
+        $start = (int) $request->input('start', 0);
+        $length = (int) $request->input('length', 10);
+
+        $corridas = $query->skip($start)->take($length > 0 ? $length : 10)->get();
+
+        return response()->json([
+            'draw' => $draw,
+            'recordsTotal' => $total,
+            'recordsFiltered' => $total,
+            'data' => $corridas->map(fn ($c) => [
+                'id' => $c->id,
+                'confirmado_en' => $c->confirmado_en->format('d/m/Y H:i'),
+                'usuario' => $c->usuario?->name ?? '—',
+                'archivo_original' => $c->archivo_original,
+                'filas_creadas' => $c->filas_creadas,
+                'filas_actualizadas' => $c->filas_actualizadas,
+                'filas_fallidas' => $c->filas_fallidas,
+                'estado' => $c->estado(),
+                'deshacer_disponible_hasta' => $c->deshacer_disponible_hasta->format('d/m/Y H:i'),
+                'puede_deshacer' => $c->puedeDeshacer(),
+            ])->values(),
+        ]);
+    }
+
+    /** Deshace una corrida de import (spec 078). */
+    public function deshacer(Request $request, string $entidad, int $corrida, \App\Services\Import\DeshacerImportacionService $servicio)
+    {
+        $this->validarEntidad($entidad);
+
+        $importacionCorrida = \App\Models\ImportacionCorrida::where('entidad', $entidad)->find($corrida);
+
+        if (! $importacionCorrida) {
+            return response()->json(['error' => 'La corrida de import no existe.'], 404);
+        }
+
+        if (! $importacionCorrida->puedeDeshacer()) {
+            return response()->json(['error' => 'Esta corrida ya no se puede deshacer (ya fue deshecha o venció la ventana de 48 horas).'], 422);
+        }
+
+        $resultado = $servicio->deshacer($importacionCorrida, $request->user());
+
+        $mensaje = $resultado['no_revertidas'] === []
+            ? "Se revirtieron {$resultado['revertidas']} filas."
+            : "Se revirtieron {$resultado['revertidas']} de ".($resultado['revertidas'] + count($resultado['no_revertidas']))." filas. ".count($resultado['no_revertidas'])." no se pudieron deshacer.";
+
+        return response()->json([
+            'revertidas' => $resultado['revertidas'],
+            'no_revertidas' => $resultado['no_revertidas'],
+            'mensaje' => $mensaje,
         ]);
     }
 
