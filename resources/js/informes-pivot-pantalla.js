@@ -36,6 +36,15 @@
 
         const toast = (tipo, msg) => (window.toastr ? window.toastr[tipo](msg) : console.log(msg));
 
+        // "Dato"/"Accion" en Contagram real son un combo con buscador (fondo celeste, caja de
+        // texto arriba de la lista) y no un <select> nativo pelado — regla #5 de CLAUDE.md. Se
+        // inicializa una sola vez acá; `poblarSelectores()`/`refrescarAcciones()` sólo reescriben
+        // las <option> y disparan `change.select2` para que Select2 las vuelva a leer.
+        const hasSelect2 = !!($.fn && $.fn.select2);
+        if (hasSelect2) {
+            $('#pivot-dato, #pivot-accion').select2({ width: '100%', theme: 'default', minimumResultsForSearch: 0 });
+        }
+
         /** Los filtros vigentes de la pantalla: el cruce usa EXACTAMENTE los mismos (FR-017). */
         function filtrosActuales() {
             return typeof opciones.filtros === 'function' ? opciones.filtros() : {};
@@ -111,6 +120,7 @@
         function poblarSelectores(d, config) {
             const $dato = $('#pivot-dato').empty();
             d.datos.forEach((m) => $dato.append(new Option(m.rotulo, m.clave, false, m.clave === config.dato)));
+            if (hasSelect2) { $dato.trigger('change.select2'); }
 
             refrescarAcciones(d, config.accion);
         }
@@ -137,6 +147,7 @@
             });
 
             if (!disponibles[accionElegida]) { $accion.val('suma'); }
+            if (hasSelect2) { $accion.trigger('change.select2'); }
         }
 
         // ---- Pestañas ----
