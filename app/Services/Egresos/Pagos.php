@@ -44,6 +44,40 @@ class Pagos
         });
     }
 
+    /**
+     * Edita un pago ya registrado (espejo de `Cobranzas::actualizarCobro`).
+     *
+     * El movimiento de tesorería se actualiza junto con el pago y **sigue yendo en negativo**: es
+     * plata que sale, y perder el signo acá descuadraría la cuenta y la Cta Cte del proveedor.
+     */
+    public function actualizarPago(Pago $pago, float $monto, CuentaTesoreria $cuenta, Carbon $fecha, ?string $nota = null): Pago
+    {
+        return DB::transaction(function () use ($pago, $monto, $cuenta, $fecha, $nota) {
+            if ($pago->trashed()) {
+                throw new \RuntimeException('El pago está anulado y no puede editarse.');
+            }
+
+            if (! $pago->movimientoTesoreria) {
+                throw new \RuntimeException('Este pago no tiene movimiento de tesorería (viene de la importación histórica) y por eso no se puede editar. Se puede anular y volver a cargarlo.');
+            }
+
+            $pago->update([
+                'fecha' => $fecha,
+                'cuenta_tesoreria_id' => $cuenta->id,
+                'monto' => $monto,
+                'nota' => $nota,
+            ]);
+
+            $pago->movimientoTesoreria->update([
+                'monto' => -$monto,
+                'cuenta_tesoreria_id' => $cuenta->id,
+                'fecha' => $fecha,
+            ]);
+
+            return $pago;
+        });
+    }
+
     /** Anula un pago: soft-delete del pago + de su movimiento de tesorería (0 saldo fantasma). */
     public function anularPago(Pago $pago): void
     {

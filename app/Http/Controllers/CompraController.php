@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreCompraRequest;
 use App\Http\Requests\StorePagoRequest;
+use App\Http\Requests\UpdatePagoRequest;
 use App\Http\Requests\StoreRetencionRequest;
 use App\Models\Categoria;
 use App\Models\Compra;
@@ -516,6 +517,33 @@ class CompraController extends Controller
             'a_pagar' => $compra->aPagar(),
             'estado_pago' => $compra->estadoPago(),
         ], 201);
+    }
+
+    public function pagoUpdate(UpdatePagoRequest $request, Compra $compra, Pago $pago): JsonResponse
+    {
+        if ($pago->compra_id !== $compra->id || $pago->trashed()) {
+            abort(404);
+        }
+
+        $datos = $request->validated();
+        $cuenta = CuentaTesoreria::findOrFail($datos['cuenta_tesoreria_id']);
+
+        try {
+            $pago = $this->pagos->actualizarPago($pago, (float) $datos['monto'], $cuenta, Carbon::parse($datos['fecha']), $datos['nota'] ?? null);
+        } catch (\RuntimeException $e) {
+            return response()->json(['ok' => false, 'errors' => ['monto' => [$e->getMessage()]]], 422);
+        }
+
+        $pago->load('cuentaTesoreria');
+
+        return response()->json([
+            'ok' => true,
+            'mensaje' => 'Pago actualizado.',
+            'pago' => $pago,
+            'pagado' => $compra->pagado(),
+            'a_pagar' => $compra->aPagar(),
+            'estado_pago' => $compra->estadoPago(),
+        ]);
     }
 
     /** US3 (spec 039): Recibo de Pago — documento no fiscal, mejor esfuerzo (sin capturas de Contagram). */

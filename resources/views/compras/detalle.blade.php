@@ -74,7 +74,11 @@
                         </thead>
                         <tbody>
                             @forelse ($compra->pagos as $pago)
-                                <tr data-pago-id="{{ $pago->id }}">
+                                <tr data-pago-id="{{ $pago->id }}"
+                                    data-pago-monto="{{ $pago->monto }}"
+                                    data-pago-fecha="{{ $pago->fecha->format('Y-m-d') }}"
+                                    data-pago-cuenta-id="{{ $pago->cuenta_tesoreria_id }}"
+                                    data-pago-nota="{{ $pago->nota }}">
                                     <td>{{ $pago->id }}</td>
                                     <td>{{ $pago->fecha->format('d/m/Y') }}</td>
                                     <td>{{ optional($pago->cuentaTesoreria)->nombre }}</td>
@@ -82,6 +86,7 @@
                                     <td>$ {{ number_format((float) $pago->monto, 2, ',', '.') }}</td>
                                     <td>{{ $compra->nro_comprobante }}
                                         <a href="#" class="js-ver-recibo-pago ms-2" data-url="{{ route('compras.pagos.recibo', [$compra, $pago]) }}">Ver Recibo</a>
+                                        <a href="#" class="js-editar-pago ms-2" data-id="{{ $pago->id }}" title="Editar"><i class="fas fa-pencil-alt"></i></a>
                                         <a href="#" class="js-eliminar-pago text-danger ms-2" data-id="{{ $pago->id }}"><i class="fas fa-trash"></i></a>
                                     </td>
                                 </tr>
@@ -348,6 +353,7 @@
         creditoStore: "{{ route('compras.aplicaciones-credito.store', $compra) }}",
         creditoDestroyBase: "{{ url('compras/'.$compra->id.'/aplicaciones-credito') }}",
         pagoDestroyBase: "{{ url('compras/'.$compra->id.'/pagos') }}",
+        pagoUpdateBase: "{{ url('compras/'.$compra->id.'/pagos') }}",
         retencionStore: "{{ route('compras.retenciones.store', $compra) }}",
         notasStore: "{{ route('compras.notas.store', $compra) }}",
         notasItemsDisponibles: "{{ route('compras.notas.itemsDisponibles', $compra) }}",

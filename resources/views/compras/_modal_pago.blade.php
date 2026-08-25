@@ -2,10 +2,11 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Pago</h5>
+                <h5 class="modal-title" id="pago-modal-titulo">Pago</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body">
+                <input type="hidden" id="pago-id">
                 <div class="row mb-3 text-center">
                     <div class="col-6">
                         <div class="text-muted">Total Compra</div>
@@ -46,8 +47,14 @@
                     <div class="small text-muted mt-1" id="pago-credito-detalle"></div>
                 </div>
             </div>
-            <div class="modal-footer">
+            <div class="modal-footer" id="pago-modal-footer-alta">
                 <button type="button" class="btn btn-light" data-bs-dismiss="modal">Volver</button>
+            </div>
+            {{-- En alta el medio de pago se elige y paga de una; editando hay que poder cambiar
+                 monto/fecha/nota/medio y recién ahí guardar (mismo criterio que Cobranza). --}}
+            <div class="modal-footer" id="pago-modal-footer-edicion" style="display:none;">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btn-guardar-pago">Guardar</button>
             </div>
         </div>
     </div>

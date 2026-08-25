@@ -423,6 +423,7 @@ Route::middleware('auth')->group(function () {
         // Datos del modal de Pago para abrirlo desde el menú de fila del listado, sin ir a la ficha.
         Route::get('{compra}/pago-contexto', [CompraController::class, 'pagoContexto'])->name('pagos.contexto');
         Route::post('{compra}/pagos', [CompraController::class, 'pagoStore'])->name('pagos.store');
+        Route::put('{compra}/pagos/{pago}', [CompraController::class, 'pagoUpdate'])->name('pagos.update');
         Route::delete('{compra}/pagos/{pago}', [CompraController::class, 'pagoDestroy'])->name('pagos.destroy');
         Route::get('{compra}/pagos/{pago}/recibo', [CompraController::class, 'reciboPago'])->name('pagos.recibo');
         // Saldo a favor de proveedor (spec 072, US4): mismo permiso que registrar un pago.

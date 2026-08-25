@@ -807,13 +807,16 @@
         let onHecho = null;
         let creditoAplicable = 0;
         let listo = false;
+        let cuentaSeleccionadaEdicion = null;
 
         function el() { return document.getElementById('modal-pago'); }
 
-        function prepararSaldoAFavor() {
+        function prepararSaldoAFavor(editando) {
             const $bloque = $('#pago-credito').hide();
 
-            if (!ctx.rutas.creditoDisponible) { return; }
+            // Aplicar saldo a favor crea una aplicacion de credito nueva, no edita este pago:
+            // ofrecerlo dentro del modal en modo edicion solo confunde.
+            if (editando || !ctx.rutas.creditoDisponible) { return; }
 
             $.getJSON(ctx.rutas.creditoDisponible)
                 .done((resp) => {
@@ -876,24 +879,42 @@
                 listo = true;
             }
 
+            const pago = ctx.pago || null;
+            const editando = !!pago;
+            $('#pago-id').val(editando ? pago.id : '');
             // Desde el listado el título tiene que decir de qué compra se trata: en la ficha el
             // contexto ya es obvio, en la tabla no.
-            $('#modal-pago .modal-title').text(ctx.titulo || 'Pago');
+            $('#pago-modal-titulo').text(editando ? 'Editar pago' : (ctx.titulo || 'Pago'));
+            $('#pago-modal-footer-edicion').toggle(editando);
+            $('#pago-modal-footer-alta').toggle(!editando);
             $('#pago-total').text(money(ctx.total));
             $('#pago-a-pagar').text(money(ctx.aPagar));
-            $('#pago-monto').val(ctx.aPagar);
-            AppFecha.set($('#pago-fecha'), AppFecha.hoy());
-            $('#pago-nota').val('');
+            $('#pago-monto').val(editando ? pago.monto : ctx.aPagar);
+            AppFecha.set($('#pago-fecha'), editando ? pago.fecha : AppFecha.hoy());
+            $('#pago-nota').val(editando ? (pago.nota || '') : '');
+            cuentaSeleccionadaEdicion = editando ? pago.cuentaId : null;
 
             const $cuentas = $('#pago-cuentas').empty();
             (ctx.cuentas || []).forEach((cuenta) => {
                 const $col = $('<div class="col-6">');
-                const $btn = $('<button type="button" class="btn btn-outline-primary w-100">').text(cuenta.nombre)
-                    .on('click', () => pagar(cuenta.id));
+                const activa = editando && Number(cuenta.id) === Number(cuentaSeleccionadaEdicion);
+                const $btn = $('<button type="button" class="btn w-100">')
+                    .addClass(activa ? 'btn-primary' : 'btn-outline-primary')
+                    .text(cuenta.nombre)
+                    .on('click', function () {
+                        // En alta el clic paga directo; editando solo selecciona y guarda el boton.
+                        if (editando) {
+                            cuentaSeleccionadaEdicion = cuenta.id;
+                            $cuentas.find('button').removeClass('btn-primary').addClass('btn-outline-primary');
+                            $(this).removeClass('btn-outline-primary').addClass('btn-primary');
+                        } else {
+                            pagar(cuenta.id);
+                        }
+                    });
                 $col.append($btn);
                 $cuentas.append($col);
             });
-            prepararSaldoAFavor();
+            prepararSaldoAFavor(editando);
             bootstrap.Modal.getOrCreateInstance(el()).show();
         }
 
@@ -907,7 +928,7 @@
             };
         }
 
-        return { abrir, rutasDe };
+        return { abrir, rutasDe, cuentaSeleccionada: () => cuentaSeleccionadaEdicion };
     })();
 
     // ---------------------------------------------------------------------
@@ -917,15 +938,77 @@
         const data = window.CompraDetalleData;
         if (!data) { return; }
 
-        $('#btn-agregar-pago, .js-agregar-pago').on('click', function (e) {
-            e.preventDefault();
+        function abrirPago(pago) {
             ModalPago.abrir({
                 total: data.total,
                 aPagar: data.aPagar,
                 cuentas: data.cuentas,
+                pago: pago || null,
                 rutas: rutas,
             });
+        }
+
+        $('#btn-agregar-pago, .js-agregar-pago').on('click', function (e) {
+            e.preventDefault();
+            abrirPago();
         });
+
+        $(document).on('click', '.js-editar-pago', function (e) {
+            e.preventDefault();
+            const $fila = $(this).closest('tr[data-pago-id]');
+            abrirPago({
+                id: $fila.data('pago-id'),
+                monto: $fila.data('pago-monto'),
+                fecha: $fila.data('pago-fecha'),
+                cuentaId: $fila.data('pago-cuenta-id'),
+                nota: $fila.data('pago-nota'),
+            });
+        });
+
+        function guardarEdicionPago() {
+            const id = $('#pago-id').val();
+            if (!id) { return; }
+            const cuentaId = ModalPago.cuentaSeleccionada();
+            if (!cuentaId) { toast('error', 'Seleccioná un medio de pago.'); return; }
+
+            $.ajax({
+                url: rutas.pagoUpdateBase + '/' + id,
+                method: 'PUT',
+                data: {
+                    cuenta_tesoreria_id: cuentaId,
+                    monto: $('#pago-monto').val(),
+                    fecha: AppFecha.get($('#pago-fecha')),
+                    nota: $('#pago-nota').val(),
+                },
+            })
+                .done((resp) => {
+                    toast('success', resp.mensaje || 'Pago actualizado.');
+                    bootstrap.Modal.getInstance(document.getElementById('modal-pago'))?.hide();
+
+                    const fechaIso = String(resp.pago.fecha).slice(0, 10);
+                    const $fila = $('tr[data-pago-id="' + id + '"]');
+                    $fila.attr('data-pago-monto', resp.pago.monto);
+                    $fila.attr('data-pago-fecha', fechaIso);
+                    $fila.attr('data-pago-cuenta-id', resp.pago.cuenta_tesoreria?.id ?? '');
+                    $fila.attr('data-pago-nota', resp.pago.nota ?? '');
+                    // jQuery .data() cachea el valor del primer render: sin limpiarlo, reabrir el
+                    // modal vuelve a mostrar los datos viejos aunque el data- del DOM este al dia.
+                    $fila.removeData(['pago-monto', 'pago-fecha', 'pago-cuenta-id', 'pago-nota']);
+                    $fila.find('td').eq(1).text(new Date(fechaIso + 'T00:00:00Z').toLocaleDateString('es-AR', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' }));
+                    $fila.find('td').eq(2).text(resp.pago.cuenta_tesoreria?.nombre ?? '');
+                    $fila.find('td').eq(3).text(resp.pago.nota ?? '');
+                    $fila.find('td').eq(4).text(money(resp.pago.monto));
+
+                    data.aPagar = resp.a_pagar;
+                    $('#detalle-a-pagar').text(money(resp.a_pagar));
+                    $('#detalle-pagado').text(money(resp.pagado));
+                })
+                .fail((xhr) => {
+                    toast('error', xhr.responseJSON?.errors?.monto?.[0] || xhr.responseJSON?.mensaje || 'No se pudo actualizar el pago.');
+                });
+        }
+
+        $('#btn-guardar-pago').on('click', guardarEdicionPago);
 
         $(document).on('click', '.js-anular-aplicacion-credito', function (e) {
             e.preventDefault();
