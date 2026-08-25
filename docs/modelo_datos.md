@@ -317,6 +317,51 @@ en `movimientos_stock`.
 > precio. El filtro "Operación" del informe expone `ajuste`/`transferencia`, **`salida`/`entrada`
 > generados por Ventas (spec 012)** y **`entrada`/`salida` generados por Compras (spec 030)**.
 
+### `importacion_corridas` (spec 078)
+
+Una fila por cada corrida confirmada del Paso 3 del asistente de Importar Datos, **sólo solapa
+Productos & Servicios**. Habilita "Deshacer import".
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| id | bigint PK | |
+| entidad | string | `productos` en esta spec; columna presente por si se extiende a Clientes/Proveedores |
+| usuario_id | FK → usuarios, nullable | quién ejecutó el import |
+| archivo_original | string | nombre del archivo subido en el Paso 1 |
+| confirmado_en | datetime | inicio de la primera tanda del Paso 3 |
+| deshacer_disponible_hasta | datetime | `confirmado_en + 48h`, fijo (no se recalcula) |
+| filas_creadas / filas_actualizadas / filas_fallidas | unsignedInteger, default 0 | acumulado a través de todas las tandas de la corrida |
+| deshecho_en | datetime, nullable | `null` = corrida vigente/no deshecha |
+| deshecho_por_id | FK → usuarios, nullable | quién ejecutó el undo |
+| filas_revertidas / filas_no_revertidas | unsignedInteger, nullable | resultado del undo, sólo si `deshecho_en` no es null |
+
+Estado derivado (no columna): `vigente` / `deshecho` / `vencido`, según `deshecho_en` y
+`deshacer_disponible_hasta` vs. `now()`.
+
+### `importacion_filas_snapshot` (spec 078)
+
+Una fila por cada producto creado o actualizado por una `importacion_corrida` (no se generan para
+filas fallidas ni productos no tocados).
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| id | bigint PK | |
+| importacion_corrida_id | FK → importacion_corridas, cascade on delete | |
+| producto_id | FK → productos, nullable | |
+| modo | enum(`alta`,`actualizacion`) | |
+| existia | boolean | `false` en altas |
+| estado_anterior | json, nullable | snapshot de `productos` (atributos), null si `existia=false` |
+| precios_anteriores | json, nullable | `[{lista_precio_id, precio}]` previos, null si `existia=false` |
+| stock_anterior | json, nullable | `[{deposito_id, cantidad, ultimo_movimiento_stock_id}]` previo, null si `existia=false` — `ultimo_movimiento_stock_id` detecta operaciones posteriores que bloquean el undo de esa fila |
+| numero_fila | unsignedInteger | fila del archivo original |
+| estado_undo | enum(`pendiente`,`revertida`,`no_revertida`), default `pendiente` | |
+| motivo_no_revertida | string, nullable | sólo si `estado_undo=no_revertida` |
+
+Índice `(importacion_corrida_id, producto_id)`. El undo de stock reutiliza `StockService::fijar()`
+(mismo mecanismo bajo lock que ya usa `ImportadorFilas::actualizarProducto()`, spec 074); el undo
+de precio queda auditado en `logs_auditoria` con origen `"Deshacer import"` (nuevo caso en
+`OrigenCambioPrecio`, junto al `IMPORTACION` ya existente).
+
 ---
 
 ## 3. Diagrama de relaciones (resumen textual)
@@ -484,7 +529,8 @@ id, venta_id (FK → ventas, **nullable** — "Documento que Ajusta"), compra_id
 tipo (enum `credito`,`debito`), afecta_stock (boolean, default false), mes_imputacion (date, NOT
 NULL, agregado en spec 045 — se persiste con día fijado a `01`, representa "mes/año" de imputación
 para el informe al Contador, independiente de `fecha_emision`; precargado por defecto con el
-mes/año de `fecha_emision` al crear la nota, editable), fecha_emision (date), monto
+mes/año de `fecha_emision` al crear la nota, editable; **consumido por la spec 077**, que lo usa para
+ubicar la nota en el período del Libro IVA — en **ambas** pestañas, Ventas y Compras), fecha_emision (date), monto
 (decimal(14,2)), tipo_comprobante (string, igual al del comprobante original), descripcion (text,
 nullable — obligatoria si no afecta stock), impuestos (json, nullable — array de `{tipo, concepto,
 monto}`, mismo patrón que `presupuesto_conceptos`/`venta_conceptos`/`compra_conceptos` pero embebido
@@ -677,7 +723,7 @@ a Tesorería, `saldos()`, `flujo()`).
 | fecha_emision | date | |
 | fecha_vto_pago | date, nullable | "Vto. del Pago" |
 | servicio_desde, servicio_hasta | date, nullable | |
-| mes_imputacion_iva | date, nullable | campo **"Contador"**, exclusivo de Compras (sin equivalente en Ventas) — mes de imputación en el IVA Compras, independiente de `fecha_emision` |
+| mes_imputacion_iva | date, nullable | campo **"Contador"**, exclusivo de Compras (sin equivalente en Ventas) — mes de imputación en el IVA Compras, independiente de `fecha_emision`. **Consumidor (spec 077, 24/08/2026)**: el Informe "Información para tu Contador" resuelve con esta columna el período del Libro IVA Compras, con respaldo en `fecha_emision` cuando está en NULL. Hasta la 077 el campo se le pedía al usuario sin que ninguna pantalla lo leyera. |
 | subtotal_sin_descuento, descuento, subtotal_con_descuento, total | decimal(14,2) | mismo cálculo que `ventas`/`presupuestos`; `total` es un snapshot congelado |
 | descuento_general_pct | decimal(5,2), nullable | **Columna nueva (07/08/2026, fix de bug)**: el % de descuento general ingresado en el formulario ya se aplicaba correctamente al cálculo de `descuento`/`total`, pero no se persistía (a diferencia de `ventas`/`presupuestos`, que sí tienen esta columna) — por eso el modal "Ver" no podía mostrarlo y el form de edición no lo precargaba. Mismo campo/semántica que `ventas.descuento_general_pct`. |
 | descuento_general_tipo, descuento_general_monto | enum(`porcentaje`,`monto`) NOT NULL default `porcentaje`; decimal(12,2) nullable | **Columnas nuevas (spec 060, pendiente de implementar)** — mismo patrón que `ventas.descuento_general_tipo` (ver esa fila para el detalle). |

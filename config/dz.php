@@ -456,6 +456,27 @@ return [
 				'vendor/pivottable/pivot.min.js',
 			],
 		],
+		// Libro IVA Ventas/Compras (spec 077). Select2 para los filtros dinámicos (Tipo de
+		// Comprobante, Condición de IVA, Medio de Cobro/Pago, Provincia, Cliente/Proveedor con
+		// ajax); colVis para el selector de columnas visibles. Mes/Año son <select> nativos, sin
+		// Select2 ni daterangepicker (research §D8).
+		'informe-contador' => [
+			'title' => 'Información para tu Contador',
+			'css' => [
+				'vendor/datatables/css/jquery.dataTables.min.css',
+				'vendor/datatables/css/buttons.dataTables.min.css',
+				'vendor/toastr/css/toastr.min.css',
+				'vendor/select2/css/select2.min.css',
+			],
+			'js' => [
+				'vendor/datatables/js/jquery.dataTables.min.js',
+				'vendor/datatables/js/dataTables.buttons.min.js',
+				'vendor/datatables/js/buttons.colVis.min.js',
+				'vendor/toastr/js/toastr.min.js',
+				'vendor/select2/js/select2.full.min.js',
+				'js/custom.js',
+			],
+		],
 		'informe-gastos' => [
 			'title' => 'Informe de Gastos',
 			'css' => [

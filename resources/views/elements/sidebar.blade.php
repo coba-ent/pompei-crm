@@ -168,6 +168,8 @@
 								<li><a href="{{ route('informes.cuenta-corriente.index') }}">Cuenta Corriente Clientes</a></li>
 								<li><a href="{{ route('informes.cuenta-corriente-proveedores.index') }}">Cuenta Corriente Proveedores</a></li>
 								<li><a href="{{ route('informes.reporte-final.index') }}">Reporte Final</a></li>
+								{{-- Información para tu Contador (spec 077): Libro IVA Ventas/Compras. --}}
+								<li><a href="{{ route('informes.contador.index') }}">Información para tu Contador</a></li>
 							@endcan
 						</ul>
 					</li>

@@ -399,6 +399,17 @@ porque ya son un único modelo (`Producto` con campo `tipo`).
   subido y el mapeo elegido son estado transitorio (disco temporal `storage/app/private/imports/` +
   sesión) — nunca se persisten en base de datos, y no hay detección de duplicados en esta versión
   (importar el mismo archivo dos veces crea registros nuevos).
+- **Deshacer import (spec 078, sólo Productos & Servicios)**: cada corrida del Paso 3 en esa solapa
+  registra una "corrida de import" y, por cada fila creada/actualizada, un snapshot de su estado
+  previo. Una acción "Deshacer import" (disponible desde el resumen post-import y desde una nueva
+  pantalla "Historial de Importaciones") permite revertir la corrida completa dentro de una ventana
+  de **48 horas** desde la confirmación. Altas revertidas → soft-delete (`activo=false`); filas
+  actualizadas → se restauran los campos pisados (precio, costo, stock por depósito vía
+  `StockService::fijar()`, precios por lista), auditado igual que un cambio manual de precio (spec
+  074). El undo es **parcial**: una fila cuyo producto tuvo operaciones posteriores al import
+  (venta, compra, ajuste, u otra corrida de import más reciente) no se revierte y queda reportada
+  con motivo, sin abortar el resto. No aplica a Clientes ni Proveedores (pendiente para spec futura
+  si se decide extenderlo).
 
 *Fuente(s): `docs/informe_contagram_base_de_datos.md` §2.6/§4.10*
 
@@ -2385,9 +2396,14 @@ futura (Fase 1, "bot de Mercado Libre"), recién cuando esté migrado el VPS (ve
 cada informe/sub-pestaña/modal, más análisis binario de 7 archivos Excel exportados desde la propia
 app para reconstruir la lógica de cálculo interna. Es la fuente de verdad estructural del módulo.
 
-En Contagram el módulo es una landing `/reports` con **8 tarjetas** (Ventas, Compras, Cta Cte
-Clientes, Cta Cte Proveedores, Reporte Final, Gastos, Stock, Rankings) más una vista consolidada de
-gráficos en `/graphs`. **Divergencia deliberada de este CRM**: no se construye la landing de
+> **Corrección (24/08/2026, spec 077)**: el relevamiento del 14/08 documentó **8** tarjetas, pero el hub
+> tiene **9** — faltaba **"Información para tu Contador"** (`/accountant_reports`), el Libro IVA
+> Ventas/Compras. Se relevó aparte, con capturas propias, en
+> `docs/informe_contagram_contador/` (ver §6.7). Por eso quedó fuera de las tandas 1 a 3.
+
+En Contagram el módulo es una landing `/reports` con **9 tarjetas** (Ventas, Compras, Cta Cte
+Clientes, Cta Cte Proveedores, Reporte Final, Gastos, Stock, **Información para tu Contador**,
+Rankings) más una vista consolidada de gráficos en `/graphs`. **Divergencia deliberada de este CRM**: no se construye la landing de
 tarjetas — cada informe es un ítem propio del desplegable "Informes" del sidebar con su URL real,
 siguiendo el patrón ya vigente de "Informes > Stock" (§6.2) e "Informes > Cuenta Corriente" (§6.4).
 Motivo: nuestro sidebar despliega submenús y el de Contagram no, con lo que la landing sería un salto
@@ -2411,6 +2427,7 @@ Excel + PDF abajo a la derecha.
 | **2** | Ventas, Reporte Final | **spec 068 — IMPLEMENTADA** (15/08/2026) |
 | **3** | Rankings, "Arma tu Informe" (**sólo render tabla**) | **spec 069 — IMPLEMENTADA** (16/08/2026) |
 | **4** | Menú de gestión por fila en Cta Cte, ajustes al Informe de Stock | pendiente — spec por armar |
+| **5** | **Información para tu Contador** (Libro IVA Ventas / Compras) | **spec 077 — especificada, lista para implementar** (24/08/2026) — ver §6.7 |
 
 > **Alcance acotado de la tanda 3, decidido por el cliente (15/08/2026)**: Rankings y "Arma tu
 > Informe" **sí** se construyen, pero el selector "Mostrar Como" queda **fijo en Tabla**. Se
@@ -2690,6 +2707,75 @@ mismo cruce por persona no aporta. Una vista pertenece a un solo informe (Ventas
 lista en el otro. Sin soft delete: es configuración de presentación, no documento fiscal.
 
 *Fuente(s): `docs/Informe-Modulo-Informes-2026-08-14/`, `specs/069-informes-rankings-pivot/`*
+
+---
+
+### 6.7 Informe "Información para tu Contador" — Libro IVA Ventas / Compras (spec 077, 24/08/2026)
+
+**Fuente**: `docs/informe_contagram_contador/` — relevamiento de `/accountant_reports` con 7 capturas
+reales sobre la cuenta del cliente (24/08/2026). Es la fuente de verdad estructural de esta pantalla.
+
+Novena tarjeta del hub de Informes: *"Obtené con un click toda la información que necesita tu contador
+para el cálculo de tus impuestos."* Dos pestañas —**IVA VENTAS** e **IVA COMPRAS**— que arman el Libro
+IVA del período con el desglose impositivo completo por comprobante.
+
+**Divergencia estructural respecto de los otros 8 informes**: acá el período **no se precarga**. Los
+demás arrancan en "Mes actual"; éste arranca vacío, con dos combos **Mes** y **Año** y el mensaje
+*"Utilizá los filtros y generá tu informe a medida"*. Tampoco usa el selector de rango "Emisión" de 9
+opciones: el período de un libro IVA es un mes calendario, no un rango libre.
+
+#### Reglas de negocio relevadas
+
+- **Barra de 5 totales con operadores**: `No Gravados/Exentos (+) Gravados (+) IVA Total (+) Perc.
+  IVA/IIBB Total (=) Total Facturado`. **Imp. Internos e Imp. Municipales NO participan de la ecuación**,
+  aunque sí se listan como columnas por comprobante.
+- **El período se resuelve distinto según el tipo de fila** — regla central del informe:
+
+  | Fila | Columna de período |
+  |---|---|
+  | Venta | `fecha_emision` (una venta no tiene mes de imputación: el campo "Contador" es exclusivo de Compras) |
+  | Compra | `mes_imputacion_iva` (campo **"Contador"**), con respaldo en `fecha_emision` si está vacío |
+  | NC/ND (de venta o de compra) | `mes_imputacion` propio (`NOT NULL`, spec 045) |
+
+  Este informe es el **consumidor real** de los campos de imputación creados por las specs 045 y la de
+  Compras: hasta ahora se le pedían al usuario sin que nada los leyera.
+- **"Facturas Aprobadas por ARCA" vs "Facturas Manuales"**: dos casillas que existen **sólo en IVA
+  VENTAS** (por defecto la primera tildada y la segunda no). En IVA Compras **no existen**: el
+  comprobante lo emite el proveedor, así que el CAE no es un atributo propio de la operación. Firme =
+  tiene CAE aprobado; manual = todo el resto (nunca enviado, pendiente **o rechazado**). Las dos clases
+  particionan el universo sin solapamiento.
+- **Las NC/ND se muestran con su IVA discriminado**, no en cero. Verificado en la captura de IVA Compras:
+  una NCA muestra `Neto Gravado $30.577,03` e `IVA 21% $6.421,18` (y `30.577,03 × 1,21 = 36.998,21`).
+  Es una diferencia importante con el Informe de Compras (spec 067), que sí las emite en cero porque
+  `nota_credito_debito_items` no guarda `iva_pct`. **En un libro IVA no alcanza**: dejarlas sin
+  discriminar subdeclara IVA (crédito fiscal perdido en Compras, débito no declarado en Ventas). La spec
+  077 define un orden de precedencia para derivarlo — ver `specs/077-informe-contador-iva/data-model.md §4`.
+- **Columna "Tipo"**: ventas y compras muestran su tipo tal cual (`FEA`, `FEB`, `FA`, `FB`); las notas se
+  muestran como `NCA`/`NDA`, componiendo `NC`/`ND` + la letra del comprobante ajustado.
+- **19 columnas** con selector de visibilidad, 8 filtros (Id, Tipo de Comprobante, N° de Comprobante,
+  Cliente/Proveedor, N° de CUIT, Condición de IVA, Medio de Cobro/Pago, Provincia) y export a Excel.
+
+#### Divergencias deliberadas respecto de Contagram
+
+- **La ecuación de totales cierra exacta.** En Contagram no siempre: la captura de IVA Ventas muestra
+  `2.669.509,27 + 560.596,95 = 3.230.106,22` pero informa `3.230.106,21` — 1 centavo de deriva, porque
+  calcula el Total Facturado por separado. Acá se define como la suma de sus cuatro componentes, así que
+  cierra por construcción. Mismo criterio con el que la spec 067 corrigió el signo de las NC.
+
+#### Brechas conocidas
+
+- **Imp. Municipales**: el modelo no tiene un concepto de impuesto municipal diferenciado
+  (`venta_conceptos`/`compra_conceptos` sólo manejan `percepcion` e `impuesto_interno`). La columna se
+  emite en **cero** para no divergir estructuralmente; como no participa de la ecuación de totales, no
+  descuadra nada.
+- **Condición de IVA histórica**: el sistema no guarda un snapshot de la condición fiscal en el
+  comprobante, se lee de la ficha. Si un cliente cambia de condición, **el libro de un período ya cerrado
+  cambia retroactivamente**. Resolverlo (persistir el dato fiscal en la venta) excede la spec 077.
+- **"Exportar IVA Digital"** (formato de ancho fijo de ARCA) y **"Enviar Info. a mi Contador"** (envío por
+  email): existen en Contagram, quedaron fuera de alcance. El primero merece spec propia; el segundo se
+  evaluará junto al módulo de Notificaciones (§7).
+
+*Fuente(s): `docs/informe_contagram_contador/`, `specs/077-informe-contador-iva/`*
 
 ---
 

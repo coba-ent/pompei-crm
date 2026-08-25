@@ -20,6 +20,7 @@ use App\Http\Controllers\ImportacionController;
 use App\Http\Controllers\Informes\CuentaCorrienteController;
 use App\Http\Controllers\Informes\CuentaCorrienteProveedorController;
 use App\Http\Controllers\Informes\InformeComprasController;
+use App\Http\Controllers\Informes\InformeContadorController;
 use App\Http\Controllers\Informes\InformeGastosController;
 use App\Http\Controllers\Informes\InformeVentasController;
 use App\Http\Controllers\Informes\InformeVistaController;
@@ -173,6 +174,16 @@ Route::middleware('auth')->group(function () {
         Route::get('informes/compras/stats', [InformeComprasController::class, 'stats'])->name('informes.compras.stats');
         Route::get('informes/compras/exportar', [InformeComprasController::class, 'exportar'])->name('informes.compras.exportar');
         Route::get('informes/compras/pdf', [InformeComprasController::class, 'pdf'])->name('informes.compras.pdf');
+
+        // Informes → Información para tu Contador (spec 077): Libro IVA Ventas / Compras.
+        // Sólo lectura; `data`/`stats` van por POST (research §D9 — incidente 414 de Nginx).
+        Route::get('informes/contador', [InformeContadorController::class, 'index'])->name('informes.contador.index');
+        Route::post('informes/contador/ventas/data', [InformeContadorController::class, 'ventasData'])->name('informes.contador.ventas.data');
+        Route::post('informes/contador/ventas/stats', [InformeContadorController::class, 'ventasStats'])->name('informes.contador.ventas.stats');
+        Route::get('informes/contador/ventas/exportar', [InformeContadorController::class, 'ventasExportar'])->name('informes.contador.ventas.exportar');
+        Route::post('informes/contador/compras/data', [InformeContadorController::class, 'comprasData'])->name('informes.contador.compras.data');
+        Route::post('informes/contador/compras/stats', [InformeContadorController::class, 'comprasStats'])->name('informes.contador.compras.stats');
+        Route::get('informes/contador/compras/exportar', [InformeContadorController::class, 'comprasExportar'])->name('informes.contador.compras.exportar');
 
         Route::get('informes/gastos', [InformeGastosController::class, 'index'])->name('informes.gastos.index');
         Route::get('informes/gastos/data', [InformeGastosController::class, 'data'])->name('informes.gastos.data');
