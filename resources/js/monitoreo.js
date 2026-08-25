@@ -288,7 +288,7 @@
         const $form = $(this);
         const body = {
             producto_id: $('#punto-reposicion-producto-id').val(),
-            punto_reposicion: $('#punto-reposicion-valor').val() || null,
+            punto_reposicion: $('#punto-reposicion-valor').val() || 0,
         };
         $form.find('[data-field]').text('');
         $form.find('.is-invalid').removeClass('is-invalid');

@@ -219,9 +219,14 @@ asociadas").
   — se marcan como "Inactivo".
 - **Punto de Reposición** (brecha detectada en spec 026 el 31/07/2026, **cerrada por spec 073** el
   21/08/2026): cantidad mínima deseada de un producto. Es un **atributo del producto**
-  (`productos.punto_reposicion`, entero ≥ 0, nullable). Reglas:
-  - `null` o `0` → el producto **no se controla**: no genera alerta ni notificación, por bajo que
-    esté su stock. No hay valor por defecto para el catálogo (poblarlo es decisión del negocio).
+  (`productos.punto_reposicion`, entero ≥ 0, **NOT NULL default 0** desde el 25/08/2026 — antes era
+  nullable, pero `null` y `0` significaban lo mismo y arrastrar dos valores para un solo significado
+  obligaba a normalizar en cada lectura y escritura). Reglas:
+  - `0` → el producto **no se controla**: no genera alerta ni notificación, por bajo que esté su
+    stock. Es el valor por defecto del catálogo (poblarlo es decisión del negocio). Dejar el campo
+    vacío en el modal o en una planilla de importación equivale a 0.
+  - El **export de Productos** escribe siempre un número: los productos sin control salen en `0`,
+    nunca con la celda vacía.
   - Sólo aplica a `tipo = 'producto'` y `activo = true`. Un producto sin fila en `stocks` para el
     depósito evaluado cuenta como stock 0; un stock negativo es el caso más urgente. Con variantes,
     se compara contra el **total del producto** en ese depósito.

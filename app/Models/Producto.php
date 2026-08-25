@@ -59,6 +59,16 @@ class Producto extends Model
         'activo' => 'boolean',
     ];
 
+    /**
+     * `punto_reposicion` es NOT NULL DEFAULT 0: `0` es el valor de "el producto no se controla".
+     * La entrada sí puede venir vacía (campo en blanco del modal, celda vacía de una importación),
+     * así que se normaliza acá en vez de repetir el `?? 0` en cada llamador.
+     */
+    public function setPuntoReposicionAttribute($valor): void
+    {
+        $this->attributes['punto_reposicion'] = (int) ($valor ?? 0);
+    }
+
     /** Porcentaje numérico de una opción de IVA ('exento'/'no_gravado' → 0). */
     public static function porcentajeIva(?string $opcion): float
     {

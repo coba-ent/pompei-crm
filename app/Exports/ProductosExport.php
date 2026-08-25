@@ -137,7 +137,7 @@ class ProductosExport implements FromQuery, WithHeadings, WithMapping, WithStyle
             Producto::etiquetaIva($p->iva_venta_pct),
             Producto::etiquetaIva($p->iva_compra_pct),
             $p->activo ? 'Activo' : 'Inactivo',
-            $p->punto_reposicion !== null ? (int) $p->punto_reposicion : null,
+            (int) $p->punto_reposicion,
         ];
     }
 }

@@ -35,7 +35,9 @@ trait ReglasProducto
             'mostrar_en_compras' => ['nullable', 'boolean'],
             'activo' => ['nullable', 'boolean'],
 
-            // Punto de reposición (spec 073). `null`/`0` = el producto no se controla.
+            // Punto de reposición (spec 073). `0` = el producto no se controla. Sigue siendo
+            // `nullable` como *entrada* (campo vacío del modal, celda vacía de una importación):
+            // `Producto::setPuntoReposicionAttribute()` lo normaliza a 0 antes de guardar.
             'punto_reposicion' => ['nullable', 'integer', 'min:0'],
 
             // Stock inicial (sólo se aplica al crear un producto de tipo=producto)

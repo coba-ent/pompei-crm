@@ -31,19 +31,19 @@ class MigracionPuntoReposicionTest extends TestCase
     public function test_dry_run_no_escribe(): void
     {
         $lista = $this->crearLista();
-        $p = Producto::factory()->create(['punto_reposicion' => null]);
+        $p = Producto::factory()->create(['punto_reposicion' => 0]);
         $this->precio($lista, $p, 6);
 
         $this->artisan('migracion:punto-reposicion')->assertSuccessful();
 
-        $this->assertNull($p->fresh()->punto_reposicion);
+        $this->assertSame(0, $p->fresh()->punto_reposicion);
         $this->assertDatabaseHas('listas_precio', ['id' => $lista]);
     }
 
     public function test_migra_valores_enteros(): void
     {
         $lista = $this->crearLista();
-        $p = Producto::factory()->create(['punto_reposicion' => null]);
+        $p = Producto::factory()->create(['punto_reposicion' => 0]);
         $this->precio($lista, $p, 6.00);
 
         $this->artisan('migracion:punto-reposicion --aplicar')->assertSuccessful();
@@ -54,7 +54,7 @@ class MigracionPuntoReposicionTest extends TestCase
     public function test_redondea_decimales(): void
     {
         $lista = $this->crearLista();
-        $p = Producto::factory()->create(['punto_reposicion' => null]);
+        $p = Producto::factory()->create(['punto_reposicion' => 0]);
         $this->precio($lista, $p, 5.60);
 
         $this->artisan('migracion:punto-reposicion --aplicar')->assertSuccessful();
@@ -62,24 +62,24 @@ class MigracionPuntoReposicionTest extends TestCase
         $this->assertSame(6, $p->fresh()->punto_reposicion);
     }
 
-    public function test_negativo_y_cero_quedan_en_null(): void
+    public function test_negativo_y_cero_quedan_en_cero(): void
     {
         $lista = $this->crearLista();
-        $negativo = Producto::factory()->create(['punto_reposicion' => null]);
-        $cero = Producto::factory()->create(['punto_reposicion' => null]);
+        $negativo = Producto::factory()->create(['punto_reposicion' => 0]);
+        $cero = Producto::factory()->create(['punto_reposicion' => 0]);
         $this->precio($lista, $negativo, -1);
         $this->precio($lista, $cero, 0);
 
         $this->artisan('migracion:punto-reposicion --aplicar')->assertSuccessful();
 
-        $this->assertNull($negativo->fresh()->punto_reposicion);
-        $this->assertNull($cero->fresh()->punto_reposicion);
+        $this->assertSame(0, $negativo->fresh()->punto_reposicion);
+        $this->assertSame(0, $cero->fresh()->punto_reposicion);
     }
 
     public function test_aborta_con_referencias(): void
     {
         $lista = $this->crearLista();
-        $p = Producto::factory()->create(['punto_reposicion' => null]);
+        $p = Producto::factory()->create(['punto_reposicion' => 0]);
         $this->precio($lista, $p, 6);
         Cliente::factory()->create(['lista_precio_id' => $lista]);
 
@@ -91,7 +91,7 @@ class MigracionPuntoReposicionTest extends TestCase
     public function test_elimina_limpio_sin_referencias(): void
     {
         $lista = $this->crearLista();
-        $p = Producto::factory()->create(['punto_reposicion' => null]);
+        $p = Producto::factory()->create(['punto_reposicion' => 0]);
         $this->precio($lista, $p, 6);
 
         $this->artisan('migracion:punto-reposicion --aplicar --eliminar-lista')->assertSuccessful();
@@ -104,7 +104,7 @@ class MigracionPuntoReposicionTest extends TestCase
     public function test_idempotente(): void
     {
         $lista = $this->crearLista();
-        $p = Producto::factory()->create(['punto_reposicion' => null]);
+        $p = Producto::factory()->create(['punto_reposicion' => 0]);
         $this->precio($lista, $p, 6);
 
         $this->artisan('migracion:punto-reposicion --aplicar')->assertSuccessful();

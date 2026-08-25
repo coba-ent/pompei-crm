@@ -164,7 +164,9 @@ class MigrarPuntoReposicion extends Command
 
         foreach ($filas as $f) {
             // La migración es para poblar, no para sobrescribir: lo cargado a mano se respeta.
-            if ($f->punto_reposicion !== null) {
+            // `0` (= el producto no se controla) es el estado "sin cargar" desde que la columna
+            // dejó de ser nullable, así que no cuenta como valor propio.
+            if ((int) $f->punto_reposicion > 0) {
                 $resumen['yaTenian']++;
 
                 continue;

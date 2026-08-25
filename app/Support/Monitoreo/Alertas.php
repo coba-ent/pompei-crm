@@ -68,7 +68,7 @@ class Alertas
             ->leftJoin('proveedores as pv', 'pv.id', '=', 'p.proveedor_id')
             ->where('p.tipo', 'producto')
             ->where('p.activo', true)
-            ->whereNotNull('p.punto_reposicion')
+            // 0 = el producto no se controla (la columna es NOT NULL DEFAULT 0).
             ->where('p.punto_reposicion', '>', 0)
             ->whereRaw('COALESCE(sl.cantidad, 0) <= p.punto_reposicion')
             ->select(
@@ -103,7 +103,7 @@ class Alertas
             })
             ->where('p.tipo', 'producto')
             ->where('p.activo', true)
-            ->whereNotNull('p.punto_reposicion')
+            // 0 = el producto no se controla (la columna es NOT NULL DEFAULT 0).
             ->where('p.punto_reposicion', '>', 0)
             ->whereRaw('COALESCE(sl.cantidad, 0) + COALESCE(sf.cantidad, 0) <= p.punto_reposicion')
             ->select(

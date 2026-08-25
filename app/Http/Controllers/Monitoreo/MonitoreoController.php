@@ -326,10 +326,8 @@ class MonitoreoController extends Controller
             'punto_reposicion' => ['nullable', 'integer', 'min:0'],
         ]);
 
-        $valor = $datos['punto_reposicion'] ?? null;
-        // `0` significa lo mismo que "sin control": no se guarda para no arrastrar dos valores
-        // que la aplicación interpreta idéntico.
-        $valor = ($valor === null || (int) $valor === 0) ? null : (int) $valor;
+        // Campo vacío = "sin control" = 0 (la columna es NOT NULL DEFAULT 0).
+        $valor = (int) ($datos['punto_reposicion'] ?? 0);
 
         DB::table('productos')->where('id', $datos['producto_id'])
             ->update(['punto_reposicion' => $valor, 'updated_at' => now()]);
