@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers\Informes;
 
+use App\Exports\Informes\CuentaCorrienteExport;
 use App\Http\Controllers\Controller;
 use App\Models\Cliente;
 use App\Services\Tesoreria\CuentaCorriente;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
 use Yajra\DataTables\Facades\DataTables;
 
 /**
@@ -39,6 +43,13 @@ class CuentaCorrienteController extends Controller
     /** Datos server-side para el tab "Saldos Clientes" (Collection en memoria, research.md R1). */
     public function saldosData(Request $request): JsonResponse
     {
+        return DataTables::collection($this->saldos($request))
+            ->toJson();
+    }
+
+    /** @return Collection<int, array<string, mixed>> */
+    private function saldos(Request $request): Collection
+    {
         $porCliente = app(CuentaCorriente::class)->porCliente('cliente');
 
         $clientes = array_filter(array_map('intval', (array) $request->input('cliente_id', [])));
@@ -46,8 +57,7 @@ class CuentaCorrienteController extends Controller
             $porCliente = $porCliente->whereIn('cliente_id', $clientes)->values();
         }
 
-        return DataTables::collection($porCliente)
-            ->toJson();
+        return $porCliente;
     }
 
     /** Datos server-side para el tab "Movimientos" (UNION Venta/Cobro/Nota, research.md R2). */
@@ -174,5 +184,24 @@ class CuentaCorrienteController extends Controller
         if ($request->filled('fecha_hasta')) {
             $query->whereDate('mov.fecha_emision', '<=', $request->input('fecha_hasta'));
         }
+    }
+
+    /**
+     * Exportar / PDF de la pestaña "Saldos Clientes" — sólo la tabla de saldos, igual que
+     * Contagram (el detalle de Movimientos no se incluye en este botón).
+     */
+    public function exportar(Request $request)
+    {
+        return Excel::download(
+            new CuentaCorrienteExport($this->saldos($request)),
+            'Informe Cuentas Corrientes Saldos de Clientes '.now()->format('d-m-Y His').' Hs.xlsx'
+        );
+    }
+
+    public function pdf(Request $request)
+    {
+        return Pdf::loadView('informes.pdf.cuenta-corriente', [
+            'saldos' => $this->saldos($request),
+        ])->stream('Informe Cuentas Corrientes Saldos de Clientes '.now()->format('d-m-Y').'.pdf');
     }
 }

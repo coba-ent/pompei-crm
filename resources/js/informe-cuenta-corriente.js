@@ -235,5 +235,26 @@
         if (cfg.clienteId) {
             $('#filtro-movimientos-cliente').trigger('change.select2');
         }
+
+        // ------------------------------------------------------------------------ Exportar
+        // Exportar/PDF sólo cubren la pestaña Saldos (igual que Contagram: el botón no
+        // incluye Movimientos), así que sólo toman el filtro Cliente de esa pestaña.
+        function filtros() {
+            const clienteId = $('#filtro-saldos-cliente').val();
+            return { cliente_id: clienteId ? [clienteId] : [] };
+        }
+
+        $('#btn-exportar').on('click', function () {
+            window.location.assign(rutas.exportar + '?' + $.param(filtros(), true));
+        });
+
+        $('#btn-exportar-pdf').on('click', function () {
+            const url = rutas.pdf + '?' + $.param(filtros(), true);
+            if (window.AppPdf) {
+                window.AppPdf.abrir(url, 'Cuenta Corriente Clientes');
+            } else {
+                window.open(url, '_blank');
+            }
+        });
     });
 })();

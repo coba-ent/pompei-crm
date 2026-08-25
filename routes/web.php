@@ -165,6 +165,8 @@ Route::middleware('auth')->group(function () {
     Route::get('informes/cuenta-corriente', [CuentaCorrienteController::class, 'index'])->name('informes.cuenta-corriente.index');
     Route::get('informes/cuenta-corriente/saldos', [CuentaCorrienteController::class, 'saldosData'])->name('informes.cuenta-corriente.saldos.data');
     Route::get('informes/cuenta-corriente/movimientos', [CuentaCorrienteController::class, 'movimientosData'])->name('informes.cuenta-corriente.movimientos.data');
+    Route::get('informes/cuenta-corriente/exportar', [CuentaCorrienteController::class, 'exportar'])->name('informes.cuenta-corriente.exportar');
+    Route::get('informes/cuenta-corriente/pdf', [CuentaCorrienteController::class, 'pdf'])->name('informes.cuenta-corriente.pdf');
 
     // Informes → Compras / Gastos / Cta Cte Proveedores (spec 067, tanda 1).
     // Los tres son de **sólo lectura**: no hay POST/PUT/PATCH/DELETE en este bloque (FR-037).
