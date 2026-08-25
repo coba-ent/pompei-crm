@@ -232,6 +232,30 @@
             onRefresh: function (estado) {
                 $contenedor.find('.pvtRenderer').closest('td').hide();
 
+                // PivotTable.js dibuja el pool de columnas (Categorías/Clientes/...) AL LADO del
+                // control de agregador ("suma"/flechas), en la misma fila de la tabla `pvtUi`.
+                // Pedido del cliente: que quede DEBAJO en vez de al lado. Se mueve la celda
+                // `.pvtCols` a una fila propia justo después de la de `.pvtVals` — con `colspan`
+                // para que ocupe todo el ancho, ya que `table-layout: fixed` reparte columnas según
+                // la primera fila. Es idempotente: si ya se movió (refresh siguiente), el `.parent()`
+                // ya no coincide con `$filaVals` y no hace nada.
+                const $filaVals = $contenedor.find('table.pvtUi td.pvtVals').closest('tr');
+                const $celdaCols = $contenedor.find('table.pvtUi td.pvtCols');
+                if ($filaVals.length && $celdaCols.length && $celdaCols.parent().is($filaVals)) {
+                    $celdaCols.detach().attr('colspan', 2);
+                    $('<tr>').insertAfter($filaVals).append($celdaCols);
+                }
+
+                // La librería también dibuja un pool para "Filas" (`.pvtRows`) a la izquierda de la
+                // tabla de resultados — acá no se usa (el cruce sólo arma columnas, nunca filas
+                // anidadas), así que queda como una caja vacía enorme que sólo desperdicia espacio.
+                // Se saca del todo y la tabla de resultados pasa a ocupar ese lugar (colspan 2).
+                const $celdaRows = $contenedor.find('table.pvtUi td.pvtRows');
+                if ($celdaRows.length) {
+                    $celdaRows.closest('tr').find('td.pvtRendererArea').attr('colspan', 2);
+                    $celdaRows.remove();
+                }
+
                 if (typeof cfg.alCambiar === 'function') {
                     cfg.alCambiar(leerConfig(estado, dimensiones, medida.clave, nombreAccion));
                 }
@@ -306,27 +330,49 @@
      * @return {string[]}
      */
     function encabezadosDeColumna($tabla) {
+        const niveles = nivelesDeColumna($tabla).map((n) => n.valores);
+
+        if (!niveles.length) { return []; }
+
+        return niveles[niveles.length - 1].map((_, i) =>
+            niveles.map((n) => n[i]).filter(Boolean).join(' › '));
+    }
+
+    /**
+     * Un nivel por cada `<tr>` del `<thead>` que tiene celdas de columna (`.pvtColLabel`): la
+     * etiqueta de la dimensión de ese nivel (p. ej. "categorías") vive en su propia
+     * `th.pvtAxisLabel`, y `valores` son los rótulos hoja de ese nivel, ya expandidos por
+     * `colspan` (una entrada por columna final del cruce).
+     *
+     * Se usa para exportar el cruce SIN dimensión de Filas (research/spec 080 vecino, contraste
+     * con `Rankings 25-8-2026.xlsx` real de Contagram): ese archivo real arma **una fila de Excel
+     * por nivel de columna** (categorías/clientes/vendedores/proveedores apiladas), no un único
+     * encabezado con los niveles combinados en un string — ver `PivotExport::hojaLegibleSinFilas()`.
+     *
+     * @return {Array<{etiqueta: string, valores: string[]}>}
+     */
+    function nivelesDeColumna($tabla) {
         const niveles = [];
 
         $tabla.find('thead tr').each(function () {
             const $celdas = $(this).find('th.pvtColLabel');
             if (!$celdas.length) { return; }
 
-            const nivel = [];
+            const valores = [];
             $celdas.each(function () {
                 const texto = $(this).text().trim();
                 const veces = parseInt($(this).attr('colspan'), 10) || 1;
 
-                for (let i = 0; i < veces; i++) { nivel.push(texto); }
+                for (let i = 0; i < veces; i++) { valores.push(texto); }
             });
 
-            niveles.push(nivel);
+            niveles.push({
+                etiqueta: $(this).find('th.pvtAxisLabel').first().text().trim(),
+                valores: valores,
+            });
         });
 
-        if (!niveles.length) { return []; }
-
-        return niveles[niveles.length - 1].map((_, i) =>
-            niveles.map((n) => n[i]).filter(Boolean).join(' › '));
+        return niveles;
     }
 
     /** La matriz visible, tal cual, para que el Excel sea lo que el usuario está viendo. */
@@ -347,13 +393,21 @@
             });
         });
 
+        // El rótulo del eje de filas vive en la ÚLTIMA fila del thead — pero SÓLO si el cruce
+        // tiene dimensión de Filas: sin ella (PivotTable.js no agrega esa fila al thead en
+        // absoluto), la última fila del thead es en realidad el último NIVEL de columna, y
+        // tratarla como eje de filas mezclaría "proveedores" ahí donde no corresponde.
+        const $ultimaFilaThead = $tabla.find('thead tr').last();
+        const encabezadosFila = $ultimaFilaThead.find('th.pvtColLabel').length
+            ? []
+            : $ultimaFilaThead.find('th.pvtAxisLabel').map(function () { return $(this).text(); }).get();
+
         return {
             titulo: titulo,
-            // El rótulo del eje de filas vive en la ÚLTIMA fila del thead, separado de los de
-            // columna que están más arriba.
-            encabezados_fila: $tabla.find('thead tr').last().find('th.pvtAxisLabel')
-                .map(function () { return $(this).text(); }).get(),
+            encabezados_fila: encabezadosFila,
             encabezados_columna: encabezadosDeColumna($tabla),
+            // Sólo se usa cuando el cruce NO tiene Filas — ver `nivelesDeColumna()`.
+            niveles_columna: encabezadosFila.length ? [] : nivelesDeColumna($tabla),
             filas: filas,
             // La fila de totales no tiene clase propia en el `tr`: se la reconoce por su primera
             // celda (`pvtColTotalLabel`), y sus valores son los `pvtTotal.colTotal`.

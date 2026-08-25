@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Informes;
 
 use App\Exports\Informes\CuentaCorrienteProveedorExport;
+use App\Exports\Informes\MovimientosProveedoresExport;
 use App\Http\Controllers\Controller;
 use App\Models\DatosEmpresa;
 use App\Models\Proveedor;
+use App\Services\Informes\MovimientosProveedoresQuery;
 use App\Services\Tesoreria\CuentaCorriente;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Query\Builder;
@@ -230,5 +232,29 @@ class CuentaCorrienteProveedorController extends Controller
         $this->aplicarFiltrosMovimientos($query, $request);
 
         return $query;
+    }
+
+    /**
+     * Exportar / PDF de la pestaña "Movimientos" (spec 080, US1/US2) — endpoints nuevos y
+     * separados de {@see self::exportar()}/{@see self::pdf()} (que siguen siendo el botón de la
+     * pestaña Saldos, sin tocar). Reutiliza el motor fiscal del Libro IVA del Contador (spec 077)
+     * vía {@see MovimientosProveedoresQuery}.
+     */
+    public function exportarMovimientos(Request $request)
+    {
+        return Excel::download(
+            new MovimientosProveedoresExport(app(MovimientosProveedoresQuery::class)->obtener($request)),
+            'Informe Cuentas Corrientes Movimientos de Proveedores '.now()->format('d-m-Y His').' Hs.xlsx'
+        );
+    }
+
+    public function pdfMovimientos(Request $request)
+    {
+        $movimientos = app(MovimientosProveedoresQuery::class)->obtener($request);
+
+        return Pdf::loadView('informes.pdf.movimientos-cuenta-corriente-proveedores', [
+            'movimientos' => $movimientos,
+            'topeFilas' => self::TOPE_FILAS_PDF,
+        ])->setPaper('a4', 'landscape')->stream('Informe Cuentas Corrientes Movimientos de Proveedores '.now()->format('d-m-Y').'.pdf');
     }
 }

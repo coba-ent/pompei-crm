@@ -835,3 +835,36 @@ table.dataTable > thead > tr > td {
 .buscador-catalogo-error {
     color: #bd362f;
 }
+
+/* --------------------------------------------------------------------------
+ * PivotTable.js ("Arma tu Informe" / Rankings, spec 069) — fix de ancho de
+ * la celda de dimensiones (filas/columnas).
+ *
+ * La tabla interna del pivot (`table.pvtUi`, sin `table-layout` fijo) reparte
+ * el espacio sobrante entre sus celdas según el algoritmo de layout "auto"
+ * del navegador. Cuando la celda `.pvtRows`/`.pvtCols` (el pool de
+ * dimensiones puestas en fila/columna) tiene poco contenido — un par de
+ * etiquetas ("Mes ▾", "Clientes ▾") — el navegador igual le asigna la mayor
+ * parte del ancho disponible, empujando la tabla de datos real
+ * (`.pvtRendererArea`) casi entera fuera de la vista y dejando un hueco en
+ * blanco enorme a la izquierda. Truco estándar de CSS para forzar que una
+ * celda de tabla se ajuste a su contenido y la otra absorba el resto:
+ * `width: 1%` + `white-space: nowrap` (no afecta el apilado vertical de las
+ * etiquetas, que lo controla el `display` del propio `<li>`, no el
+ * `white-space` de la celda).
+ * ------------------------------------------------------------------------ */
+.pvtUi {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.pvtUi td.pvtRows,
+.pvtUi td.pvtCols,
+.pvtUi td.pvtVals {
+    width: 1px;
+    white-space: nowrap;
+}
+
+.pvtUi td.pvtRendererArea {
+    width: 100%;
+}

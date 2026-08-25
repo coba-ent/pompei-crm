@@ -129,6 +129,15 @@
                                 <tbody></tbody>
                             </table>
                         </div>
+
+                        <div class="d-flex justify-content-end gap-2 mt-3">
+                            <button type="button" class="btn btn-success" id="btn-exportar-movimientos">
+                                <i class="fas fa-file-excel me-1"></i> Exportar
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" id="btn-exportar-movimientos-pdf">
+                                <i class="fas fa-file-pdf me-1"></i> Exportar a PDF
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -149,6 +158,8 @@
             clientesOpciones: @json(route('clientes.opciones')),
             exportar: @json(route('informes.cuenta-corriente.exportar')),
             pdf: @json(route('informes.cuenta-corriente.pdf')),
+            exportarMovimientos: @json(route('informes.cuenta-corriente.movimientos.exportar')),
+            pdfMovimientos: @json(route('informes.cuenta-corriente.movimientos.pdf')),
         },
         clienteId: {{ $clientePreseleccionado ? (int) $clientePreseleccionado->id : 'null' }},
     };

@@ -256,5 +256,29 @@
                 window.open(url, '_blank');
             }
         });
+
+        // Exportar/PDF de la pestaña Movimientos: los filtros activos de ESE tab
+        // (cliente[], operación[], rango de fechas), no los de Saldos.
+        function filtrosMovimientos() {
+            return {
+                cliente_id: $('#filtro-movimientos-cliente').val() || [],
+                operacion: $('#filtro-movimientos-operacion').val() || [],
+                fecha_desde: fechaDesde,
+                fecha_hasta: fechaHasta,
+            };
+        }
+
+        $('#btn-exportar-movimientos').on('click', function () {
+            window.location.assign(rutas.exportarMovimientos + '?' + $.param(filtrosMovimientos(), true));
+        });
+
+        $('#btn-exportar-movimientos-pdf').on('click', function () {
+            const url = rutas.pdfMovimientos + '?' + $.param(filtrosMovimientos(), true);
+            if (window.AppPdf) {
+                window.AppPdf.abrir(url, 'Movimientos de Clientes');
+            } else {
+                window.open(url, '_blank');
+            }
+        });
     });
 })();

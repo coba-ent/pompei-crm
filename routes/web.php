@@ -167,6 +167,8 @@ Route::middleware('auth')->group(function () {
     Route::get('informes/cuenta-corriente/movimientos', [CuentaCorrienteController::class, 'movimientosData'])->name('informes.cuenta-corriente.movimientos.data');
     Route::get('informes/cuenta-corriente/exportar', [CuentaCorrienteController::class, 'exportar'])->name('informes.cuenta-corriente.exportar');
     Route::get('informes/cuenta-corriente/pdf', [CuentaCorrienteController::class, 'pdf'])->name('informes.cuenta-corriente.pdf');
+    Route::get('informes/cuenta-corriente/movimientos/exportar', [CuentaCorrienteController::class, 'exportarMovimientos'])->name('informes.cuenta-corriente.movimientos.exportar');
+    Route::get('informes/cuenta-corriente/movimientos/pdf', [CuentaCorrienteController::class, 'pdfMovimientos'])->name('informes.cuenta-corriente.movimientos.pdf');
 
     // Informes → Compras / Gastos / Cta Cte Proveedores (spec 067, tanda 1).
     // Los tres son de **sólo lectura**: no hay POST/PUT/PATCH/DELETE en este bloque (FR-037).
@@ -200,6 +202,8 @@ Route::middleware('auth')->group(function () {
             Route::get('proveedor/{proveedor}', [CuentaCorrienteProveedorController::class, 'showProveedor'])->name('proveedor.show');
             Route::get('exportar', [CuentaCorrienteProveedorController::class, 'exportar'])->name('exportar');
             Route::get('pdf', [CuentaCorrienteProveedorController::class, 'pdf'])->name('pdf');
+            Route::get('movimientos/exportar', [CuentaCorrienteProveedorController::class, 'exportarMovimientos'])->name('movimientos.exportar');
+            Route::get('movimientos/pdf', [CuentaCorrienteProveedorController::class, 'pdfMovimientos'])->name('movimientos.pdf');
         });
 
         // Informes → Ventas / Reporte Final (spec 068, tanda 2). También de sólo lectura.

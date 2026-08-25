@@ -238,7 +238,11 @@
         $(document).on('click', '#btn-pivot-exportar', function () {
             const matriz = window.InformesPivot.matrizVisible($('#pivot-contenedor'), tituloVigente || 'Informe');
 
-            if (!matriz || !matriz.filas.length) {
+            // Sin dimensión de Filas (el caso normal de este cruce: sólo Categorías/Clientes/
+            // Vendedores/Proveedores en Columnas) `matriz.filas` queda vacío a propósito — el
+            // único dato es la fila de totales (`totales_columna`), así que también cuenta como
+            // "hay algo para exportar".
+            if (!matriz || (!matriz.filas.length && !matriz.totales_columna.length)) {
                 return toast('warning', 'No hay nada que exportar todavía.');
             }
 

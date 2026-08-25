@@ -108,14 +108,70 @@ class PivotExportTest extends TestCase
         Excel::assertDownloaded('Ranking de Clientes '.now()->format('d-m-Y Hi').' Hs.xlsx');
     }
 
-    public function test_el_endpoint_rechaza_un_cuerpo_sin_filas(): void
+    public function test_el_endpoint_rechaza_un_cuerpo_totalmente_vacio(): void
     {
-        // Protección contra un POST armado a mano fuera del flujo de la UI.
+        // Protección contra un POST armado a mano fuera del flujo de la UI: sin filas de detalle
+        // NI totales, no hay nada que exportar.
         $matriz = $this->matriz();
         $matriz['filas'] = [];
+        $matriz['totales_columna'] = [];
+        $matriz['total_general'] = 0;
 
         $this->postJson(route('informes.ventas.pivot.exportar'), $matriz)
             ->assertStatus(422)
-            ->assertJsonValidationErrors('filas');
+            ->assertJson(['message' => 'No hay nada para exportar.']);
+    }
+
+    /**
+     * spec 080-vecino / research: un cruce sin dimensión de Filas (sólo Categorías>Clientes>
+     * Vendedores>Proveedores en Columnas, calcado del export real de Contagram
+     * "Rankings 25-8-2026.xlsx") no tiene `filas` de detalle — el único dato es la fila de
+     * totales, y el endpoint tiene que aceptarlo igual (antes rechazaba con 422 en `filas`).
+     */
+    public function test_el_endpoint_acepta_un_cruce_sin_dimension_de_filas(): void
+    {
+        $matriz = [
+            'titulo' => 'Informe',
+            'encabezados_fila' => [],
+            'encabezados_columna' => ['A › X', 'B › Y'],
+            'niveles_columna' => [
+                ['etiqueta' => 'categorías', 'valores' => ['A', 'B']],
+                ['etiqueta' => 'clientes', 'valores' => ['X', 'Y']],
+            ],
+            'filas' => [],
+            'totales_columna' => [1000.0, 500.0],
+            'total_general' => 1500.0,
+        ];
+
+        Excel::fake();
+
+        $this->postJson(route('informes.ventas.pivot.exportar'), $matriz)->assertOk();
+
+        Excel::assertDownloaded('Informe '.now()->format('d-m-Y Hi').' Hs.xlsx');
+    }
+
+    public function test_hoja_legible_sin_filas_calca_la_estructura_real_de_contagram(): void
+    {
+        $matriz = [
+            'titulo' => 'Informe',
+            'encabezados_fila' => [],
+            'encabezados_columna' => ['A › X', 'B › Y'],
+            'niveles_columna' => [
+                ['etiqueta' => 'categorías', 'valores' => ['A', 'B']],
+                ['etiqueta' => 'clientes', 'valores' => ['X', 'Y']],
+            ],
+            'filas' => [],
+            'totales_columna' => [1000.0, 500.0],
+            'total_general' => 1500.0,
+        ];
+
+        [$legible] = $this->hojas($matriz);
+
+        // Fila 0 (encabezado, estilizada bold): la dimensión de más arriba + Totales al final.
+        $this->assertSame(['categorías', 'A', 'B', 'Totales'], $legible[0]);
+        // Fila 1: el siguiente nivel de columna, SIN repetir "Totales".
+        $this->assertSame(['clientes', 'X', 'Y', null], $legible[1]);
+        // Fila 2 (última, resaltada): la única fila de datos, con el total general al final.
+        $this->assertSame(['Totales', 1000.0, 500.0, 1500.0], $legible[2]);
     }
 }

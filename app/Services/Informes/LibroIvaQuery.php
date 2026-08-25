@@ -89,10 +89,22 @@ abstract class LibroIvaQuery
      * con `>=`/`<=` contra esos bordes expresa lo mismo que comparar año+mes, de forma portable
      * entre MySQL y SQLite (sin `EXTRACT`/`strftime`).
      *
+     * Spec 080, research §D1: rama aditiva — si el request trae `fecha_desde`/`fecha_hasta`
+     * (filtro de rango libre de la pantalla de Movimientos de Cta Cte), se usan directo en vez de
+     * resolver el rango a partir de `mes`/`anio`. El Libro IVA del Contador (spec 077) nunca manda
+     * esos parámetros, así que su comportamiento por mes/año no cambia.
+     *
      * @return array{0: string, 1: string}
      */
     protected function rangoPeriodo(Request $request): array
     {
+        if ($request->filled('fecha_desde') || $request->filled('fecha_hasta')) {
+            $desde = $request->input('fecha_desde') ?: '1900-01-01';
+            $hasta = $request->input('fecha_hasta') ?: '2999-12-31';
+
+            return [$desde, $hasta];
+        }
+
         $mes = (int) $request->input('mes');
         $anio = (int) $request->input('anio');
         $inicio = Carbon::createFromDate($anio, $mes, 1)->startOfMonth();

@@ -128,6 +128,15 @@
                                 <tbody></tbody>
                             </table>
                         </div>
+
+                        <div class="d-flex justify-content-end gap-2 mt-3">
+                            <button type="button" class="btn btn-success" id="btn-exportar-movimientos">
+                                <i class="fas fa-file-excel me-1"></i> Exportar
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" id="btn-exportar-movimientos-pdf">
+                                <i class="fas fa-file-pdf me-1"></i> Exportar a PDF
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -150,6 +159,8 @@
             fichaProveedor: @json(route('informes.cuenta-corriente-proveedores.proveedor.show', ['proveedor' => '__ID__'])),
             exportar: @json(route('informes.cuenta-corriente-proveedores.exportar')),
             pdf: @json(route('informes.cuenta-corriente-proveedores.pdf')),
+            exportarMovimientos: @json(route('informes.cuenta-corriente-proveedores.movimientos.exportar')),
+            pdfMovimientos: @json(route('informes.cuenta-corriente-proveedores.movimientos.pdf')),
             proveedoresOpciones: @json(route('proveedores.opciones')),
         },
         proveedorId: {{ $proveedorPreseleccionado ? (int) $proveedorPreseleccionado->id : 'null' }},

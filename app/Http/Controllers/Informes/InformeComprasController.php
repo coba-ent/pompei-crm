@@ -96,12 +96,23 @@ class InformeComprasController extends Controller
             'titulo' => ['required', 'string', 'max:120'],
             'encabezados_fila' => ['present', 'array'],
             'encabezados_columna' => ['present', 'array'],
-            'filas' => ['required', 'array', 'min:1', 'max:50000'],
+            'niveles_columna' => ['sometimes', 'array'],
+            'niveles_columna.*.etiqueta' => ['present'],
+            'niveles_columna.*.valores' => ['present', 'array'],
+            // Sin dimensión de Filas (sólo Columnas) `filas` viene vacío a propósito — la única
+            // fila de datos es la de totales (`totales_columna`), ver PivotExport::hojaLegibleSinFilas().
+            'filas' => ['present', 'array', 'max:50000'],
             'filas.*.etiqueta' => ['present', 'array'],
             'filas.*.valores' => ['present', 'array'],
             'totales_columna' => ['present', 'array'],
             'total_general' => ['present'],
         ]);
+
+        if ($datos['filas'] === [] && $datos['totales_columna'] === []) {
+            return response()->json(['message' => 'No hay nada para exportar.'], 422);
+        }
+
+        $datos['niveles_columna'] ??= [];
 
         return \Maatwebsite\Excel\Facades\Excel::download(
             new \App\Exports\Informes\PivotExport($datos),

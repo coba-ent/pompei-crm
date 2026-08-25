@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Informes;
 
 use App\Exports\Informes\CuentaCorrienteExport;
+use App\Exports\Informes\MovimientosClientesExport;
 use App\Http\Controllers\Controller;
 use App\Models\Cliente;
+use App\Services\Informes\MovimientosClientesQuery;
 use App\Services\Tesoreria\CuentaCorriente;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
@@ -203,5 +205,31 @@ class CuentaCorrienteController extends Controller
         return Pdf::loadView('informes.pdf.cuenta-corriente', [
             'saldos' => $this->saldos($request),
         ])->stream('Informe Cuentas Corrientes Saldos de Clientes '.now()->format('d-m-Y').'.pdf');
+    }
+
+    /** Ver {@see \App\Http\Controllers\Informes\InformeComprasController::TOPE_FILAS_PDF} (FR-011, spec 080). */
+    public const TOPE_FILAS_PDF = 500;
+
+    /**
+     * Exportar / PDF de la pestaña "Movimientos" (spec 080, US1/US2) — respeta los mismos filtros
+     * (`cliente_id[]`, `operacion[]`, `fecha_desde`/`fecha_hasta`) que `movimientosData()`, y
+     * reutiliza el motor fiscal del Libro IVA del Contador (spec 077) vía {@see MovimientosClientesQuery}.
+     */
+    public function exportarMovimientos(Request $request)
+    {
+        return Excel::download(
+            new MovimientosClientesExport(app(MovimientosClientesQuery::class)->obtener($request)),
+            'Informe Cuentas Corrientes Movimientos de Clientes '.now()->format('d-m-Y His').' Hs.xlsx'
+        );
+    }
+
+    public function pdfMovimientos(Request $request)
+    {
+        $movimientos = app(MovimientosClientesQuery::class)->obtener($request);
+
+        return Pdf::loadView('informes.pdf.movimientos-cuenta-corriente', [
+            'movimientos' => $movimientos,
+            'topeFilas' => self::TOPE_FILAS_PDF,
+        ])->setPaper('a4', 'landscape')->stream('Informe Cuentas Corrientes Movimientos de Clientes '.now()->format('d-m-Y').'.pdf');
     }
 }

@@ -274,5 +274,18 @@
                 window.open(url, '_blank');
             }
         });
+
+        $('#btn-exportar-movimientos').on('click', function () {
+            window.location.assign(rutas.exportarMovimientos + '?' + $.param(filtros(), true));
+        });
+
+        $('#btn-exportar-movimientos-pdf').on('click', function () {
+            const url = rutas.pdfMovimientos + '?' + $.param(filtros(), true);
+            if (window.AppPdf) {
+                window.AppPdf.abrir(url, 'Movimientos de Proveedores');
+            } else {
+                window.open(url, '_blank');
+            }
+        });
     });
 })();
