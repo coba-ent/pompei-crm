@@ -81,4 +81,15 @@ class ImportadorFilasParseoTest extends TestCase
     {
         $this->assertNull($this->normalizarBooleano('tal vez'));
     }
+
+    /**
+     * Caso real 25/08/2026: ProductosExport escribe "Activo"/"Inactivo" en la
+     * columna Estado, y reimportar ese mismo export a la columna "Activo" fallaba
+     * porque estos valores no matcheaban ninguno de los tokens reconocidos.
+     */
+    public function test_normaliza_booleano_activo_inactivo(): void
+    {
+        $this->assertTrue($this->normalizarBooleano('Activo'));
+        $this->assertFalse($this->normalizarBooleano('Inactivo'));
+    }
 }

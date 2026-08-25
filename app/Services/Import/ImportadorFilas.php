@@ -586,15 +586,19 @@ class ImportadorFilas
 
     /**
      * Acepta `si/no`, `1/0`, `true/false` (sin distinguir mayúsculas/acentos) —
-     * research.md §2. Devuelve `null` si el valor no matchea ninguno.
+     * research.md §2. También `activo/inactivo`: es el texto literal que escribe
+     * ProductosExport para la columna "Estado" (Producto::activo), así que sin esto
+     * el circuito exportar -> editar -> reimportar de Productos rechaza todas las
+     * filas con "The activo field must be true or false" (caso real, 25/08/2026).
+     * Devuelve `null` si el valor no matchea ninguno.
      */
     private function normalizarBooleano(string $valor): ?bool
     {
         $normalizado = Str::of($valor)->lower()->ascii()->trim()->toString();
 
         return match ($normalizado) {
-            'si', '1', 'true' => true,
-            'no', '0', 'false' => false,
+            'si', '1', 'true', 'activo' => true,
+            'no', '0', 'false', 'inactivo' => false,
             default => null,
         };
     }
