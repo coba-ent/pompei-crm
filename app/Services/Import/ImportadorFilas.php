@@ -56,10 +56,30 @@ class ImportadorFilas
         set_time_limit(0);
 
         $definicion = DefinicionCamposImportables::paraEntidad($entidad);
-        $filas = (Excel::toArray(null, $rutaCompleta))[0] ?? [];
-        $todasLasFilas = array_slice($filas, 1); // fila 0 = encabezados
-        $total = count($todasLasFilas);
-        $filasDatos = $limite === null ? $todasLasFilas : array_slice($todasLasFilas, $offset, $limite);
+
+        // Spec 082: el archivo ya viene interpretado en un NDJSON volcado en el Paso 1, así que la
+        // tanda lee sólo sus líneas en vez de re-interpretar el .xlsx entero (que con el catálogo
+        // real daba ~129 s y ~570 MB POR TANDA). El camino con `Excel::toArray()` se conserva para
+        // las llamadas directas con un .xlsx (tests/CLI), donde no hay volcado previo.
+        //
+        // En ambos caminos las claves de `$filasDatos` son el índice ABSOLUTO de la fila de datos
+        // (0-based, sin encabezado), de donde sale `numero_fila`.
+        $fuente = $this->resolverFuente($rutaCompleta);
+
+        if ($fuente !== null) {
+            $total = $fuente->total();
+            // ⚠️ Comportamiento heredado (research.md Decisión 7): con `$limite === null` se procesa
+            // TODO el archivo y el `$offset` se IGNORA. Es sutil y ya causó un error durante la
+            // resolución manual del incidente del 25/08 — se preserva tal cual, con test propio.
+            $filasDatos = $limite === null ? $fuente->leerRango(0) : $fuente->leerRango($offset, $limite);
+        } else {
+            $filas = (Excel::toArray(null, $rutaCompleta))[0] ?? [];
+            $todasLasFilas = array_slice($filas, 1); // fila 0 = encabezados
+            $total = count($todasLasFilas);
+            $filasDatos = $limite === null
+                ? $todasLasFilas
+                : array_slice($todasLasFilas, $offset, $limite, preserve_keys: true);
+        }
 
         $catalogosFk = $this->precargarCatalogosFk($mapeo, $definicion);
         $reglas = $this->construirReglas($entidad, $definicion);
@@ -69,6 +89,7 @@ class ImportadorFilas
         // primera tanda (offset 0 o llamada única) y se reutiliza en las siguientes tandas del
         // mismo archivo.
         $corrida = null;
+        $filasYaAplicadas = [];
         if ($entidad === 'productos') {
             $corrida = $corridaId !== null
                 ? ImportacionCorrida::find($corridaId)
@@ -79,6 +100,17 @@ class ImportadorFilas
                     'confirmado_en' => now(),
                     'deshacer_disponible_hasta' => now()->addHours(48),
                 ]);
+
+            // Spec 082 (FR-009): si esta tanda es un REINTENTO de una que ya se había aplicado
+            // (PHP la terminó pero el proxy cortó la respuesta), las filas con snapshot ya no se
+            // vuelven a procesar. Sin esto, el reintento duplicaría snapshots de deshacer y dejaría
+            // el undo inconsistente. Sólo Productos tiene corrida/snapshot (spec 078).
+            if ($corrida) {
+                $filasYaAplicadas = array_flip(
+                    \App\Models\ImportacionFilaSnapshot::where('importacion_corrida_id', $corrida->id)
+                        ->pluck('numero_fila')->all()
+                );
+            }
         }
 
         $importados = 0;
@@ -94,8 +126,8 @@ class ImportadorFilas
         $auditoria->iniciarBuffer();
 
         try {
-            OrigenCambioPrecio::durante(OrigenCambioPrecio::IMPORTACION, function () use ($filasDatos, $offset, $mapeo, $personalizados, $definicion, $catalogosFk, $tipoPorIndiceCuit, $entidad, $reglas, $usuario, $corrida, &$importados, &$fallidos, &$advertencias, &$snapshotsBuffer) {
-                $this->procesarFilas($filasDatos, $offset, $mapeo, $personalizados, $definicion, $catalogosFk, $tipoPorIndiceCuit, $entidad, $reglas, $usuario, $corrida, $importados, $fallidos, $advertencias, $snapshotsBuffer);
+            OrigenCambioPrecio::durante(OrigenCambioPrecio::IMPORTACION, function () use ($filasDatos, $filasYaAplicadas, $mapeo, $personalizados, $definicion, $catalogosFk, $tipoPorIndiceCuit, $entidad, $reglas, $usuario, $corrida, &$importados, &$fallidos, &$advertencias, &$snapshotsBuffer) {
+                $this->procesarFilas($filasDatos, $filasYaAplicadas, $mapeo, $personalizados, $definicion, $catalogosFk, $tipoPorIndiceCuit, $entidad, $reglas, $usuario, $corrida, $importados, $fallidos, $advertencias, $snapshotsBuffer);
             });
         } finally {
             $auditoria->vaciarBuffer();
@@ -113,6 +145,24 @@ class ImportadorFilas
     }
 
     /**
+     * Devuelve la fuente de filas ya volcada (spec 082) para la ruta recibida, o `null` si no hay
+     * volcado y hay que caer al camino histórico con `Excel::toArray()`.
+     *
+     * Se acepta tanto la ruta del `.ndjson` como la del archivo original: el controlador pasa el
+     * `.xlsx` y el volcado vive al lado, con la misma base y extensión `.ndjson`.
+     */
+    private function resolverFuente(string $rutaCompleta): ?FuenteFilasImportacion
+    {
+        if (str_ends_with(strtolower($rutaCompleta), '.ndjson')) {
+            return new FuenteFilasImportacion($rutaCompleta);
+        }
+
+        $rutaNdjson = FuenteFilasImportacion::rutaNdjsonPara($rutaCompleta);
+
+        return is_file($rutaNdjson) ? new FuenteFilasImportacion($rutaNdjson) : null;
+    }
+
+    /**
      * Bucle de filas propiamente dicho, extraído de `importar()` para poder envolverlo entero
      * en el contexto de origen de auditoría sin indentar todo el método (spec 074, T011).
      *
@@ -120,8 +170,8 @@ class ImportadorFilas
      * @param  array<int, array<string, mixed>>  $advertencias
      */
     private function procesarFilas(
-        array $filasDatos,
-        int $offset,
+        iterable $filasDatos,
+        array $filasYaAplicadas,
         array $mapeo,
         array $personalizados,
         array $definicion,
@@ -137,7 +187,12 @@ class ImportadorFilas
         array &$snapshotsBuffer,
     ): void {
         foreach ($filasDatos as $i => $celdas) {
-            $numeroFila = $offset + $i + 2; // +1 por el encabezado, +1 por ser 1-based
+            $numeroFila = $i + 2; // +1 por el encabezado, +1 por ser 1-based
+
+            // FR-009: fila ya aplicada en un intento anterior de esta misma corrida.
+            if (isset($filasYaAplicadas[$numeroFila])) {
+                continue;
+            }
 
             [$datos, $advertenciasFila] = $this->mapearFila($celdas, $mapeo, $personalizados, $definicion, $catalogosFk, $tipoPorIndiceCuit);
 

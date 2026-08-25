@@ -241,7 +241,12 @@ class ImportacionDatosTest extends TestCase
         ]);
         $this->post(route('importacion.subir', 'clientes'), ['archivo' => $archivo]);
 
-        $this->assertCount(1, Storage::disk('local')->files('imports'));
+        // Spec 082: la subida deja DOS temporales, el archivo original y su volcado .ndjson
+        // (el archivo interpretado una sola vez). Los dos son estado transitorio y tienen que
+        // desaparecer juntos al cancelar - un .ndjson huerfano seria basura acumulada en storage.
+        $temporales = Storage::disk('local')->files('imports');
+        $this->assertCount(2, $temporales);
+        $this->assertCount(1, array_filter($temporales, fn ($f) => str_ends_with($f, '.ndjson')));
 
         $response = $this->post(route('importacion.cancelar', 'clientes'));
 

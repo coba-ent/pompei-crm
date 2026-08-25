@@ -83,9 +83,19 @@
                 </div>
             </div>
 
+            {{-- Spec 082: huella de los encabezados que esta pantalla tiene a la vista. El backend la
+                 compara con la del archivo vigente y rechaza el lote si cambió (el usuario subió otro
+                 archivo en otra pestaña), en vez de escribir en columnas equivocadas. --}}
+            <input type="hidden" name="huella_columnas" value="{{ \App\Http\Controllers\ImportacionController::huellaColumnas($columnas) }}">
+
             <div class="d-flex gap-2">
                 <button type="submit" class="btn btn-primary" id="btn-confirmar-importacion">
                     <i class="fas fa-check me-1"></i> Confirmar importación
+                </button>
+                {{-- Spec 082: aparece sólo si una tanda falló tras agotar los reintentos automáticos.
+                     Retoma desde el último offset confirmado, sin repetir ni saltear filas. --}}
+                <button type="button" class="btn btn-warning d-none" id="btn-reanudar-importacion">
+                    <i class="fas fa-redo me-1"></i> Reanudar desde la fila <span id="reanudar-fila">0</span>
                 </button>
             </div>
         </form>
@@ -150,40 +160,75 @@
         window.AppBtn.loading('#btn-cancelar-importacion', true);
     });
 
-    document.getElementById('form-mapeo').addEventListener('submit', function (evento) {
-        evento.preventDefault();
+    (function () {
+        var form = document.getElementById('form-mapeo');
+        var btnConfirmar = document.getElementById('btn-confirmar-importacion');
+        var btnReanudar = document.getElementById('btn-reanudar-importacion');
+        var spanFila = document.getElementById('reanudar-fila');
 
-        var form = evento.target;
-        document.getElementById('btn-confirmar-importacion').disabled = true;
-        var url = form.action;
-        var token = form.querySelector('input[name="_token"]').value;
-        var mapeoFijo = new FormData(form); // mapeo[]/personalizados[] no cambian entre tandas
+        // Spec 082: una tanda puede fallar por corte de red o por un 5xx (el proxy corta la
+        // conexión aunque PHP haya terminado). Eso es transitorio: se reintenta con espera
+        // creciente. Un 422 NO se reintenta: es un error de mapeo, determinístico, y reintentarlo
+        // sólo repetiría el mismo error.
+        var ESPERAS_REINTENTO = [2000, 4000, 8000];
 
-        var modalEl = document.getElementById('modal-importando');
-        var modal = new bootstrap.Modal(modalEl);
-        var barra = document.getElementById('modal-importando-barra');
-        var detalle = document.getElementById('modal-importando-detalle');
-        modal.show();
+        var mapeoFijo = null;
+        var token = null;
+        var modal = null;
+        var barra = null;
+        var detalle = null;
 
-        function procesarTanda(offset) {
+        function errorNoReintentable(mensaje) {
+            var e = new Error(mensaje);
+            e.reintentable = false;
+            return e;
+        }
+
+        function pedirTanda(offset) {
             var datos = new FormData();
             mapeoFijo.forEach(function (valor, clave) { datos.append(clave, valor); });
             datos.set('_token', token);
             datos.set('offset', offset);
 
-            fetch(url, {
+            return fetch(form.action, {
                 method: 'POST',
                 body: datos,
                 headers: { 'X-Requested-With': 'XMLHttpRequest' },
-            })
-                .then(function (respuesta) {
-                    if (! respuesta.ok) {
-                        return respuesta.json().then(function (cuerpo) {
-                            throw new Error(cuerpo.error || 'Error al importar.');
-                        });
-                    }
+            }).then(function (respuesta) {
+                if (respuesta.ok) {
                     return respuesta.json();
-                })
+                }
+
+                return respuesta.json().catch(function () { return {}; }).then(function (cuerpo) {
+                    var mensaje = cuerpo.error || 'Error al importar.';
+                    if (respuesta.status >= 500) {
+                        throw new Error(mensaje); // transitorio: se reintenta
+                    }
+                    throw errorNoReintentable(mensaje);
+                });
+            });
+        }
+
+        function pedirTandaConReintentos(offset, intento) {
+            intento = intento || 0;
+
+            return pedirTanda(offset).catch(function (error) {
+                if (error.reintentable === false || intento >= ESPERAS_REINTENTO.length) {
+                    throw error;
+                }
+
+                detalle.textContent = 'Se cortó la conexión. Reintentando (' + (intento + 1) + ' de ' + ESPERAS_REINTENTO.length + ')…';
+
+                return new Promise(function (resolver) {
+                    setTimeout(resolver, ESPERAS_REINTENTO[intento]);
+                }).then(function () {
+                    return pedirTandaConReintentos(offset, intento + 1);
+                });
+            });
+        }
+
+        function procesarTanda(offset) {
+            pedirTandaConReintentos(offset)
                 .then(function (resultado) {
                     var porcentaje = resultado.total > 0 ? Math.round((resultado.procesadas / resultado.total) * 100) : 100;
                     barra.style.width = porcentaje + '%';
@@ -199,12 +244,55 @@
                 })
                 .catch(function (error) {
                     modal.hide();
-                    document.getElementById('btn-confirmar-importacion').disabled = false;
-                    window.toastr && window.toastr.error ? window.toastr.error(error.message) : alert(error.message);
+                    btnConfirmar.disabled = false;
+
+                    var mensaje = error.message || 'Error al importar.';
+                    if (window.toastr && window.toastr.error) {
+                        window.toastr.error(mensaje);
+                    } else {
+                        alert(mensaje);
+                    }
+
+                    // Un error recuperable (corte) se puede retomar desde donde quedó; uno no
+                    // recuperable (mapeo inválido, archivo temporal ausente) no: ahí el camino es
+                    // corregir el mapeo o volver a subir el archivo.
+                    if (error.reintentable === false) {
+                        btnReanudar.classList.add('d-none');
+                        return;
+                    }
+
+                    // +2: el offset es 0-based sobre filas de datos, y la fila del archivo cuenta
+                    // el encabezado y arranca en 1 — el mismo número que muestran los errores.
+                    spanFila.textContent = offset + 2;
+                    btnReanudar.dataset.offset = offset;
+                    btnReanudar.classList.remove('d-none');
                 });
         }
 
-        procesarTanda(0);
-    });
+        function arrancar(offset) {
+            btnConfirmar.disabled = true;
+            btnReanudar.classList.add('d-none');
+
+            token = form.querySelector('input[name="_token"]').value;
+            mapeoFijo = new FormData(form); // mapeo[]/personalizados[] no cambian entre tandas
+
+            var modalEl = document.getElementById('modal-importando');
+            modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            barra = document.getElementById('modal-importando-barra');
+            detalle = document.getElementById('modal-importando-detalle');
+            modal.show();
+
+            procesarTanda(offset);
+        }
+
+        form.addEventListener('submit', function (evento) {
+            evento.preventDefault();
+            arrancar(0);
+        });
+
+        btnReanudar.addEventListener('click', function () {
+            arrancar(parseInt(btnReanudar.dataset.offset || '0', 10));
+        });
+    })();
 </script>
 @endsection

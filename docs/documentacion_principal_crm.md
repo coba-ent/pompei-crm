@@ -423,6 +423,24 @@ porque ya son un único modelo (`Producto` con campo `tipo`).
   (venta, compra, ajuste, u otra corrida de import más reciente) no se revierte y queda reportada
   con motivo, sin abortar el resto. No aplica a Clientes ni Proveedores (pendiente para spec futura
   si se decide extenderlo).
+- **Archivos grandes: tandas, reintento y retoma (spec 082, 25/08/2026)**. El Paso 3 procesa el
+  archivo en **tandas de 250 filas** (antes 1.000), cada una en su propia request, y el archivo se
+  interpreta **una sola vez** al subirlo (Paso 1) en vez de una vez por tanda. Motivo: con el
+  catálogo real (9.632 productos) el esquema anterior daba ~129 s y ~570 MB por tanda, contra los
+  60 s del servidor web y 512 MB de memoria — **una importación de 1.117 filas se cortó en 1.000 y
+  dejó 117 sin aplicar** (incidente real del 25/08/2026; no hubo corrupción ni pérdida, pero hizo
+  falta completarla por línea de comandos). Al subir el archivo se lo vuelca a un archivo intermedio
+  de una fila por línea, que vive junto al temporal y se borra con él (sigue siendo estado
+  transitorio: nunca toca la base). Si una tanda falla por corte de red o
+  error del servidor, la pantalla la **reintenta sola hasta 3 veces** (esperando 2 s, 4 s y 8 s); un
+  error de mapeo (422) **no** se reintenta, porque repetirlo daría el mismo error. Si aun así falla,
+  muestra el error y ofrece **"Reanudar desde la fila N"**
+  conservando todo lo ya aplicado. Reintentar es seguro: una tanda saltea las filas que ya tienen
+  snapshot en esa corrida, así que no se duplican ni se recuentan. Una importación cortada y retomada
+  queda como **una sola corrida** a efectos del deshacer. Aplica a las tres solapas (el motor es
+  compartido). Si al retomar los encabezados del archivo ya no son los que se mapearon (por ejemplo,
+  se subió otro archivo en otra pestaña), la tanda se rechaza y se pide rehacer el mapeo en vez de
+  escribir en columnas equivocadas; si el temporal ya no está, se pide volver a subir el archivo. El límite de 10 MB por archivo no cambió: sobra para 10.000 filas (~1,8 MB).
 
 *Fuente(s): `docs/informe_contagram_base_de_datos.md` §2.6/§4.10*
 

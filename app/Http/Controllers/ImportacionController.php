@@ -4,11 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\SubirArchivoImportacionRequest;
 use App\Services\Import\DefinicionCamposImportables;
+use App\Services\Import\FuenteFilasImportacion;
 use App\Services\Import\ImportadorFilas;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * Asistente "Importar Datos" (Clientes/Proveedores/Productos & Servicios).
@@ -47,14 +47,26 @@ class ImportacionController extends Controller
         $archivo->storeAs('imports', $nombreArchivo, 'local');
 
         $rutaCompleta = Storage::disk('local')->path('imports/'.$nombreArchivo);
-        $filas = (Excel::toArray(null, $rutaCompleta))[0] ?? [];
+
+        // Spec 082: UNICO punto donde se interpreta el .xlsx con PhpSpreadsheet. El volcado a
+        // NDJSON queda al lado del temporal y es lo que leen el Paso 2 y cada tanda del Paso 3,
+        // que ya no vuelven a abrir el Excel (I1 del contrato de FuenteFilasImportacion).
+        $rutaNdjson = FuenteFilasImportacion::volcar($rutaCompleta);
+        $fuente = new FuenteFilasImportacion($rutaNdjson);
+
+        $preview = [];
+        foreach ($fuente->leerRango(0, 5) as $fila) {
+            $preview[] = $fila;
+        }
 
         session(['importacion' => [
             'entidad' => $entidad,
             'archivo' => $nombreArchivo,
+            'ndjson' => basename($rutaNdjson),
+            'total' => $fuente->total(),
             'archivo_original' => $archivo->getClientOriginalName(),
-            'columnas' => $filas[0] ?? [],
-            'preview' => array_slice($filas, 1, 5),
+            'columnas' => $fuente->encabezados(),
+            'preview' => $preview,
         ]]);
 
         return redirect()->route('importacion.mapear', $entidad);
@@ -160,7 +172,7 @@ class ImportacionController extends Controller
         $rutaCompleta = Storage::disk('local')->path('imports/'.$estado['archivo']);
         $resultado = $importador->importar($entidad, $rutaCompleta, $mapeo, $personalizados, $request->user(), $estado['columnas'], 0, null, null, $estado['archivo_original'] ?? $estado['archivo']);
 
-        Storage::disk('local')->delete('imports/'.$estado['archivo']);
+        $this->limpiarTemporales($estado);
         session()->forget('importacion');
         session(['importacion_resultado' => ['entidad' => $entidad] + $resultado]);
 
@@ -174,7 +186,12 @@ class ImportacionController extends Controller
      * grande sea el archivo total, porque el archivo se procesa en varias requests cortas
      * en vez de una sola.
      */
-    private const FILAS_POR_LOTE = 1000;
+    /**
+     * Spec 082: baja de 1000 a 250. Con el volcado a NDJSON una tanda ya no re-interpreta el
+     * Excel entero, y 250 filas tardan ~26 s con el catalogo real (9.632 filas) - mas de 2x de
+     * margen sobre el limite de ~60 s del proxy. Es LA constante a ajustar si ese margen cambia.
+     */
+    private const FILAS_POR_LOTE = 250;
 
     /**
      * Procesa una tanda de filas (AJAX, llamado en loop desde `mapear.blade.php`) y acumula
@@ -200,9 +217,45 @@ class ImportacionController extends Controller
             return response()->json(['error' => $error], 422);
         }
 
+        // Spec 082 (Decision 4): igual que subir(), el paso de tandas no depende del default de
+        // memory_limit del servidor. Con el volcado a NDJSON el pico por tanda es de unas pocas
+        // decenas de MB, pero el valor explicito hace el comportamiento reproducible entre
+        // entornos (local vs VPS) en vez de funcionar de casualidad.
+        ini_set('memory_limit', '512M');
+
         $rutaCompleta = Storage::disk('local')->path('imports/'.$estado['archivo']);
         $corridaId = session('importacion_corrida_id');
-        $lote = $importador->importar($entidad, $rutaCompleta, $mapeo, $personalizados, $request->user(), $estado['columnas'], $offset, self::FILAS_POR_LOTE, $corridaId, $estado['archivo_original'] ?? $estado['archivo']);
+
+        // Los temporales pueden no estar: limpieza del disco, reinicio del servidor, sesion vieja.
+        // Se corta con un mensaje accionable ANTES de intentar leer, en vez de dejar que reviente
+        // adentro del parser con un 500 y la pantalla colgada.
+        if (! $this->temporalesDisponibles($estado)) {
+            return response()->json([
+                'error' => 'El archivo temporal de la importación ya no está disponible. Volvé a subir el archivo.',
+                'recuperable' => false,
+            ], 422);
+        }
+
+        // Spec 082: la pantalla de mapeo manda la huella de los encabezados que tenia a la vista.
+        // Si no coincide con la del archivo vigente (tipico: el usuario subio otro archivo en otra
+        // pestana), el mapeo apunta a columnas que ya no son esas - escribir seria cargar datos en
+        // los campos equivocados. Se corta y se pide rehacer el mapeo.
+        $huellaEnviada = (string) $request->input('huella_columnas', '');
+        if ($huellaEnviada !== '' && $huellaEnviada !== self::huellaColumnas($estado['columnas'])) {
+            return response()->json([
+                'error' => 'El archivo de la importación cambió desde que armaste el mapeo. Volvé a subirlo y rehacé el mapeo.',
+                'recuperable' => false,
+            ], 422);
+        }
+
+        try {
+            $lote = $importador->importar($entidad, $rutaCompleta, $mapeo, $personalizados, $request->user(), $estado['columnas'], $offset, self::FILAS_POR_LOTE, $corridaId, $estado['archivo_original'] ?? $estado['archivo']);
+        } catch (\RuntimeException $e) {
+            // El .ndjson (o el temporal) ya no esta: limpieza del disco, reinicio del servidor o
+            // sesion vieja. Se informa con un mensaje accionable en vez de dejar la pantalla
+            // colgada reintentando algo que nunca va a funcionar.
+            return response()->json(['error' => $e->getMessage(), 'recuperable' => false], 422);
+        }
 
         if ($corridaId === null && $lote['corrida_id'] !== null) {
             session(['importacion_corrida_id' => $lote['corrida_id']]);
@@ -218,7 +271,7 @@ class ImportacionController extends Controller
         $terminado = $procesadas >= $lote['total'];
 
         if ($terminado) {
-            Storage::disk('local')->delete('imports/'.$estado['archivo']);
+            $this->limpiarTemporales($estado);
             $acumulado['corrida_id'] = $lote['corrida_id'];
             session()->forget(['importacion', 'importacion_resultado_parcial', 'importacion_corrida_id']);
             session(['importacion_resultado' => ['entidad' => $entidad] + $acumulado]);
@@ -239,7 +292,7 @@ class ImportacionController extends Controller
 
         $estado = $this->estadoVigente($entidad);
         if ($estado) {
-            Storage::disk('local')->delete('imports/'.$estado['archivo']);
+            $this->limpiarTemporales($estado);
             session()->forget('importacion');
         }
 
@@ -351,7 +404,47 @@ class ImportacionController extends Controller
     }
 
     /**
-     * @return array{entidad: string, archivo: string, columnas: array, preview: array}|null
+     * Borra el estado transitorio en disco de una importacion: el archivo subido Y su volcado
+     * NDJSON (spec 082, I5 del contrato). Los dos nacen y mueren juntos - dejar el .ndjson
+     * huerfano seria acumular basura en storage por cada importacion.
+     *
+     * @param  array{archivo: string, ndjson?: string}  $estado
+     */
+    /**
+     * Huella de los encabezados del archivo, para detectar que el mapeo que llega corresponde al
+     * archivo que sigue vigente en la sesion (spec 082).
+     *
+     * @param  array<int, mixed>  $columnas
+     */
+    public static function huellaColumnas(array $columnas): string
+    {
+        return sha1((string) json_encode(array_map(fn ($c) => (string) $c, $columnas)));
+    }
+
+    /**
+     * El volcado NDJSON (o, para una sesion anterior a la spec 082, el archivo subido) sigue en
+     * disco y se puede seguir procesando.
+     *
+     * @param  array{archivo: string, ndjson?: string}  $estado
+     */
+    private function temporalesDisponibles(array $estado): bool
+    {
+        $relevante = ! empty($estado['ndjson']) ? $estado['ndjson'] : $estado['archivo'];
+
+        return Storage::disk('local')->exists('imports/'.$relevante);
+    }
+
+    private function limpiarTemporales(array $estado): void
+    {
+        Storage::disk('local')->delete('imports/'.$estado['archivo']);
+
+        if (! empty($estado['ndjson'])) {
+            Storage::disk('local')->delete('imports/'.$estado['ndjson']);
+        }
+    }
+
+    /**
+     * @return array{entidad: string, archivo: string, ndjson?: string, total?: int, columnas: array, preview: array}|null
      */
     private function estadoVigente(string $entidad): ?array
     {
