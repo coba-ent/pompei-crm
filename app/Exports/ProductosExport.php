@@ -87,6 +87,9 @@ class ProductosExport implements FromQuery, WithHeadings, WithMapping, WithStyle
             $formatos[$this->columnLetra($inicioDinero + $i)] = '#,##0.00';
         }
 
+        // Punto de Reposición: última columna, entero.
+        $formatos[$this->columnLetra($inicioDinero + $columnasDinero + 3)] = '0';
+
         return $formatos;
     }
 
@@ -107,6 +110,9 @@ class ProductosExport implements FromQuery, WithHeadings, WithMapping, WithStyle
             'Costo', 'Precio venta',
             ...$this->listas->map(fn ($l) => $l->nombre)->all(),
             'IVA venta', 'IVA compra', 'Estado',
+            // Última columna a propósito: así agregarla no corre los índices que
+            // columnFormats() calcula a mano para stock y dinero.
+            'Punto de Reposición',
         ];
     }
 
@@ -131,6 +137,7 @@ class ProductosExport implements FromQuery, WithHeadings, WithMapping, WithStyle
             Producto::etiquetaIva($p->iva_venta_pct),
             Producto::etiquetaIva($p->iva_compra_pct),
             $p->activo ? 'Activo' : 'Inactivo',
+            $p->punto_reposicion !== null ? (int) $p->punto_reposicion : null,
         ];
     }
 }

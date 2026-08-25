@@ -388,6 +388,14 @@ porque ya son un único modelo (`Producto` con campo `tipo`).
         saldo negativo. Ahora el stock por depósito admite negativos, en el alta y en la actualización.
         **Los precios siguen exigiendo `>= 0`**: un precio negativo no tiene sentido de negocio y sigue
         marcando la fila como fallida.
+    - **El Punto de Reposición viaja en el export y se puede reimportar** (25/08/2026). La
+      exportación de Productos agrega una última columna `Punto de Reposición` (entero, vacía si el
+      producto no se controla), y el asistente de importación tiene el campo destino homónimo, que
+      automapea tanto por ese encabezado como por el alias `Punto Reposicion` — que es como se
+      llamaba la **lista de precios** de la que se migró este dato (`migracion:punto-reposicion`) y
+      como sigue viniendo en los exports de Contagram anteriores a esa migración. Va último a
+      propósito: no corre las columnas de stock/dinero, que la exportación formatea por índice.
+
   - **DNI y CUIT en columnas separadas mapeadas al mismo campo "CUIT"** (corrección, 31/07/2026): en Clientes y
     Proveedores, el campo destino "CUIT" acepta mapear hasta 2 columnas del archivo (el resto de los campos
     sigue permitiendo sólo una). Por fila, se toma el valor de la que tenga dato; el tipo de documento

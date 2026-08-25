@@ -99,6 +99,23 @@ class ImportacionAutomapeoProductosTest extends TestCase
         $this->assertSame("precio_lista_{$may->id}", $sugerencias[2]);
     }
 
+    /**
+     * El Punto de Reposición viaja en el export y tiene que volver a mapearse solo al
+     * reimportar, tanto con el encabezado del export como con el nombre de la vieja lista
+     * de precios de la que se migró (exports de Contagram anteriores a la migración).
+     */
+    public function test_punto_de_reposicion_automapea_por_encabezado_y_por_alias_viejo(): void
+    {
+        $sugerencias = $this->sugerenciasPara(['Nombre', 'Punto de Reposición', 'Punto Reposicion']);
+
+        $this->assertSame('punto_reposicion', $sugerencias[1]);
+        // La segunda ya está usada por la primera: el automapeo no repite campo destino.
+        $this->assertArrayNotHasKey(2, $sugerencias);
+
+        $solaLaVieja = $this->sugerenciasPara(['Nombre', 'Punto Reposicion']);
+        $this->assertSame('punto_reposicion', $solaLaVieja[1]);
+    }
+
     /** Una columna desconocida sigue quedando sin mapear (no hay matching aproximado). */
     public function test_una_columna_desconocida_queda_sin_mapear(): void
     {
