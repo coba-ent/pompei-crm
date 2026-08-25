@@ -51,7 +51,7 @@
                                 <input type="file" name="archivo" class="form-control" accept=".xls,.xlsx,.csv" required>
                             </div>
                             <button type="submit" class="btn btn-primary" id="btn-importacion-subir">
-                                <i class="fas fa-upload me-1"></i> Seleccionar Archivo
+                                <i class="fas fa-upload me-1"></i> Subir
                             </button>
                         </form>
                     </div>

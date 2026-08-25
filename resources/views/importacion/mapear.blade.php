@@ -48,7 +48,7 @@
                                 <tr>
                                     @foreach ($columnas as $indice => $columna)
                                         <th>
-                                            <select name="mapeo[{{ $indice }}]" class="form-select form-select-sm js-select-mapeo" data-indice="{{ $indice }}">
+                                            <select name="mapeo[{{ $indice }}]" class="form-select form-select-sm js-select-mapeo" data-indice="{{ $indice }}" data-container="body" data-live-search="true">
                                                 <option value="" @selected(! isset($sugerencias[$indice]))>No importar</option>
                                                 @foreach ($definicion as $clave => $def)
                                                     <option value="{{ $clave }}" @selected(($sugerencias[$indice] ?? null) === $clave)>{{ $def['etiqueta'] }}@if($def['obligatorio']) *@endif</option>
