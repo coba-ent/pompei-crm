@@ -70,15 +70,20 @@ class RevincularMovimientosTesoreria extends Command
         /** @var class-string<\Illuminate\Database\Eloquent\Model> $modelo */
         $modelo = $caso['modelo'];
 
+        $tabla = (new $modelo)->getTable();
+
+        // El `origen_id` se compara contra la tabla CALIFICADA: sin el prefijo, MySQL resuelve el
+        // `id` pelado dentro de la subconsulta y la condición se vuelve trivialmente falsa, con lo
+        // que todos los pagos entran como pendientes — incluidos los que ya están vinculados.
         $pendientes = $modelo::query()
-            ->whereNotExists(function ($q) use ($caso) {
+            ->whereNotExists(function ($q) use ($modelo, $tabla) {
                 $q->select(DB::raw(1))
                     ->from('movimientos_tesoreria as m')
-                    ->whereColumn('m.origen_id', 'id')
-                    ->where('m.origen_type', (new $caso['modelo'])->getMorphClass())
+                    ->whereColumn('m.origen_id', $tabla.'.id')
+                    ->where('m.origen_type', (new $modelo)->getMorphClass())
                     ->whereNull('m.deleted_at');
             })
-            ->orderBy('id')
+            ->orderBy($tabla.'.id')
             ->get();
 
         $this->line('  sin vínculo: '.$pendientes->count());

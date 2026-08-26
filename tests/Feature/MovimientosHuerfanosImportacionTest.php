@@ -149,6 +149,36 @@ class MovimientosHuerfanosImportacionTest extends TestCase
         $this->assertSame(1, MovimientoTesoreria::where('cuenta_tesoreria_id', $cuenta->id)->count());
     }
 
+    public function test_un_pago_ya_vinculado_no_se_lleva_un_segundo_movimiento(): void
+    {
+        $cuenta = CuentaTesoreria::factory()->tipo('efectivo')->create();
+
+        // Pago nativo: nace con su movimiento vinculado.
+        $compra = Compra::factory()->create(['proveedor_id' => Proveedor::factory()->create()->id]);
+        $sano = app(Pagos::class)->registrarPago($compra, 750, $cuenta, Carbon::parse('2021-11-11'));
+        $this->assertNotNull($sano->movimientoTesoreria);
+
+        // Y un huérfano que calza EXACTO con él: mismo día, misma cuenta, mismo importe. Si el
+        // comando tratara al pago sano como pendiente, se llevaría este movimiento de arriba y
+        // quedaría con dos.
+        MovimientoTesoreria::create([
+            'legacy_id' => 'TES-'.$cuenta->id.'-PAG-777-20211111--75000',
+            'cuenta_tesoreria_id' => $cuenta->id,
+            'fecha' => '2021-11-11',
+            'tipo' => 'pago',
+            'monto' => -750,
+        ]);
+
+        $this->artisan('tesoreria:revincular-movimientos --aplicar')->assertSuccessful();
+
+        $this->assertSame(
+            1,
+            MovimientoTesoreria::where('origen_type', $sano->getMorphClass())->where('origen_id', $sano->id)->count(),
+            'un pago que ya tenía su movimiento no puede terminar con dos',
+        );
+        $this->assertSame(1, MovimientoTesoreria::whereNull('origen_type')->count(), 'el huérfano ajeno sigue libre');
+    }
+
     public function test_un_pago_sin_ningun_movimiento_no_inventa_uno(): void
     {
         $cuenta = CuentaTesoreria::factory()->tipo('efectivo')->create();
