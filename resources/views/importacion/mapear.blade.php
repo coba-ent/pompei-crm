@@ -110,6 +110,8 @@
     </div>
 </div>
 
+@include('importacion._modal-confirmacion')
+
 <div class="modal fade" id="modal-importando" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -285,13 +287,171 @@
             procesarTanda(offset);
         }
 
-        form.addEventListener('submit', function (evento) {
-            evento.preventDefault();
-            arrancar(0);
-        });
-
         btnReanudar.addEventListener('click', function () {
             arrancar(parseInt(btnReanudar.dataset.offset || '0', 10));
+        });
+
+        // -------------------------------------------------------------------------------------
+        // Spec 083 — paso de revisión previo a escribir.
+        //
+        // "Confirmar importación" ya NO importa: abre el modal y corre la prevalidación por tandas
+        // contra un endpoint que no escribe. Recién "Sí, importar" arranca la importación real,
+        // reutilizando `arrancar()` tal cual estaba.
+        // -------------------------------------------------------------------------------------
+        var URL_PREVALIDAR = '{{ route('importacion.prevalidar', $entidad) }}';
+
+        var modalConfirmacion = null;
+        var elAnalizando = document.getElementById('confirmacion-analizando');
+        var elResultado = document.getElementById('confirmacion-resultado');
+        var barraAnalisis = document.getElementById('confirmacion-analizando-barra');
+        var detalleAnalisis = document.getElementById('confirmacion-analizando-detalle');
+        var btnDefinitivo = document.getElementById('btn-confirmar-definitivo');
+
+        function reiniciarModalConfirmacion() {
+            elAnalizando.classList.remove('d-none');
+            elResultado.classList.add('d-none');
+            btnDefinitivo.disabled = true;
+            barraAnalisis.style.width = '0%';
+            detalleAnalisis.textContent = 'Analizando el archivo…';
+        }
+
+        function filasDeDetalle(cuerpo, filas, textoDe) {
+            cuerpo.innerHTML = '';
+            filas.forEach(function (item) {
+                var tr = document.createElement('tr');
+                var tdFila = document.createElement('td');
+                tdFila.textContent = item.fila;
+                var tdMotivo = document.createElement('td');
+                tdMotivo.textContent = textoDe(item);
+                tr.appendChild(tdFila);
+                tr.appendChild(tdMotivo);
+                cuerpo.appendChild(tr);
+            });
+        }
+
+        function mostrarInforme(informe) {
+            elAnalizando.classList.add('d-none');
+            elResultado.classList.remove('d-none');
+
+            document.getElementById('confirmacion-altas').textContent = informe.altas;
+            document.getElementById('confirmacion-actualizaciones').textContent = informe.actualizaciones;
+            document.getElementById('confirmacion-errores').textContent = informe.cantidad_errores;
+
+            var campos = Object.keys(informe.campos_afectados || {});
+            var cuerpoCampos = document.getElementById('confirmacion-campos');
+            cuerpoCampos.innerHTML = '';
+            campos.forEach(function (campo) {
+                var tr = document.createElement('tr');
+                var tdCampo = document.createElement('td');
+                tdCampo.textContent = campo;
+                var tdCantidad = document.createElement('td');
+                tdCantidad.className = 'text-end';
+                tdCantidad.textContent = informe.campos_afectados[campo];
+                tr.appendChild(tdCampo);
+                tr.appendChild(tdCantidad);
+                cuerpoCampos.appendChild(tr);
+            });
+            document.getElementById('confirmacion-campos-bloque').classList.toggle('d-none', campos.length === 0);
+
+            filasDeDetalle(
+                document.getElementById('confirmacion-errores-detalle'),
+                informe.errores || [],
+                function (e) { return (e.motivos || []).join(' '); }
+            );
+            document.getElementById('confirmacion-errores-bloque').classList.toggle('d-none', ! informe.hay_errores);
+
+            filasDeDetalle(
+                document.getElementById('confirmacion-advertencias-detalle'),
+                informe.advertencias || [],
+                function (a) { return a.motivo; }
+            );
+            document.getElementById('confirmacion-advertencias-bloque').classList.toggle('d-none', (informe.advertencias || []).length === 0);
+
+            var sinFilas = informe.total === 0;
+            document.getElementById('confirmacion-vacio').classList.toggle('d-none', ! sinFilas);
+
+            // FR-005/FR-006: con cero errores y al menos una fila, se habilita. Con un solo error,
+            // no. Es el bloqueo, no una advertencia que se pueda saltear.
+            btnDefinitivo.disabled = informe.hay_errores || sinFilas;
+        }
+
+        function pedirPrevalidacion(offset) {
+            var datos = new FormData(form);
+            datos.set('offset', offset);
+
+            return fetch(URL_PREVALIDAR, {
+                method: 'POST',
+                body: datos,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            }).then(function (respuesta) {
+                if (respuesta.ok) {
+                    return respuesta.json();
+                }
+
+                return respuesta.json().catch(function () { return {}; }).then(function (cuerpo) {
+                    throw new Error(cuerpo.error || 'No se pudo analizar el archivo.');
+                });
+            });
+        }
+
+        function prevalidarTanda(offset) {
+            pedirPrevalidacion(offset)
+                .then(function (resultado) {
+                    var porcentaje = resultado.total > 0 ? Math.round((resultado.procesadas / resultado.total) * 100) : 100;
+                    barraAnalisis.style.width = porcentaje + '%';
+                    barraAnalisis.setAttribute('aria-valuenow', porcentaje);
+                    detalleAnalisis.textContent = 'Analizadas ' + resultado.procesadas + ' de ' + resultado.total + ' filas…';
+
+                    if (resultado.terminado) {
+                        mostrarInforme(resultado.informe);
+                        return;
+                    }
+
+                    prevalidarTanda(resultado.procesadas);
+                })
+                .catch(function (error) {
+                    modalConfirmacion.hide();
+                    btnConfirmar.disabled = false;
+                    var mensaje = error.message || 'No se pudo analizar el archivo.';
+                    if (window.toastr && window.toastr.error) {
+                        window.toastr.error(mensaje);
+                    } else {
+                        alert(mensaje);
+                    }
+                });
+        }
+
+        form.addEventListener('submit', function (evento) {
+            evento.preventDefault();
+
+            btnConfirmar.disabled = true;
+            reiniciarModalConfirmacion();
+            modalConfirmacion = bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-confirmacion-import'));
+            modalConfirmacion.show();
+
+            prevalidarTanda(0);
+        });
+
+        // La importación real arranca recién cuando el modal de revisión terminó de cerrarse: dos
+        // modales de Bootstrap solapándose se pisan el `modal-open` del body y dejan la página sin
+        // scroll (gotcha ya conocido en este proyecto).
+        var confirmoImportar = false;
+
+        document.getElementById('modal-confirmacion-import').addEventListener('hidden.bs.modal', function () {
+            if (confirmoImportar) {
+                confirmoImportar = false;
+                arrancar(0);
+                return;
+            }
+
+            // FR-005c: cancelar vuelve al mapeo con la selección intacta y sin ningún efecto — el
+            // modal no tocó la base, así que no hay nada que revertir.
+            btnConfirmar.disabled = false;
+        });
+
+        btnDefinitivo.addEventListener('click', function () {
+            confirmoImportar = true;
+            modalConfirmacion.hide();
         });
     })();
 </script>

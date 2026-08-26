@@ -442,6 +442,47 @@ porque ya son un único modelo (`Producto` con campo `tipo`).
   se subió otro archivo en otra pestaña), la tanda se rechaza y se pide rehacer el mapeo en vez de
   escribir en columnas equivocadas; si el temporal ya no está, se pide volver a subir el archivo. El límite de 10 MB por archivo no cambió: sobra para 10.000 filas (~1,8 MB).
 
+- **Modal de confirmación previa y correcciones (spec 083, 26/08/2026)**. Los 3 pasos del asistente no
+  cambian, pero el botón "Confirmar importación" del Paso 2 ya no importa directamente: abre un
+  **modal de confirmación** que analiza el archivo entero contra el mapeo elegido **sin crear ni
+  modificar ningún registro**, y muestra **cuántas altas**, **cuántas actualizaciones**, **qué campos
+  se van a modificar y a cuántos registros cada uno** (ej. "Costo: 100 registros · Precio venta: 100 ·
+  Stock Local: 43") y **qué filas fallan con su motivo**. Cancelar el modal vuelve al mapeo con la
+  selección intacta y sin haber tocado nada. ⚠️ **Cambio de
+  comportamiento**: si hay **al menos una fila con error**, no se puede confirmar hasta corregir el
+  archivo y volver a subirlo — esto **revierte la tolerancia por fila** de los specs 006/026 (donde
+  una fila inválida se omitía y el resto se importaba igual). Es una decisión explícita del usuario
+  tras un incidente real: entraron 124 productos con el código y el precio mal. Consecuencia a tener
+  presente: **una sola fila mala en un archivo de 9.000 impide importar las 8.999 restantes**.
+  El modal de confirmación **no existe en Contagram real**: es una divergencia deliberada y documentada,
+  no un desvío a corregir.
+  El bloqueo vive en el **backend**, no sólo en la pantalla: sin un análisis previo vigente, completo y
+  sin errores para exactamente ese archivo y ese mapeo, la importación se rechaza aunque se llame al
+  endpoint directamente. El análisis se acumula **en disco**, junto al volcado NDJSON del spec 082 (no
+  en sesión: 10.000 filas con error son del orden de 1 MB de texto), y se borra junto con el archivo
+  temporal al confirmar, al cancelar o al subir uno nuevo. La garantía de que lo que informa es lo que
+  va a pasar es estructural: la prevalidación y la importación comparten el mismo servicio de decisión
+  (`ValidadorFilasImportacion`), que **no tiene forma de escribir** — no recibe el `StockService` ni
+  llama a `create()`/`update()`/`save()`.
+  Junto con eso se corrigieron cuatro defectos detectados el mismo día:
+  - **Fórmulas de Excel sin calcular**: un `.xlsx` guardado sin recalcular manda el texto de la fórmula
+    (`=+B2&" "&A2`). Antes, en un campo de texto **se guardaba la fórmula como si fuera el dato** (124
+    productos quedaron con ese código). Ahora el sistema **calcula las fórmulas** al interpretar el
+    archivo; una que no se pueda evaluar queda reportada como error de esa fila, nunca guardada.
+  - **"Precio venta" no se automapeaba**: la exportación escribe `Precio venta` y el campo destino se
+    llamaba `Precio de Venta` sin alias, así que el round-trip exportar → editar → reimportar dejaba
+    los productos con **precio de venta 0**. Mismo defecto que el spec 074 arregló para `Stock
+    {depósito}`; ahora hay una verificación automática que falla si alguien agrega una columna a la
+    exportación sin su correspondencia en la importación.
+  - **Mensajes de error en inglés y con nombres internos** (*"The precio lista 2 field must be a
+    number"*): ahora salen en español y nombran la columna con la etiqueta que el usuario ve en el
+    mapeo (*"AHORA 3 tiene que ser un número"*).
+  - **El resumen podía informar el resultado de una corrida anterior**: si una importación se abandonaba
+    a mitad, su acumulado sobrevivía en la sesión y la siguiente sumaba sobre él (con 1.000 residuales,
+    importar 2 registros informaba 1.002; en producción llegó a informar "1000 registros importados
+    correctamente" **sin haber importado nada**). Ahora el acumulado se ata a la importación en curso y
+    el resumen muestra el **archivo y la fecha** de esa corrida.
+
 *Fuente(s): `docs/informe_contagram_base_de_datos.md` §2.6/§4.10*
 
 ---

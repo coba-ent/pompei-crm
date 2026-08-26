@@ -7,6 +7,7 @@ use App\Models\Deposito;
 use App\Models\ImportacionCorrida;
 use App\Models\ImportacionFilaSnapshot;
 use App\Models\ListaPrecio;
+use App\Models\LogAuditoria;
 use App\Models\MovimientoStock;
 use App\Models\Producto;
 use App\Models\Proveedor;
@@ -81,6 +82,30 @@ class ImportacionPorTandasTest extends TestCase
     }
 
     /**
+     * Corre la prevalidación (spec 083) hasta el final, como hace el modal de confirmación.
+     *
+     * @param  array<int|string, string>  $mapeo
+     * @return array<string, mixed> el informe final
+     */
+    private function prevalidar(string $entidad, array $mapeo): array
+    {
+        $offset = 0;
+
+        do {
+            $respuesta = $this->post(route('importacion.prevalidar', $entidad), [
+                'mapeo' => $mapeo,
+                'offset' => $offset,
+            ]);
+            $respuesta->assertOk();
+
+            $cuerpo = $respuesta->json();
+            $offset = $cuerpo['procesadas'];
+        } while (! $cuerpo['terminado']);
+
+        return $cuerpo['informe'];
+    }
+
+    /**
      * Recorre el asistente entero como lo hace el navegador: una request por tanda hasta que el
      * backend contesta `terminado`.
      *
@@ -89,6 +114,11 @@ class ImportacionPorTandasTest extends TestCase
      */
     private function correrTandas(string $entidad, array $mapeo): array
     {
+        // Spec 083: el navegador ahora prevalida el archivo entero ANTES de escribir, y el backend
+        // rechaza la importación si no hay un análisis previo vigente y sin errores. Recorrer el
+        // flujo real implica pasar por ahí primero.
+        $this->prevalidar($entidad, $mapeo);
+
         $tandas = 0;
         $offset = 0;
         $progresos = [];
@@ -220,7 +250,7 @@ class ImportacionPorTandasTest extends TestCase
         $this->importador()->importar('productos', $ruta, $mapeo, []);
         $producto = Producto::where('codigo', 'P-1')->firstOrFail();
 
-        $auditoriaAntes = \App\Models\LogAuditoria::count();
+        $auditoriaAntes = LogAuditoria::count();
         $movimientosAntes = MovimientoStock::count();
 
         // Segunda pasada, misma planilla pero apuntando al producto ya creado.
@@ -230,7 +260,7 @@ class ImportacionPorTandasTest extends TestCase
         ]);
         $this->importador()->importar('productos', $rutaReimport, $mapeo, []);
 
-        $this->assertSame($auditoriaAntes, \App\Models\LogAuditoria::count(), 'Un precio que no cambió no puede generar auditoría.');
+        $this->assertSame($auditoriaAntes, LogAuditoria::count(), 'Un precio que no cambió no puede generar auditoría.');
         $this->assertSame($movimientosAntes, MovimientoStock::count(), 'Un stock que no cambió no puede generar movimiento.');
     }
 
@@ -315,8 +345,13 @@ class ImportacionPorTandasTest extends TestCase
             'offset' => 0,
         ])->assertStatus(422);
 
+        // El mapeo válido pasa; como cualquier importación del navegador, primero prevalida
+        // (spec 083).
+        $mapeoValido = [0 => 'nombre', 1 => '', 2 => 'cuit', 3 => 'cuit'];
+        $this->prevalidar('clientes', $mapeoValido);
+
         $this->post(route('importacion.confirmar-lote', 'clientes'), [
-            'mapeo' => [0 => 'nombre', 1 => '', 2 => 'cuit', 3 => 'cuit'],
+            'mapeo' => $mapeoValido,
             'offset' => 0,
         ])->assertOk();
     }

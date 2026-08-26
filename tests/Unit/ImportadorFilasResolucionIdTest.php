@@ -3,31 +3,34 @@
 namespace Tests\Unit;
 
 use App\Models\Cliente;
-use App\Services\Import\ImportadorFilas;
-use App\Services\Stock\StockService;
+use App\Services\Import\ValidadorFilasImportacion;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use ReflectionMethod;
 use Tests\TestCase;
 
 /**
  * Resolución alta/actualización por fila (spec 027) — se invoca por reflexión
- * porque `resolverModoFila()` es un helper privado de `ImportadorFilas`, sin
- * exponer una API pública nueva sólo para testear (T008, research.md §2).
+ * porque `resolverModoFila()` es un helper privado, sin exponer una API
+ * pública nueva sólo para testear (T008, research.md §2).
+ *
+ * Spec 083: se mudó de `ImportadorFilas` a `ValidadorFilasImportacion` — resolver alta
+ * vs actualización es decidir, no escribir. Las expectativas no cambian.
  */
 class ImportadorFilasResolucionIdTest extends TestCase
 {
     use RefreshDatabase;
 
     /**
-     * @return array{modo: string, registro?: \Illuminate\Database\Eloquent\Model, motivo?: string}
+     * @return array{modo: string, registro?: Model, motivo?: string}
      */
     private function resolverModoFila(array $datos, string $entidad = 'clientes'): array
     {
-        $importador = new ImportadorFilas(app(StockService::class));
-        $metodo = new ReflectionMethod(ImportadorFilas::class, 'resolverModoFila');
+        $validador = new ValidadorFilasImportacion;
+        $metodo = new ReflectionMethod(ValidadorFilasImportacion::class, 'resolverModoFila');
         $metodo->setAccessible(true);
 
-        return $metodo->invoke($importador, $datos, $entidad);
+        return $metodo->invoke($validador, $datos, $entidad);
     }
 
     public function test_id_ausente_es_alta(): void
@@ -63,7 +66,9 @@ class ImportadorFilasResolucionIdTest extends TestCase
         $resolucion = $this->resolverModoFila(['id' => 'abc']);
 
         $this->assertSame('fallida', $resolucion['modo']);
-        $this->assertSame('Id "abc" no es un id válido', $resolucion['motivo']);
+        // Spec 083 (contrato del validador, caso borde "Id no numérico"): el motivo pasa a nombrar
+        // la columna en español, como el resto de los mensajes del importador.
+        $this->assertSame('La columna Id tiene el valor «abc», que no es un id válido.', $resolucion['motivo']);
     }
 
     public function test_id_no_entero_es_fallida(): void

@@ -88,15 +88,19 @@ class DefinicionCamposImportables
             'tipo' => ['etiqueta' => 'Tipo', 'obligatorio' => false, 'default' => 'producto'],
             'tipo_producto_id' => ['etiqueta' => 'Tipo de Producto', 'obligatorio' => false, 'fk' => ['modelo' => TipoProducto::class]],
             'proveedor_id' => ['etiqueta' => 'Proveedor', 'obligatorio' => false, 'fk' => ['modelo' => Proveedor::class]],
-            'precio_venta' => ['etiqueta' => 'Precio de Venta', 'obligatorio' => false, 'numerico' => true],
+            // Los alias de acá abajo son los encabezados EXACTOS que escribe `ProductosExport` (spec 083,
+            // FR-014). Sin ellos el ciclo exportar -> editar -> reimportar dejaba la columna sin mapear
+            // y el dato no se actualizaba nunca: así quedaron 124 productos con el precio de venta en
+            // cero. `RoundTripExportImportTest` falla si alguna columna del export se queda huérfana.
+            'precio_venta' => ['etiqueta' => 'Precio de Venta', 'obligatorio' => false, 'numerico' => true, 'alias' => ['Precio venta']],
             'costo' => ['etiqueta' => 'Costo', 'obligatorio' => false, 'numerico' => true],
-            'iva_venta_pct' => ['etiqueta' => 'IVA Ventas', 'obligatorio' => false],
-            'iva_compra_pct' => ['etiqueta' => 'IVA Compras', 'obligatorio' => false],
+            'iva_venta_pct' => ['etiqueta' => 'IVA Ventas', 'obligatorio' => false, 'alias' => ['IVA venta']],
+            'iva_compra_pct' => ['etiqueta' => 'IVA Compras', 'obligatorio' => false, 'alias' => ['IVA compra']],
             'descripcion' => ['etiqueta' => 'Descripción', 'obligatorio' => false],
             // Alias 'Punto Reposición': es como se llamaba la lista de precios de la que se
             // migró este dato (migracion:punto-reposicion), y así viene en exports viejos.
             'punto_reposicion' => ['etiqueta' => 'Punto de Reposición', 'obligatorio' => false, 'numerico' => true, 'alias' => ['Punto Reposición', 'Punto de reposicion']],
-            'activo' => ['etiqueta' => 'Activo', 'obligatorio' => false, 'booleano' => true],
+            'activo' => ['etiqueta' => 'Activo', 'obligatorio' => false, 'booleano' => true, 'alias' => ['Estado']],
             'mostrar_en_ventas' => ['etiqueta' => 'Mostrar en Ventas', 'obligatorio' => false, 'booleano' => true],
             'mostrar_en_compras' => ['etiqueta' => 'Mostrar en Compras', 'obligatorio' => false, 'booleano' => true],
         ];

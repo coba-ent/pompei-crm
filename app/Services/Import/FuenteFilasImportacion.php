@@ -2,7 +2,10 @@
 
 namespace App\Services\Import;
 
-use Maatwebsite\Excel\Facades\Excel;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use RuntimeException;
 
 /**
@@ -19,6 +22,14 @@ use RuntimeException;
  */
 final class FuenteFilasImportacion
 {
+    /**
+     * Marca que se escribe en el volcado cuando una celda tiene una fórmula que no se pudo evaluar
+     * (spec 083, FR-012). No es un valor: `ValidadorFilasImportacion` la traduce a un error de fila
+     * que nombra la columna. Se usa un sentinela con bytes nulos justamente para que no pueda
+     * colisionar con contenido real de una planilla.
+     */
+    public const MARCA_FORMULA = "\x00#formula-no-evaluable#\x00";
+
     /** @var array<int, mixed>|null */
     private ?array $encabezados = null;
 
@@ -36,6 +47,14 @@ final class FuenteFilasImportacion
     /**
      * Interpreta el archivo subido UNA sola vez y lo vuelca a NDJSON.
      *
+     * Spec 083 (FR-011): se lee con PhpSpreadsheet directo en vez de `Excel::toArray()` para poder
+     * pedir el **valor calculado** de cada fórmula. Una planilla guardada sin recalcular trae el
+     * texto de la fórmula en la caché de valores; así entraron 124 productos con el código puesto
+     * en `=CONCATENAR(...)` y el precio en cero (incidente del 25/08/2026).
+     *
+     * FR-012: el fallo de cálculo se captura **por celda**. Una fórmula rota marca esa celda y no
+     * aborta el volcado del archivo entero — el resto de las filas se sigue pudiendo revisar.
+     *
      * @param  string  $rutaArchivo  ruta absoluta del archivo subido
      * @return string ruta absoluta del .ndjson generado (mismo directorio y misma base, extensión .ndjson)
      */
@@ -43,26 +62,98 @@ final class FuenteFilasImportacion
     {
         $rutaNdjson = self::rutaNdjsonPara($rutaArchivo);
 
-        $filas = (Excel::toArray(null, $rutaArchivo))[0] ?? [];
-
         $handle = fopen($rutaNdjson, 'w');
         if ($handle === false) {
             throw new RuntimeException("No se pudo crear el archivo temporal de importación: {$rutaNdjson}");
         }
 
+        $lector = IOFactory::createReaderForFile($rutaArchivo);
+        // `setReadDataOnly(true)` descartaría las fórmulas junto con el formato, que es justamente lo
+        // que hay que poder evaluar. El costo es el formato de celda, que este volcado no usa.
+        $lector->setReadDataOnly(false);
+        $libro = $lector->load($rutaArchivo);
+
         try {
-            foreach ($filas as $fila) {
-                fwrite($handle, self::codificar((array) $fila)."\n");
+            $hoja = $libro->getActiveSheet();
+            $ultimaColumna = Coordinate::columnIndexFromString($hoja->getHighestDataColumn());
+            $ultimaFila = $hoja->getHighestDataRow();
+
+            for ($numeroFila = 1; $numeroFila <= $ultimaFila; $numeroFila++) {
+                $celdas = [];
+                for ($columna = 1; $columna <= $ultimaColumna; $columna++) {
+                    $celdas[$columna - 1] = self::valorDeCelda($hoja, $columna, $numeroFila);
+                }
+
+                fwrite($handle, self::codificar($celdas)."\n");
             }
         } finally {
             fclose($handle);
+            // Sin esto el libro entero queda en memoria hasta el final del request — con el catálogo
+            // real son cientos de MB que no hacen falta una vez volcado el NDJSON.
+            $libro->disconnectWorksheets();
+            unset($libro);
         }
 
-        // El array completo sólo vive acá dentro: liberarlo antes de volver evita arrastrar el pico
-        // de memoria del volcado al resto del request de subida.
-        unset($filas);
-
         return $rutaNdjson;
+    }
+
+    /**
+     * Valor de una celda para el volcado: el crudo si no es fórmula, y el **resultado calculado** si
+     * lo es. Una fórmula que no se puede evaluar (excepción del motor de cálculo, o un código de
+     * error de Excel como `#REF!`/`#DIV/0!`) devuelve `MARCA_FORMULA`, nunca su texto.
+     */
+    private static function valorDeCelda(Worksheet $hoja, int $columna, int $fila): mixed
+    {
+        $coordenada = Coordinate::stringFromColumnIndex($columna).$fila;
+
+        // `cellExists()` antes de `getCell()`: éste último CREA la celda vacía si no existe, y sobre
+        // una planilla dispersa eso multiplica la memoria del volcado sin agregar ningún dato.
+        if (! $hoja->cellExists($coordenada)) {
+            return null;
+        }
+
+        $celda = $hoja->getCell($coordenada);
+
+        if ($celda->getDataType() !== DataType::TYPE_FORMULA) {
+            return $celda->getValue();
+        }
+
+        try {
+            $valor = $celda->getCalculatedValue();
+        } catch (\Throwable) {
+            return self::MARCA_FORMULA;
+        }
+
+        if (is_string($valor) && (str_starts_with($valor, '#') || str_starts_with(ltrim($valor), '='))) {
+            // Códigos de error de Excel (#REF!, #DIV/0!, #NAME?) y el caso en que el motor devuelve
+            // la fórmula tal cual: en los dos, no hay valor que importar.
+            return self::MARCA_FORMULA;
+        }
+
+        return $valor;
+    }
+
+    /**
+     * Fuente de filas para una ruta, sea la del `.ndjson` ya volcado o la del archivo original.
+     *
+     * Si el volcado todavía no existe (llamada directa con un `.xlsx` desde un test o la CLI, sin
+     * pasar por el Paso 1 del asistente), se hace acá. Spec 083: el camino alternativo con
+     * `Excel::toArray()` **se eliminó** — era el único que no evaluaba las fórmulas, así que
+     * mantenerlo habría dejado un camino por el que el defecto del 25/08 podía volver a entrar.
+     */
+    public static function paraArchivo(string $ruta): self
+    {
+        if (str_ends_with(strtolower($ruta), '.ndjson')) {
+            return new self($ruta);
+        }
+
+        $rutaNdjson = self::rutaNdjsonPara($ruta);
+
+        if (! is_file($rutaNdjson)) {
+            self::volcar($ruta);
+        }
+
+        return new self($rutaNdjson);
     }
 
     /**

@@ -22,6 +22,18 @@
                     {{ $resultado['importados'] }} {{ Str::plural('registro', $resultado['importados']) }} importado{{ $resultado['importados'] === 1 ? '' : 's' }} correctamente.
                 </h5>
 
+                {{-- FR-023: de qué importación son estos números. Sin el archivo y la fecha a la
+                     vista no había forma de darse cuenta de que el resumen estaba mostrando el
+                     resultado de otra corrida — que es justamente lo que pasó (1002 en vez de 2). --}}
+                @if ($corrida)
+                    <p class="text-muted small mb-0">
+                        Archivo <strong>{{ $corrida->archivo_original }}</strong> ·
+                        {{ $corrida->confirmado_en->format('d/m/Y H:i') }} ·
+                        {{ $corrida->filas_creadas }} {{ Str::plural('creado', $corrida->filas_creadas) }},
+                        {{ $corrida->filas_actualizadas }} {{ Str::plural('actualizado', $corrida->filas_actualizadas) }}
+                    </p>
+                @endif
+
                 @if (count($resultado['fallidos']))
                     <hr>
                     <h6 class="text-danger">{{ count($resultado['fallidos']) }} fila{{ count($resultado['fallidos']) === 1 ? '' : 's' }} no importada{{ count($resultado['fallidos']) === 1 ? '' : 's' }}</h6>

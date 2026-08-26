@@ -2,8 +2,7 @@
 
 namespace Tests\Unit;
 
-use App\Services\Import\ImportadorFilas;
-use App\Services\Stock\StockService;
+use App\Services\Import\ValidadorFilasImportacion;
 use Carbon\Carbon;
 use ReflectionMethod;
 use Tests\TestCase;
@@ -11,30 +10,33 @@ use Tests\TestCase;
 /**
  * Capacidades de parseo por fila agregadas por spec 026: fecha (research.md §1)
  * y booleano (research.md §2). Se invocan por reflexión porque son helpers
- * privados de `ImportadorFilas`, sin exponer una API pública nueva sólo para
- * testear.
+ * privados, sin exponer una API pública nueva sólo para testear.
+ *
+ * Spec 083: estos helpers se mudaron de `ImportadorFilas` a
+ * `ValidadorFilasImportacion` — el parseo es parte de decidir qué haría la fila, no de
+ * escribirla. Las expectativas no cambian, sólo la clase que las cumple.
  */
 class ImportadorFilasParseoTest extends TestCase
 {
-    private function importador(): ImportadorFilas
+    private function validador(): ValidadorFilasImportacion
     {
-        return new ImportadorFilas(app(StockService::class));
+        return new ValidadorFilasImportacion;
     }
 
     private function normalizarFecha(mixed $valor): ?string
     {
-        $metodo = new ReflectionMethod(ImportadorFilas::class, 'normalizarFecha');
+        $metodo = new ReflectionMethod(ValidadorFilasImportacion::class, 'normalizarFecha');
         $metodo->setAccessible(true);
 
-        return $metodo->invoke($this->importador(), $valor);
+        return $metodo->invoke($this->validador(), $valor);
     }
 
     private function normalizarBooleano(string $valor): ?bool
     {
-        $metodo = new ReflectionMethod(ImportadorFilas::class, 'normalizarBooleano');
+        $metodo = new ReflectionMethod(ValidadorFilasImportacion::class, 'normalizarBooleano');
         $metodo->setAccessible(true);
 
-        return $metodo->invoke($this->importador(), $valor);
+        return $metodo->invoke($this->validador(), $valor);
     }
 
     public function test_normaliza_fecha_nativa_de_excel(): void

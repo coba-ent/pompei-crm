@@ -165,6 +165,13 @@ class ImportacionDatosTest extends TestCase
 
         $this->post(route('importacion.subir', 'clientes'), ['archivo' => $archivo]);
 
+        // Spec 083: el navegador prevalida el archivo antes de escribir, y el backend no acepta el
+        // lote sin ese análisis previo vigente y sin errores.
+        $this->post(route('importacion.prevalidar', 'clientes'), [
+            'mapeo' => ['0' => 'nombre'],
+            'offset' => 0,
+        ])->assertOk()->assertJson(['terminado' => true]);
+
         // offset=0, límite fijo del controlador (200) alcanza para procesar las 3 filas en una sola tanda.
         $respuesta = $this->post(route('importacion.confirmar-lote', 'clientes'), [
             'mapeo' => ['0' => 'nombre'],

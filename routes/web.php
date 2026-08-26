@@ -1,9 +1,9 @@
 <?php
 
+use App\Http\Controllers\AplicacionCreditoController;
 use App\Http\Controllers\AuditoriaController;
 use App\Http\Controllers\CategoriaController;
 use App\Http\Controllers\ClienteController;
-use App\Http\Controllers\AplicacionCreditoController;
 use App\Http\Controllers\CompraController;
 use App\Http\Controllers\Configuracion\ConfiguracionController;
 use App\Http\Controllers\Configuracion\ConfiguracionVentasController;
@@ -22,10 +22,10 @@ use App\Http\Controllers\Informes\CuentaCorrienteProveedorController;
 use App\Http\Controllers\Informes\InformeComprasController;
 use App\Http\Controllers\Informes\InformeContadorController;
 use App\Http\Controllers\Informes\InformeGastosController;
+use App\Http\Controllers\Informes\InformeStockController;
 use App\Http\Controllers\Informes\InformeVentasController;
 use App\Http\Controllers\Informes\InformeVistaController;
 use App\Http\Controllers\Informes\ReporteFinalController;
-use App\Http\Controllers\Informes\InformeStockController;
 use App\Http\Controllers\Ingresos\MercadoLibreVentaController;
 use App\Http\Controllers\Ingresos\MercadoLibreVinculacionController;
 use App\Http\Controllers\Ingresos\TiendanubeVentaController;
@@ -41,6 +41,8 @@ use App\Http\Controllers\ListaPrecioController;
 use App\Http\Controllers\Mensajeria\ConversacionController;
 use App\Http\Controllers\Mensajeria\SugerenciaController;
 use App\Http\Controllers\MiPerfilController;
+use App\Http\Controllers\Monitoreo\MonitoreoController;
+use App\Http\Controllers\Monitoreo\MonitoreoResumenController;
 use App\Http\Controllers\NotaCreditoDebitoController;
 use App\Http\Controllers\OtroIngresoController;
 use App\Http\Controllers\PresupuestoController;
@@ -147,6 +149,7 @@ Route::middleware('auth')->group(function () {
     Route::post('importar-datos/{entidad}/subir', [ImportacionController::class, 'subir'])->name('importacion.subir');
     Route::get('importar-datos/{entidad}/mapear', [ImportacionController::class, 'mapear'])->name('importacion.mapear');
     Route::post('importar-datos/{entidad}/confirmar', [ImportacionController::class, 'confirmar'])->name('importacion.confirmar');
+    Route::post('importar-datos/{entidad}/prevalidar', [ImportacionController::class, 'prevalidar'])->name('importacion.prevalidar');
     Route::post('importar-datos/{entidad}/confirmar-lote', [ImportacionController::class, 'confirmarLote'])->name('importacion.confirmar-lote');
     Route::post('importar-datos/{entidad}/cancelar', [ImportacionController::class, 'cancelar'])->name('importacion.cancelar');
     Route::get('importar-datos/{entidad}/resumen', [ImportacionController::class, 'resumen'])->name('importacion.resumen');
@@ -573,8 +576,8 @@ Route::middleware('auth')->group(function () {
     // Monitoreo (spec 073) — dejó de ser una URL secreta: tiene permiso propio, indicador en la
     // barra superior y notificaciones. Lectura con `monitoreo.ver`, escritura con `monitoreo.gestionar`.
     Route::prefix('monitoreo')->name('monitoreo.')->group(function () {
-        $panel = \App\Http\Controllers\Monitoreo\MonitoreoController::class;
-        $resumen = \App\Http\Controllers\Monitoreo\MonitoreoResumenController::class;
+        $panel = MonitoreoController::class;
+        $resumen = MonitoreoResumenController::class;
 
         Route::middleware('permiso:monitoreo.ver')->group(function () use ($panel, $resumen) {
             Route::get('/', [$panel, 'index'])->name('index');

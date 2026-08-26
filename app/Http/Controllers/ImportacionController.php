@@ -3,9 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\SubirArchivoImportacionRequest;
+use App\Models\ImportacionCorrida;
 use App\Services\Import\DefinicionCamposImportables;
+use App\Services\Import\DeshacerImportacionService;
 use App\Services\Import\FuenteFilasImportacion;
 use App\Services\Import\ImportadorFilas;
+use App\Services\Import\InformePrevalidacion;
+use App\Services\Import\ValidadorFilasImportacion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -59,6 +63,12 @@ class ImportacionController extends Controller
             $preview[] = $fila;
         }
 
+        // Spec 083 (FR-021/FR-022): arrancar una importación nueva DESCARTA todo rastro de la
+        // anterior. Es la causa raíz reproducida del resumen contaminado — un acumulado parcial que
+        // había quedado de una importación abandonada se sumaba a la siguiente, y el resumen
+        // informaba 1002 registros cuando se habían importado 2.
+        session()->forget(['importacion_resultado_parcial', 'importacion_corrida_id', 'importacion_resultado', 'prevalidacion']);
+
         session(['importacion' => [
             'entidad' => $entidad,
             'archivo' => $nombreArchivo,
@@ -67,6 +77,10 @@ class ImportacionController extends Controller
             'archivo_original' => $archivo->getClientOriginalName(),
             'columnas' => $fuente->encabezados(),
             'preview' => $preview,
+            // Identificador de ESTA importación. Productos tiene además su `ImportacionCorrida`
+            // (spec 078), pero Clientes y Proveedores no: sin esto no habría forma de verificar que
+            // el resumen que se muestra corresponde a la importación que se acaba de correr.
+            'corrida_ref' => (string) Str::uuid(),
         ]]);
 
         return redirect()->route('importacion.mapear', $entidad);
@@ -194,6 +208,101 @@ class ImportacionController extends Controller
     private const FILAS_POR_LOTE = 250;
 
     /**
+     * Filas por tanda de la **prevalidación** (spec 083). Más alta que la de la importación real
+     * porque acá no se escribe: no hay INSERT/UPDATE, ni snapshots de deshacer, ni movimientos de
+     * stock. Lo único caro por fila es el `find()` del Id y las reglas de validación.
+     */
+    private const FILAS_POR_LOTE_PREVALIDACION = 500;
+
+    /**
+     * Paso de revisión previo a escribir (spec 083, FR-001): analiza una tanda de filas contra el
+     * mapeo elegido y acumula el informe **sin escribir nada**. El modal de confirmación lo llama en
+     * loop, igual que `confirmarLote()`, y muestra el resultado cuando termina.
+     *
+     * La garantía de que lo que informa es lo que va a pasar no está en este método: está en que
+     * usa `ValidadorFilasImportacion`, el mismo servicio del que depende `ImportadorFilas` para
+     * decidir (FR-003). Y ese servicio no tiene forma de escribir.
+     */
+    public function prevalidar(Request $request, string $entidad, ValidadorFilasImportacion $validador)
+    {
+        $this->validarEntidad($entidad);
+
+        $estado = $this->estadoVigente($entidad);
+        if (! $estado) {
+            return response()->json(['error' => 'No hay ningún archivo subido. Volvé a seleccionar uno.', 'recuperable' => false], 422);
+        }
+
+        $mapeo = $request->input('mapeo', []);
+        $personalizados = $request->input('personalizados', []);
+        $offset = max((int) $request->input('offset', 0), 0);
+        $definicion = DefinicionCamposImportables::paraEntidad($entidad);
+
+        $error = $this->validarMapeo($mapeo, $definicion);
+        if ($error) {
+            return response()->json(['error' => $error, 'recuperable' => false], 422);
+        }
+
+        if (! $this->temporalesDisponibles($estado)) {
+            return response()->json([
+                'error' => 'El archivo temporal de la importación ya no está disponible. Volvé a subir el archivo.',
+                'recuperable' => false,
+            ], 422);
+        }
+
+        $huellaEnviada = (string) $request->input('huella_columnas', '');
+        if ($huellaEnviada !== '' && $huellaEnviada !== self::huellaColumnas($estado['columnas'])) {
+            return response()->json([
+                'error' => 'El archivo de la importación cambió desde que armaste el mapeo. Volvé a subirlo y rehacé el mapeo.',
+                'recuperable' => false,
+            ], 422);
+        }
+
+        ini_set('memory_limit', '512M');
+        set_time_limit(0);
+
+        $rutaNdjson = Storage::disk('local')->path('imports/'.($estado['ndjson'] ?? $estado['archivo']));
+        $fuente = new FuenteFilasImportacion($rutaNdjson);
+        $total = $fuente->total();
+        $huella = InformePrevalidacion::huellaDe($estado['columnas'], $mapeo, $personalizados);
+        $rutaInforme = InformePrevalidacion::rutaPara($rutaNdjson);
+
+        // Un cambio de mapeo a mitad de la prevalidación invalida lo acumulado: se arranca de cero
+        // en vez de mezclar dos análisis distintos en el mismo informe.
+        $informe = $offset === 0 ? null : InformePrevalidacion::cargar($rutaInforme);
+        if ($informe === null || $informe->huella !== $huella) {
+            $informe = InformePrevalidacion::nuevo($huella, $total);
+        }
+        $informe->total = $total;
+
+        foreach ($fuente->leerRango($offset, self::FILAS_POR_LOTE_PREVALIDACION) as $i => $celdas) {
+            $informe->acumular($i + 2, $validador->evaluar($celdas, $entidad, $mapeo, $personalizados, $estado['columnas']));
+        }
+
+        $procesadas = min($offset + self::FILAS_POR_LOTE_PREVALIDACION, $total);
+        $terminado = $procesadas >= $total;
+        $informe->procesadas = $procesadas;
+        $informe->guardar($rutaInforme);
+
+        if ($terminado) {
+            // Lo que queda en sesión es sólo el veredicto —chico y de tamaño fijo—; el detalle de
+            // errores vive en el informe en disco. Es lo que después habilita (o no) el confirmar.
+            session(['prevalidacion' => [
+                'entidad' => $entidad,
+                'huella' => $huella,
+                'hay_errores' => $informe->hayErrores(),
+                'corrida_ref' => $estado['corrida_ref'] ?? null,
+            ]]);
+        }
+
+        return response()->json([
+            'total' => $total,
+            'procesadas' => $procesadas,
+            'terminado' => $terminado,
+            'informe' => $terminado ? $informe->toArray() : null,
+        ]);
+    }
+
+    /**
      * Procesa una tanda de filas (AJAX, llamado en loop desde `mapear.blade.php`) y acumula
      * el resultado en sesión. Cuando la tanda llega al final del archivo, cierra la
      * importación (borra el temporal, arma `importacion_resultado` para el paso de resumen).
@@ -248,6 +357,18 @@ class ImportacionController extends Controller
             ], 422);
         }
 
+        // Spec 083 (FR-005, FR-009): sin una prevalidación vigente, completa y **sin errores** para
+        // exactamente este archivo y este mapeo, no se escribe. Se chequea acá y no sólo en la
+        // pantalla porque el bloqueo tiene que valer también si a este endpoint se lo llama directo.
+        //
+        // ⚠️ Esto REVIERTE la tolerancia por fila de las specs 006/026 para el flujo del navegador:
+        // con una fila mala en 9.000, no se importa nada. Decisión explícita del usuario del
+        // 26/08/2026, después de que entraran 124 productos con código y precio incorrectos.
+        $bloqueo = $this->bloqueoDePrevalidacion($entidad, $estado, $mapeo, $personalizados);
+        if ($bloqueo !== null) {
+            return response()->json(['error' => $bloqueo, 'recuperable' => false], 422);
+        }
+
         try {
             $lote = $importador->importar($entidad, $rutaCompleta, $mapeo, $personalizados, $request->user(), $estado['columnas'], $offset, self::FILAS_POR_LOTE, $corridaId, $estado['archivo_original'] ?? $estado['archivo']);
         } catch (\RuntimeException $e) {
@@ -261,7 +382,13 @@ class ImportacionController extends Controller
             session(['importacion_corrida_id' => $lote['corrida_id']]);
         }
 
-        $acumulado = session('importacion_resultado_parcial', ['importados' => 0, 'fallidos' => [], 'advertencias' => []]);
+        // FR-021: el acumulado está atado a ESTA importación. Si el que hay en sesión es de otra
+        // (una que se abandonó a mitad, o una pestaña vieja), se descarta en vez de sumarse — que
+        // es exactamente cómo un resumen llegaba a informar 1002 habiendo importado 2.
+        $acumulado = session('importacion_resultado_parcial');
+        if (! is_array($acumulado) || ($acumulado['corrida_ref'] ?? null) !== ($estado['corrida_ref'] ?? null)) {
+            $acumulado = ['importados' => 0, 'fallidos' => [], 'advertencias' => [], 'corrida_ref' => $estado['corrida_ref'] ?? null];
+        }
         $acumulado['importados'] += $lote['importados'];
         $acumulado['fallidos'] = array_merge($acumulado['fallidos'], $lote['fallidos']);
         $acumulado['advertencias'] = array_merge($acumulado['advertencias'], $lote['advertencias']);
@@ -273,7 +400,7 @@ class ImportacionController extends Controller
         if ($terminado) {
             $this->limpiarTemporales($estado);
             $acumulado['corrida_id'] = $lote['corrida_id'];
-            session()->forget(['importacion', 'importacion_resultado_parcial', 'importacion_corrida_id']);
+            session()->forget(['importacion', 'importacion_resultado_parcial', 'importacion_corrida_id', 'prevalidacion']);
             session(['importacion_resultado' => ['entidad' => $entidad] + $acumulado]);
         }
 
@@ -293,7 +420,7 @@ class ImportacionController extends Controller
         $estado = $this->estadoVigente($entidad);
         if ($estado) {
             $this->limpiarTemporales($estado);
-            session()->forget('importacion');
+            session()->forget(['importacion', 'prevalidacion', 'importacion_resultado_parcial', 'importacion_corrida_id']);
         }
 
         return redirect()->route('importacion.index', $entidad);
@@ -311,8 +438,17 @@ class ImportacionController extends Controller
         session()->forget('importacion_resultado');
 
         $corrida = ! empty($resultado['corrida_id'])
-            ? \App\Models\ImportacionCorrida::find($resultado['corrida_id'])
+            ? ImportacionCorrida::find($resultado['corrida_id'])
             : null;
+
+        // FR-023/FR-024: para Productos los contadores salen de la `ImportacionCorrida` —el registro
+        // que refleja lo que REALMENTE quedó escrito, fila por fila (spec 078)— y no de un número
+        // suelto acumulado en sesión, que es el que podía arrastrar el resultado de otra corrida.
+        if ($corrida) {
+            $resultado['importados'] = $corrida->filas_creadas + $corrida->filas_actualizadas;
+            $resultado['creados'] = $corrida->filas_creadas;
+            $resultado['actualizados'] = $corrida->filas_actualizadas;
+        }
 
         return view('importacion.resumen', [
             'CurrentPage' => 'importacion',
@@ -338,7 +474,7 @@ class ImportacionController extends Controller
     {
         $this->validarEntidad($entidad);
 
-        $query = \App\Models\ImportacionCorrida::query()
+        $query = ImportacionCorrida::query()
             ->where('entidad', $entidad)
             ->with('usuario')
             ->orderByDesc('confirmado_en');
@@ -371,11 +507,11 @@ class ImportacionController extends Controller
     }
 
     /** Deshace una corrida de import (spec 078). */
-    public function deshacer(Request $request, string $entidad, int $corrida, \App\Services\Import\DeshacerImportacionService $servicio)
+    public function deshacer(Request $request, string $entidad, int $corrida, DeshacerImportacionService $servicio)
     {
         $this->validarEntidad($entidad);
 
-        $importacionCorrida = \App\Models\ImportacionCorrida::where('entidad', $entidad)->find($corrida);
+        $importacionCorrida = ImportacionCorrida::where('entidad', $entidad)->find($corrida);
 
         if (! $importacionCorrida) {
             return response()->json(['error' => 'La corrida de import no existe.'], 404);
@@ -389,7 +525,7 @@ class ImportacionController extends Controller
 
         $mensaje = $resultado['no_revertidas'] === []
             ? "Se revirtieron {$resultado['revertidas']} filas."
-            : "Se revirtieron {$resultado['revertidas']} de ".($resultado['revertidas'] + count($resultado['no_revertidas']))." filas. ".count($resultado['no_revertidas'])." no se pudieron deshacer.";
+            : "Se revirtieron {$resultado['revertidas']} de ".($resultado['revertidas'] + count($resultado['no_revertidas'])).' filas. '.count($resultado['no_revertidas']).' no se pudieron deshacer.';
 
         return response()->json([
             'revertidas' => $resultado['revertidas'],
@@ -440,7 +576,43 @@ class ImportacionController extends Controller
 
         if (! empty($estado['ndjson'])) {
             Storage::disk('local')->delete('imports/'.$estado['ndjson']);
+            // Spec 083: el informe de prevalidación es tan transitorio como el volcado y nace de él
+            // — se borran juntos o queda basura acumulándose en storage.
+            Storage::disk('local')->delete('imports/'.basename(InformePrevalidacion::rutaPara($estado['ndjson'])));
         }
+    }
+
+    /**
+     * Motivo por el cual esta importación NO puede escribir todavía, o `null` si puede (FR-005,
+     * FR-006, FR-009).
+     *
+     * @param  array{entidad: string, columnas: array, corrida_ref?: string}  $estado
+     * @param  array<int|string, string>  $mapeo
+     * @param  array<int|string, string>  $personalizados
+     */
+    private function bloqueoDePrevalidacion(string $entidad, array $estado, array $mapeo, array $personalizados): ?string
+    {
+        $prevalidacion = session('prevalidacion');
+
+        if (! is_array($prevalidacion) || ($prevalidacion['entidad'] ?? null) !== $entidad) {
+            return 'Antes de importar hay que revisar el análisis previo del archivo. Volvé a apretar "Confirmar importación".';
+        }
+
+        // FR-009: la huella cubre archivo + mapeo. Si cambió cualquiera de los dos, el informe que
+        // el usuario aprobó ya no describe lo que se está por escribir.
+        if (($prevalidacion['huella'] ?? null) !== InformePrevalidacion::huellaDe($estado['columnas'], $mapeo, $personalizados)) {
+            return 'El archivo o el mapeo cambiaron desde el análisis previo. Volvé a apretar "Confirmar importación" para revisarlo de nuevo.';
+        }
+
+        if (($prevalidacion['corrida_ref'] ?? null) !== ($estado['corrida_ref'] ?? null)) {
+            return 'El análisis previo corresponde a otra importación. Volvé a apretar "Confirmar importación".';
+        }
+
+        if (! empty($prevalidacion['hay_errores'])) {
+            return 'El archivo tiene filas con errores. Corregilas y volvé a subirlo: no se importa nada hasta que no quede ninguna.';
+        }
+
+        return null;
     }
 
     /**
