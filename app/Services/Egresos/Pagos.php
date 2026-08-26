@@ -58,11 +58,21 @@ class Pagos
             }
 
             // Los pagos importados de Contagram SÍ tienen su movimiento en tesorería, pero quedaron
-            // sin vincular al pago (`origen_type` NULL, con `legacy_id` en el movimiento). Editar
-            // el pago movería la Cta Cte del proveedor —que lee la tabla `pagos`— dejando la
-            // cuenta de tesorería con el importe viejo. Se bloquea hasta re-vincularlos.
-            if (! $pago->movimientoTesoreria) {
-                throw new \RuntimeException('Este pago viene de la importación histórica y su movimiento de tesorería no quedó vinculado, así que editarlo descuadraría la cuenta. Avisale al administrador para que lo corrija a mano.');
+            // sin vincular (`origen_type` NULL). Antes esto bloqueaba la edición; ahora se aparea
+            // el movimiento al vuelo con los valores VIEJOS del pago —que son los que el
+            // movimiento todavía tiene— y se deja el vínculo puesto para siempre.
+            $movimiento = $pago->movimientoTesoreria
+                ?? $this->tesoreria->movimientoHuerfanoDe('pago', (int) $pago->cuenta_tesoreria_id, $pago->fecha, -(float) $pago->monto);
+
+            if (! $movimiento) {
+                throw new \RuntimeException('Este pago no tiene movimiento de tesorería y editarlo descuadraría la cuenta corriente del proveedor.');
+            }
+
+            if ($movimiento->origen_type === null) {
+                $movimiento->forceFill([
+                    'origen_type' => $pago->getMorphClass(),
+                    'origen_id' => $pago->getKey(),
+                ])->save();
             }
 
             $pago->update([
@@ -72,7 +82,7 @@ class Pagos
                 'nota' => $nota,
             ]);
 
-            $pago->movimientoTesoreria->update([
+            $movimiento->update([
                 'monto' => -$monto,
                 'cuenta_tesoreria_id' => $cuenta->id,
                 'fecha' => $fecha,
@@ -82,11 +92,22 @@ class Pagos
         });
     }
 
-    /** Anula un pago: soft-delete del pago + de su movimiento de tesorería (0 saldo fantasma). */
+    /**
+     * Anula un pago: soft-delete del pago + de su movimiento de tesorería (0 saldo fantasma).
+     *
+     * El movimiento de un pago importado de Contagram existe pero quedó sin el vínculo
+     * polimórfico, así que `movimientoTesoreria` es NULL y este método borraba el pago dejando
+     * el egreso vivo en la cuenta: la deuda con el proveedor subía y la plata seguía descontada,
+     * sin ningún error a la vista. El fallback por (tipo, cuenta, fecha, monto) cierra ese
+     * agujero. Ver `Tesoreria::movimientoHuerfanoDe()`.
+     */
     public function anularPago(Pago $pago): void
     {
         DB::transaction(function () use ($pago) {
-            $pago->movimientoTesoreria?->delete();
+            $movimiento = $pago->movimientoTesoreria
+                ?? $this->tesoreria->movimientoHuerfanoDe('pago', (int) $pago->cuenta_tesoreria_id, $pago->fecha, -(float) $pago->monto);
+
+            $movimiento?->delete();
             $pago->delete();
         });
     }

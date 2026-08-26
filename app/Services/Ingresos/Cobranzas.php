@@ -55,8 +55,20 @@ class Cobranzas
                 throw new \RuntimeException('La cobranza está anulada y no puede editarse.');
             }
 
-            if (! $cobro->movimientoTesoreria) {
-                throw new \RuntimeException('La cobranza no tiene un movimiento de tesorería asociado.');
+            // Idem `Pagos::actualizarPago()`: los cobros importados tienen movimiento pero sin el
+            // vínculo, así que se aparea con los valores viejos y se deja vinculado.
+            $movimiento = $cobro->movimientoTesoreria
+                ?? $this->tesoreria->movimientoHuerfanoDe('cobro', (int) $cobro->cuenta_tesoreria_id, $cobro->fecha, (float) $cobro->monto);
+
+            if (! $movimiento) {
+                throw new \RuntimeException('Esta cobranza no tiene movimiento de tesorería y editarla descuadraría la cuenta corriente del cliente.');
+            }
+
+            if ($movimiento->origen_type === null) {
+                $movimiento->forceFill([
+                    'origen_type' => $cobro->getMorphClass(),
+                    'origen_id' => $cobro->getKey(),
+                ])->save();
             }
 
             $cobro->update([
@@ -66,7 +78,7 @@ class Cobranzas
                 'nota' => $nota,
             ]);
 
-            $cobro->movimientoTesoreria->update([
+            $movimiento->update([
                 'monto' => $monto,
                 'cuenta_tesoreria_id' => $cuenta->id,
                 'fecha' => $fecha,
@@ -76,11 +88,20 @@ class Cobranzas
         });
     }
 
-    /** Anula un cobro: soft-delete del cobro + de su movimiento de tesorería (0 saldo fantasma — SC-005). */
+    /**
+     * Anula un cobro: soft-delete del cobro + de su movimiento de tesorería (0 saldo fantasma — SC-005).
+     *
+     * Mismo agujero que en `Pagos::anularPago()`, y acá era 100x más grande (25.259 cobros
+     * importados sin vínculo): sin el fallback, anular un cobro histórico borraba el cobro y
+     * dejaba el ingreso vivo en la cuenta.
+     */
     public function anularCobro(Cobro $cobro): void
     {
         DB::transaction(function () use ($cobro) {
-            $cobro->movimientoTesoreria?->delete();
+            $movimiento = $cobro->movimientoTesoreria
+                ?? $this->tesoreria->movimientoHuerfanoDe('cobro', (int) $cobro->cuenta_tesoreria_id, $cobro->fecha, (float) $cobro->monto);
+
+            $movimiento?->delete();
             $cobro->delete();
         });
     }

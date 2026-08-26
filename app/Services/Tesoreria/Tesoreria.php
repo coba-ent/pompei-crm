@@ -89,6 +89,29 @@ class Tesoreria
     }
 
     /**
+     * Busca el movimiento de un pago/cobro **importado de Contagram**, que quedó sin el vínculo
+     * polimórfico (`origen_type` NULL) aunque el movimiento sí se cargó.
+     *
+     * El apareo es por (tipo, cuenta, fecha, monto) — los tres datos que el movimiento conserva.
+     * Cuando hay varios candidatos son, por definición, **indistinguibles** entre sí: mismo día,
+     * misma cuenta, mismo importe. Devolver el primero es contablemente equivalente a devolver
+     * cualquier otro, y es lo que permite que anular no deje el egreso vivo en la cuenta.
+     *
+     * Devuelve null si no hay ningún candidato: ahí no hay nada que borrar ni que vincular.
+     */
+    public function movimientoHuerfanoDe(string $tipo, int $cuentaId, Carbon $fecha, float $monto): ?MovimientoTesoreria
+    {
+        return MovimientoTesoreria::query()
+            ->where('tipo', $tipo)
+            ->whereNull('origen_type')
+            ->where('cuenta_tesoreria_id', $cuentaId)
+            ->whereDate('fecha', $fecha->toDateString())
+            ->whereRaw('ABS(monto - ?) < 0.005', [$monto])
+            ->orderBy('id')
+            ->first();
+    }
+
+    /**
      * Saldos por bloque para la vista Saldos (FR-010/FR-011/FR-012), a fecha de
      * corte (default hoy). Sólo cuentas visibles.
      *
