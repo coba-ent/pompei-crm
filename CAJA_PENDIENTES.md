@@ -54,17 +54,10 @@ Abajo: **cero diferencia**. Y PAYWAY quedó en un centavo después de la correcc
 
 ### Los tres bloques que faltan diagnosticar
 
-**Los bancos son lo más grande — $1.828.299,91 en total**, y las tres diferencias son nuevas: no
-existían en el análisis de anoche. Fijate que casi se compensan entre sí (Credicoop y Galicia abajo,
-Mercado Pago arriba), lo que sugiere **transferencias cargadas en cuentas distintas** o cargadas en
-un sistema y no en el otro, más que plata faltante.
+**Galicia y Credicoop ya están diagnosticados** — ver 2.4 y 2.5. Los dos cierran al centavo.
 
-Llama la atención que **el CRM tiene Banco Galicia en negativo** (−$22.835,56) mientras Contagram
-dice +$2.191.145,00. Una cuenta bancaria en rojo es señal de que le faltan ingresos.
-
-⚠️ **Para diagnosticarlos necesito los exports de movimientos** de Banco Galicia, Banco Credicoop y
-Mercado Pago, igual que hicimos con Cheque Propio y PAYWAY. Con el saldo solo no se puede saber cuál
-movimiento falta.
+**Mercado Pago: +$2.398.464,22, todavía sin diagnosticar.** Falta el export de movimientos. Hay una
+hipótesis fuerte, ver 2.4.
 
 **Cuenta Corriente de Clientes: −$353.388,82.** De los casos ya identificados salen ~$130.000
 (los cobros 2.3 y 3.1, que el CRM tiene y Contagram no). **Faltan explicar unos $223.000.**
@@ -211,6 +204,88 @@ En el CRM se anuló y se volvió a cargar. En Contagram nunca se registró.
 
 ---
 
+### 2.4 · Banco Galicia — tres pagos a Ferrum que sólo tiene el CRM
+
+```
+Banco Galicia
+  Contagram    $2.191.145,00
+  CRM            −$22.835,56
+  diferencia  −$2.213.980,56
+```
+
+Cruzando los 96 movimientos del export contra los 98 del CRM, la diferencia sale de dos cosas y
+**cierra exacta**:
+
+```
+25/08   tres pagos a Ferrum que el CRM tiene y Contagram no
+          #49047    −$526.036,05
+          #49048     −$44.215,06
+          #49049  −$1.661.729,45
+                  ─────────────
+                  −$2.231.980,56
+
+21/08   Mastercard con los dígitos transpuestos (ver 1.1)
+                     +$18.000,00
+                  ─────────────
+verificación      −$2.213.980,56   = la diferencia ✔
+```
+
+Los tres pagos se cargaron el **25/08 20:51 por Pompei1sanitarios@gmail.com**.
+
+⚠️ **Hipótesis fuerte, y explicaría también Mercado Pago**: la Cuenta Corriente de **Proveedores
+cuadra** entre los dos sistemas ($0,24 de diferencia). Si el CRM tuviera $2,2 millones más de pagos a
+Ferrum, proveedores tendría que diferir en ese monto. Como no difiere, **lo más probable es que
+Contagram sí tenga esos pagos, pero cargados desde otra cuenta** — casi seguro Mercado Pago, que es
+justamente donde el CRM tiene $2.398.464,22 de más.
+
+```
+diferencia de Mercado Pago    $2.398.464,22
+menos los pagos a Ferrum      $2.231.980,56
+                              ─────────────
+quedaría sin explicar           $166.483,66
+```
+
+**Qué hacer**: confirmar desde qué cuenta se pagó a Ferrum el 25/08. Si en Contagram salió de Mercado
+Pago y en el CRM de Galicia, no falta ningún movimiento: **están en la cuenta equivocada en uno de los
+dos**, y hay que moverlos.
+
+*(El 13/08 aparece otra diferencia que NO es tal: Contagram tiene la liquidación de Visa en dos
+líneas —$117.136,72 y $848.213,40— y el CRM en una sola de $965.350,12. Misma plata, distinto corte.)*
+
+### 2.5 · Banco Credicoop — cuatro movimientos que sólo tiene el CRM
+
+```
+Banco Credicoop
+  Contagram    $3.206.795,98
+  CRM          $1.194.012,41
+  diferencia  −$2.012.783,57
+```
+
+Contagram **no tiene ningún movimiento que le falte al CRM**. Los cuatro que sobran del lado del CRM
+suman exactamente la diferencia:
+
+```
+25/08   #49022   movimiento entre cuentas → Cheque Propio   −$1.622.976,50   ← es el caso 2.1
+25/08   #49024   pago a "Contagram"                           −$384.659,00
+24/08   #49021   gasto Ley 25413                                 −$4.548,07
+25/08   #49025   gasto Otros                                       −$600,00
+                                                             ─────────────
+                                                             −$2.012.783,57   = la diferencia ✔
+```
+
+**El más grande ya está contemplado**: es la transferencia mal cargada del caso 2.1. Al anularla,
+Credicoop sube $1.622.976,50 solo.
+
+**Quedan $389.807,07** en tres movimientos que el CRM tiene y Contagram no:
+
+- **el pago a "Contagram" de $384.659,00** — parece la suscripción al sistema
+- Ley 25413 (impuesto al cheque) $4.548,07
+- Otros $600,00
+
+**Qué hacer**: cargarlos en Contagram, o confirmar que allá están en otra cuenta.
+
+---
+
 ## 3 · A VERIFICAR — puede que no sea nada
 
 ### 3.1 · Dos cobros del CRM que no aparecen en Contagram
@@ -296,10 +371,14 @@ diagnosticado y con pasos concretos
   Mastercard (falta decidir)           $18.000,01     ver 1.1
   venta 24624 (falta decidir)          $98.212,40     ver 1.2
 
+diagnosticado, bancos
+  Banco Galicia                     $2.213.980,56     ver 2.4  (pagos a Ferrum + Mastercard)
+  Banco Credicoop                   $2.012.783,57     ver 2.5  (1,6 M es el caso 2.1)
+
 sin diagnosticar — faltan los exports
-  Bancos (Galicia + Credicoop + MP)  $1.828.299,91     ver 0
-  Cta Cte Clientes                     $353.388,82     ver 0
-  Caja del Local                        $81.056,29     ver 0
+  Mercado Pago                      $2.398.464,22     ver 2.4 — hay hipótesis
+  Cta Cte Clientes                    $353.388,82     ver 0
+  Caja del Local                       $81.056,29     ver 0
 ```
 
 El **Cheque Propio (2.1)** sigue siendo el más grande y ya tiene los pasos escritos. Después de ése,
