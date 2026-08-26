@@ -57,8 +57,12 @@ class Pagos
                 throw new \RuntimeException('El pago está anulado y no puede editarse.');
             }
 
+            // Los pagos importados de Contagram SÍ tienen su movimiento en tesorería, pero quedaron
+            // sin vincular al pago (`origen_type` NULL, con `legacy_id` en el movimiento). Editar
+            // el pago movería la Cta Cte del proveedor —que lee la tabla `pagos`— dejando la
+            // cuenta de tesorería con el importe viejo. Se bloquea hasta re-vincularlos.
             if (! $pago->movimientoTesoreria) {
-                throw new \RuntimeException('Este pago no tiene movimiento de tesorería (viene de la importación histórica) y por eso no se puede editar. Se puede anular y volver a cargarlo.');
+                throw new \RuntimeException('Este pago viene de la importación histórica y su movimiento de tesorería no quedó vinculado, así que editarlo descuadraría la cuenta. Avisale al administrador para que lo corrija a mano.');
             }
 
             $pago->update([
