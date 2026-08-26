@@ -214,7 +214,22 @@ class CuentaTesoreriaController extends Controller
         }, $nombreArchivo, ['Content-Type' => 'text/csv; charset=UTF-8']);
     }
 
-    /** Edición de un movimiento nativo (fecha/monto/observación) — FR-024. */
+    /**
+     * Edición de un movimiento nativo (fecha/monto/observación) — FR-024.
+     *
+     * Una transferencia son DOS filas: el egreso de una cuenta y el ingreso de la otra, unidas por
+     * `transferencia_id`. Editar sólo la fila que se abrió deja la transferencia descuadrada consigo
+     * misma —sale un importe de un lado y entra otro distinto del otro—, o sea plata creada o
+     * destruida de la nada, sin ningún aviso.
+     *
+     * Caso real (24/08/2026): una transferencia de PAYWAY QR a Banco Galicia nació balanceada en
+     * $140.937,63 y media hora después se corrigió a $246.387,37 **sólo del lado de Galicia**.
+     * Quedaron $105.449,74 de más en PAYWAY, y se detectó recién comparando contra Contagram.
+     *
+     * Por eso se editan las dos patas, en una transacción: el importe de la otra siempre es el
+     * opuesto, y la fecha se mantiene igual en ambas. Es el mismo criterio que ya usaba
+     * `destroyMovimiento()`, que borra las dos.
+     */
     public function updateMovimiento(Request $request, MovimientoTesoreria $movimiento): JsonResponse
     {
         if (! $movimiento->esNativo()) {
@@ -230,9 +245,28 @@ class CuentaTesoreriaController extends Controller
             'observacion' => ['nullable', 'string'],
         ]);
 
-        $movimiento->update($datos);
+        DB::transaction(function () use ($movimiento, $datos) {
+            $movimiento->update($datos);
 
-        return response()->json(['ok' => true, 'mensaje' => 'Movimiento actualizado.', 'movimiento' => $movimiento->fresh()]);
+            if (! $movimiento->transferencia_id) {
+                return;
+            }
+
+            MovimientoTesoreria::where('transferencia_id', $movimiento->transferencia_id)
+                ->whereKeyNot($movimiento->getKey())
+                ->each(function (MovimientoTesoreria $contraparte) use ($datos) {
+                    $contraparte->update([
+                        'fecha' => $datos['fecha'],
+                        'monto' => -1 * (float) $datos['monto'],
+                    ]);
+                });
+        });
+
+        $mensaje = $movimiento->transferencia_id
+            ? 'Movimiento actualizado en las dos cuentas de la transferencia.'
+            : 'Movimiento actualizado.';
+
+        return response()->json(['ok' => true, 'mensaje' => $mensaje, 'movimiento' => $movimiento->fresh()]);
     }
 
     /**

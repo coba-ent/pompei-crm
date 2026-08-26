@@ -113,4 +113,31 @@ class TesoreriaTransferenciaTest extends TestCase
         $this->assertSame(0.0, $salida->saldoA());
         $this->assertSame(0.0, $entrada->saldoA());
     }
+
+    /**
+     * Editar una pata de la transferencia tiene que arrastrar la otra.
+     *
+     * Regresión de un caso real (24/08/2026): se corrigió el importe de una transferencia sólo del
+     * lado que estaba abierto y la otra cuenta quedó con el valor viejo, dejando $105.449,74 de más
+     * en el sistema. Una transferencia que no suma cero es plata creada de la nada.
+     */
+    public function test_editar_una_pata_de_la_transferencia_actualiza_la_otra(): void
+    {
+        $servicio = app(Tesoreria::class);
+        $salida = CuentaTesoreria::factory()->tipo('efectivo')->create();
+        $entrada = CuentaTesoreria::factory()->tipo('efectivo')->create();
+
+        [$movSalida, $movEntrada] = $servicio->transferir($salida, $entrada, 500, now(), 'fondeo');
+
+        $this->putJson(route('tesoreria.movimientos.update', $movEntrada), [
+            'fecha' => now()->toDateString(),
+            'monto' => 900,
+        ])->assertOk();
+
+        $this->assertSame(900.0, (float) $movEntrada->fresh()->monto);
+        $this->assertSame(-900.0, (float) $movSalida->fresh()->monto, 'la otra pata quedó desactualizada');
+
+        $descuadre = MovimientoTesoreria::where('transferencia_id', $movSalida->transferencia_id)->sum('monto');
+        $this->assertEqualsWithDelta(0, (float) $descuadre, 0.001, 'la transferencia no suma cero');
+    }
 }
