@@ -7,6 +7,74 @@ Cada número está verificado contra la base de producción y contra el export d
 
 ---
 
+## 0 · FOTO AL 26/08 — todas las cuentas, las dos pantallas
+
+Comparación cuenta por cuenta de las dos pantallas de Tesorería del mismo día. Es el punto de
+partida: lo que no está acá, coincide.
+
+```
+                            Contagram              CRM          diferencia
+A COBRAR
+  Saldo Cta Cte Clientes   9.859.324,61     9.505.935,79      −353.388,82   ⚠ NUEVO
+  Mastercard a Cobrar       −175.928,19      −193.928,20       −18.000,01   ver 1.1
+  Amex                       227.959,76       227.959,76             0,00
+  PAYWAY QR                  448.172,61       448.172,60             0,01   resuelto
+  Cabal / Maestro / Nulo         =                =                  0,00
+  TOTAL                   15.952.324,55    15.584.401,00      −367.923,55
+
+A PAGAR
+  Cta Cte Proveedores     17.490.974,77    17.490.974,53            −0,24   ✔ cuadra
+  Cheque Propio            1.652.957,43    −1.592.976,19    −3.245.933,62   ver 2.1
+  Cabal Credicoop            212.175,83       212.175,83             0,00
+  Visa Credicoop             174.574,63       174.574,63             0,00
+  TOTAL                   19.530.682,66    16.284.748,80    −3.245.933,86
+
+CAJAS
+  Caja del Local             600.143,15       681.199,44       +81.056,29   ⚠ NUEVO
+  Caja chica gastos           33.137,66        33.137,66             0,00
+  Juan USD Personal          850.600,00       850.600,00             0,00
+  Caja General Abajo               0,00             0,00             0,00
+  TOTAL                    1.483.880,81     1.564.937,10       +81.056,29
+
+BANCOS
+  Banco Credicoop          3.206.795,98     1.194.012,41    −2.012.783,57   ⚠ NUEVO
+  Banco Galicia            2.191.145,00       −22.835,56    −2.213.980,56   ⚠ NUEVO
+  Mercado Pago            19.527.812,25    21.926.276,47    +2.398.464,22   ⚠ NUEVO
+  USD Online               3.991.824,57     3.991.824,57             0,00
+  Banco Santander Río         −9.147,72        −9.147,72             0,00
+  TOTAL                   28.908.430,08    27.080.130,17    −1.828.299,91
+```
+
+### Lo que cuadra y ya no hay que mirar
+
+**Cuenta Corriente de Proveedores: $0,24 de diferencia** sobre $17,5 millones. Está al día.
+
+También Amex, Cabal, Maestro, Nulo, USD Online, Santander, Caja chica, Juan USD y Caja General
+Abajo: **cero diferencia**. Y PAYWAY quedó en un centavo después de la corrección de anoche.
+
+### Los tres bloques que faltan diagnosticar
+
+**Los bancos son lo más grande — $1.828.299,91 en total**, y las tres diferencias son nuevas: no
+existían en el análisis de anoche. Fijate que casi se compensan entre sí (Credicoop y Galicia abajo,
+Mercado Pago arriba), lo que sugiere **transferencias cargadas en cuentas distintas** o cargadas en
+un sistema y no en el otro, más que plata faltante.
+
+Llama la atención que **el CRM tiene Banco Galicia en negativo** (−$22.835,56) mientras Contagram
+dice +$2.191.145,00. Una cuenta bancaria en rojo es señal de que le faltan ingresos.
+
+⚠️ **Para diagnosticarlos necesito los exports de movimientos** de Banco Galicia, Banco Credicoop y
+Mercado Pago, igual que hicimos con Cheque Propio y PAYWAY. Con el saldo solo no se puede saber cuál
+movimiento falta.
+
+**Cuenta Corriente de Clientes: −$353.388,82.** De los casos ya identificados salen ~$130.000
+(los cobros 2.3 y 3.1, que el CRM tiene y Contagram no). **Faltan explicar unos $223.000.**
+También necesita un export fresco: los informes de `actualziacion/` son de las 00:07 y desde
+entonces se siguieron cargando cobros en los dos sistemas.
+
+**Caja del Local: +$81.056,29.** El CRM tiene más. No estaba en el análisis de anoche.
+
+---
+
 ## 1 · HAY QUE DECIDIR — cuál de los dos sistemas tiene razón
 
 Estos no se pueden resolver desde el CRM: hace falta mirar el extracto del banco o el comprobante.
@@ -222,15 +290,20 @@ cobro 27700   CONCIMAT          $48.121,43    anulado 21/08
 ## Resumen
 
 ```
-hay que decidir       $116.212,41     Mastercard $18.000,01 + venta 24624 $98.212,40
-                                      (más el arrastre al Banco Galicia)
-hay que corregir    $3.304.010,91     Cheque Propio $3.245.933,62 + $27.306,00 + $30.771,29
-a verificar            $99.714,37
-                    ─────────────
-total               $3.519.937,69
+diagnosticado y con pasos concretos
+  Cheque Propio                    $3.245.933,62     ver 2.1
+  cobros descalzados                  $158.077,66     ver 2.2, 2.3, 3.1
+  Mastercard (falta decidir)           $18.000,01     ver 1.1
+  venta 24624 (falta decidir)          $98.212,40     ver 1.2
+
+sin diagnosticar — faltan los exports
+  Bancos (Galicia + Credicoop + MP)  $1.828.299,91     ver 0
+  Cta Cte Clientes                     $353.388,82     ver 0
+  Caja del Local                        $81.056,29     ver 0
 ```
 
-El **Cheque Propio (2.1)** es el 92% de todo. Si se resuelve sólo ése, la caja queda casi al día.
+El **Cheque Propio (2.1)** sigue siendo el más grande y ya tiene los pasos escritos. Después de ése,
+lo que más pesa son los **bancos**, y para esos necesito los exports de movimientos. Si se resuelve sólo ése, la caja queda casi al día.
 
 ---
 
