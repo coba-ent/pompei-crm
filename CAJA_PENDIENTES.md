@@ -59,10 +59,7 @@ Abajo: **cero diferencia**. Y PAYWAY quedó en un centavo después de la correcc
 **Mercado Pago: +$2.398.464,22, todavía sin diagnosticar.** Falta el export de movimientos. Hay una
 hipótesis fuerte, ver 2.4.
 
-**Cuenta Corriente de Clientes: −$353.388,82.** De los casos ya identificados salen ~$130.000
-(los cobros 2.3 y 3.1, que el CRM tiene y Contagram no). **Faltan explicar unos $223.000.**
-También necesita un export fresco: los informes de `actualziacion/` son de las 00:07 y desde
-entonces se siguieron cargando cobros en los dos sistemas.
+**Cuenta Corriente de Clientes: −$353.388,82 — y NO viene del período comparado.** Ver 3.3.
 
 **Caja del Local: +$81.056,29.** El CRM tiene más. No estaba en el análisis de anoche.
 
@@ -288,23 +285,68 @@ Credicoop sube $1.622.976,50 solo.
 
 ## 3 · A VERIFICAR — puede que no sea nada
 
-### 3.1 · Dos cobros del CRM que no aparecen en Contagram
+### 3.1 · Tres cobros del CRM que no están en Contagram
 
 ```
-$99.714,37
+$105.033,53
 ```
 
 ```
 cobro 27701   venta 24635   CONCIMAT SACIFYM     Mercado Pago   $50.090,97   21/08
 cobro 27753   venta 24604   Carlos 1153161973    Mercado Pago   $49.623,40   24/08
+cobro 27761   venta 24696   INES 1140948619      Mercado Pago    $5.319,16   25/08
 ```
 
-Ninguno de los dos importes aparece en los informes de Contagram del período. **Buscarlos por cliente
-y fecha antes de darlos por faltantes** — pueden estar con otro importe.
+Verificado contra los seis informes de Contagram del 26/08: **ninguno de los tres importes aparece**.
+
+En el caso de INES, Contagram **sí tiene la venta** (#24691, $5.319,16 del 25/08) pero **sin el cobro**
+— igual que el caso 2.3.
 
 ⚠️ El de CONCIMAT tiene historia: se cargó como $48.121,43, se corrigió a $50.090,00 medio minuto
 después, y dos horas más tarde **otro usuario** lo ajustó a $50.090,97. Además el movimiento de
 tesorería dice **"Freddy 1124594187"** como detalle, que no es el cliente de esa venta.
+
+### 3.3 · Cuenta Corriente de Clientes — la diferencia es vieja, no de esta semana
+
+```
+Contagram    $9.859.324,61
+CRM          $9.505.935,79
+diferencia    −$353.388,82
+```
+
+Se cruzaron los seis informes del 26/08 (18 al 25/08) contra producción, movimiento por movimiento:
+
+```
+VENTAS   181 en Contagram   →   0 faltan en el CRM        ✔
+COBROS   181 en Contagram   →   2 faltan en el CRM        $125.518,40   (casos 1.2 y 2.2)
+                                4 faltan en Contagram     $135.804,82   (casos 2.3 y 3.1)
+```
+
+**Efecto neto sobre el saldo: apenas $10.286,42.**
+
+```
+diferencia real            $353.388,82
+menos lo del período        $10.286,42
+                           ───────────
+sin explicar               $343.102,40   ← es de ANTES del 18/08
+```
+
+El saldo de cuenta corriente es **acumulado desde siempre**, no del período. Comparar sólo la última
+semana nunca iba a explicarlo: los movimientos de estos ocho días están prácticamente al día entre
+los dos sistemas.
+
+**Qué hacer**: para ubicar los $343.102,40 hay que pedir informes de cuenta corriente de **períodos
+anteriores** e ir cerrando por corte, como se hizo en `PENDIENTE REGULARIZAR.txt` — que documenta
+descuadres del mismo tipo en abril y julio, con la misma causa: ventas viejas editadas en el CRM y no
+replicadas en Contagram.
+
+⚠️ **Trampa del método, ya pisada dos veces**: comparar por importe dentro de una ventana fija da
+falsos faltantes. Una venta de Mercado Libre puede estar fechada distinto en cada sistema —el id del
+CRM suele ser el de Contagram **+1**— y hay muchos importes repetidos ($276.577,07 aparece tres veces
+en Contagram, $253.464,19 cinco veces). **Antes de reportar un faltante hay que buscar el importe en
+todo el export, no sólo en la ventana.**
+
+---
 
 ### 3.2 · El detalle "Freddy 1124594187" aparece en clientes que no son él
 
@@ -375,9 +417,9 @@ diagnosticado, bancos
   Banco Galicia                     $2.213.980,56     ver 2.4  (pagos a Ferrum + Mastercard)
   Banco Credicoop                   $2.012.783,57     ver 2.5  (1,6 M es el caso 2.1)
 
-sin diagnosticar — faltan los exports
-  Mercado Pago                      $2.398.464,22     ver 2.4 — hay hipótesis
-  Cta Cte Clientes                    $353.388,82     ver 0
+sin diagnosticar
+  Mercado Pago                      $2.398.464,22     ver 2.4 — hay hipótesis, falta el export
+  Cta Cte Clientes                    $343.102,40     ver 3.3 — es anterior al 18/08
   Caja del Local                       $81.056,29     ver 0
 ```
 
