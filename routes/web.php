@@ -34,6 +34,7 @@ use App\Http\Controllers\Integraciones\MercadoLibreBotConfiguracionController;
 use App\Http\Controllers\Integraciones\MercadoLibreConfiguracionController;
 use App\Http\Controllers\Integraciones\MercadoLibreMensajeriaWebhookController;
 use App\Http\Controllers\Integraciones\MercadoLibreOAuthController;
+use App\Http\Controllers\Integraciones\MercadoLibreRetencionPrecioController;
 use App\Http\Controllers\Integraciones\TiendanubeConexionRestController;
 use App\Http\Controllers\Integraciones\TiendanubeConfiguracionController;
 use App\Http\Controllers\Integraciones\TiendanubeWebhookController;
@@ -543,6 +544,13 @@ Route::middleware('auth')->group(function () {
             // 'configuracion.mercadolibre.index' para el resto de la integración).
             Route::get('bot', [MercadoLibreBotConfiguracionController::class, 'index'])->name('bot');
             Route::put('bot', [MercadoLibreBotConfiguracionController::class, 'guardar'])->name('bot.guardar');
+
+            // Corte de seguridad de precios (spec 084): resolución de los envíos frenados y
+            // previa del cambio de lista configurada.
+            Route::get('retenciones-precio', [MercadoLibreRetencionPrecioController::class, 'index'])->name('retencionesPrecio.index');
+            Route::post('retenciones-precio/{retencion}/aprobar', [MercadoLibreRetencionPrecioController::class, 'aprobar'])->name('retencionesPrecio.aprobar');
+            Route::post('retenciones-precio/{retencion}/rechazar', [MercadoLibreRetencionPrecioController::class, 'rechazar'])->name('retencionesPrecio.rechazar');
+            Route::post('ventas/previa', [MercadoLibreConfiguracionController::class, 'previaCambioLista'])->name('ventas.previa');
         });
 
         // Configuración & Ajustes → Tiendanube (spec 022/024: conexión Application REST clásica)
@@ -562,6 +570,7 @@ Route::middleware('auth')->group(function () {
         Route::middleware('admin')->prefix('mi-perfil')->name('mi-perfil.')->group(function () {
             Route::get('/', [MiPerfilController::class, 'index'])->name('index');
             Route::post('/', [MiPerfilController::class, 'guardar'])->name('guardar');
+            Route::put('contrasena', [MiPerfilController::class, 'actualizarPassword'])->name('contrasena.actualizar');
         });
 
         // Configuración & Ajustes → Facturación Electrónica (spec 034: ARCA/AFIP)

@@ -37,6 +37,14 @@ class GuardarConfiguracionVentasMercadoLibreRequest extends FormRequest
             'lista_precio_id' => ['nullable', 'exists:listas_precio,id'],
             'lista_precio_id_premium' => ['nullable', 'exists:listas_precio,id'],
             'vendedor_id' => ['nullable', 'integer', 'exists:vendedores,id'],
+
+            // spec 084 — corte de seguridad de precios.
+            // El rango incluye los dos extremos a propósito: 0 retiene toda bajada y 100 no
+            // retiene por porcentaje, pero SIGUE reteniendo precio <= 0 y precio publicado
+            // desconocido. 100 no es un interruptor de apagado; para eso está `corte_precios_activo`.
+            'umbral_caida_precio_pct' => ['sometimes', 'numeric', 'min:0', 'max:100'],
+            'corte_precios_activo' => ['sometimes', 'boolean'],
+            'confirma_republicacion' => ['sometimes', 'boolean'],
         ];
     }
 

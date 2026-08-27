@@ -153,6 +153,18 @@ class PrecioProductoObserver
             ->get();
 
         foreach ($vinculos as $vinculo) {
+            // spec 084/FR-029: sin saber de qué tipo es la publicación no se puede saber qué lista
+            // le corresponde. Antes se la trataba como Clásica, y si resultaba ser Premium quedaba
+            // publicada un 31% barata — el mismo daño del incidente del 25/08 por otra puerta.
+            // Queda pendiente hasta que la sincronización de tipos complete el dato, que es a lo
+            // sumo un ciclo: no publicar precio en un vínculo nuevo no rompe nada, porque la
+            // publicación conserva el que ya tenía en Mercado Libre.
+            if ($vinculo->listing_type_id === null) {
+                $vinculo->update(['precio_pendiente' => true]);
+
+                continue;
+            }
+
             // Un cambio en la lista general no toca a una publicación Premium, y viceversa.
             if ($sincronizador->resolverListaPrecio($vinculo, $configuracion) !== (int) $precio->lista_precio_id) {
                 continue;

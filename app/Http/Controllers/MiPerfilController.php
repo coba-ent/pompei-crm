@@ -7,7 +7,10 @@ use App\Models\DatosEmpresa;
 use App\Models\Rol;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 /** Configuración & Ajustes → Empresa (spec 043, ex "Mi Perfil"): datos fiscales del negocio emisor + gestión de usuarios. */
 class MiPerfilController extends Controller
@@ -45,7 +48,7 @@ class MiPerfilController extends Controller
 
         unset($datos['logo']);
 
-        $datosEmpresa = $datosEmpresa ?? new DatosEmpresa();
+        $datosEmpresa = $datosEmpresa ?? new DatosEmpresa;
         $datosEmpresa->fill($datos);
         $datosEmpresa->save();
 
@@ -54,5 +57,25 @@ class MiPerfilController extends Controller
             'mensaje' => 'Mi Perfil guardado con éxito.',
             'datos_empresa' => $datosEmpresa,
         ]);
+    }
+
+    public function actualizarPassword(Request $request): JsonResponse
+    {
+        $datos = $request->validate([
+            'password_actual' => ['required', 'string'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+
+        $usuario = Auth::user();
+
+        if (! Hash::check($datos['password_actual'], $usuario->password)) {
+            throw ValidationException::withMessages([
+                'password_actual' => ['La contraseña actual no es correcta.'],
+            ]);
+        }
+
+        $usuario->forceFill(['password' => Hash::make($datos['password'])])->save();
+
+        return response()->json(['message' => 'Contraseña actualizada correctamente.']);
     }
 }

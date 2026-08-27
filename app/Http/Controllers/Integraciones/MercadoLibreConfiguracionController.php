@@ -14,6 +14,7 @@ use App\Models\Integraciones\MercadoLibreOperacionLog;
 use App\Models\Integraciones\MercadoLibrePublicacionProducto;
 use App\Models\Vendedor;
 use App\Services\MercadoLibre\ClienteMercadoLibre;
+use App\Services\MercadoLibre\PrevisualizadorCambioLista;
 use App\Services\MercadoLibre\Excepciones\VinculacionRechazadaException;
 use App\Services\MercadoLibre\VinculacionMercadoLibre;
 use Illuminate\Http\JsonResponse;
@@ -148,6 +149,21 @@ class MercadoLibreConfiguracionController extends Controller
         $datos = $request->validated();
         $listaPrecioIdAnterior = $configuracion->lista_precio_id;
         $listaPrecioIdPremiumAnterior = $configuracion->lista_precio_id_premium;
+
+        // spec 084/FR-016: cambiar una lista republica TODAS las publicaciones. Antes eso pasaba al
+        // guardar, sin previa ni deshacer: un clic equivocado bajaba el precio de todo el catálogo.
+        // Ahora hace falta confirmar, y la respuesta 422 lleva los números para el diálogo.
+        $listasQueCambian = $this->listasQueCambian($datos, $listaPrecioIdAnterior, $listaPrecioIdPremiumAnterior);
+
+        if ($listasQueCambian !== [] && ! $request->boolean('confirma_republicacion')) {
+            return response()->json([
+                'ok' => false,
+                'requiere_confirmacion' => true,
+                'mensaje' => 'Cambiar la lista de precios vuelve a publicar los precios en Mercado Libre. Revisá el impacto antes de confirmar.',
+                'previa' => $this->previaDe($listasQueCambian, $configuracion),
+                'umbral_pct' => (float) $configuracion->umbral_caida_precio_pct,
+            ], 422);
+        }
 
         $configuracion->update($datos);
 
@@ -355,5 +371,90 @@ class MercadoLibreConfiguracionController extends Controller
         }
 
         return $advertencias;
+    }
+
+    /**
+     * Endpoint de la previa (spec 084, contracts §4). No aplica nada: sólo calcula, para que el
+     * diálogo pueda mostrar números antes de que la persona decida.
+     */
+    public function previaCambioLista(Request $request): JsonResponse
+    {
+        $configuracion = MercadoLibreConfiguracion::actual();
+
+        $datos = $request->validate([
+            'lista_precio_id' => ['nullable', 'integer', 'exists:listas_precio,id'],
+            'lista_precio_id_premium' => ['nullable', 'integer', 'exists:listas_precio,id'],
+        ]);
+
+        $listasQueCambian = $this->listasQueCambian(
+            $datos,
+            $configuracion->lista_precio_id,
+            $configuracion->lista_precio_id_premium,
+        );
+
+        return response()->json([
+            'ok' => true,
+            'cambia' => [
+                'general' => array_key_exists('general', $listasQueCambian),
+                'premium' => array_key_exists('premium', $listasQueCambian),
+            ],
+            'impacto' => $this->previaDe($listasQueCambian, $configuracion),
+            'umbral_pct' => (float) $configuracion->umbral_caida_precio_pct,
+        ]);
+    }
+
+    /**
+     * Cuáles de las dos listas configuradas cambiarían con los datos recibidos.
+     *
+     * La comparación es por `(int)`: el valor del request llega como string (form-urlencoded) y el
+     * anterior como entero de Eloquent, así que sin castear todo guardado parecería un cambio.
+     *
+     * @return array<string, int>  clave `general`/`premium` => id de la lista nueva
+     */
+    private function listasQueCambian(array $datos, ?int $generalAnterior, ?int $premiumAnterior): array
+    {
+        $cambian = [];
+
+        $general = $datos['lista_precio_id'] ?? null;
+        $premium = $datos['lista_precio_id_premium'] ?? null;
+
+        if ($general !== null && (int) $general !== (int) $generalAnterior) {
+            $cambian['general'] = (int) $general;
+        }
+
+        if ($premium !== null && (int) $premium !== (int) $premiumAnterior) {
+            $cambian['premium'] = (int) $premium;
+        }
+
+        return $cambian;
+    }
+
+    /** Impacto combinado de las listas que cambian. */
+    private function previaDe(array $listasQueCambian, MercadoLibreConfiguracion $configuracion): array
+    {
+        $previsualizador = app(PrevisualizadorCambioLista::class);
+
+        $total = [
+            'publicaciones_afectadas' => 0, 'suben' => 0, 'bajan' => 0, 'sin_cambio' => 0,
+            'quedarian_retenidas' => 0, 'sin_precio_en_la_lista' => 0, 'caida_maxima' => null,
+        ];
+
+        foreach ($listasQueCambian as $rol => $listaId) {
+            $parcial = $previsualizador->calcular($listaId, $rol, $configuracion);
+
+            foreach (array_keys($total) as $clave) {
+                if ($clave === 'caida_maxima') {
+                    continue;
+                }
+                $total[$clave] += $parcial[$clave];
+            }
+
+            if ($parcial['caida_maxima'] !== null
+                && ($total['caida_maxima'] === null || $parcial['caida_maxima']['pct'] > $total['caida_maxima']['pct'])) {
+                $total['caida_maxima'] = $parcial['caida_maxima'];
+            }
+        }
+
+        return $total;
     }
 }

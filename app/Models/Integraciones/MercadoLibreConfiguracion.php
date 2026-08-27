@@ -20,7 +20,7 @@ class MercadoLibreConfiguracion extends Model
         'creacion_automatica', 'frecuencia_sync_minutos', 'deposito_id', 'deposito_full_id', 'categoria_venta_id',
         'dias_primera_sync', 'ultima_sync_en', 'ultima_sync_resultado',
         'stock_ultima_sync_en', 'stock_ultima_sync_resultado', 'lista_precio_id', 'vendedor_id',
-        'lista_precio_id_premium', 'tipo_publicacion_ultima_sync_en',
+        'lista_precio_id_premium', 'tipo_publicacion_ultima_sync_en', 'umbral_caida_precio_pct', 'corte_precios_activo',
     ];
 
     protected $hidden = ['client_secret'];
@@ -32,6 +32,8 @@ class MercadoLibreConfiguracion extends Model
         'ultima_sync_en' => 'datetime',
         'stock_ultima_sync_en' => 'datetime',
         'tipo_publicacion_ultima_sync_en' => 'datetime',
+        'umbral_caida_precio_pct' => 'decimal:2',
+        'corte_precios_activo' => 'boolean',
     ];
 
     public function deposito(): BelongsTo

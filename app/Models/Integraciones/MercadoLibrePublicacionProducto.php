@@ -7,6 +7,8 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * Vinculación 1:1 entre una publicación de Mercado Libre y un producto del CRM
@@ -25,6 +27,7 @@ class MercadoLibrePublicacionProducto extends Model
         'precio_pendiente', 'precio_sincronizado_en', 'precio_error', 'precio_error_en',
         'listing_type_id', 'listing_type_sincronizado_en',
         'logistic_type', 'inventory_id', 'user_product_id', 'logistica_sincronizada_en',
+        'precio_publicado', 'precio_publicado_en',
     ];
 
     /**
@@ -84,10 +87,45 @@ class MercadoLibrePublicacionProducto extends Model
         return $query->where('stock_requiere_intervencion', true);
     }
 
-    /** Vínculos con un cambio de precio sin empujar todavía a Mercado Libre (spec 016, FR-014). */
+    /**
+     * Vínculos con un cambio de precio sin empujar todavía a Mercado Libre (spec 016, FR-014).
+     *
+     * spec 084/FR-015: excluye las que tienen una retención abierta. "Pendiente" significa "hay
+     * algo que mandar y todavía no se pudo"; "retenida" significa "hay algo que NO se va a mandar
+     * hasta que alguien lo apruebe". Sin esta exclusión, el reintento de pendientes publicaría
+     * justo el precio que el corte frenó.
+     */
     public function scopePendientesPrecio(Builder $query): Builder
     {
-        return $query->where('precio_pendiente', true);
+        return $query->where('precio_pendiente', true)->whereDoesntHave('retencionesPrecio', fn (Builder $q) => $q->abiertas());
+    }
+
+    /** Historial de retenciones del corte de seguridad de precios (spec 084). */
+    public function retencionesPrecio(): HasMany
+    {
+        return $this->hasMany(MercadoLibreRetencionPrecio::class, 'ml_publicacion_producto_id');
+    }
+
+    /**
+     * La retención sin resolver, si la hay. La base garantiza que no puede haber más de una
+     * (índice único sobre `abierta_uk`), así que `one()` es exacto y no "la primera de varias".
+     */
+    public function retencionAbierta(): HasOne
+    {
+        return $this->hasOne(MercadoLibreRetencionPrecio::class, 'ml_publicacion_producto_id')
+            ->where('estado', MercadoLibreRetencionPrecio::ESTADO_ABIERTA);
+    }
+
+    /**
+     * Publicaciones con el precio frenado por el corte (spec 084, FR-011).
+     *
+     * No existe una columna booleana `retenida`: se deriva de tener una retención abierta. Un
+     * booleano duplicado se desincroniza con la tabla el día que alguien resuelva una retención
+     * por un camino que no lo actualice.
+     */
+    public function scopeSoloRetenidas(Builder $query): Builder
+    {
+        return $query->whereHas('retencionesPrecio', fn (Builder $q) => $q->abiertas());
     }
 
     /**

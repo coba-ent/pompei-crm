@@ -156,12 +156,17 @@ class PrecioProductoObserverPremiumTest extends TestCase
     }
 
     /**
-     * Un vínculo recién creado todavía no tiene `listing_type_id` —lo completa la sincronización de
-     * tipos de publicación—, y hasta entonces se lo trata como Clásico. Si en realidad es Premium,
-     * durante esa ventana recibe el precio Clásico. Documentado acá porque es el resquicio que
-     * queda abierto del mismo incidente.
+     * **Esta aserción está invertida respecto de su versión original, y el cambio es deliberado.**
+     *
+     * Hasta la spec 084 este test afirmaba lo contrario: que un vínculo sin `listing_type_id`
+     * recibía el precio de la lista general. Documentaba el comportamiento vigente y de paso el
+     * agujero: si el vínculo resultaba ser Premium, quedaba publicado un 31% barato.
+     *
+     * La spec 084 (FR-029) cierra esa ventana — sin tipo conocido no se publica precio, se deja
+     * pendiente— y por eso ahora se afirma lo opuesto. Si alguien lo vuelve a invertir "porque
+     * antes andaba así", está reabriendo el agujero.
      */
-    public function test_un_vinculo_sin_tipo_todavia_recibe_la_lista_general(): void
+    public function test_un_vinculo_sin_tipo_no_recibe_precio_y_queda_pendiente(): void
     {
         $producto = Producto::factory()->create();
 
@@ -177,6 +182,13 @@ class PrecioProductoObserverPremiumTest extends TestCase
             ->first()
             ->update(['precio' => 110_000]);
 
-        $this->assertSame(110_000.0, $this->precioEnviadoA('MLA-SIN-TIPO'));
+        $this->assertNull($this->precioEnviadoA('MLA-SIN-TIPO'),
+            'Sin saber si es Premium o Clásica no se puede saber qué precio le corresponde.');
+
+        $this->assertTrue(
+            \App\Models\Integraciones\MercadoLibrePublicacionProducto::where('ml_item_id', 'MLA-SIN-TIPO')
+                ->value('precio_pendiente'),
+            'Queda pendiente para cuando se conozca el tipo, no se pierde el cambio.',
+        );
     }
 }

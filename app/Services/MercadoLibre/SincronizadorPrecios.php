@@ -7,7 +7,9 @@ use App\Models\Integraciones\MercadoLibreConfiguracion;
 use App\Models\Integraciones\MercadoLibreCuenta;
 use App\Models\Integraciones\MercadoLibreOperacionLog;
 use App\Models\Integraciones\MercadoLibrePublicacionProducto;
+use App\Models\Integraciones\MercadoLibreRetencionPrecio;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Empuja hacia Mercado Libre los precios de los vínculos cuyo producto cambió
@@ -23,6 +25,7 @@ class SincronizadorPrecios
 
     public function __construct(
         private readonly ClienteMercadoLibre $cliente,
+        private readonly EvaluadorCambioPrecio $evaluador = new EvaluadorCambioPrecio(),
     ) {
     }
 
@@ -31,8 +34,11 @@ class SincronizadorPrecios
      * PrecioProductoObserver (un único vínculo) y, en bucle, por ejecutar() y
      * sincronizarListaCompleta() (que ya verificaron los cortes una sola vez
      * antes de iterar — ver verificarCortes()).
+     *
+     * spec 084: acá vive el corte de seguridad de precios. `$omitirCorte` sólo lo usa la
+     * aprobación manual de una retención, donde una persona ya evaluó el caso.
      */
-    public function enviarUno(MercadoLibrePublicacionProducto $vinculo, float $precio): bool
+    public function enviarUno(MercadoLibrePublicacionProducto $vinculo, float $precio, bool $omitirCorte = false): bool
     {
         // Se marca pendiente ANTES de evaluar cortes o de intentar el envío: así
         // un intento bloqueado (función desactivada, sólo lectura, conexión
@@ -43,6 +49,25 @@ class SincronizadorPrecios
 
         if ($bloqueo = $this->verificarCortes()) {
             $this->bloquear($bloqueo);
+
+            return false;
+        }
+
+        // CORTE DE SEGURIDAD (spec 084). Va acá, en el único punto del sistema que hace el PUT de
+        // un precio, y no en cada llamador: replicar esta regla en los tres caminos de envío
+        // garantizaría que algún día sean tres reglas distintas — que es exactamente cómo nació el
+        // incidente del 25/08. Corre DESPUÉS de verificarCortes() a propósito: aquellos cortes
+        // conservan el pendiente para el próximo intento válido y son una decisión distinta.
+        // `omitirCorte` es exclusivamente para la aprobación humana de una retención: ahí una
+        // persona ya vio los dos importes y decidió. Ningún camino automático puede pasarlo en
+        // true, porque sería una puerta trasera al corte.
+        $configuracion = MercadoLibreConfiguracion::actual();
+        $decision = $omitirCorte
+            ? ['publicar' => true, 'motivo' => null, 'caida_pct' => null, 'precio_publicado' => null, 'umbral_pct' => 0.0]
+            : $this->evaluador->evaluar($vinculo, $precio, $configuracion);
+
+        if (! $decision['publicar']) {
+            $this->retener($vinculo, $precio, $decision, $configuracion);
 
             return false;
         }
@@ -68,9 +93,74 @@ class SincronizadorPrecios
             'precio_sincronizado_en' => now(),
             'precio_error' => null,
             'precio_error_en' => null,
+            // La referencia del próximo corte: lo que Mercado Libre acaba de aceptar (spec 084).
+            'precio_publicado' => $precio,
+            'precio_publicado_en' => now(),
         ]);
 
+        // Si venía retenida y esta propuesta sí pasó, la retención queda obsoleta.
+        $this->cerrarRetencionAbierta($vinculo, MercadoLibreRetencionPrecio::ESTADO_REEMPLAZADA);
+
         return true;
+    }
+
+    /**
+     * Frena el envío y deja registrado por qué (spec 084, FR-006/FR-007).
+     *
+     * Apaga `precio_pendiente`: no hay nada que reintentar, porque la decisión ya está tomada y
+     * espera a una persona. Si se dejara pendiente, `enviarPendientes()` publicaría justo el
+     * precio que el corte acaba de frenar.
+     *
+     * @param  array{motivo: ?string, caida_pct: ?float, precio_publicado: ?float, umbral_pct: float}  $decision
+     */
+    private function retener(
+        MercadoLibrePublicacionProducto $vinculo,
+        float $precio,
+        array $decision,
+        MercadoLibreConfiguracion $configuracion,
+    ): void {
+        DB::transaction(function () use ($vinculo, $precio, $decision, $configuracion) {
+            // Nunca se acumulan: la propuesta nueva reemplaza a la anterior (FR-010). Se cierra
+            // ANTES de crear la nueva porque el índice único de la base sólo tolera una abierta.
+            $this->cerrarRetencionAbierta($vinculo, MercadoLibreRetencionPrecio::ESTADO_REEMPLAZADA);
+
+            MercadoLibreRetencionPrecio::create([
+                'ml_publicacion_producto_id' => $vinculo->getKey(),
+                'precio_propuesto' => $precio,
+                'precio_publicado' => $decision['precio_publicado'],
+                'caida_pct' => $decision['caida_pct'],
+                'lista_precio_id' => $this->resolverListaPrecio($vinculo, $configuracion) ?? $configuracion->lista_precio_id,
+                'motivo' => $decision['motivo'],
+                'umbral_pct' => $decision['umbral_pct'],
+                'estado' => MercadoLibreRetencionPrecio::ESTADO_ABIERTA,
+            ]);
+
+            $vinculo->update(['precio_pendiente' => false]);
+        });
+
+        // Queda en el historial de la integración (FR-031). Sólo importes y motivo: nada sensible.
+        MercadoLibreOperacionLog::registrar([
+            'operacion' => 'sincronizar_precio',
+            'metodo' => 'PUT',
+            'endpoint' => "/items/{$vinculo->ml_item_id}",
+            'sentido' => 'escritura',
+            'resultado' => 'bloqueada',
+            'mensaje_error' => sprintf(
+                'Retenido por el corte de precios (%s): propuesto %s, publicado %s.',
+                $decision['motivo'],
+                number_format($precio, 2, ',', '.'),
+                $decision['precio_publicado'] === null ? 'desconocido' : number_format($decision['precio_publicado'], 2, ',', '.'),
+            ),
+            'usuario_id' => auth()->id(),
+        ]);
+    }
+
+    /** Cierra la retención sin resolver de un vínculo, si tiene alguna. */
+    private function cerrarRetencionAbierta(MercadoLibrePublicacionProducto $vinculo, string $estado): void
+    {
+        MercadoLibreRetencionPrecio::where('ml_publicacion_producto_id', $vinculo->getKey())
+            ->abiertas()
+            ->update(['estado' => $estado, 'resuelta_en' => now()]);
     }
 
     /**
