@@ -1075,6 +1075,62 @@ no marca nada, así que un cambio que ocurra únicamente ahí no dispara sincron
 
 *Fuente(s): `specs/013-stock-mercadolibre/`, `specs/035-sincronizacion-forzada-vinculaciones/`, `specs/063-ml-cancelaciones-avisos/`*
 
+### 3.2.ter.quinquies Cada publicación cotiza por **su** lista (incidente del 25/08/2026)
+
+Mercado Libre cobra distinta comisión según el tipo de publicación, y por eso el CRM maneja **dos**
+listas de precios (spec 050), configurables en la pantalla de la integración:
+
+```
+gold_special  (Clásica)   →  lista_precio_id            "ML"
+gold_pro      (Premium)   →  lista_precio_id_premium    "ML Premium"   ≈ ML × 1,4535
+```
+
+`SincronizadorPrecios::resolverListaPrecio()` es **el único lugar** donde se decide qué lista le
+corresponde a un vínculo. Todo camino que empuje precios tiene que pasar por ahí.
+
+**Qué pasó.** `PrecioProductoObserver` no lo hacía: miraba sólo la lista general y le mandaba ese
+precio a *todos* los vínculos del producto. Una importación masiva del 25/08 cambió la lista general
+y dejó **18 publicaciones Premium publicadas un 31% por debajo** de su precio real, durante 30 horas.
+No se vendió ninguna, pero por rotación baja —tapas de inodoro y repuestos—, no por ninguna barrera
+del sistema. Corregido el 26/08; regresión fijada en
+`tests/Feature/Integraciones/PrecioProductoObserverPremiumTest.php`.
+
+**Por qué fue invisible.** Mercado Libre acepta una **baja** de precio sin chistar: la publicación
+queda activa, sin error y con `precio_pendiente = 0`, o sea marcada como sincronizada correctamente.
+No hay forma de detectarlo desde el CRM: **sólo se ve comparando contra la API**, y comparando cada
+publicación contra la lista que le toca por tipo (compararlas todas contra la lista general muestra
+a las 30 Premium como desfasadas y esconde el problema real).
+
+**Dos resquicios que quedan abiertos, por diseño:**
+
+- Una publicación Premium **sin precio en la lista Premium** cae a la lista general (spec 050,
+  FR-008). Es la misma consecuencia económica, pero deliberada: la alternativa es no publicar precio.
+  Al 26/08/2026 no hay ninguna en esa situación.
+- Un vínculo **recién creado no tiene `listing_type_id`** hasta que corre la sincronización de tipos,
+  y hasta entonces se lo trata como Clásico. Si es Premium, en esa ventana recibe el precio Clásico.
+
+### 3.2.ter.sexies El CRM publica cualquier precio, por absurdo que sea
+
+**No hay ninguna validación de magnitud antes de empujar un precio a Mercado Libre.** Si el CRM tiene
+un precio mal, lo publica.
+
+Quedó demostrado el 26/08/2026: la migración del 06/08 leyó la columna de la lista `ML` con el punto
+como separador decimal —"262.252,00" entró como **262,26**— y dejó **146 productos con el precio
+dividido por 1000**. El CRM intentó publicar $262 por un producto de $262.252 y lo único que lo frenó
+fue la validación de **Mercado Libre**, que rechazó el importe con `Validation error`. Del lado del
+CRM no hubo ninguna alarma: los vínculos quedaron seis meses en `precio_pendiente = 1` sin que nadie
+lo mirara.
+
+La lección incómoda: **la red de contención fue de Mercado Libre, no nuestra**. Un error más chico
+—dividir por 10, o el 31% del caso Premium— pasa el filtro de ML y se publica.
+
+Corregido con `php artisan precios:corregir-escala-ml`, que copia el valor de la lista Tiendanube
+—idéntica a `ML` en 8.695 de 9.034 productos, mientras que `ML Sugerido` es un precio distinto en el
+100% de los casos sanos— y exige que una segunda lista lo confirme.
+
+**Pendiente, sin spec todavía**: un corte de seguridad que frene un envío cuando el precio nuevo se
+aparta de lo razonable respecto del anterior, y un chequeo periódico CRM ↔ API por lista.
+
 ### 3.2.quater Tiendanube (`/ingresos/tiendanube`) — spec 017
 
 Entrada **condicional** del menú Ingresos: aparece sólo cuando la función avanzada "Tiendanube" está
@@ -1775,6 +1831,13 @@ numeración local (`tipo_comprobante`/`nro_comprobante`) sin validez fiscal, igu
 | Tiendanube | Configuración de la integración (OAuth 2.1 vía admin-mcp.tiendanube.com, spec 019, corrige a spec 015) + apartado aislado de conexión vía Application REST del Partner Portal (spec 022) — ver §5.3 |
 | Ventas | Valores globales por defecto para "Crear Venta" (Categoría, Vendedor, Lista de Precios, Tipo de Comprobante, días de Vto. de Cobro, **Depósito** — spec 043/049), sección "Presupuestos" (días de Vto. de Validez, spec 044) y sección "Compras" (Categoría de Compra, Tipo de Comprobante, días de Vto. de Pago, **Depósito** — spec 044/049), todo en una misma pantalla/tabla `configuracion_ventas` |
 
+> **Recuperación de contraseña por email (spec 081, 25/08/2026):** desde el login, un link
+> "¿Olvidaste tu contraseña?" abre un modal (email) que dispara el envío de un correo con un link
+> de un solo uso (Password Broker estándar de Laravel, tabla `password_reset_tokens` — ver
+> `docs/modelo_datos.md §1`). La respuesta es siempre el mismo mensaje genérico exista o no la
+> cuenta. Además, desde "Empresa"/perfil, un usuario logueado puede cambiar su propia contraseña
+> sabiendo la actual, vía modal AJAX (sin flujo de email). Ver `specs/081-reset-password-email/`.
+>
 > **Adaptación single-tenant:** este CRM es single-tenant, sin plan contratado ni costo por usuario
 > adicional. Los permisos son **sólo por rol** (el usuario hereda los permisos de sus roles; no hay
 > overrides por usuario), y el admin tiene **CRUD completo de roles** en vez de un catálogo de roles
