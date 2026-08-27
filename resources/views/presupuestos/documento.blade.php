@@ -33,7 +33,7 @@
                         </a>
                     @endif
                     <div class="text-end">
-                        <h4 class="mb-0">PRESUPUESTO {{ $presupuesto->nro_presupuesto }}</h4>
+                        <h4 class="mb-0">PRESUPUESTO {{ $presupuesto->id }}</h4>
                         <div>Fecha de Emisión: {{ optional($presupuesto->fecha_emision)->format('d/m/Y') }}</div>
                     </div>
                 </div>

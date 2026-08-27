@@ -6,7 +6,7 @@
 
         <div class="row align-items-center mb-4">
             <div class="col-sm-8 mb-2">
-                <h4 class="mb-0 text-primary fw-bold">{{ $presupuesto ? 'Editar Presupuesto '.$presupuesto->nro_presupuesto : 'Nuevo Presupuesto' }}</h4>
+                <h4 class="mb-0 text-primary fw-bold">{{ $presupuesto ? 'Editar Presupuesto '.$presupuesto->id : 'Nuevo Presupuesto' }}</h4>
             </div>
             <div class="col-sm-4 mb-2 text-sm-end">
                 <a href="{{ route('presupuestos.index') }}" class="btn btn-light">Cancelar</a>

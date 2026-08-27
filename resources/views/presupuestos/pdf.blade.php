@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Presupuesto {{ $presupuesto->nro_presupuesto }}</title>
+    <title>Presupuesto {{ $presupuesto->id }}</title>
     <style>
         body { font-family: sans-serif; font-size: 12px; color: #222; }
         table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
@@ -22,8 +22,7 @@
 
     <div class="header">
         <div class="datos">
-            <h2>PRESUPUESTO {{ $presupuesto->nro_presupuesto }}</h2>
-            <div>Detalle de Presupuesto: {{ $presupuesto->id }}</div>
+            <h2>PRESUPUESTO {{ $presupuesto->id }}</h2>
             <div>Fecha de Emisión: {{ optional($presupuesto->fecha_emision)->format('d/m/Y') }}</div>
         </div>
     </div>

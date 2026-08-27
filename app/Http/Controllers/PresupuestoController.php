@@ -283,7 +283,7 @@ class PresupuestoController extends Controller
 
         return response()->json([
             'ok' => true,
-            'mensaje' => 'Presupuesto '.$presupuesto->nro_presupuesto.' creado con éxito.',
+            'mensaje' => 'Presupuesto '.$presupuesto->id.' creado con éxito.',
             'presupuesto' => $presupuesto,
             'redirect' => route('presupuestos.show', $presupuesto),
         ], 201);
@@ -352,7 +352,7 @@ class PresupuestoController extends Controller
 
         return response()->json([
             'ok' => true,
-            'mensaje' => 'Presupuesto '.$presupuesto->nro_presupuesto.' actualizado con éxito.',
+            'mensaje' => 'Presupuesto '.$presupuesto->id.' actualizado con éxito.',
             'presupuesto' => $presupuesto->fresh(),
         ]);
     }
@@ -390,7 +390,7 @@ class PresupuestoController extends Controller
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('presupuestos.pdf', compact('presupuesto', 'datosEmpresa'));
 
-        return $pdf->stream('presupuesto-'.$presupuesto->nro_presupuesto.'.pdf', ['Content-Disposition' => 'inline']);
+        return $pdf->stream('presupuesto-'.$presupuesto->id.'.pdf', ['Content-Disposition' => 'inline']);
     }
 
     /** "Crear Venta": convierte el presupuesto (no reconvertible — FR-009) y redirige a Nueva Venta pre-cargada. */
