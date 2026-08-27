@@ -214,8 +214,12 @@ class SincronizadorPrecios
      * precio cargado en la lista Premium configurada, esa; si no —sea porque
      * no es Premium, no hay lista Premium configurada, o no tiene precio
      * ahí— la lista general. Evaluado por publicación individual (FR-011).
+     *
+     * Pública desde el 26/08/2026: `PrecioProductoObserver` la necesita para no empujar el precio
+     * de la lista general a una publicación Premium. Antes resolvía por su cuenta —miraba sólo la
+     * lista general— y una edición masiva de precios le bajó el precio a 18 publicaciones Premium.
      */
-    private function resolverListaPrecio(MercadoLibrePublicacionProducto $vinculo, MercadoLibreConfiguracion $configuracion): ?int
+    public function resolverListaPrecio(MercadoLibrePublicacionProducto $vinculo, MercadoLibreConfiguracion $configuracion): ?int
     {
         if ($vinculo->esPremium() && $configuracion->lista_precio_id_premium && $vinculo->producto) {
             $tienePrecioPremium = $vinculo->producto->precios()

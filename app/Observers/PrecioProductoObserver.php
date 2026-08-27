@@ -127,19 +127,39 @@ class PrecioProductoObserver
         return mb_substr($nombreProducto, 0, max(0, $espacioParaNombre)).$cola;
     }
 
+    /**
+     * Rama Mercado Libre (spec 016, FR-005).
+     *
+     * **Cada publicación cotiza por la lista que le corresponde por tipo** (spec 050): las Premium
+     * (`gold_pro`) por la lista Premium configurada, las Clásicas por la general. Por eso no
+     * alcanza con mirar la lista general y empujarle su precio a todos los vínculos del producto:
+     * el 25/08/2026 una edición masiva de la lista general le bajó el precio a 18 publicaciones
+     * Premium —un 31% por debajo de lo que debían valer— porque este método las trataba a todas
+     * igual. La resolución vive en `SincronizadorPrecios::resolverListaPrecio()`, que es la misma
+     * que usan la corrida manual y el reintento de pendientes; acá se reusa en vez de duplicarla.
+     */
     private function ramaMercadoLibre(PrecioProducto $precio): void
     {
-        $listaConfigurada = MercadoLibreConfiguracion::actual()->lista_precio_id;
+        $configuracion = MercadoLibreConfiguracion::actual();
+        $listas = array_filter([$configuracion->lista_precio_id, $configuracion->lista_precio_id_premium]);
 
-        if (! $listaConfigurada || (int) $precio->lista_precio_id !== (int) $listaConfigurada) {
+        if (! in_array((int) $precio->lista_precio_id, array_map('intval', $listas), true)) {
             return;
         }
 
-        $vinculos = MercadoLibrePublicacionProducto::where('producto_id', $precio->producto_id)->get();
+        $sincronizador = app(SincronizadorPreciosMercadoLibre::class);
+        $vinculos = MercadoLibrePublicacionProducto::with('producto')
+            ->where('producto_id', $precio->producto_id)
+            ->get();
 
         foreach ($vinculos as $vinculo) {
-            DB::afterCommit(function () use ($vinculo, $precio) {
-                app(SincronizadorPreciosMercadoLibre::class)->enviarUno($vinculo, (float) $precio->precio);
+            // Un cambio en la lista general no toca a una publicación Premium, y viceversa.
+            if ($sincronizador->resolverListaPrecio($vinculo, $configuracion) !== (int) $precio->lista_precio_id) {
+                continue;
+            }
+
+            DB::afterCommit(function () use ($sincronizador, $vinculo, $precio) {
+                $sincronizador->enviarUno($vinculo, (float) $precio->precio);
             });
         }
     }
