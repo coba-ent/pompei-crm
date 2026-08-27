@@ -828,6 +828,7 @@ Registro **único** (single-tenant) con los datos de la aplicación creada en el
 | site_id | string(5), default `MLA` | Sitio de operación |
 | modo_solo_lectura | boolean, default false | Kill-switch: bloquea toda escritura hacia Mercado Libre |
 | umbral_caida_precio_pct | decimal(5,2), default `20.00` | **Columna nueva (spec 084)**: caída porcentual máxima que se publica sin aprobación. Rango 0–100. `0` retiene toda bajada; `100` no retiene por porcentaje pero **sigue** reteniendo precio ≤ 0 y precio publicado desconocido — no es un interruptor de apagado |
+| corte_precios_activo | boolean, default `false` | **Columna nueva (spec 084)**: prende el corte. Nace **apagada** y es imprescindible que así sea: con `ml_publicacion_producto.precio_publicado` en `null` —el estado de todas las publicaciones el día del deploy— el corte retendría absolutamente todo. Se prende recién después de poblar esa columna con `ml:chequear-precios --refrescar-publicado`. No es un kill-switch para cuando el corte moleste; para eso está el umbral |
 | actualizada_por | FK → usuarios, nullable | |
 
 Cambiar `client_id`/`client_secret` con una cuenta vinculada invalida esa vinculación (estado `caida`).

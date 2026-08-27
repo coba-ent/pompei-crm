@@ -1164,9 +1164,14 @@ y cuántas quedarían retenidas.
 publicación contra la lista que le toca **por tipo**; comparar todo contra la lista general produce
 30 falsos positivos sobre 270 y vuelve inservible el panel. Es de sólo lectura: informa, no corrige.
 
-**Orden de activación, no negociable**: migrar → correr el chequeo con `--refrescar-publicado` para
-poblar `precio_publicado` → verificar que las 270 lo tienen → recién ahí activar el corte. Saltear
-el poblado hace que el corte retenga todo el primer día.
+**Orden de activación, no negociable**: migrar → correr `php artisan ml:chequear-precios
+--refrescar-publicado` para poblar `precio_publicado` → verificar en el monitoreo que las 270 lo
+tienen → recién ahí prender el interruptor. El corte **nace apagado**
+(`ml_configuracion.corte_precios_activo = false`) justamente para que ese orden no se pueda saltear:
+con `precio_publicado` vacío retendría todo el primer día y la reacción natural sería desactivarlo.
+
+⚠️ **Ese interruptor no es una perilla para cuando el corte moleste** — para eso está el umbral. Si
+se apaga, el CRM vuelve a publicar cualquier precio sin validar, que es el estado del 25/08/2026.
 
 **Brecha conocida**: Tiendanube comparte la exposición de publicar cualquier precio sin validar. No
 tiene el problema de las dos listas (usa una sola) y no causó incidentes, pero queda fuera de la
