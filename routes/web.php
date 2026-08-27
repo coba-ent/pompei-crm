@@ -271,6 +271,10 @@ Route::middleware('auth')->group(function () {
         Route::post('transferencias', [TesoreriaController::class, 'transferir'])->name('transferencias.store');
 
         Route::post('cuentas', [CuentaTesoreriaController::class, 'store'])->name('cuentas.store');
+        // Reordenar cuentas de un bloque (spec 085). Va ANTES de `cuentas/{cuenta}` para que
+        // un futuro PATCH con parámetro no capture `orden` como si fuera un id. Eleva el
+        // permiso del grupo (`tesoreria.ver`) a `tesoreria.editar`: reordenar escribe.
+        Route::patch('cuentas/orden', [TesoreriaController::class, 'reordenarCuentas'])->middleware('permiso:tesoreria.editar')->name('cuentas.orden');
         Route::get('cuentas/{cuenta}', [CuentaTesoreriaController::class, 'show'])->name('cuentas.show');
         Route::get('cuentas/{cuenta}/data', [CuentaTesoreriaController::class, 'data'])->name('cuentas.data');
         Route::get('cuentas/{cuenta}/export', [CuentaTesoreriaController::class, 'export'])->name('cuentas.export');

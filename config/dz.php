@@ -151,6 +151,9 @@ return [
 				'vendor/datatables/js/buttons.colVis.min.js',
 				'vendor/toastr/js/toastr.min.js',
 				'vendor/select2/js/select2.full.min.js',
+				// jQuery UI: dependencia de sortable(), el drag & drop que reordena las cuentas
+				// dentro de cada bloque del modal de configuración (spec 085).
+				'vendor/jqueryui/js/jquery-ui.min.js',
 				'js/custom.js',
 			],
 		],

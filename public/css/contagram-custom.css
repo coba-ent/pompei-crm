@@ -1046,3 +1046,49 @@ table.dataTable > thead > tr > td {
     font-variant-numeric: tabular-nums;
     text-align: right;
 }
+
+/* ==========================================================================
+   Tesorería — reordenamiento de cuentas por drag & drop (spec 085)
+   ========================================================================== */
+
+/* Columna del handle: sólo tiene que alcanzar para el icono. */
+.cuenta-handle-col {
+    width: 28px;
+    padding-right: 0;
+    text-align: center;
+}
+
+/* El handle no es un botón "de acción": no compite visualmente con el lápiz de
+   editar. Sin borde ni fondo, color apagado, y el cursor cuenta la historia. */
+button.js-mover-cuenta {
+    border: 0;
+    background: none;
+    padding: 0 .25rem;
+    line-height: 1;
+    color: #a1a5b7;
+    cursor: grab;
+}
+
+button.js-mover-cuenta:hover {
+    color: #6c757d;
+}
+
+button.js-mover-cuenta:active {
+    cursor: grabbing;
+}
+
+/* El handle también se opera con teclado (ArrowUp/ArrowDown): el foco tiene que
+   verse, si no la navegación por tab queda a ciegas. */
+button.js-mover-cuenta:focus-visible {
+    outline: 2px solid #4361ee;
+    outline-offset: 2px;
+    border-radius: 3px;
+}
+
+/* Fila fantasma que marca dónde va a caer la fila arrastrada. Necesita alto
+   propio porque un <tr> vacío colapsa a 0 y el hueco no se vería. */
+tr.cuenta-orden-placeholder {
+    height: 34px;
+    background-color: rgba(67, 97, 238, .08);
+    outline: 1px dashed rgba(67, 97, 238, .4);
+}

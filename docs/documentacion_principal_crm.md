@@ -1617,6 +1617,24 @@ Dos **cuentas del sistema** precargadas —"Cheque de Terceros" (A Cobrar) y "Ch
 Pagar)— no editables ni eliminables, para modelar el circuito de cheques. Una cuenta con movimientos
 (más allá de su Saldo Inicial) no se puede eliminar físicamente, sólo ocultar.
 
+**Orden de presentación de las cuentas** (spec 085): cada fila del modal tiene un handle de arrastre
+que permite **reordenar las cuentas dentro de su tipo** por drag & drop. Reglas:
+
+- El arrastre está **acotado al bloque**: no se puede mover una cuenta a otro tipo, porque el tipo
+  determina en qué card aparece y su naturaleza contable. Reordenar nunca cambia el `tipo`.
+- El orden se **persiste al soltar**, sin botón de confirmación, y reasigna `orden = 1..N` a todas
+  las cuentas de ese tipo en una transacción (o se guarda el bloque entero, o nada).
+- Si el conjunto de cuentas del bloque cambió en paralelo desde otra sesión (alta o baja), el
+  guardado se **rechaza entero** y el listado se refresca. El control de concurrencia es la propia
+  comparación de conjuntos: no hay versionado ni marcas de tiempo.
+- Las cuentas **ocultas y las de sistema participan del orden** como cualquier otra.
+- El orden guardado rige en **todos** los listados de cuentas: las cards de Saldos y los selectores
+  de cuenta (Movimiento entre Cuentas, cobros, pagos, gastos), porque todos leen por el mismo scope
+  `ordenadas()`. Las cuentas sin `orden` asignado van al final, con desempate alfabético.
+- También se puede reordenar **por teclado** (flechas arriba/abajo sobre el handle enfocado), con el
+  mismo efecto de guardado.
+- Los bloques **entre sí** no se reordenan: A Cobrar, A Pagar, Cajas y Bancos tienen posición fija.
+
 **Movimiento entre Cuentas** (transferencias internas, partida doble): modal con Fecha, Monto, cuenta
 de salida/entrada (Select2 mostrando el saldo de cada cuenta) y Observación. Genera dos movimientos
 vinculados (egreso + ingreso) en una transacción atómica; el Total Disponible del negocio no cambia.

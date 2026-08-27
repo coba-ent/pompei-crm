@@ -676,7 +676,7 @@ Venta" del listado de Abonos.
 | es_sistema | boolean, default false | true para Cheque de Terceros / Cheque Propio: no editable ni eliminable |
 | saldo_inicial | decimal(14,2), default 0 | monto de apertura; se materializa como movimiento `saldo_inicial` |
 | saldo_inicial_fecha | date, nullable | fecha de apertura del saldo inicial |
-| orden | smallint, nullable | orden de despliegue dentro de su bloque/tipo |
+| orden | smallint, nullable | orden de despliegue dentro de su bloque/tipo. Editable por drag & drop desde el modal de config (spec 085): al reordenar, el bloque entero se reescribe como `1..N` consecutivo en una transacción. Sigue siendo nullable por los tipos nunca reordenados: `scopeOrdenadas()` manda los NULL al final y desempata por `nombre`. Sin unique `(tipo, orden)` — los NULL heredados la harían inaplicable sin migración de datos, y la unicidad la garantiza la reescritura por bloque |
 
 Índices: `index(tipo)`, `index(visible)`.
 

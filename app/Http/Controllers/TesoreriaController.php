@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Exports\Tesoreria\MovimientosExport;
+use App\Http\Requests\ReordenarCuentasRequest;
 use App\Http\Requests\StoreTransferenciaRequest;
 use App\Models\CuentaTesoreria;
 use App\Services\Tesoreria\SeccionesMovimientos;
@@ -10,6 +11,7 @@ use App\Services\Tesoreria\Tesoreria;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
 
 /**
@@ -51,6 +53,49 @@ class TesoreriaController extends Controller
         $cuentas = CuentaTesoreria::orderBy('tipo')->ordenadas()->get();
 
         return response()->json(['data' => $cuentas->groupBy('tipo')]);
+    }
+
+    /**
+     * Reordena las cuentas de un bloque (spec 085, FR-006).
+     *
+     * La comparación de conjunto **es** el control de concurrencia (FR-008). No hay
+     * versionado ni lock: el front manda la lista completa de ids del bloque tal como
+     * la vio, así que si otra sesión creó o borró una cuenta de ese tipo mientras se
+     * arrastraba, el conjunto recibido difiere del real y se rechaza entero con 409.
+     * Un id de otro tipo cae por el mismo chequeo, que es lo que impide que un
+     * reordenamiento cambie el `tipo` de una cuenta. Los tres casos —id ajeno, id
+     * faltante, id sobrante— se cubren con la misma comparación.
+     */
+    public function reordenarCuentas(ReordenarCuentasRequest $request): JsonResponse
+    {
+        $datos = $request->validated();
+        $tipo = $datos['tipo'];
+        $ids = array_map('intval', $datos['ids']);
+
+        $esperados = CuentaTesoreria::porTipo($tipo)->pluck('id')->map('intval')->all();
+
+        sort($esperados);
+        $recibidos = $ids;
+        sort($recibidos);
+
+        if ($esperados !== $recibidos) {
+            return response()->json([
+                'ok' => false,
+                'mensaje' => 'El listado de cuentas cambió mientras reordenabas. Se actualizó la lista, volvé a intentarlo.',
+            ], 409);
+        }
+
+        DB::transaction(function () use ($ids) {
+            foreach ($ids as $i => $id) {
+                CuentaTesoreria::whereKey($id)->update(['orden' => $i + 1]);
+            }
+        });
+
+        return response()->json([
+            'ok' => true,
+            'mensaje' => 'Orden actualizado con éxito.',
+            'saldos' => $this->tesoreria->saldos(),
+        ]);
     }
 
     /** Select2 con saldo por cuenta, para los selectores de transferencia (FR-017). */

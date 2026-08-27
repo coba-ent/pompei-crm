@@ -124,6 +124,7 @@
             cuentasOpciones: @json(route('tesoreria.cuentas.opciones')),
             cuentasStore: @json(route('tesoreria.cuentas.store')),
             cuentasBase: @json(url('tesoreria/cuentas')),
+            cuentasOrden: @json(route('tesoreria.cuentas.orden')),
             cuentaCorrienteClientes: @json(route('informes.cuenta-corriente.index')),
             cuentaCorrienteProveedores: @json(route('informes.cuenta-corriente-proveedores.index')),
             transferenciasStore: @json(route('tesoreria.transferencias.store')),
