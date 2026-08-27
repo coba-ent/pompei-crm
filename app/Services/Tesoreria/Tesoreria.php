@@ -119,7 +119,7 @@ class Tesoreria
      */
     public function saldos(?Carbon $fecha = null): array
     {
-        $cuentas = CuentaTesoreria::visibles()->orderBy('orden')->orderBy('nombre')->get();
+        $cuentas = CuentaTesoreria::visibles()->ordenadas()->get();
 
         $saldosPorCuenta = $cuentas->mapWithKeys(fn (CuentaTesoreria $c) => [$c->id => $c->saldoA($fecha)]);
 

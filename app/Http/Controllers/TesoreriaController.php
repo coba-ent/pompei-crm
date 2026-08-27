@@ -48,7 +48,7 @@ class TesoreriaController extends Controller
     /** Configuración de cuentas (icono de ajustes), agrupada por tipo (FR-009). */
     public function configCuentas(): JsonResponse
     {
-        $cuentas = CuentaTesoreria::orderBy('tipo')->orderBy('orden')->orderBy('nombre')->get();
+        $cuentas = CuentaTesoreria::orderBy('tipo')->ordenadas()->get();
 
         return response()->json(['data' => $cuentas->groupBy('tipo')]);
     }
@@ -60,7 +60,7 @@ class TesoreriaController extends Controller
 
         $cuentas = CuentaTesoreria::visibles()
             ->when($termino, fn ($q) => $q->where('nombre', 'like', "%{$termino}%"))
-            ->orderBy('orden')->orderBy('nombre')
+            ->ordenadas()
             ->get();
 
         return response()->json([
@@ -98,7 +98,7 @@ class TesoreriaController extends Controller
     {
         $CurrentPage = 'tesoreria';
         [$desde, $hasta] = $this->rangoMovimientos($request);
-        $cuentas = CuentaTesoreria::visibles()->orderBy('orden')->orderBy('nombre')->get(['id', 'nombre']);
+        $cuentas = CuentaTesoreria::visibles()->ordenadas()->get(['id', 'nombre']);
 
         return view('tesoreria.movimientos', compact('CurrentPage', 'desde', 'hasta', 'cuentas'));
     }

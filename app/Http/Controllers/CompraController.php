@@ -470,7 +470,7 @@ class CompraController extends Controller
     {
         $CurrentPage = 'compras';
         $compra->load(['items', 'conceptos', 'proveedor.condicionIva', 'categoria', 'pagos.cuentaTesoreria', 'pagos.retenciones', 'comprobanteFiscal', 'notasCreditoDebito.comprobanteFiscal', 'notasCreditoDebito.notaAjustada.comprobanteFiscal', 'remitos.transportista', 'remitos.items', 'creditosRecibidos.origen', 'creditosRecibidos.notaCreditoDebito']);
-        $cuentas = CuentaTesoreria::visibles()->orderBy('orden')->orderBy('nombre')->get();
+        $cuentas = CuentaTesoreria::visibles()->ordenadas()->get();
         $depositos = Deposito::where('activo', true)->orderBy('nombre')->get();
 
         return view('compras.detalle', compact('CurrentPage', 'compra', 'cuentas', 'depositos'));
@@ -497,7 +497,7 @@ class CompraController extends Controller
             'nroComprobante' => $compra->nro_comprobante,
             'total' => (float) $compra->total,
             'aPagar' => $compra->aPagar(),
-            'cuentas' => CuentaTesoreria::visibles()->orderBy('orden')->orderBy('nombre')->get(['id', 'nombre']),
+            'cuentas' => CuentaTesoreria::visibles()->ordenadas()->get(['id', 'nombre']),
         ]);
     }
 

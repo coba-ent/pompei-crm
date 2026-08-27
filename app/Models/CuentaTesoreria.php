@@ -31,6 +31,17 @@ class CuentaTesoreria extends Model
         return $query->where('visible', true);
     }
 
+    /**
+     * Orden de presentación de las cuentas: por el campo `orden` y después por nombre.
+     * Las cuentas sin `orden` cargado (NULL) van al final — en MySQL un NULL ordena
+     * primero, y eso hacía que una cuenta con orden explícito (ej. "Caja del Local")
+     * apareciera última, detrás de todas las que nunca se ordenaron.
+     */
+    public function scopeOrdenadas(Builder $query): Builder
+    {
+        return $query->orderByRaw('orden IS NULL')->orderBy('orden')->orderBy('nombre');
+    }
+
     public function scopePorTipo(Builder $query, string $tipo): Builder
     {
         return $query->where('tipo', $tipo);

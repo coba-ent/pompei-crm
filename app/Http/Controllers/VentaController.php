@@ -65,7 +65,7 @@ class VentaController extends Controller
             'vendedores' => Vendedor::orderBy('nombre')->get(['id', 'nombre']),
             'etiquetas' => Etiqueta::orderBy('nombre')->get(['id', 'nombre']),
             // paraCobrar(): en una cobranza sólo tienen sentido las cuentas donde entra plata.
-            'cuentasTesoreria' => CuentaTesoreria::visibles()->paraCobrar()->orderBy('orden')->orderBy('nombre')->get(['id', 'nombre']),
+            'cuentasTesoreria' => CuentaTesoreria::visibles()->paraCobrar()->ordenadas()->get(['id', 'nombre']),
             'depositos' => Deposito::activos()->orderBy('nombre')->get(['id', 'nombre']),
             'usuarios' => User::orderBy('name')->get(['id', 'name']),
         ]);
@@ -604,7 +604,7 @@ class VentaController extends Controller
     {
         $CurrentPage = 'ventas';
         $venta->load(['items', 'conceptos', 'cliente.condicionIva', 'categoria', 'listaPrecio', 'vendedor', 'etiquetas', 'cobros.cuentaTesoreria', 'comprobanteFiscal', 'notasCreditoDebito.comprobanteFiscal', 'notasCreditoDebito.notaAjustada.comprobanteFiscal', 'remitos.transportista', 'remitos.items', 'mlOrden.items', 'movimientosStock.deposito', 'creditosRecibidos.origen', 'creditosRecibidos.notaCreditoDebito', 'creditosCedidos.destino']);
-        $cuentas = CuentaTesoreria::visibles()->paraCobrar()->orderBy('orden')->orderBy('nombre')->get();
+        $cuentas = CuentaTesoreria::visibles()->paraCobrar()->ordenadas()->get();
         $depositos = Deposito::activos()->orderBy('nombre')->get();
 
         // Depósitos de los que salió el stock de esta Venta (normalmente uno solo).
@@ -711,7 +711,7 @@ class VentaController extends Controller
             'comprobante' => $venta->nro_comprobante,
             'total' => (float) $venta->total,
             'aCobrar' => $venta->aCobrar(),
-            'cuentas' => CuentaTesoreria::visibles()->paraCobrar()->orderBy('orden')->orderBy('nombre')->get(['id', 'nombre']),
+            'cuentas' => CuentaTesoreria::visibles()->paraCobrar()->ordenadas()->get(['id', 'nombre']),
         ]);
     }
 
