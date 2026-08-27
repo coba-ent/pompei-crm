@@ -1128,8 +1128,51 @@ Corregido con `php artisan precios:corregir-escala-ml`, que copia el valor de la
 —idéntica a `ML` en 8.695 de 9.034 productos, mientras que `ML Sugerido` es un precio distinto en el
 100% de los casos sanos— y exige que una segunda lista lo confirme.
 
-**Pendiente, sin spec todavía**: un corte de seguridad que frene un envío cuando el precio nuevo se
-aparta de lo razonable respecto del anterior, y un chequeo periódico CRM ↔ API por lista.
+Eso se resuelve en la **spec 084** (§3.2.ter.septies).
+
+### 3.2.ter.septies Corte de seguridad para las bajadas de precio — spec 084 (especificada)
+
+Respuesta a los dos incidentes de arriba. **Ninguna bajada de precio llega a Mercado Libre sin que
+una persona la haya visto**, y lo que se desfase se ve solo.
+
+**El corte.** Antes de cada envío se compara el precio propuesto contra el **último precio que
+Mercado Libre aceptó** (columna `precio_publicado` del vínculo). Si la caída supera el umbral
+configurado —**20% por defecto**, editable en la pantalla de la integración— no se envía nada: la
+publicación conserva su precio y queda **retenida**, con el propuesto guardado. Se aprueba o se
+rechaza desde Vinculaciones.
+
+Cuatro reglas que definen el comportamiento y conviene no "simplificar":
+
+- **Sólo bajadas.** Una subida nunca se retiene: no hace perder dinero en una venta y retenerlas
+  convertiría cada actualización de lista en una cola de aprobaciones.
+- **El borde**: una caída *igual* al umbral pasa; se retiene lo *mayor*.
+- **Sin referencia se retiene.** Un vínculo sin `precio_publicado` conocido no se publica. Falla
+  cerrado: sin saber qué hay publicado no se puede afirmar que no se está bajando.
+- **El corte vive dentro de `SincronizadorPrecios::enviarUno()`**, que es el único punto que hace el
+  `PUT`. No se replica en los llamadores: replicar una regla en tres lugares fue exactamente la
+  causa del incidente del 25/08.
+
+**"Retenida" no es "pendiente".** `precio_pendiente` significa "hay algo que mandar y no se pudo";
+retenida significa "hay algo que **no se va a mandar** hasta que alguien lo apruebe". Si se
+reusara el mismo campo, el reintento de pendientes publicaría justo lo que hay que frenar.
+
+**Cambiar la lista configurada pide confirmación.** Antes, mover ese select republicaba las 270
+publicaciones al guardar, sin previa ni deshacer. Ahora muestra primero cuántas suben, cuántas bajan
+y cuántas quedarían retenidas.
+
+**Chequeo diario CRM ↔ API**, visible en `/monitoreo` junto al panel de stock. Compara cada
+publicación contra la lista que le toca **por tipo**; comparar todo contra la lista general produce
+30 falsos positivos sobre 270 y vuelve inservible el panel. Es de sólo lectura: informa, no corrige.
+
+**Orden de activación, no negociable**: migrar → correr el chequeo con `--refrescar-publicado` para
+poblar `precio_publicado` → verificar que las 270 lo tienen → recién ahí activar el corte. Saltear
+el poblado hace que el corte retenga todo el primer día.
+
+**Brecha conocida**: Tiendanube comparte la exposición de publicar cualquier precio sin validar. No
+tiene el problema de las dos listas (usa una sola) y no causó incidentes, pero queda fuera de la
+spec 084 y necesita la suya.
+
+*Fuente(s): `specs/084-corte-bajada-precios-ml/`*
 
 ### 3.2.quater Tiendanube (`/ingresos/tiendanube`) — spec 017
 

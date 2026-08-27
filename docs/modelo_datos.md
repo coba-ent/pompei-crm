@@ -46,6 +46,19 @@ modulo (agrupador para la matriz de permisos de la UI de Roles).
 ### `permiso_rol` (pivot)
 rol_id, permiso_id.
 
+### `password_reset_tokens` (spec 081, 25/08/2026)
+Tabla estándar de Laravel (`Illuminate\Auth\Passwords\DatabaseTokenRepository`), sin
+personalización de esquema, para el flujo de recuperación de contraseña por email.
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| email | string, PK | vincula con `usuarios.email` (sin FK formal, igual que el mecanismo estándar de Laravel) |
+| token | string | hash del token enviado por email; nunca se guarda en claro |
+| created_at | timestamp, nullable | usado para calcular expiración (60 min, default de Laravel) |
+
+Un solo registro activo por email — pedir un link nuevo sobreescribe el anterior. Sin soft delete
+(no es documento fiscal/contable; los registros son efímeros por diseño).
+
 ### `notificaciones_leidas` (spec 073, 21/08/2026)
 Única parte **persistida** de las notificaciones de la campanita. No guarda el contenido del aviso:
 sólo que un usuario ya vio un episodio determinado. Las notificaciones en sí se calculan sobre el
@@ -814,6 +827,7 @@ Registro **único** (single-tenant) con los datos de la aplicación creada en el
 | client_secret | text, nullable | **Cifrado** (cast `encrypted`). Nunca se devuelve a la interfaz |
 | site_id | string(5), default `MLA` | Sitio de operación |
 | modo_solo_lectura | boolean, default false | Kill-switch: bloquea toda escritura hacia Mercado Libre |
+| umbral_caida_precio_pct | decimal(5,2), default `20.00` | **Columna nueva (spec 084)**: caída porcentual máxima que se publica sin aprobación. Rango 0–100. `0` retiene toda bajada; `100` no retiene por porcentaje pero **sigue** reteniendo precio ≤ 0 y precio publicado desconocido — no es un interruptor de apagado |
 | actualizada_por | FK → usuarios, nullable | |
 
 Cambiar `client_id`/`client_secret` con una cuenta vinculada invalida esa vinculación (estado `caida`).
@@ -1058,6 +1072,41 @@ publicaciones vinculadas, no sólo hacia una — ver `specs/036-vinculacion-mult
 > producto, spec 036). Mantenido por el comando `mercadolibre:sincronizar-tipos-publicacion` (corrida
 > diaria, independiente de la de stock) y completado al vincular una publicación nueva. Detalle
 > completo en `specs/050-lista-precio-premium-ml/data-model.md`.
+
+> **Columnas nuevas (spec 084, especificada)** — referencia del corte de seguridad de precios:
+> `precio_publicado` (decimal(14,2), nullable — último precio que Mercado Libre **aceptó**, escrito en
+> cada envío exitoso y refrescado por el chequeo diario) y `precio_publicado_en` (timestamp, nullable
+> — cuándo se supo, para ver si el dato quedó viejo). Es la referencia contra la que se mide la caída:
+> `null` significa "no hay referencia" y **retiene el envío**, nunca "publicá igual". No se agrega una
+> columna `retenida`: se deriva de tener una fila `abierta` en `retenciones_precio_ml`, porque un
+> booleano duplicado se desincroniza. **`precio_pendiente` conserva su significado** ("hay algo que
+> mandar y no se pudo") y no se reusa para las retenciones: `enviarPendientes()` reintenta los
+> pendientes, y una retención marcada como pendiente se publicaría sola. Detalle en
+> `specs/084-corte-bajada-precios-ml/data-model.md`.
+
+### `retenciones_precio_ml`
+
+**Tabla nueva (spec 084, especificada)**. Historial de los envíos de precio que el corte frenó. Se
+conservan también las resueltas: la trazabilidad de por qué se frenó y quién decidió qué es un
+requisito, no un extra.
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| ml_publicacion_producto_id | FK → ml_publicacion_producto | La publicación retenida |
+| precio_propuesto | decimal(14,2) | Lo que se iba a publicar |
+| precio_publicado | decimal(14,2), nullable | Contra qué se comparó. `null` si el motivo es `sin_referencia` |
+| caida_pct | decimal(6,2), nullable | Caída porcentual; `null` si no se pudo calcular |
+| lista_precio_id | FK → listas_precio | Qué lista originó la propuesta (deja ver si vino de la general o de la Premium) |
+| motivo | enum | `supera_umbral` / `precio_invalido` / `sin_referencia` |
+| umbral_pct | decimal(5,2) | El umbral **vigente al retener**, copiado a propósito: si después se cambia, la retención vieja tiene que seguir explicándose sola |
+| estado | enum | `abierta` / `aprobada` / `rechazada` / `reemplazada` |
+| resuelta_en / resuelta_por_id | timestamp, FK → usuarios, nullable | `resuelta_por_id` queda en `null` cuando la resolvió el sistema (`reemplazada`) |
+| precio_enviado | decimal(14,2), nullable | Lo que finalmente se publicó al aprobar. Puede diferir de `precio_propuesto`: se envía el **vigente** de la lista, no el congelado |
+
+**A lo sumo una fila `abierta` por publicación**, garantizado en la base con una columna generada más
+un índice único (MariaDB no tiene índices únicos parciales). La regla vive en el esquema y no sólo en
+el código, porque es la que impide que dos retenciones se pisen. Sin soft delete: no es un documento
+fiscal, el historial se conserva por `estado`.
 
 > **Columnas nuevas (spec 065, implementada)** — tipo de logística por vínculo, para distinguir las
 > publicaciones **Full** (mercadería en el centro de distribución de Mercado Libre) de las de
