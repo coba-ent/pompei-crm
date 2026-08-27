@@ -3,7 +3,7 @@
 
 Hola {{ $nombre }},
 
-Recibimos un pedido para restablecer la contraseña de tu cuenta en Contagram CRM.
+Recibimos un pedido para restablecer la contraseña de tu cuenta en {{ config('app.name') }}.
 
 <x-mail::button :url="$url">
 Definir nueva contraseña

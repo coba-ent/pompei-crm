@@ -20,6 +20,10 @@ use Illuminate\Support\Facades\DB;
  * ignora, y el día que aparezca uno verdadero nadie lo va a ver. Está prohibido reimplementar la
  * resolución acá: una segunda definición que se desactualice reproduce la causa raíz del incidente.
  *
+ * **Las promociones no son desfasajes.** Cuando hay una promoción, Mercado Libre devuelve el precio
+ * de lista en `original_price` y el cobrado en `price`. Se compara contra el de lista —que es el que
+ * publica el CRM— y las promociones se informan aparte, para que se vean sin ensuciar el conteo.
+ *
  * **Es de sólo lectura hacia Mercado Libre**: informa, no corrige (FR-027). Lo único que escribe es
  * `precio_publicado` en la base, y sólo cuando se le pide — que es como se hace el backfill previo
  * a activar el corte (research.md Decisión 5).
@@ -43,6 +47,7 @@ class ChequeoPreciosPublicados
         $diferencias = [];
         $retenidas = [];
         $noVerificables = [];
+        $promociones = [];
         $premiumSinPrecio = [];
         $sinTipo = [];
 
@@ -60,7 +65,7 @@ class ChequeoPreciosPublicados
                 $premiumSinPrecio[] = $this->fila($vinculo);
             }
 
-            $respuesta = $this->cliente->obtener('verificar_precio', "/items/{$vinculo->ml_item_id}?attributes=id,price,status");
+            $respuesta = $this->cliente->obtener('verificar_precio', "/items/{$vinculo->ml_item_id}?attributes=id,price,original_price,status");
 
             if ($respuesta->fallo() || ! isset($respuesta->datos['price'])) {
                 // Nunca se cuenta como coincidente (FR-024): "no pude verificar" y "está bien" son
@@ -72,8 +77,28 @@ class ChequeoPreciosPublicados
                 continue;
             }
 
-            $enMl = round((float) $respuesta->datos['price'], 2);
+            // `price` es lo que se cobra hoy; `original_price` aparece SÓLO cuando hay una
+            // promoción y guarda el precio de lista. El CRM publica el de lista, así que comparar
+            // contra `price` marcaría como desfasada cada publicación en promoción — el mismo tipo
+            // de falso positivo que la comparación por tipo de publicación (Decisión 9), y con el
+            // mismo efecto: un panel con ruido que se deja de mirar.
+            $cobrado = round((float) $respuesta->datos['price'], 2);
+            $original = isset($respuesta->datos['original_price'])
+                ? round((float) $respuesta->datos['original_price'], 2)
+                : null;
+            $enMl = $original ?? $cobrado;
 
+            if ($original !== null && $original > 0) {
+                $promociones[] = $this->fila($vinculo) + [
+                    'precio_lista' => $original,
+                    'precio_con_descuento' => $cobrado,
+                    'descuento_pct' => round((1 - $cobrado / $original) * 100, 2),
+                ];
+            }
+
+            // La referencia del corte es el precio de LISTA, no el promocional: si se guardara el
+            // de la promoción, al terminarse la promo el CRM vería una "subida" y, peor, una bajada
+            // real posterior se mediría contra un piso artificialmente bajo.
             if ($refrescarPublicado) {
                 $vinculo->update(['precio_publicado' => $enMl, 'precio_publicado_en' => now()]);
             }
@@ -115,10 +140,12 @@ class ChequeoPreciosPublicados
                 'difieren' => count($diferencias),
                 'retenidas' => count($retenidas),
                 'no_verificables' => count($noVerificables),
+                'en_promocion' => count($promociones),
             ],
             'diferencias' => $diferencias,
             'retenidas' => $retenidas,
             'no_verificables' => $noVerificables,
+            'promociones' => $promociones,
             'advertencias' => [
                 'premium_sin_precio_en_su_lista' => $premiumSinPrecio,
                 'sin_tipo_de_publicacion' => $sinTipo,

@@ -280,6 +280,7 @@
             ['Difieren', r.difieren, r.difieren > 0 ? 'danger' : 'secondary'],
             ['Retenidas', r.retenidas, r.retenidas > 0 ? 'warning' : 'secondary'],
             ['No verificables', r.no_verificables, r.no_verificables > 0 ? 'warning' : 'secondary'],
+            ['En promoción', r.en_promocion || 0, 'info'],
         ];
 
         $resumen.removeClass('d-none').html(tarjetas.map(function (t) {
@@ -330,6 +331,8 @@
             'No reciben precio hasta que se sepa si son Premium o Clásicas.');
         listar(resp.no_verificables, 'Publicaciones que no se pudieron verificar', 'secondary',
             'Mercado Libre no devolvió su precio. No se cuentan como correctas.');
+        listar(resp.promociones, 'Publicaciones con promoción activa', 'info',
+            'Mercado Libre cobra menos que el precio de lista. No es un desfasaje: el precio de lista coincide con el del CRM.');
 
         $avisos.html(avisos.join(''));
     }

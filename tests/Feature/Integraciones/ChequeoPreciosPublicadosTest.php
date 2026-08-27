@@ -168,6 +168,39 @@ class ChequeoPreciosPublicadosTest extends TestCase
         $this->assertCount(1, $r['advertencias']['sin_tipo_de_publicacion']);
     }
 
+    /**
+     * Una publicación en promoción NO está desfasada: Mercado Libre cobra menos pero el precio de
+     * lista sigue siendo el del CRM. Caso real del 27/08/2026 — un 5% de descuento hizo que el
+     * chequeo la reportara como diferencia el mismo día de su estreno.
+     */
+    public function test_una_promocion_no_se_reporta_como_desfasaje(): void
+    {
+        $this->publicacion('MLA-PROMO', 'gold_special', general: 34_409.77, premium: null);
+
+        Http::fake([
+            'api.mercadolibre.com/items/MLA-PROMO*' => Http::response([
+                'id' => 'MLA-PROMO',
+                'price' => 32_689.28,
+                'original_price' => 34_409.77,
+                'status' => 'active',
+            ], 200),
+        ]);
+
+        $r = app(ChequeoPreciosPublicados::class)->ejecutar(refrescarPublicado: true);
+
+        $this->assertSame(0, $r['resumen']['difieren'], 'El precio de lista coincide: no hay desfasaje.');
+        $this->assertSame(1, $r['resumen']['en_promocion']);
+        $this->assertEqualsWithDelta(5.00, $r['promociones'][0]['descuento_pct'], 0.01);
+
+        $this->assertEqualsWithDelta(
+            34_409.77,
+            (float) MercadoLibrePublicacionProducto::where('ml_item_id', 'MLA-PROMO')->value('precio_publicado'),
+            0.01,
+            'La referencia del corte es el precio de LISTA: guardar el promocional dejaría un piso '.
+            'artificialmente bajo contra el que medir la próxima bajada.',
+        );
+    }
+
     /** El backfill previo a activar el corte (Decisión 5). */
     public function test_refrescar_publicado_puebla_la_referencia_del_corte(): void
     {

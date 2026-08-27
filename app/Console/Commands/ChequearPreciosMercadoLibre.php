@@ -50,9 +50,22 @@ class ChequearPreciosMercadoLibre extends Command
         $r = $resultado['resumen'];
 
         $this->info(sprintf(
-            'Verificadas %d — coinciden %d, difieren %d, retenidas %d, no verificables %d.',
+            'Verificadas %d — coinciden %d, difieren %d, retenidas %d, no verificables %d, en promoción %d.',
             $r['verificadas'], $r['coinciden'], $r['difieren'], $r['retenidas'], $r['no_verificables'],
+            $r['en_promocion'] ?? 0,
         ));
+
+        if (($resultado['promociones'] ?? []) !== []) {
+            $this->newLine();
+            $this->line('Publicaciones con promoción activa (no son desfasajes: el precio de lista coincide):');
+            foreach ($resultado['promociones'] as $p) {
+                $this->line(sprintf('  %-14s %-40s  lista %s → se cobra %s  (−%s%%)',
+                    $p['ml_item_id'], mb_substr((string) $p['producto'], 0, 40),
+                    number_format($p['precio_lista'], 2, ',', '.'),
+                    number_format($p['precio_con_descuento'], 2, ',', '.'),
+                    number_format($p['descuento_pct'], 2, ',', '.')));
+            }
+        }
 
         if ($resultado['diferencias'] !== []) {
             $this->newLine();

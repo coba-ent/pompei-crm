@@ -26,8 +26,8 @@ class ResetPasswordNotification extends Notification implements ShouldQueue
         ], false));
 
         return (new MailMessage)
-            ->subject('Recuperación de contraseña — Contagram CRM')
-            ->view('emails.reset-password', [
+            ->subject('Recuperación de contraseña')
+            ->markdown('emails.reset-password', [
                 'url' => $url,
                 'nombre' => $notifiable->name,
             ]);
