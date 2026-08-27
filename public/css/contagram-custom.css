@@ -181,6 +181,9 @@
 .deznav .metismenu > li.mm-active > a {
     background-color: var(--primary);
     color: #fff;
+    margin: 0 0.625rem;
+    width: calc(100% - 1.25rem);
+    border-radius: 0.5rem;
 }
 
 .deznav .metismenu > li.mm-active > a g [fill],
@@ -189,7 +192,7 @@
 }
 
 .deznav .metismenu > li.mm-active > a:before {
-    background-color: #fff;
+    content: none;
 }
 
 .deznav .metismenu ul a:hover,
@@ -197,8 +200,24 @@
     color: #28ACE3;
 }
 
-.deznav .metismenu ul a.mm-active {
+.deznav .metismenu ul li:has(> a.mm-active) {
     background-color: var(--primary);
+    color: #fff;
+    margin: 0 0.625rem;
+    width: calc(100% - 1.25rem);
+    border-radius: 0.5rem;
+}
+
+.deznav .metismenu ul li:has(> a.mm-active) > a.mm-active {
+    color: #fff;
+}
+
+.deznav .metismenu ul a.mm-active:before {
+    content: none;
+}
+
+.deznav .metismenu ul li:has(> a.mm-active) .menu-crear-btn,
+.deznav .metismenu ul li:has(> a.mm-active) .menu-crear-btn i {
     color: #fff;
 }
 
