@@ -223,6 +223,7 @@ Actualizar al terminar cada uno. El corte es `movimientos_stock.id`.
 
 | Fecha | Corte | Resultado |
 |---|---|---|
+| 27/08/2026 | 1024 | 100 líneas, 0 problemas. 268/270 alineadas con ML y **267/270 en precio**. Las mismas 3 `under_review` en las dos cosas: es moderación de ML, no del CRM. Los 10 ajustes manuales sin descripción de Pompei1 son **armado de kits** (−5/−6 de la grifería 24613 y del mixer 36317 contra +5/+6 del Kit Arizona 43005 y del combo 12700): correcto, sólo sin documentar. Los netos que no cierran en 27198 y 43005 son eso mismo más las ediciones de la venta 22416 (el trabajo abierto de JPD). |
 | 24/08/2026 | 792 | 28 ventas, 35 líneas, 0 problemas; el neto por producto cierra en los 31 del período. 268/270 alineadas con ML. Movida fuerte de compras: +147 unidades en 27 entradas. |
 | 21/08/2026 | 597 | 25 ventas, 36 líneas, 0 problemas. 268/270 alineadas con ML. La venta 24594 se anuló entera con la NC 854 y repuso en Local, el depósito correcto: el fix `3e3bc49` funcionando con un caso real. Panel `/monitoreo` en producción. |
 | 20/08/2026 (10:13) | 542 | 1 venta, 0 problemas. 268/270 alineadas con ML. Sin ventas Full todavía: el fix `2696f0a` sigue sin probarse con una venta real. |
