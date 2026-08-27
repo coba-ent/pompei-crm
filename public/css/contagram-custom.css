@@ -13,12 +13,9 @@
  *  - Azul oscuro → --primary GLOBAL: botones, links, hover/active genéricos,
  *    topbar (--headerbg). Reemplaza el celeste-azulado (#1D69D6) que traía
  *    el template.
- *  - Celeste → NO toca --primary. Se usa puntualmente en 3 lugares:
+ *  - Celeste → NO toca --primary. Se usa puntualmente en 2 lugares:
  *    1) Íconos de la topbar (campana/sobre/pantalla completa).
- *    2) Hover/active del ítem de menú en el sidebar (en vez de heredar el
- *       --primary navy, para diferenciar "dónde estoy parado" del resto de
- *       la UI).
- *    3) Botones/textos "secundarios": mapeado sobre el --bs-info de
+ *    2) Botones/textos "secundarios": mapeado sobre el --bs-info de
  *       Bootstrap (2AA3E7 → 28ACE3), porque ya es la variante que usan
  *       algunas pantallas para acciones secundarias (`text-info`,
  *       `btn-outline-info`, iconos `text-info`, etc. — ver clientes/index).
@@ -166,31 +163,43 @@
     color: #fff;
 }
 
-/* Sidebar — hover/active en celeste (no hereda el --primary navy global,
- * para diferenciar "sección activa" del resto de la UI). Mismos selectores
- * que usa el template en `style.css` (misma especificidad); como este
- * archivo se carga después, gana por orden en la cascada — sin !important. */
+/* Sidebar — ítem activo con fondo azul oscuro (--primary) sólido, texto e
+ * ícono en blanco y borde también blanco. El hover (sin estar activo) se
+ * mantiene en celeste, como distinción intermedia. Mismos selectores que
+ * usa el template en `style.css` (misma especificidad); como este archivo
+ * se carga después, gana por orden en la cascada — sin !important. */
 .deznav .metismenu > li:hover > a,
-.deznav .metismenu > li:focus > a,
-.deznav .metismenu > li.mm-active > a {
+.deznav .metismenu > li:focus > a {
     color: #28ACE3;
 }
 
 .deznav .metismenu > li:hover > a g [fill],
-.deznav .metismenu > li:focus > a g [fill],
-.deznav .metismenu > li.mm-active > a g [fill],
-.deznav .metismenu > li.mm-active > a .menu-icon svg path {
+.deznav .metismenu > li:focus > a g [fill] {
     fill: #28ACE3;
 }
 
+.deznav .metismenu > li.mm-active > a {
+    background-color: var(--primary);
+    color: #fff;
+}
+
+.deznav .metismenu > li.mm-active > a g [fill],
+.deznav .metismenu > li.mm-active > a .menu-icon svg path {
+    fill: #fff;
+}
+
 .deznav .metismenu > li.mm-active > a:before {
-    background-color: #28ACE3;
+    background-color: #fff;
 }
 
 .deznav .metismenu ul a:hover,
-.deznav .metismenu ul a:focus,
-.deznav .metismenu ul a.mm-active {
+.deznav .metismenu ul a:focus {
     color: #28ACE3;
+}
+
+.deznav .metismenu ul a.mm-active {
+    background-color: var(--primary);
+    color: #fff;
 }
 
 .deznav .metismenu ul a:hover:before {
