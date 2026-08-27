@@ -60,23 +60,14 @@ class CuentaTesoreriaController extends Controller
     {
         $datos = $request->validated();
 
+        // Sólo nombre y visibilidad. El saldo inicial y su fecha NO se tocan al editar:
+        // son datos de apertura y reescribirlos mueve el saldo de una cuenta ya
+        // conciliada (ver el docblock de UpdateCuentaTesoreriaRequest). El movimiento
+        // de Saldo Inicial, por lo tanto, queda intacto: acá no se lo toca.
         $cuenta->update([
             'nombre' => $datos['nombre'],
-            'saldo_inicial' => (float) ($datos['saldo_inicial'] ?? 0),
-            'saldo_inicial_fecha' => Carbon::parse($datos['saldo_inicial_fecha']),
             'visible' => $request->boolean('visible', $cuenta->visible),
         ]);
-
-        // Mantiene el movimiento "Saldo Inicial" en línea con los datos editados.
-        $movimientoInicial = $cuenta->movimientos()->where('tipo', 'saldo_inicial')->first();
-        if ($movimientoInicial) {
-            $movimientoInicial->update([
-                'monto' => $cuenta->saldo_inicial,
-                'fecha' => $cuenta->saldo_inicial_fecha,
-            ]);
-        } elseif ((float) $cuenta->saldo_inicial != 0) {
-            $this->tesoreria->registrarSaldoInicial($cuenta, (float) $cuenta->saldo_inicial, $cuenta->saldo_inicial_fecha);
-        }
 
         return response()->json(['ok' => true, 'mensaje' => 'Cuenta actualizada.', 'cuenta' => $cuenta->fresh()]);
     }

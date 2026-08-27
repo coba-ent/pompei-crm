@@ -419,8 +419,11 @@
                 $('#modal-cuenta-tesoreria-titulo').text('Editar Cuenta');
                 $('#cuenta-id').val(cuenta.id);
                 $('#cuenta-nombre').val(cuenta.nombre);
-                $('#cuenta-saldo-inicial').val(cuenta.saldo_inicial);
-                AppFecha.set($('#cuenta-saldo-inicial-fecha'), cuenta.saldo_inicial_fecha);
+                // Editar cambia nombre y visibilidad, nada más: el saldo inicial y su fecha
+                // son datos de apertura y no se retocan. Se saca el `required` del input al
+                // ocultarlo, si no el navegador bloquea el submit sobre un campo invisible.
+                $('#cuenta-apertura-wrap').addClass('d-none');
+                $('#cuenta-saldo-inicial-fecha').prop('required', false);
                 $tipoSelect.val(cuenta.tipo).trigger('change.select2').prop('disabled', true);
                 $('#cuenta-visible-wrap').removeClass('d-none');
                 $('#cuenta-visible-mostrar, #cuenta-visible-ocultar').prop('checked', false);
@@ -436,6 +439,8 @@
                 }
             } else {
                 $('#modal-cuenta-tesoreria-titulo').text('Nueva Cuenta');
+                $('#cuenta-apertura-wrap').removeClass('d-none');
+                $('#cuenta-saldo-inicial-fecha').prop('required', true);
                 $('#cuenta-id').val('');
                 $tipoSelect.prop('disabled', false).val('efectivo').trigger('change.select2');
                 $('#cuenta-visible-wrap').addClass('d-none');
@@ -475,18 +480,24 @@
             limpiarErroresCuenta();
 
             const id = $('#cuenta-id').val();
-            const datos = {
-                nombre: $('#cuenta-nombre').val(),
-                tipo: $tipoSelect.val(),
-                saldo_inicial: $('#cuenta-saldo-inicial').val() || 0,
-                saldo_inicial_fecha: AppFecha.get($('#cuenta-saldo-inicial-fecha')),
-            };
 
             let promesa;
             if (id) {
-                datos.visible = $('#cuenta-visible-mostrar').is(':checked') ? 1 : 0;
+                // Editar manda SÓLO nombre y visibilidad. El tipo es inmutable, y el saldo
+                // inicial y su fecha son datos de apertura: mandarlos hacía que el backend
+                // reescribiera el movimiento de Saldo Inicial y moviera el saldo de la cuenta.
+                const datos = {
+                    nombre: $('#cuenta-nombre').val(),
+                    visible: $('#cuenta-visible-mostrar').is(':checked') ? 1 : 0,
+                };
                 promesa = $.ajax({ url: rutas.cuentasBase + '/' + id, method: 'POST', dataType: 'json', data: Object.assign({ _method: 'PUT' }, datos) });
             } else {
+                const datos = {
+                    nombre: $('#cuenta-nombre').val(),
+                    tipo: $tipoSelect.val(),
+                    saldo_inicial: $('#cuenta-saldo-inicial').val() || 0,
+                    saldo_inicial_fecha: AppFecha.get($('#cuenta-saldo-inicial-fecha')),
+                };
                 promesa = $.ajax({ url: rutas.cuentasStore, method: 'POST', dataType: 'json', data: datos });
             }
 

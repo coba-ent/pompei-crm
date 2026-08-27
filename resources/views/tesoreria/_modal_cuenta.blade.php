@@ -1,7 +1,11 @@
 {{--
-    Modal único de alta/edición de cuenta de tesorería (US2). En edición el
-    select Tipo queda deshabilitado (FR-004) y aparecen los radios
-    Mostrar/Ocultar + botón Eliminar; en alta sólo Nombre/Tipo/Saldo/Fecha.
+    Modal único de alta/edición de cuenta de tesorería (US2).
+
+    En ALTA se piden Nombre, Tipo, Saldo Inicial y Fecha.
+    En EDICIÓN sólo quedan Nombre y Visibilidad (+ botón Eliminar): el Tipo se
+    deshabilita (FR-004) y el Saldo Inicial y su Fecha directamente se ocultan
+    —son datos de apertura, y reescribirlos cambia el saldo de una cuenta ya
+    conciliada (ver UpdateCuentaTesoreriaRequest)—.
 --}}
 <div class="modal fade" id="modal-cuenta-tesoreria" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -14,16 +18,19 @@
                 <div class="modal-body">
                     <input type="hidden" id="cuenta-id" name="id">
 
-                    <div class="mb-3">
-                        <label class="form-label">Fecha</label>
-                        <input type="text" class="form-control" id="cuenta-saldo-inicial-fecha" name="saldo_inicial_fecha" required data-fecha-ar>
-                        <div class="invalid-feedback" data-error="saldo_inicial_fecha"></div>
-                    </div>
+                    {{-- Sólo en alta: al editar se oculta entero y no se envía. --}}
+                    <div id="cuenta-apertura-wrap">
+                        <div class="mb-3">
+                            <label class="form-label">Fecha</label>
+                            <input type="text" class="form-control" id="cuenta-saldo-inicial-fecha" name="saldo_inicial_fecha" required data-fecha-ar>
+                            <div class="invalid-feedback" data-error="saldo_inicial_fecha"></div>
+                        </div>
 
-                    <div class="mb-3">
-                        <label class="form-label">Saldo Inicial</label>
-                        <input type="number" step="0.01" class="form-control" id="cuenta-saldo-inicial" name="saldo_inicial" value="0">
-                        <div class="invalid-feedback" data-error="saldo_inicial"></div>
+                        <div class="mb-3">
+                            <label class="form-label">Saldo Inicial</label>
+                            <input type="number" step="0.01" class="form-control" id="cuenta-saldo-inicial" name="saldo_inicial" value="0">
+                            <div class="invalid-feedback" data-error="saldo_inicial"></div>
+                        </div>
                     </div>
 
                     <div class="mb-3">
