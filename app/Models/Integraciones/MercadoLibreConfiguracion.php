@@ -2,8 +2,11 @@
 
 namespace App\Models\Integraciones;
 
+use App\Models\Categoria;
 use App\Models\Deposito;
+use App\Models\ListaPrecio;
 use App\Models\User;
+use App\Models\Vendedor;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -38,7 +41,7 @@ class MercadoLibreConfiguracion extends Model
 
     public function deposito(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\Deposito::class, 'deposito_id');
+        return $this->belongsTo(Deposito::class, 'deposito_id');
     }
 
     /**
@@ -96,24 +99,24 @@ class MercadoLibreConfiguracion extends Model
 
     public function categoriaVenta(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\Categoria::class, 'categoria_venta_id');
+        return $this->belongsTo(Categoria::class, 'categoria_venta_id');
     }
 
     public function vendedor(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\Vendedor::class, 'vendedor_id');
+        return $this->belongsTo(Vendedor::class, 'vendedor_id');
     }
 
     /** Lista de Precios que gestiona los precios de las publicaciones vinculadas (spec 016). */
     public function listaPrecio(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\ListaPrecio::class, 'lista_precio_id');
+        return $this->belongsTo(ListaPrecio::class, 'lista_precio_id');
     }
 
     /** Lista de Precios usada para las publicaciones Premium (`gold_pro`) — spec 050, opcional. */
     public function listaPrecioPremium(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\ListaPrecio::class, 'lista_precio_id_premium');
+        return $this->belongsTo(ListaPrecio::class, 'lista_precio_id_premium');
     }
 
     public static function actual(): self
@@ -121,7 +124,7 @@ class MercadoLibreConfiguracion extends Model
         $configuracion = static::query()->first();
 
         if (! $configuracion) {
-            $configuracion = new static();
+            $configuracion = new static;
             $configuracion->id = 1;
             $configuracion->save();
         }

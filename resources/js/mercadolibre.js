@@ -388,6 +388,10 @@
             if ($('#ml-lista-precio-id-premium').val() !== undefined) {
                 $('#ml-lista-precio-id-premium').val(conf.lista_precio_id_premium || '').trigger('change.select2');
             }
+            if ($('#ml-umbral-caida-precio').length) {
+                $('#ml-umbral-caida-precio').val(conf.umbral_caida_precio_pct ?? 20);
+                $('#ml-corte-precios-activo').prop('checked', !!conf.corte_precios_activo);
+            }
             if ($('#ml-vendedor-id').val() !== undefined) {
                 $('#ml-vendedor-id').val(conf.vendedor_id || '').trigger('change.select2');
                 vendedorPrevio = conf.vendedor_id ? String(conf.vendedor_id) : '';
@@ -467,12 +471,24 @@
                 lista_precio_id_premium: $('#ml-lista-precio-id-premium').val() || null,
                 vendedor_id: $('#ml-vendedor-id').val() || null,
                 dias_primera_sync: $('#ml-dias-primera-sync').val(),
+                umbral_caida_precio_pct: $('#ml-umbral-caida-precio').val(),
+                corte_precios_activo: $('#ml-corte-precios-activo').is(':checked') ? 1 : 0,
             };
 
             const $errorDepositoFull = $('#error-ml-deposito-full-id');
 
             window.AppBtn.loading('#btn-guardar-ventas-ml', true);
             $errorDepositoFull.addClass('d-none').text('');
+            guardarVentas(datos, $errorDepositoFull);
+        });
+
+        /**
+         * spec 084/FR-016 — cambiar la Lista de Precios configurada republica TODAS las
+         * publicaciones. Antes eso pasaba al guardar, sin previa ni deshacer, y un clic equivocado
+         * bajaba el precio de todo el catálogo. Ahora el backend responde 422 con el impacto y acá
+         * se muestra el resumen; sólo se reintenta con `confirma_republicacion` si la persona acepta.
+         */
+        function guardarVentas(datos, $errorDepositoFull) {
             $.ajax({ url: rutas.guardarVentas, method: 'PATCH', dataType: 'json', data: datos })
                 .done(function (resp) {
                     toast('success', resp.mensaje);
@@ -480,6 +496,14 @@
                 })
                 .fail(function (xhr) {
                     const resp = xhr.responseJSON || {};
+
+                    if (resp.requiere_confirmacion && resp.previa) {
+                        window.AppBtn.loading('#btn-guardar-ventas-ml', false);
+                        mostrarPreviaRepublicacion(resp, datos, $errorDepositoFull);
+
+                        return;
+                    }
+
                     // spec 065/FR-017/FR-019: el 422 de "mismo depósito" explica el motivo, así que
                     // se muestra junto al campo además del toast — en el toast solo se pierde.
                     const errorFull = resp.errors && resp.errors.deposito_full_id;
@@ -490,7 +514,46 @@
                     toast('error', errorFull ? errorFull[0] : (resp.message || 'No se pudo guardar la configuración de ventas.'));
                 })
                 .always(function () { window.AppBtn.loading('#btn-guardar-ventas-ml', false); });
-        });
+        }
+
+        /** Modal con los números del impacto. Cancelar no toca ni la configuración ni un solo precio. */
+        function mostrarPreviaRepublicacion(resp, datos, $errorDepositoFull) {
+            const i = resp.previa;
+            const fila = function (etiqueta, valor, clase) {
+                return '<div class="d-flex justify-content-between border-bottom py-1">' +
+                    '<span>' + etiqueta + '</span>' +
+                    '<strong class="' + (clase || '') + '">' + valor + '</strong></div>';
+            };
+
+            let html = '<p>' + resp.mensaje + '</p>' +
+                fila('Publicaciones afectadas', i.publicaciones_afectadas) +
+                fila('Suben de precio', i.suben, 'text-success') +
+                fila('Bajan de precio', i.bajan, i.bajan > 0 ? 'text-danger' : '') +
+                fila('Quedan igual', i.sin_cambio) +
+                fila('Quedarían retenidas para aprobar', i.quedarian_retenidas, i.quedarian_retenidas > 0 ? 'text-warning' : '');
+
+            if (i.sin_precio_en_la_lista > 0) {
+                html += fila('Sin precio en esa lista (no cambian)', i.sin_precio_en_la_lista, 'text-warning');
+            }
+
+            if (i.caida_maxima) {
+                html += '<div class="alert alert-warning mt-3 mb-0 small">' +
+                    'La bajada más grande es del <strong>' + i.caida_maxima.pct + '%</strong> ' +
+                    '(' + i.caida_maxima.ml_item_id + '): de $ ' + i.caida_maxima.de + ' a $ ' + i.caida_maxima.a + '.' +
+                    '</div>';
+            }
+
+            const $modal = $('#modal-previa-republicacion');
+            $modal.find('.js-previa-cuerpo').html(html);
+            const modal = bootstrap.Modal.getOrCreateInstance($modal[0]);
+            modal.show();
+
+            $modal.find('.js-confirmar-republicacion').off('click').on('click', function () {
+                modal.hide();
+                window.AppBtn.loading('#btn-guardar-ventas-ml', true);
+                guardarVentas(Object.assign({}, datos, { confirma_republicacion: 1 }), $errorDepositoFull);
+            });
+        }
 
         // --- Credenciales ---
         $modalCredenciales.on('show.bs.modal', function () {

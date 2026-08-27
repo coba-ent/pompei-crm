@@ -22,9 +22,7 @@ use Illuminate\Support\Facades\DB;
  */
 class PrevisualizadorCambioLista
 {
-    public function __construct(private readonly SincronizadorPrecios $sincronizador)
-    {
-    }
+    public function __construct(private readonly SincronizadorPrecios $sincronizador) {}
 
     /**
      * @return array{publicaciones_afectadas: int, suben: int, bajan: int, sin_cambio: int, quedarian_retenidas: int, sin_precio_en_la_lista: int, caida_maxima: ?array}

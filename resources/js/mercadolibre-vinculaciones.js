@@ -497,4 +497,111 @@
                 });
         });
     }
+    // ====================== PRECIOS RETENIDOS POR EL CORTE (spec 084, US1) ======================
+    //
+    // Cada fila es una bajada de precio que NO se publicó. En Mercado Libre sigue vigente el precio
+    // anterior, así que mientras esto no se resuelva no se está vendiendo barato — pero tampoco se
+    // está aplicando el precio nuevo, y por eso el panel se muestra arriba de todo cuando hay algo.
+    function montarRetenciones() {
+        if (!$('#tabla-retenciones-precio').length || !rutas.retenciones) { return null; }
+
+        const money = (v) => v === null || v === undefined
+            ? '—'
+            : '$ ' + Number(v).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        const tabla = $('#tabla-retenciones-precio').DataTable({
+            processing: true,
+            serverSide: true,
+            responsive: true,
+            searching: false,
+            lengthChange: false,
+            pageLength: 10,
+            ajax: { url: rutas.retenciones },
+            language: { url: '/vendor/datatables/es-AR.json' },
+            columns: [
+                { data: 'ml_item_id', render: (v) => '<code>' + v + '</code>' },
+                { data: 'producto' },
+                { data: 'tipo_publicacion' },
+                { data: 'precio_publicado', className: 'text-end', render: money },
+                {
+                    data: null,
+                    className: 'text-end',
+                    // Si el precio de la lista cambió desde que se retuvo, se muestran los dos: al
+                    // aprobar se publica el VIGENTE, y ver un número y que salga otro sería peor
+                    // que cualquier bug.
+                    render: (fila) => {
+                        const propuesto = money(fila.precio_propuesto);
+                        if (fila.precio_vigente_lista === null
+                            || Math.abs(fila.precio_vigente_lista - fila.precio_propuesto) < 0.005) {
+                            return propuesto;
+                        }
+
+                        return '<span class="text-decoration-line-through text-muted">' + propuesto + '</span><br>' +
+                            '<span class="fw-semibold">' + money(fila.precio_vigente_lista) + '</span>' +
+                            '<br><small class="text-warning">la lista cambió</small>';
+                    },
+                },
+                {
+                    data: 'caida_pct',
+                    className: 'text-end fw-semibold text-danger',
+                    render: (v) => v === null ? '—' : Number(v).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' %',
+                },
+                { data: 'motivo_legible' },
+                {
+                    data: 'id',
+                    orderable: false,
+                    className: 'text-end',
+                    render: (id) => '<button type="button" class="btn btn-sm btn-success js-aprobar-retencion" data-id="' + id + '">Publicar</button> ' +
+                        '<button type="button" class="btn btn-sm btn-outline-secondary js-rechazar-retencion" data-id="' + id + '">Descartar</button>',
+                },
+            ],
+            drawCallback: function (ajuste) {
+                const total = (ajuste.json && ajuste.json.recordsTotal) || 0;
+                $('#card-retenciones-precio').toggleClass('d-none', total === 0);
+                $('#conteo-retenciones-precio').text(total);
+            },
+        });
+
+        const resolver = function (id, accion, cuerpo) {
+            return $.post(rutas.retencionesBase + '/' + id + '/' + accion, cuerpo || {})
+                .done((resp) => {
+                    toast('success', resp.mensaje);
+                    tabla.ajax.reload(null, false);
+                })
+                .fail((xhr) => {
+                    const resp = xhr.responseJSON || {};
+
+                    // FR-014: el precio de la lista cambió desde que se retuvo. Se muestran los dos
+                    // importes y se pide una confirmación explícita antes de publicar el vigente.
+                    if (resp.requiere_confirmacion) {
+                        const ok = window.confirm(
+                            'El precio de la lista cambió desde que se retuvo.\n\n' +
+                            'Se había frenado: ' + money(resp.precio_propuesto) + '\n' +
+                            'Se publicaría ahora: ' + money(resp.precio_vigente_lista) + '\n\n' +
+                            '¿Publicar el precio actual?'
+                        );
+
+                        if (ok) { resolver(id, accion, { confirma_precio_distinto: 1 }); }
+
+                        return;
+                    }
+
+                    toast('error', resp.mensaje || 'No se pudo resolver la retención.');
+
+                    if (xhr.status === 409) { tabla.ajax.reload(null, false); }
+                });
+        };
+
+        $('#tabla-retenciones-precio').on('click', '.js-aprobar-retencion', function () {
+            resolver($(this).data('id'), 'aprobar');
+        });
+
+        $('#tabla-retenciones-precio').on('click', '.js-rechazar-retencion', function () {
+            resolver($(this).data('id'), 'rechazar');
+        });
+
+        return tabla;
+    }
+
+    montarRetenciones();
 })();

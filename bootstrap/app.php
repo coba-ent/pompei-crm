@@ -64,6 +64,14 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('mercadolibre:sincronizar-tipos-publicacion')
             ->everyMinute()
             ->withoutOverlapping();
+
+        // spec 084, US3 — chequeo diario de precios publicados contra el CRM. Es la red que faltó
+        // el 25/08/2026, cuando 18 publicaciones estuvieron 30 horas un 31% por debajo de su precio
+        // sin que nada avisara. Sólo lectura hacia Mercado Libre, y de madrugada porque son ~270
+        // llamadas seguidas que no tienen por qué competir con la operación del día.
+        $schedule->command('ml:chequear-precios')
+            ->dailyAt('04:30')
+            ->withoutOverlapping();
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

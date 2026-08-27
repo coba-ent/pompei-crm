@@ -158,7 +158,14 @@ class MercadoLibreConfiguracionTest extends TestCase
         $this->assertSame(EstadoConexion::Caida, $cuenta->fresh()->estado);
     }
 
-    /** T005 (spec 050, US1): persistencia de la Lista de Precios Premium, opcional. */
+    /**
+     * T005 (spec 050, US1): persistencia de la Lista de Precios Premium, opcional.
+     *
+     * spec 084/FR-016: cambiar una lista republica TODOS los precios en Mercado Libre, así que
+     * ahora hace falta `confirma_republicacion`. Sin él la respuesta es 422 con el impacto — el
+     * caso está cubierto en `RetencionPrecioPantallaTest`. Acá se confirma, porque lo que este
+     * test verifica es la persistencia, no el diálogo.
+     */
     public function test_guarda_y_borra_la_lista_de_precios_premium(): void
     {
         $listaPremium = ListaPrecio::create(['nombre' => 'ML Premium', 'activo' => true]);
@@ -168,6 +175,7 @@ class MercadoLibreConfiguracionTest extends TestCase
             'frecuencia_sync_minutos' => 15,
             'dias_primera_sync' => 30,
             'lista_precio_id_premium' => $listaPremium->id,
+            'confirma_republicacion' => true,
         ]);
 
         $response->assertOk()->assertJsonPath('ok', true);
@@ -181,6 +189,7 @@ class MercadoLibreConfiguracionTest extends TestCase
             'frecuencia_sync_minutos' => 15,
             'dias_primera_sync' => 30,
             'lista_precio_id_premium' => null,
+            'confirma_republicacion' => true,
         ])->assertOk();
 
         $this->assertNull(MercadoLibreConfiguracion::actual()->lista_precio_id_premium);

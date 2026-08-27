@@ -25,9 +25,8 @@ class SincronizadorPrecios
 
     public function __construct(
         private readonly ClienteMercadoLibre $cliente,
-        private readonly EvaluadorCambioPrecio $evaluador = new EvaluadorCambioPrecio(),
-    ) {
-    }
+        private readonly EvaluadorCambioPrecio $evaluador = new EvaluadorCambioPrecio,
+    ) {}
 
     /**
      * Envía el precio vigente de un vínculo puntual. Usado directamente por

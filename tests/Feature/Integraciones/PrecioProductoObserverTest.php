@@ -22,6 +22,12 @@ use Tests\TestCase;
  */
 class PrecioProductoObserverTest extends TestCase
 {
+    // spec 084/FR-029: desde el corte de precios, un vínculo SIN `listing_type_id` no recibe precio
+    // —no se sabe si cotiza por la lista general o por la Premium, y adivinar fue el incidente del
+    // 25/08—. Los vínculos de este test representan publicaciones ya sincronizadas, así que se les
+    // declara el tipo. El caso del vínculo sin tipo tiene su propio test en
+    // `PrecioProductoObserverPremiumTest`.
+
     use RefreshDatabase;
 
     protected function setUp(): void
@@ -52,7 +58,7 @@ class PrecioProductoObserverTest extends TestCase
         MercadoLibreConfiguracion::actual()->update(['lista_precio_id' => $lista->id]);
 
         $producto = Producto::factory()->create();
-        $vinculo = MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA1', 'producto_id' => $producto->id]);
+        $vinculo = MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA1', 'producto_id' => $producto->id, 'listing_type_id' => 'gold_special']);
 
         $producto->precios()->updateOrCreate(['lista_precio_id' => $lista->id], ['precio' => 999.50]);
 
@@ -68,8 +74,8 @@ class PrecioProductoObserverTest extends TestCase
         MercadoLibreConfiguracion::actual()->update(['lista_precio_id' => $lista->id]);
 
         $producto = Producto::factory()->create();
-        $vinculo1 = MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA1', 'producto_id' => $producto->id]);
-        $vinculo2 = MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA2', 'producto_id' => $producto->id]);
+        $vinculo1 = MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA1', 'producto_id' => $producto->id, 'listing_type_id' => 'gold_special']);
+        $vinculo2 = MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA2', 'producto_id' => $producto->id, 'listing_type_id' => 'gold_special']);
 
         $producto->precios()->updateOrCreate(['lista_precio_id' => $lista->id], ['precio' => 777.25]);
 
@@ -97,7 +103,7 @@ class PrecioProductoObserverTest extends TestCase
         MercadoLibreConfiguracion::actual()->update(['lista_precio_id' => $listaConfigurada->id]);
 
         $producto = Producto::factory()->create();
-        MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA1', 'producto_id' => $producto->id]);
+        MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA1', 'producto_id' => $producto->id, 'listing_type_id' => 'gold_special']);
 
         $producto->precios()->updateOrCreate(['lista_precio_id' => $otraLista->id], ['precio' => 999.50]);
 
@@ -109,7 +115,7 @@ class PrecioProductoObserverTest extends TestCase
         $lista = ListaPrecio::create(['nombre' => 'Lista ML', 'activo' => true]);
 
         $producto = Producto::factory()->create();
-        MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA1', 'producto_id' => $producto->id]);
+        MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA1', 'producto_id' => $producto->id, 'listing_type_id' => 'gold_special']);
 
         $producto->precios()->updateOrCreate(['lista_precio_id' => $lista->id], ['precio' => 999.50]);
 
@@ -122,7 +128,7 @@ class PrecioProductoObserverTest extends TestCase
         MercadoLibreConfiguracion::actual()->update(['lista_precio_id' => $lista->id]);
 
         $producto = Producto::factory()->create();
-        $vinculo = MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA1', 'producto_id' => $producto->id]);
+        $vinculo = MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA1', 'producto_id' => $producto->id, 'listing_type_id' => 'gold_special']);
 
         // Mismo camino que ImportadorFilas::crearProducto() (spec de importación):
         // $producto->precios()->create([...]) en vez de updateOrCreate().

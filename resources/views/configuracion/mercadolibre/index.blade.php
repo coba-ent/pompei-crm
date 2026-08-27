@@ -192,6 +192,40 @@
                                 general de arriba.
                             </div>
                         </div>
+                        {{-- Corte de seguridad de precios (spec 084) --}}
+                        <div class="col-12"><hr class="my-2"></div>
+                        <div class="col-md-6">
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" id="ml-corte-precios-activo">
+                                <label class="form-check-label" for="ml-corte-precios-activo">
+                                    Frenar las bajadas de precio grandes
+                                </label>
+                            </div>
+                            <div class="form-text">
+                                Antes de publicar, compara el precio nuevo con el que la publicación tiene hoy
+                                en Mercado Libre. Si la caída es mayor al máximo de al lado, no lo publica y
+                                lo deja para que alguien lo apruebe.
+                                <strong>Activalo recién después de correr el chequeo de precios al menos una
+                                vez</strong>: hasta entonces el CRM no sabe qué precio hay publicado y va a
+                                retener todo.
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Caída máxima sin aprobación</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="ml-umbral-caida-precio" min="0" max="100" step="0.01">
+                                <span class="input-group-text">%</span>
+                            </div>
+                            <div class="form-text">
+                                Con 20%, una bajada del 20% se publica sola y una del 21% queda para aprobar.
+                                Las <strong>subidas</strong> nunca se frenan.
+                                Con <strong>0%</strong> se frena cualquier bajada; con <strong>100%</strong> no
+                                se frena por porcentaje, pero se siguen reteniendo los precios en cero y las
+                                publicaciones cuyo precio publicado el CRM desconoce —
+                                <strong>100% no apaga la protección</strong>, para eso está el interruptor.
+                            </div>
+                        </div>
+
                         <div class="col-12">
                             <div class="text-muted small" id="ml-ultima-sync-info"></div>
                             <div class="text-muted small" id="ml-stock-ultima-sync-info"></div>
@@ -255,6 +289,7 @@
 </div>
 
 @include('configuracion.mercadolibre._modal_credenciales')
+@include('configuracion.mercadolibre._modal_previa_republicacion')
 @include('configuracion.mercadolibre._modal_desconectar')
 @include('configuracion.mercadolibre._modal_reemplazo_cuenta')
 @include('presupuestos._modal_vendedor')

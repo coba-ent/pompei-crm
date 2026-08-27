@@ -2,11 +2,16 @@
 
 namespace App\Http\Controllers\Monitoreo;
 
+use App\Console\Commands\ChequearPreciosMercadoLibre;
 use App\Http\Controllers\Controller;
+use App\Services\MercadoLibre\ChequeoPreciosPublicados;
 use App\Support\Monitoreo\Alertas;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Yajra\DataTables\Facades\DataTables;
 
@@ -356,7 +361,7 @@ class MonitoreoController extends Controller
     // -----------------------------------------------------------------
 
     /** Sin stock en el depósito de Mercado Libre Y en Full, entre los publicados. */
-    private function querySinStock(): \Illuminate\Database\Query\Builder
+    private function querySinStock(): Builder
     {
         return DB::table('productos as p')
             ->join('ml_publicacion_producto as m', 'm.producto_id', '=', 'p.id')
@@ -380,7 +385,7 @@ class MonitoreoController extends Controller
     }
 
     /** Unidades vendidas por producto en los últimos DIAS_VELOCIDAD días, desde movimientos. */
-    private function unidadesVendidasPorProducto(): \Illuminate\Support\Collection
+    private function unidadesVendidasPorProducto(): Collection
     {
         return DB::table('movimientos_stock')
             ->where('deposito_id', $this->alertas->depositoLocal())
@@ -434,5 +439,42 @@ class MonitoreoController extends Controller
         return $fecha
             ? now()->parse($fecha)->timezone(config('app.display_timezone'))->format('d/m H:i')
             : null;
+    }
+
+    /**
+     * Último resultado del chequeo de precios CRM ↔ Mercado Libre (spec 084, US3, FR-022/FR-025).
+     *
+     * Es la red que faltó el 25/08/2026, cuando 18 publicaciones estuvieron 30 horas un 31% por
+     * debajo de su precio sin que nada avisara. Devuelve la foto de la última corrida, o un aviso
+     * de que todavía no corrió — que no es lo mismo que "está todo bien".
+     */
+    public function preciosMercadoLibre(): JsonResponse
+    {
+        $ultimo = Cache::get(ChequearPreciosMercadoLibre::CACHE_KEY);
+
+        if (! $ultimo) {
+            return response()->json([
+                'ok' => true,
+                'corrida_en' => null,
+                'mensaje' => 'El chequeo de precios todavía no corrió.',
+                'resumen' => null,
+                'diferencias' => [],
+                'retenidas' => [],
+                'no_verificables' => [],
+                'advertencias' => ['premium_sin_precio_en_su_lista' => [], 'sin_tipo_de_publicacion' => []],
+            ]);
+        }
+
+        return response()->json(['ok' => true] + $ultimo);
+    }
+
+    /** Ejecuta el chequeo a demanda desde el panel (FR-026). Sólo lectura hacia Mercado Libre. */
+    public function correrChequeoPrecios(ChequeoPreciosPublicados $chequeo): JsonResponse
+    {
+        $resultado = $chequeo->ejecutar();
+
+        Cache::forever(ChequearPreciosMercadoLibre::CACHE_KEY, $resultado);
+
+        return response()->json(['ok' => true, 'mensaje' => 'Chequeo de precios ejecutado.'] + $resultado);
     }
 }

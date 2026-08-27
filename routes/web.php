@@ -364,6 +364,15 @@ Route::middleware('auth')->group(function () {
             Route::post('{vinculacion}/reactivar', [MercadoLibreVinculacionController::class, 'reactivar'])->name('reactivar');
         });
 
+        // Corte de seguridad de precios (spec 084, US1): los envíos frenados se resuelven desde
+        // Vinculaciones, que es donde ya vive el estado por publicación. Va en este grupo y no en
+        // el de Configuración para que alcance con el mismo permiso que ver la pantalla.
+        Route::prefix('retenciones-precio')->name('retencionesPrecio.')->group(function () {
+            Route::get('/', [MercadoLibreRetencionPrecioController::class, 'index'])->name('index');
+            Route::post('{retencion}/aprobar', [MercadoLibreRetencionPrecioController::class, 'aprobar'])->name('aprobar');
+            Route::post('{retencion}/rechazar', [MercadoLibreRetencionPrecioController::class, 'rechazar'])->name('rechazar');
+        });
+
         // Rutas con {orden} genérico DEBEN ir después de /vinculaciones — si no, "vinculaciones"
         // matchea {orden} primero y la pantalla de vinculaciones nunca se alcanza (bug detectado
         // en el deploy del 28/07/2026).
@@ -545,11 +554,8 @@ Route::middleware('auth')->group(function () {
             Route::get('bot', [MercadoLibreBotConfiguracionController::class, 'index'])->name('bot');
             Route::put('bot', [MercadoLibreBotConfiguracionController::class, 'guardar'])->name('bot.guardar');
 
-            // Corte de seguridad de precios (spec 084): resolución de los envíos frenados y
-            // previa del cambio de lista configurada.
-            Route::get('retenciones-precio', [MercadoLibreRetencionPrecioController::class, 'index'])->name('retencionesPrecio.index');
-            Route::post('retenciones-precio/{retencion}/aprobar', [MercadoLibreRetencionPrecioController::class, 'aprobar'])->name('retencionesPrecio.aprobar');
-            Route::post('retenciones-precio/{retencion}/rechazar', [MercadoLibreRetencionPrecioController::class, 'rechazar'])->name('retencionesPrecio.rechazar');
+            // Previa del cambio de Lista de Precios configurada (spec 084, US2). Las retenciones
+            // en sí viven con Vinculaciones, que es la pantalla donde se resuelven.
             Route::post('ventas/previa', [MercadoLibreConfiguracionController::class, 'previaCambioLista'])->name('ventas.previa');
         });
 
@@ -597,6 +603,8 @@ Route::middleware('auth')->group(function () {
             Route::get('sin-stock', [$panel, 'sinStock'])->name('sinStock');
             Route::get('ordenes', [$panel, 'ordenes'])->name('ordenes');
             Route::get('ventas', [$panel, 'ventas'])->name('ventas');
+            // Corte de seguridad de precios (spec 084, US3): último chequeo CRM ↔ API.
+            Route::get('precios-mercadolibre', [$panel, 'preciosMercadoLibre'])->name('preciosMercadoLibre');
 
             Route::get('resumen', [$resumen, 'resumen'])->name('resumen');
             // Marcar leído es una acción sobre el propio estado de lectura del usuario, no sobre
@@ -609,6 +617,7 @@ Route::middleware('auth')->group(function () {
             Route::post('reactivar', [$panel, 'reactivar'])->name('reactivar');
             Route::post('sincronizar', [$panel, 'sincronizar'])->name('sincronizar');
             Route::post('punto-reposicion', [$panel, 'puntoReposicion'])->name('puntoReposicion');
+            Route::post('precios-mercadolibre/correr', [$panel, 'correrChequeoPrecios'])->name('preciosMercadoLibre.correr');
         });
     });
 

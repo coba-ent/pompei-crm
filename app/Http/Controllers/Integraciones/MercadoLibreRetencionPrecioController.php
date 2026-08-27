@@ -19,9 +19,7 @@ use Illuminate\Support\Facades\DB;
  */
 class MercadoLibreRetencionPrecioController extends Controller
 {
-    public function __construct(private readonly SincronizadorPrecios $sincronizador)
-    {
-    }
+    public function __construct(private readonly SincronizadorPrecios $sincronizador) {}
 
     /** DataTables server-side de las retenciones sin resolver (FR-011). */
     public function index(Request $request): JsonResponse

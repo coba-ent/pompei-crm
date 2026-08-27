@@ -44,7 +44,7 @@ class PrecioProductoObserverPremiumTest extends TestCase
         $admin = Rol::firstOrCreate(['nombre' => 'Admin'], ['es_sistema' => true]);
         auth()->user()->roles()->attach($admin->id);
 
-        (new FuncionAvanzadaSeeder())->run();
+        (new FuncionAvanzadaSeeder)->run();
         FuncionAvanzada::where('clave', 'mercadolibre')->update(['activa' => true]);
 
         MercadoLibreConfiguracion::actual()->update([
@@ -186,7 +186,7 @@ class PrecioProductoObserverPremiumTest extends TestCase
             'Sin saber si es Premium o Clásica no se puede saber qué precio le corresponde.');
 
         $this->assertTrue(
-            \App\Models\Integraciones\MercadoLibrePublicacionProducto::where('ml_item_id', 'MLA-SIN-TIPO')
+            MercadoLibrePublicacionProducto::where('ml_item_id', 'MLA-SIN-TIPO')
                 ->value('precio_pendiente'),
             'Queda pendiente para cuando se conozca el tipo, no se pierde el cambio.',
         );

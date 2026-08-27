@@ -12,10 +12,12 @@ use App\Models\Integraciones\MercadoLibreConfiguracion;
 use App\Models\Integraciones\MercadoLibreCuenta;
 use App\Models\Integraciones\MercadoLibreOperacionLog;
 use App\Models\Integraciones\MercadoLibrePublicacionProducto;
+use App\Models\ListaPrecio;
 use App\Models\Vendedor;
 use App\Services\MercadoLibre\ClienteMercadoLibre;
-use App\Services\MercadoLibre\PrevisualizadorCambioLista;
 use App\Services\MercadoLibre\Excepciones\VinculacionRechazadaException;
+use App\Services\MercadoLibre\PrevisualizadorCambioLista;
+use App\Services\MercadoLibre\SincronizadorPrecios;
 use App\Services\MercadoLibre\VinculacionMercadoLibre;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -34,7 +36,7 @@ class MercadoLibreConfiguracionController extends Controller
         $CurrentPage = 'configuracion-mercadolibre';
         $depositos = Deposito::activos()->orderBy('nombre')->get();
         $categoriasVenta = Categoria::venta()->activas()->orderBy('nombre')->get();
-        $listasPrecio = \App\Models\ListaPrecio::where('activo', true)->orderBy('nombre')->get();
+        $listasPrecio = ListaPrecio::where('activo', true)->orderBy('nombre')->get();
         $vendedores = Vendedor::orderBy('nombre')->get();
 
         // Se nombran ambos para que la pantalla pueda decir de qué depósito sale
@@ -180,11 +182,11 @@ class MercadoLibreConfiguracionController extends Controller
         $listaPrecioIdPremiumNueva = $datos['lista_precio_id_premium'] ?? null;
 
         if ($listaPrecioIdNueva !== null && (int) $listaPrecioIdNueva !== (int) $listaPrecioIdAnterior) {
-            app(\App\Services\MercadoLibre\SincronizadorPrecios::class)->sincronizarListaCompleta((int) $listaPrecioIdNueva);
+            app(SincronizadorPrecios::class)->sincronizarListaCompleta((int) $listaPrecioIdNueva);
         }
 
         if ($listaPrecioIdPremiumNueva !== null && (int) $listaPrecioIdPremiumNueva !== (int) $listaPrecioIdPremiumAnterior) {
-            app(\App\Services\MercadoLibre\SincronizadorPrecios::class)->sincronizarListaCompleta((int) $listaPrecioIdPremiumNueva);
+            app(SincronizadorPrecios::class)->sincronizarListaCompleta((int) $listaPrecioIdPremiumNueva);
         }
 
         return response()->json([
@@ -409,7 +411,7 @@ class MercadoLibreConfiguracionController extends Controller
      * La comparación es por `(int)`: el valor del request llega como string (form-urlencoded) y el
      * anterior como entero de Eloquent, así que sin castear todo guardado parecería un cambio.
      *
-     * @return array<string, int>  clave `general`/`premium` => id de la lista nueva
+     * @return array<string, int> clave `general`/`premium` => id de la lista nueva
      */
     private function listasQueCambian(array $datos, ?int $generalAnterior, ?int $premiumAnterior): array
     {

@@ -38,7 +38,7 @@ class RetencionPrecioFlujoTest extends TestCase
         $admin = Rol::firstOrCreate(['nombre' => 'Admin'], ['es_sistema' => true]);
         auth()->user()->roles()->attach($admin->id);
 
-        (new FuncionAvanzadaSeeder())->run();
+        (new FuncionAvanzadaSeeder)->run();
         FuncionAvanzada::where('clave', 'mercadolibre')->update(['activa' => true]);
 
         MercadoLibreConfiguracion::actual()->update([

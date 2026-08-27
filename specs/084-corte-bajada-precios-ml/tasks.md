@@ -5,6 +5,25 @@
 `[P]` = puede hacerse en paralelo con las otras `[P]` del mismo bloque (archivos distintos, sin
 dependencia entre ellas).
 
+> **Estado al 27/08/2026**: implementado y en verde. Quedan sin hacer las tareas de cierre que
+> dependen de una decisión o de producción: **T042** (validar en el navegador contra MySQL),
+> **T043** (registro de chequeos), **T044** (rollout) y **T045** (anotar la brecha de Tiendanube).
+>
+> Durante la implementación aparecieron **tres cosas que la spec no contemplaba** y están resueltas
+> en el código y documentadas donde correspondía:
+>
+> 1. **Faltaba el interruptor de activación.** La spec describía el orden de rollout (Decisión 5)
+>    pero no modelaba con qué se activa el corte. Sin él, `precio_publicado = null` retenía todo el
+>    día del deploy y los tests existentes de `SincronizadorPreciosTest` se ponían en rojo — que fue
+>    justamente cómo se detectó. Se agregó `ml_configuracion.corte_precios_activo`, apagado por
+>    defecto.
+> 2. **La caída se comparaba redondeada a dos decimales.** Con umbral 0, una bajada de $100.000 a
+>    $99.999 daba 0,00% y se publicaba. Ahora la comparación va sobre el valor sin redondear y sólo
+>    el registro guarda el redondeo.
+> 3. **El previsualizador no aplicaba la lista propuesta.** Clonaba la configuración vigente, así
+>    que `resolverListaPrecio()` seguía devolviendo la lista actual y el impacto daba siempre cero:
+>    el diálogo hubiera dicho "no pasa nada" ante cualquier cambio.
+
 **Regla de esta feature, por el principio IV de la constitución**: todo test de una regla del corte
 **tiene que fallar contra el código actual antes de escribir la implementación**. Un test que pasa
 con el código viejo no prueba nada — es la lección de `PrecioProductoObserverPremiumTest`.
@@ -13,16 +32,16 @@ con el código viejo no prueba nada — es la lección de `PrecioProductoObserve
 
 ## Fase 1 — Cimientos (bloquea todo lo demás)
 
-- [ ] **T001** Migración: `umbral_caida_precio_pct` en `ml_configuracion`, decimal(5,2), default
+- [x] **T001** Migración: `umbral_caida_precio_pct` en `ml_configuracion`, decimal(5,2), default
       `20.00`, no nulo. Agregar al `$fillable` y al `$casts` de `MercadoLibreConfiguracion`.
-- [ ] **T002** `[P]` Migración: `precio_publicado` (decimal(14,2), nullable) y `precio_publicado_en`
+- [x] **T002** `[P]` Migración: `precio_publicado` (decimal(14,2), nullable) y `precio_publicado_en`
       (timestamp, nullable) en `ml_publicacion_producto`. `$fillable` y `$casts` del modelo.
-- [ ] **T003** `[P]` Migración: tabla `retenciones_precio_ml` según [data-model.md](./data-model.md),
+- [x] **T003** `[P]` Migración: tabla `retenciones_precio_ml` según [data-model.md](./data-model.md),
       **incluida la columna generada + índice único** que garantiza una sola `abierta` por
       publicación. La restricción va en la base, no sólo en el código.
-- [ ] **T004** Modelo `MercadoLibreRetencionPrecio`: relaciones a publicación, lista y usuario;
+- [x] **T004** Modelo `MercadoLibreRetencionPrecio`: relaciones a publicación, lista y usuario;
       scopes `abiertas()` y `deLaPublicacion()`; casts de los enums.
-- [ ] **T005** En `MercadoLibrePublicacionProducto`: relación `retenciones()`, accessor
+- [x] **T005** En `MercadoLibrePublicacionProducto`: relación `retenciones()`, accessor
       `retencionAbierta`, scope `soloRetenidas()`. **Sin columna booleana `retenida`** — se deriva.
 
 **Punto de control**: `php artisan migrate` corre limpio y `php artisan test` sigue en verde. Todavía
@@ -36,54 +55,54 @@ Es la historia que sola ya justifica la feature: sin ella, todo lo demás avisa 
 
 ### Tests primero — cada uno tiene que fallar antes de T012
 
-- [ ] **T006** `[P]` `EvaluadorCambioPrecioTest`: la tabla de umbrales del
+- [x] **T006** `[P]` `EvaluadorCambioPrecioTest`: la tabla de umbrales del
       [quickstart §Caso 3](./quickstart.md) — +30% publica, −15% publica, **−20% exacto publica**,
       −20,1% retiene. El borde es el que se olvida.
-- [ ] **T007** `[P]` `EvaluadorCambioPrecioTest`: precio ≤ 0 retiene siempre, incluso con umbral 100.
-- [ ] **T008** `[P]` `EvaluadorCambioPrecioTest`: `precio_publicado = NULL` retiene, **incluso si el
+- [x] **T007** `[P]` `EvaluadorCambioPrecioTest`: precio ≤ 0 retiene siempre, incluso con umbral 100.
+- [x] **T008** `[P]` `EvaluadorCambioPrecioTest`: `precio_publicado = NULL` retiene, **incluso si el
       precio nuevo es más alto** (motivo `sin_referencia`).
-- [ ] **T009** `[P]` `EvaluadorCambioPrecioTest`: umbral 0 retiene toda bajada; umbral 100 no retiene
+- [x] **T009** `[P]` `EvaluadorCambioPrecioTest`: umbral 0 retiene toda bajada; umbral 100 no retiene
       por porcentaje pero **sí** por precio inválido y sin referencia.
-- [ ] **T010** `[P]` `RetencionPrecioFlujoTest`: reproducir los dos incidentes reales — bajada del
+- [x] **T010** `[P]` `RetencionPrecioFlujoTest`: reproducir los dos incidentes reales — bajada del
       31,2% (Premium→Clásica) y división por 1000 — y verificar que **no sale ningún PUT** y que el
       precio publicado no cambia. Es la prueba que le da sentido a la spec.
-- [ ] **T011** `[P]` `RetencionPrecioFlujoTest`: de diez publicaciones con tres que superan el
+- [x] **T011** `[P]` `RetencionPrecioFlujoTest`: de diez publicaciones con tres que superan el
       umbral, siete se publican y tres quedan retenidas (FR-009).
 
 ### Implementación
 
-- [ ] **T012** `EvaluadorCambioPrecio`: recibe vínculo + precio propuesto + configuración y devuelve
+- [x] **T012** `EvaluadorCambioPrecio`: recibe vínculo + precio propuesto + configuración y devuelve
       "publicar" o "retener con motivo". **Sin efectos secundarios**: no escribe ni llama a la API,
       sólo decide. Así se testea a fondo sin montar medio sistema.
-- [ ] **T013** Enganchar el evaluador en `SincronizadorPrecios::enviarUno()`, **después** de
+- [x] **T013** Enganchar el evaluador en `SincronizadorPrecios::enviarUno()`, **después** de
       `verificarCortes()` y antes del PUT. Al retener: abrir la retención, marcar
       `reemplazada` la anterior si había, apagar `precio_pendiente`, devolver "no enviado".
       ⚠️ **`SincronizadorPreciosTest` tiene que seguir en verde sin tocarlo.** Si hay que modificarlo,
       el enganche quedó en el lugar equivocado.
-- [ ] **T014** Escribir `precio_publicado` / `precio_publicado_en` en cada envío exitoso, dentro del
+- [x] **T014** Escribir `precio_publicado` / `precio_publicado_en` en cada envío exitoso, dentro del
       mismo método. Es lo que alimenta al corte de ahí en adelante.
-- [ ] **T015** Excluir las publicaciones con retención abierta de `enviarPendientes()` (Decisión 4).
-- [ ] **T016** `MercadoLibreRetencionPrecioController@index`: DataTables server-side con el payload de
+- [x] **T015** Excluir las publicaciones con retención abierta de `enviarPendientes()` (Decisión 4).
+- [x] **T016** `MercadoLibreRetencionPrecioController@index`: DataTables server-side con el payload de
       [contracts §1](./contracts/retenciones-api.md), incluido `precio_vigente_lista`.
-- [ ] **T017** `@aprobar`: exige `confirma_precio_distinto` cuando el vigente difiere del propuesto
+- [x] **T017** `@aprobar`: exige `confirma_precio_distinto` cuando el vigente difiere del propuesto
       (422 con los dos importes); envía el **vigente**; `409` si ya no está abierta; **deja la
       retención abierta si Mercado Libre rechaza el envío**.
-- [ ] **T018** `[P]` `@rechazar`: cierra sin enviar nada. `409` si ya no está abierta.
-- [ ] **T019** `[P]` Rutas y `ResolverRetencionPrecioRequest`.
-- [ ] **T020** Panel de retenidas en Vinculaciones: DataTables por AJAX, modal Bootstrap para
+- [x] **T018** `[P]` `@rechazar`: cierra sin enviar nada. `409` si ya no está abierta.
+- [x] **T019** `[P]` Rutas y `ResolverRetencionPrecioRequest`.
+- [x] **T020** Panel de retenidas en Vinculaciones: DataTables por AJAX, modal Bootstrap para
       aprobar/rechazar, toasts de resultado, sin recargar la página (FR-033).
-- [ ] **T021** `[P]` Registrar retención, aprobación y rechazo en `ml_operaciones_log`, sin datos
+- [x] **T021** `[P]` Registrar retención, aprobación y rechazo en `ml_operaciones_log`, sin datos
       sensibles (FR-031/FR-032).
-- [ ] **T022** `RetencionPrecioFlujoTest`: aprobar publica y cierra; rechazar no publica y cierra;
+- [x] **T022** `RetencionPrecioFlujoTest`: aprobar publica y cierra; rechazar no publica y cierra;
       una propuesta nueva reemplaza a la abierta; aprobar con precio cambiado exige confirmación.
 
 ### El umbral tiene que poder editarse (FR-003)
 
-- [ ] **T022b** Campo del umbral en la pantalla de configuración de Mercado Libre, con validación de
+- [x] **T022b** Campo del umbral en la pantalla de configuración de Mercado Libre, con validación de
       rango **0 a 100** en el FormRequest. Los dos extremos son válidos: `0` retiene toda bajada,
       `100` no retiene por porcentaje pero **sigue** reteniendo precio inválido y sin referencia. El
       texto de ayuda tiene que decirlo — si no, alguien va a poner 100 creyendo que apaga el corte.
-- [ ] **T022c** `[P]` Test: guardar un umbral fuera de rango responde 422; guardar uno válido cambia
+- [x] **T022c** `[P]` Test: guardar un umbral fuera de rango responde 422; guardar uno válido cambia
       inmediatamente el comportamiento del corte.
 
 **Punto de control US1**: reproducir el [quickstart casos 1, 2, 3, 4, 5 y 6](./quickstart.md). Con
@@ -93,17 +112,17 @@ esto sola la feature ya protege.
 
 ## Fase 3 — US2: confirmación al cambiar la lista (P2)
 
-- [ ] **T023** `[P]` `CambioListaConfirmacionTest`: guardar cambiando la lista **sin**
+- [x] **T023** `[P]` `CambioListaConfirmacionTest`: guardar cambiando la lista **sin**
       `confirma_republicacion` responde 422 con el impacto y **no republica ni guarda**.
-- [ ] **T024** `[P]` `CambioListaConfirmacionTest`: guardar sin cambiar ninguna lista no pide
+- [x] **T024** `[P]` `CambioListaConfirmacionTest`: guardar sin cambiar ninguna lista no pide
       confirmación ni republica (FR-019).
-- [ ] **T025** `PrevisualizadorCambioLista`: calcula afectadas, suben, bajan, sin cambio, quedarían
+- [x] **T025** `PrevisualizadorCambioLista`: calcula afectadas, suben, bajan, sin cambio, quedarían
       retenidas, sin precio en la lista, y la caída máxima. **Contra `precio_publicado`, sin llamar a
       la API** (Decisión 7).
-- [ ] **T026** Endpoint `POST .../ventas/previa`.
-- [ ] **T027** En `MercadoLibreConfiguracionController`: exigir `confirma_republicacion` cuando cambia
+- [x] **T026** Endpoint `POST .../ventas/previa`.
+- [x] **T027** En `MercadoLibreConfiguracionController`: exigir `confirma_republicacion` cuando cambia
       alguna lista, antes de guardar y de republicar.
-- [ ] **T028** Frontend en `mercadolibre.js`: al guardar con cambio de lista, pedir la previa y
+- [x] **T028** Frontend en `mercadolibre.js`: al guardar con cambio de lista, pedir la previa y
       mostrar el modal con los números; cancelar no manda nada.
 
 **Punto de control US2**: [quickstart caso 7](./quickstart.md), con foco en el paso 3 — cancelar
@@ -113,21 +132,21 @@ esto sola la feature ya protege.
 
 ## Fase 4 — US3: chequeo periódico (P3)
 
-- [ ] **T029** `[P]` `ChequeoPreciosPublicadosTest`: con todo correcto, **cero diferencias**. Montar
+- [x] **T029** `[P]` `ChequeoPreciosPublicadosTest`: con todo correcto, **cero diferencias**. Montar
       publicaciones Premium con su precio Premium: si el chequeo las reporta, está comparando contra
       la lista general (Decisión 9).
-- [ ] **T030** `[P]` `ChequeoPreciosPublicadosTest`: una retenida se informa como retenida y **no**
+- [x] **T030** `[P]` `ChequeoPreciosPublicadosTest`: una retenida se informa como retenida y **no**
       como desfasaje (FR-023); una no consultable va aparte y no cuenta como coincidente (FR-024).
-- [ ] **T031** `ChequeoPreciosPublicados`: recorre los vínculos, consulta el precio en Mercado Libre y
+- [x] **T031** `ChequeoPreciosPublicados`: recorre los vínculos, consulta el precio en Mercado Libre y
       compara contra `resolverListaPrecio()`. **Prohibido reimplementar la resolución de lista.**
-- [ ] **T032** Que el chequeo actualice `precio_publicado` / `precio_publicado_en` con lo que ve.
+- [x] **T032** Que el chequeo actualice `precio_publicado` / `precio_publicado_en` con lo que ve.
       Esto es lo que hace posible el backfill de la Decisión 5.
-- [ ] **T033** Comando `ml:chequear-precios` con `--refrescar-publicado` y `--json`. Agendarlo diario,
+- [x] **T033** Comando `ml:chequear-precios` con `--refrescar-publicado` y `--json`. Agendarlo diario,
       en horario de baja actividad, separado del cron de stock.
-- [ ] **T034** Persistir el resultado de la última corrida con su momento (FR-025).
-- [ ] **T035** `MonitoreoController`: panel de precios junto al de stock, con el payload de
+- [x] **T034** Persistir el resultado de la última corrida con su momento (FR-025).
+- [x] **T035** `MonitoreoController`: panel de precios junto al de stock, con el payload de
       [contracts §6](./contracts/retenciones-api.md), y ejecución a demanda (FR-026).
-- [ ] **T036** Vista y JS del panel: resumen, detalle por publicación, bloque de retenidas separado y
+- [x] **T036** Vista y JS del panel: resumen, detalle por publicación, bloque de retenidas separado y
       fecha de última corrida. Responsive — el monitoreo se mira desde el celular.
 
 **Punto de control US3**: [quickstart caso 8](./quickstart.md) — cero diferencias con todo correcto.
@@ -136,21 +155,21 @@ esto sola la feature ya protege.
 
 ## Fase 5 — US4: las dos ventanas silenciosas (P4)
 
-- [ ] **T037** `[P]` Agregar a `PrecioProductoObserverPremiumTest`: un vínculo sin `listing_type_id`
+- [x] **T037** `[P]` Agregar a `PrecioProductoObserverPremiumTest`: un vínculo sin `listing_type_id`
       **no** recibe precio y queda pendiente. ⚠️ Hoy ese test afirma lo contrario (documenta el
       comportamiento actual): esta tarea **invierte esa aserción**, y el cambio de intención tiene que
       quedar escrito en el docblock del test.
-- [ ] **T038** Implementar: sin tipo conocido no se publica precio; queda pendiente (FR-029).
-- [ ] **T039** `[P]` Al completarse el tipo de un vínculo, resolver su pendiente con la lista que
+- [x] **T038** Implementar: sin tipo conocido no se publica precio; queda pendiente (FR-029).
+- [x] **T039** `[P]` Al completarse el tipo de un vínculo, resolver su pendiente con la lista que
       corresponde (FR-030).
-- [ ] **T040** `[P]` Advertencia de Premium sin precio en la lista Premium, en el monitoreo y en
+- [x] **T040** `[P]` Advertencia de Premium sin precio en la lista Premium, en el monitoreo y en
       Vinculaciones (FR-028).
 
 ---
 
 ## Fase 6 — Cierre
 
-- [ ] **T041** Suite completa en verde: `php artisan test`.
+- [x] **T041** Suite completa en verde: `php artisan test`.
 - [ ] **T042** ⚠️ **Verificar en el navegador contra MySQL**, no sólo con la suite. La suite corre en
       SQLite y no reproduce `ONLY_FULL_GROUP_BY` ni el escape de barras invertidas en los morphs
       (memoria del proyecto): la suite verde no garantiza que funcione en producción.

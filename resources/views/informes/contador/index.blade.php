@@ -147,7 +147,7 @@
                         </div>
 
                         <div class="table-responsive">
-                            <table class="table table-striped table-sm w-100 js-tabla" data-pestana="{{ $pestana }}">
+                            <table class="table table-striped table-sm w-100 js-tabla" id="tabla-informe-contador-{{ $pestana }}" data-pestana="{{ $pestana }}">
                                 <thead>
                                     <tr>
                                         <th>Id</th>

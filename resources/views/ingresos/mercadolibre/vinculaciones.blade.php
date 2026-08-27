@@ -46,6 +46,35 @@
                 </div>
 
                 <div class="table-responsive">
+{{-- ====================== PRECIOS RETENIDOS POR EL CORTE (spec 084, US1) ====================== --}}
+        <div class="card border-warning mb-4 d-none" id="card-retenciones-precio">
+            <div class="card-header bg-warning-subtle d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <h5 class="mb-0"><i class="fas fa-hand me-1"></i> Precios frenados, esperando aprobación</h5>
+                    <small class="text-muted">
+                        Estas bajadas <strong>no se publicaron</strong>: en Mercado Libre sigue el precio anterior.
+                    </small>
+                </div>
+                <span class="badge bg-warning text-dark" id="conteo-retenciones-precio">0</span>
+            </div>
+            <div class="card-body">
+                <table id="tabla-retenciones-precio" class="table table-hover display nowrap" style="width:100%">
+                    <thead>
+                        <tr>
+                            <th>Publicación</th>
+                            <th>Producto</th>
+                            <th>Tipo</th>
+                            <th class="text-end">Publicado hoy</th>
+                            <th class="text-end">Se quiso publicar</th>
+                            <th class="text-end">Caída</th>
+                            <th>Motivo</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+        </div>
+
                     <table id="tabla-ml-vinculaciones" class="table table-hover display nowrap" style="width:100%">
                         <thead>
                             <tr>
@@ -180,6 +209,8 @@
             eliminarTodas: @json(route('ingresos.mercadolibre.vinculaciones.eliminarTodas')),
             base: @json(url('ingresos/mercadolibre/vinculaciones')),
             productosOpciones: @json(route('productos.opciones')),
+            retenciones: @json(route('ingresos.mercadolibre.retencionesPrecio.index')),
+            retencionesBase: @json(url('ingresos/mercadolibre/retenciones-precio')),
         },
     };
 </script>

@@ -159,6 +159,10 @@
                     },
                     columns: COLUMNAS,
                     order: [[1, 'asc']],
+                    // stateSave: persiste qué columnas quedaron ocultas (colvis T052) en localStorage.
+                    // El id explícito en la tabla (tabla-informe-contador-{pestana}) evita que la
+                    // clave de storage dependa del orden en que se inicializa cada pestaña.
+                    stateSave: true,
                 });
 
                 actualizarLeyenda();

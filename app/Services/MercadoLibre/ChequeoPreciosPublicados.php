@@ -29,8 +29,7 @@ class ChequeoPreciosPublicados
     public function __construct(
         private readonly ClienteMercadoLibre $cliente,
         private readonly SincronizadorPrecios $sincronizador,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array{corrida_en: string, resumen: array, diferencias: array, retenidas: array, advertencias: array}

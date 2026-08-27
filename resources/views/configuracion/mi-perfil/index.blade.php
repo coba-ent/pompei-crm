@@ -16,9 +16,14 @@
         <div class="card mb-3">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="mb-0 fw-bold">Datos de la empresa</h6>
-                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modal-mi-perfil">
-                    <i class="fas fa-pencil-alt me-1"></i> Editar
-                </button>
+                <div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary me-1" data-bs-toggle="modal" data-bs-target="#modal-mi-perfil-contrasena">
+                        <i class="fas fa-key me-1"></i> Cambiar contraseña
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modal-mi-perfil">
+                        <i class="fas fa-pencil-alt me-1"></i> Editar
+                    </button>
+                </div>
             </div>
             <div class="card-body">
                 @if ($datosEmpresa)
@@ -82,6 +87,38 @@
 
 @include('configuracion.usuarios._modal_form')
 
+{{-- Modal: Cambiar contraseña --}}
+<div class="modal fade" id="modal-mi-perfil-contrasena" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form id="form-mi-perfil-contrasena">
+                <div class="modal-header">
+                    <h5 class="modal-title">Cambiar contraseña</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Contraseña actual</label>
+                        <input type="password" class="form-control" name="password_actual" required autocomplete="current-password">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nueva contraseña</label>
+                        <input type="password" class="form-control" name="password" required autocomplete="new-password">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Confirmar nueva contraseña</label>
+                        <input type="password" class="form-control" name="password_confirmation" required autocomplete="new-password">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 {{-- Modal: Mi Perfil --}}
 <div class="modal fade" id="modal-mi-perfil" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -138,7 +175,10 @@
 @section('local-js')
 <script>
     window.MiPerfilConfig = {
-        rutas: { guardar: @json(route('configuracion.mi-perfil.guardar')) },
+        rutas: {
+            guardar: @json(route('configuracion.mi-perfil.guardar')),
+            actualizarContrasena: @json(route('configuracion.mi-perfil.contrasena.actualizar')),
+        },
     };
     window.UsuariosConfig = {
         rutas: {
@@ -149,7 +189,7 @@
         roles: @json($roles->map(fn ($r) => ['id' => $r->id, 'nombre' => $r->nombre])),
     };
 </script>
-@vite(['resources/js/mi-perfil.js', 'resources/js/configuracion-usuarios.js'])
+@vite(['resources/js/mi-perfil.js', 'resources/js/configuracion-usuarios.js', 'resources/js/auth-password.js'])
 @if (request()->boolean('crear'))
 <script>
     (function () {

@@ -38,7 +38,7 @@ class RetencionPrecioPantallaTest extends TestCase
         $admin = Rol::firstOrCreate(['nombre' => 'Admin'], ['es_sistema' => true]);
         auth()->user()->roles()->attach($admin->id);
 
-        (new FuncionAvanzadaSeeder())->run();
+        (new FuncionAvanzadaSeeder)->run();
         FuncionAvanzada::where('clave', 'mercadolibre')->update(['activa' => true]);
 
         MercadoLibreConfiguracion::actual()->update([
@@ -103,7 +103,7 @@ class RetencionPrecioPantallaTest extends TestCase
     {
         $this->retenida();
 
-        $r = $this->getJson(route('configuracion.mercadolibre.retencionesPrecio.index'))->assertOk()->json();
+        $r = $this->getJson(route('ingresos.mercadolibre.retencionesPrecio.index'))->assertOk()->json();
 
         $this->assertSame(1, $r['recordsTotal']);
         $this->assertSame('MLA-RET', $r['data'][0]['ml_item_id']);
@@ -118,7 +118,7 @@ class RetencionPrecioPantallaTest extends TestCase
         $retencion = $this->retenida();
         $antes = $this->putsDePrecio();
 
-        $this->postJson(route('configuracion.mercadolibre.retencionesPrecio.aprobar', $retencion))
+        $this->postJson(route('ingresos.mercadolibre.retencionesPrecio.aprobar', $retencion))
             ->assertOk()
             ->assertJson(['ok' => true, 'precio_enviado' => 40000.0]);
 
@@ -132,7 +132,7 @@ class RetencionPrecioPantallaTest extends TestCase
         $retencion = $this->retenida();
         $antes = $this->putsDePrecio();
 
-        $this->postJson(route('configuracion.mercadolibre.retencionesPrecio.rechazar', $retencion))
+        $this->postJson(route('ingresos.mercadolibre.retencionesPrecio.rechazar', $retencion))
             ->assertOk()
             ->assertJson(['ok' => true]);
 
@@ -148,7 +148,7 @@ class RetencionPrecioPantallaTest extends TestCase
         PrecioProducto::where('producto_id', $retencion->publicacion->producto_id)
             ->update(['precio' => 75_000]);
 
-        $this->postJson(route('configuracion.mercadolibre.retencionesPrecio.aprobar', $retencion))
+        $this->postJson(route('ingresos.mercadolibre.retencionesPrecio.aprobar', $retencion))
             ->assertStatus(422)
             ->assertJson([
                 'requiere_confirmacion' => true,
@@ -158,7 +158,7 @@ class RetencionPrecioPantallaTest extends TestCase
 
         $this->assertSame(MercadoLibreRetencionPrecio::ESTADO_ABIERTA, $retencion->fresh()->estado);
 
-        $this->postJson(route('configuracion.mercadolibre.retencionesPrecio.aprobar', $retencion),
+        $this->postJson(route('ingresos.mercadolibre.retencionesPrecio.aprobar', $retencion),
             ['confirma_precio_distinto' => true])
             ->assertOk()
             ->assertJson(['precio_enviado' => 75000.0]);
@@ -172,8 +172,8 @@ class RetencionPrecioPantallaTest extends TestCase
         $retencion = $this->retenida();
         $retencion->update(['estado' => MercadoLibreRetencionPrecio::ESTADO_RECHAZADA]);
 
-        $this->postJson(route('configuracion.mercadolibre.retencionesPrecio.aprobar', $retencion))->assertStatus(409);
-        $this->postJson(route('configuracion.mercadolibre.retencionesPrecio.rechazar', $retencion))->assertStatus(409);
+        $this->postJson(route('ingresos.mercadolibre.retencionesPrecio.aprobar', $retencion))->assertStatus(409);
+        $this->postJson(route('ingresos.mercadolibre.retencionesPrecio.rechazar', $retencion))->assertStatus(409);
     }
 
     /**

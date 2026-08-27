@@ -50,6 +50,11 @@
 								</div>
 							</div>
 						</div>
+						<div class="text-center mb-2">
+							<button type="button" class="btn btn-link p-0" data-bs-toggle="modal" data-bs-target="#modal-olvide-contrasena">
+								¿Olvidaste tu contraseña?
+							</button>
+						</div>
 						<div class="text-center mb-4 d-grid">
 							<button type="submit" class="btn btn-primary">Iniciar sesión</button>
 						</div>
@@ -62,4 +67,37 @@
 		</div>
 	</div>
 </div>
+
+<div class="modal fade" id="modal-olvide-contrasena" tabindex="-1" aria-hidden="true">
+	<div class="modal-dialog modal-dialog-centered">
+		<div class="modal-content">
+			<form id="form-olvide-contrasena">
+				<div class="modal-header">
+					<h5 class="modal-title">Recuperar contraseña</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body">
+					<p class="text-muted">Ingresá tu email y te enviamos un link para restablecer tu contraseña.</p>
+					<div class="mb-3">
+						<label class="form-label">Email<span class="text-danger"> *</span></label>
+						<input type="email" class="form-control" name="email" required>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+					<button type="submit" class="btn btn-primary">Enviar link</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+
+@section('local-js')
+<script>
+	window.LoginConfig = {
+		rutas: { enviarLink: @json(route('contrasena.enviar-link')) },
+	};
+</script>
+@vite(['resources/js/auth-password.js'])
+@endsection
 @endsection

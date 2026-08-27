@@ -243,9 +243,123 @@
         });
     }
 
+    // ====================== PRECIOS PUBLICADOS EN MERCADO LIBRE (spec 084, US3) ======================
+    //
+    // La red que faltó el 25/08/2026: 18 publicaciones estuvieron 30 horas un 31% por debajo de su
+    // precio y nada avisó. Este panel muestra el resultado del último chequeo CRM contra la API.
+    //
+    // Las RETENIDAS van aparte de las DIFERENCIAS a propósito: una retenida difiere porque el corte
+    // hizo su trabajo. Mezclarlas mostraría como problema algo que salió bien, y un panel con
+    // falsos positivos se termina ignorando.
+    function pintarPreciosMl(resp) {
+        const $resumen = $('#precios-ml-resumen');
+        const $tablaWrap = $('#precios-ml-tabla-wrap');
+        const $ok = $('#precios-ml-ok');
+        const $avisos = $('#precios-ml-avisos');
+        const $conteo = $('#conteo-precios-ml');
+
+        $('#precios-ml-corrida').text(
+            resp.corrida_en
+                ? 'Último chequeo: ' + new Date(resp.corrida_en).toLocaleString('es-AR')
+                : 'El chequeo todavía no corrió — que no es lo mismo que "está todo bien".'
+        );
+
+        if (!resp.resumen) {
+            $resumen.addClass('d-none');
+            $tablaWrap.addClass('d-none');
+            $ok.addClass('d-none');
+            $avisos.empty();
+            $conteo.addClass('d-none');
+            return;
+        }
+
+        const r = resp.resumen;
+        const tarjetas = [
+            ['Verificadas', r.verificadas, 'secondary'],
+            ['Coinciden', r.coinciden, 'success'],
+            ['Difieren', r.difieren, r.difieren > 0 ? 'danger' : 'secondary'],
+            ['Retenidas', r.retenidas, r.retenidas > 0 ? 'warning' : 'secondary'],
+            ['No verificables', r.no_verificables, r.no_verificables > 0 ? 'warning' : 'secondary'],
+        ];
+
+        $resumen.removeClass('d-none').html(tarjetas.map(function (t) {
+            return '<div class="col-6 col-md">' +
+                '<div class="border rounded p-2 text-center">' +
+                '<div class="small text-muted">' + escapar(t[0]) + '</div>' +
+                '<div class="fs-5 fw-semibold text-' + t[2] + '">' + numero(t[1]) + '</div>' +
+                '</div></div>';
+        }).join(''));
+
+        const filas = resp.diferencias || [];
+        $conteo.toggleClass('d-none', filas.length === 0).text(filas.length);
+        $ok.toggleClass('d-none', filas.length > 0);
+        $tablaWrap.toggleClass('d-none', filas.length === 0);
+
+        $('#tbody-precios-ml').html(filas.map(function (d) {
+            return '<tr>' +
+                '<td><code>' + escapar(d.ml_item_id) + '</code></td>' +
+                '<td>' + escapar(d.producto) + '</td>' +
+                '<td>' + escapar(d.tipo_publicacion) + '</td>' +
+                '<td class="text-end">' + money(d.precio_crm) + '</td>' +
+                '<td class="text-end">' + money(d.precio_publicado) + '</td>' +
+                '<td class="text-end fw-semibold">' + money(d.diferencia) + '</td>' +
+                '</tr>';
+        }).join(''));
+
+        // Avisos: retenidas y las dos configuraciones que publican barato en silencio (US4).
+        const avisos = [];
+        const listar = function (items, titulo, clase, detalle) {
+            if (!items || !items.length) { return; }
+            avisos.push(
+                '<div class="alert alert-' + clase + '">' +
+                '<div class="fw-semibold mb-1">' + escapar(titulo) + '</div>' +
+                (detalle ? '<div class="small mb-2">' + escapar(detalle) + '</div>' : '') +
+                '<ul class="mb-0 small">' + items.map(function (a) {
+                    return '<li><code>' + escapar(a.ml_item_id) + '</code> ' + escapar(a.producto || '') + '</li>';
+                }).join('') + '</ul></div>'
+            );
+        };
+
+        listar(resp.retenidas, 'Precios retenidos por el corte de seguridad', 'warning',
+            'Difieren a propósito: el sistema frenó una bajada grande y espera aprobación. Se resuelven desde Vinculaciones.');
+        listar(resp.advertencias && resp.advertencias.premium_sin_precio_en_su_lista,
+            'Publicaciones Premium sin precio en la lista Premium', 'warning',
+            'Cotizan por la lista general, alrededor de un 31% más barato.');
+        listar(resp.advertencias && resp.advertencias.sin_tipo_de_publicacion,
+            'Vínculos sin tipo de publicación conocido', 'secondary',
+            'No reciben precio hasta que se sepa si son Premium o Clásicas.');
+        listar(resp.no_verificables, 'Publicaciones que no se pudieron verificar', 'secondary',
+            'Mercado Libre no devolvió su precio. No se cuentan como correctas.');
+
+        $avisos.html(avisos.join(''));
+    }
+
+    function cargarPreciosMl() {
+        $('[data-error="precios-ml"]').addClass('d-none');
+
+        $.get(cfg.rutas.preciosMl).done(pintarPreciosMl).fail(function () {
+            $('[data-error="precios-ml"]').removeClass('d-none');
+        });
+    }
+
+    $('#btn-correr-precios-ml').on('click', function () {
+        const $boton = $(this).prop('disabled', true).text('Chequeando…');
+
+        $.post(cfg.rutas.correrPreciosMl).done(function (resp) {
+            toast('success', resp.mensaje);
+            pintarPreciosMl(resp);
+        }).fail(function (xhr) {
+            const msg = xhr.responseJSON && xhr.responseJSON.mensaje ? xhr.responseJSON.mensaje : 'No se pudo correr el chequeo.';
+            toast('error', msg);
+        }).always(function () {
+            $boton.prop('disabled', false).text('Chequear ahora');
+        });
+    });
+
     function refrescarTodo() {
         cargarPulso();
         cargarVentas();
+        cargarPreciosMl();
         tablas.forEach(function (t) { t.ajax.reload(null, false); });
     }
 

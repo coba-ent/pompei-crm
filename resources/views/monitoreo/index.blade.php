@@ -173,6 +173,12 @@
                     <span class="badge bg-secondary ms-1 d-none" id="conteo-ordenes">0</span>
                 </button>
             </li>
+            <li class="nav-item" role="presentation" id="bloque-precios-ml">
+                <button class="nav-link" id="tab-btn-precios-ml" data-bs-toggle="tab" data-bs-target="#tab-precios-ml" type="button" role="tab">
+                    Precios ML
+                    <span class="badge bg-danger ms-1 d-none" id="conteo-precios-ml">0</span>
+                </button>
+            </li>
             <li class="nav-item" role="presentation" id="bloque-ventas">
                 <button class="nav-link" id="tab-btn-ventas" data-bs-toggle="tab" data-bs-target="#tab-ventas" type="button" role="tab">
                     Últimas ventas
@@ -348,6 +354,47 @@
                 </div>
             </div>
 
+            {{-- ====================== PRECIOS PUBLICADOS EN MERCADO LIBRE (spec 084) ====================== --}}
+            <div class="tab-pane fade js-bloque-body" id="tab-precios-ml" role="tabpanel">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                    <p class="text-muted small mb-0">
+                        Lo que está publicado en Mercado Libre contra lo que dice el CRM.
+                        Cada publicación se compara contra la lista que le corresponde por su tipo.
+                        <span class="d-block" id="precios-ml-corrida">Sin corridas todavía.</span>
+                    </p>
+                    @can('monitoreo.gestionar')
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="btn-correr-precios-ml">
+                            Chequear ahora
+                        </button>
+                    @endcan
+                </div>
+
+                <div class="alert alert-warning d-none" data-error="precios-ml">No se pudo cargar este bloque.</div>
+                <div class="alert alert-success d-none" id="precios-ml-ok">
+                    Todas las publicaciones tienen el precio que corresponde.
+                </div>
+
+                <div id="precios-ml-resumen" class="row g-2 mb-3 d-none"></div>
+
+                <div class="table-responsive d-none" id="precios-ml-tabla-wrap">
+                    <table class="table table-sm w-100">
+                        <thead>
+                            <tr>
+                                <th>Publicación</th>
+                                <th>Producto</th>
+                                <th>Tipo</th>
+                                <th class="text-end">En el CRM</th>
+                                <th class="text-end">En Mercado Libre</th>
+                                <th class="text-end">Diferencia</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-precios-ml"></tbody>
+                    </table>
+                </div>
+
+                <div id="precios-ml-avisos"></div>
+            </div>
+
         </div>
 
     </div>
@@ -369,11 +416,13 @@
             sinStock: "{{ route('monitoreo.sinStock') }}",
             ordenes: "{{ route('monitoreo.ordenes') }}",
             ventas: "{{ route('monitoreo.ventas') }}",
+            preciosMl: "{{ route('monitoreo.preciosMercadoLibre') }}",
             @can('monitoreo.gestionar')
                 destrabar: "{{ route('monitoreo.destrabar') }}",
                 reactivar: "{{ route('monitoreo.reactivar') }}",
                 sincronizar: "{{ route('monitoreo.sincronizar') }}",
                 puntoReposicion: "{{ route('monitoreo.puntoReposicion') }}",
+                correrPreciosMl: "{{ route('monitoreo.preciosMercadoLibre.correr') }}",
             @endcan
         },
         puedeGestionar: @json(auth()->user()->tienePermiso('monitoreo.gestionar')),

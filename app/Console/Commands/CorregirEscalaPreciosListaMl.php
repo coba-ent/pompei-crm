@@ -87,7 +87,7 @@ class CorregirEscalaPreciosListaMl extends Command
             })
             ->select('ml.id', 'ml.producto_id', 'ml.precio as actual', 'ref.precio as correcto',
                 'conf.precio as confirmacion', 'p.codigo', 'p.nombre',
-                DB::raw("(SELECT COUNT(*) FROM ml_publicacion_producto v WHERE v.producto_id = ml.producto_id) as vinculos"))
+                DB::raw('(SELECT COUNT(*) FROM ml_publicacion_producto v WHERE v.producto_id = ml.producto_id) as vinculos'))
             ->orderByDesc('ref.precio')
             ->get();
 
