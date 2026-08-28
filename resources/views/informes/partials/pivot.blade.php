@@ -38,8 +38,22 @@
             No hay movimientos en el período elegido para armar el cruce.
         </div>
 
-        <div class="table-responsive">
-            <div id="pivot-contenedor"></div>
+        {{-- El cruce se recalcula ante cualquier cambio de filtro o de Dato/Accion, y con
+             muchos datos tarda unos segundos entre que se pide el dataset y que PivotTable.js
+             termina de dibujar. Sin señal visible la pantalla queda igual y no se sabe si está
+             cargando (pedido del cliente, 28/08/2026). Es un overlay y no un modal bloqueante a
+             propósito: deja ver atenuado el cruce anterior en vez de tapar la pantalla. --}}
+        <div class="position-relative" id="pivot-zona">
+            <div class="d-none" id="pivot-cargando">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Calculando…</span>
+                </div>
+                <p class="text-muted small mb-0 mt-2">Calculando el cruce…</p>
+            </div>
+
+            <div class="table-responsive">
+                <div id="pivot-contenedor"></div>
+            </div>
         </div>
 
     </div>

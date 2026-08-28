@@ -188,8 +188,8 @@
             $contenedor.empty().append(
                 $('<div class="alert alert-warning mb-0">').text(
                     'El cruce daría ' + columnasPrevistas.toLocaleString('es-AR') + ' columnas y no se puede ' +
-                    'mostrar. Acotá el rango de fechas o mové una dimensión de columnas a filas — las filas ' +
-                    'scrollean sin problema.'
+                    'mostrar. Acotá el rango de fechas o mové una dimensión de columnas a filas — ' +
+                    'las filas scrollean sin problema.'
                 )
             );
 
@@ -246,14 +246,24 @@
                     $('<tr>').insertAfter($filaVals).append($celdaCols);
                 }
 
-                // La librería también dibuja un pool para "Filas" (`.pvtRows`) a la izquierda de la
-                // tabla de resultados — acá no se usa (el cruce sólo arma columnas, nunca filas
-                // anidadas), así que queda como una caja vacía enorme que sólo desperdicia espacio.
-                // Se saca del todo y la tabla de resultados pasa a ocupar ese lugar (colspan 2).
-                const $celdaRows = $contenedor.find('table.pvtUi td.pvtRows');
-                if ($celdaRows.length) {
-                    $celdaRows.closest('tr').find('td.pvtRendererArea').attr('colspan', 2);
-                    $celdaRows.remove();
+                // El pool de "Filas" (`.pvtRows`, a la izquierda de la tabla de resultados) SE
+                // CONSERVA: es la zona donde se sueltan las dimensiones que van al eje vertical,
+                // como lo hace Contagram (Vendedores en filas × año › mes en columnas). Antes se
+                // lo eliminaba del DOM porque quedaba de ~770px de ancho vacío y empujaba la
+                // tabla al centro de la pantalla — pero eso era un problema de ancho, no del pool
+                // en sí, y se arregla con el `<colgroup>` de abajo (28/08/2026).
+                //
+                // Hay que acotarle el ancho sí o sí. No alcanza con un `width` en el CSS de la
+                // celda: `table.pvtUi` es `table-layout: fixed`, que calcula los anchos de columna
+                // a partir de la PRIMERA fila —`pvtUiCell` vacía + `.pvtUnused`—, y `.pvtRows`
+                // recién aparece en la cuarta, así que su `width` se ignora y las dos columnas
+                // quedan 50/50. Un `<colgroup>` define las columnas sin depender de qué fila venga
+                // primero. Los anchos están en el CSS (`.pvtColEje`).
+                const $tablaUi = $contenedor.find('table.pvtUi');
+                if ($tablaUi.length && !$tablaUi.children('colgroup').length) {
+                    $tablaUi.prepend(
+                        $('<colgroup>').append($('<col class="pvtColEje">'), $('<col>'))
+                    );
                 }
 
                 if (typeof cfg.alCambiar === 'function') {

@@ -36,6 +36,15 @@
 
         const toast = (tipo, msg) => (window.toastr ? window.toastr[tipo](msg) : console.log(msg));
 
+        /**
+         * Preloader del cruce (pedido del cliente, 28/08/2026).
+         *
+         * Cubre las DOS etapas lentas, que el usuario percibe como una sola: el `getJSON` del
+         * dataset y el dibujado de PivotTable.js, que con muchas filas bloquea el hilo varios
+         * segundos. Por eso se apaga recién después de `montar()` y no al volver el AJAX.
+         */
+        const cargando = (activo) => $('#pivot-cargando').toggleClass('d-none', !activo);
+
         // "Dato"/"Accion" en Contagram real son un combo con buscador (fondo celeste, caja de
         // texto arriba de la lista) y no un <select> nativo pelado — regla #5 de CLAUDE.md. Se
         // inicializa una sola vez acá; `poblarSelectores()`/`refrescarAcciones()` sólo reescriben
@@ -66,12 +75,15 @@
         function conDataset(alListo) {
             if (dataset) { return alListo(dataset); }
 
+            cargando(true);
+
             $.getJSON(rutas.pivotDataset, filtrosActuales())
                 .done(function (respuesta) {
                     dataset = respuesta;
                     alListo(dataset);
                 })
                 .fail(function (xhr) {
+                    cargando(false);
                     // El 422 del tope de filas trae un mensaje pensado para el usuario: se muestra
                     // tal cual en vez de un "error al cargar" genérico.
                     toast('error', (xhr.responseJSON && xhr.responseJSON.message) || 'No se pudo armar el cruce.');
@@ -97,22 +109,36 @@
                 if (!d.filas.length) {
                     $('#pivot-vacio').removeClass('d-none');
                     $('#pivot-contenedor').empty();
+                    cargando(false);
 
                     return;
                 }
 
                 $('#pivot-vacio').addClass('d-none');
                 poblarSelectores(d, config);
+                cargando(true);
 
-                window.InformesPivot.montar({
-                    $contenedor: $('#pivot-contenedor'),
-                    filas: d.filas,
-                    dimensiones: d.dimensiones,
-                    datos: d.datos,
-                    config: config,
-                    dimensionesVisibles: dimensionesVisibles,
-                    alCambiar: function (nueva) { configVigente = nueva; },
-                });
+                // `montar()` es SÍNCRONO y con muchas filas bloquea el hilo varios segundos: si se
+                // lo llamara acá derecho, el navegador no llegaría a pintar el spinner que se
+                // acaba de mostrar y el preloader no se vería nunca. El `setTimeout` le cede un
+                // ciclo para pintar antes de arrancar el cálculo.
+                setTimeout(function () {
+                    try {
+                        window.InformesPivot.montar({
+                            $contenedor: $('#pivot-contenedor'),
+                            filas: d.filas,
+                            dimensiones: d.dimensiones,
+                            datos: d.datos,
+                            config: config,
+                            dimensionesVisibles: dimensionesVisibles,
+                            alCambiar: function (nueva) { configVigente = nueva; },
+                        });
+                    } finally {
+                        // En `finally` y no al final del `try`: si el dibujado falla, el overlay
+                        // tiene que irse igual — si no, la pantalla queda tapada para siempre.
+                        cargando(false);
+                    }
+                }, 0);
             });
         }
 
@@ -324,6 +350,10 @@
             dataset = null;
 
             if (!$panelPivot.hasClass('d-none') && configVigente) {
+                // El spinner se prende YA, no dentro del `setTimeout`: es justamente el caso que
+                // el cliente señaló —cambiar un filtro y no ver nada— y esos 300ms de espera
+                // sumados al fetch son el hueco más largo sin señal de toda la pantalla.
+                cargando(true);
                 setTimeout(() => render(configVigente, tituloVigente, visiblesVigentes), 300);
             }
         }

@@ -886,15 +886,46 @@ table.dataTable > thead > tr > td {
     width: 100%;
 }
 
-.pvtUi td.pvtRows,
 .pvtUi td.pvtCols,
 .pvtUi td.pvtVals {
     width: 1px;
     white-space: nowrap;
 }
 
-.pvtUi td.pvtRendererArea {
-    width: 100%;
+/*
+ * Eje de Filas (pool `.pvtRows`) — ancho acotado vía `<colgroup>`.
+ *
+ * El ancho NO se puede fijar desde la celda. Con `table-layout: fixed` el navegador
+ * calcula los anchos de columna a partir de la PRIMERA fila de la tabla, y en el
+ * `table.pvtUi` que arma PivotTable.js esa primera fila es `pvtUiCell` (vacía) +
+ * `.pvtUnused` (el pool horizontal de dimensiones sin usar). `.pvtRows` recién
+ * aparece en la CUARTA fila, así que cualquier `width` puesto sobre ella se ignora
+ * y las dos columnas terminan 50/50: el pool medía 769px de aire y empujaba la
+ * tabla de resultados al centro de la pantalla (verificado en el navegador el
+ * 28/08/2026; es el motivo por el que originalmente se eliminó la celda del DOM).
+ *
+ * La forma de fijar anchos con `fixed` sin depender de qué hay en la primera fila
+ * es un `<colgroup>`, que define las columnas directamente. Lo inserta el
+ * `onRefresh` de `informes-pivot.js`; acá sólo viven los anchos.
+ *
+ * 190px entra cómodo una etiqueta de dimensión ("Vendedores ▾") sin desperdiciar.
+ */
+.pvtUi > colgroup > col.pvtColEje {
+    width: 190px;
+}
+
+.pvtUi td.pvtRows {
+    vertical-align: top;
+}
+
+/*
+ * El pool arranca VACÍO en "Crear Informe" (el usuario todavía no arrastró nada).
+ * Sin altura mínima la caja colapsa y no se ve dónde soltar; con la altura del
+ * `.pvtRendererArea` al lado quedaría un rectángulo hueco larguísimo. Se le fija
+ * una altura chica de "zona de drop" y se la despega del borde.
+ */
+.pvtUi td.pvtRows:empty {
+    min-height: 2.5rem;
 }
 
 
@@ -1119,4 +1150,40 @@ tr.cuenta-orden-placeholder {
     height: 34px;
     background-color: rgba(67, 97, 238, .08);
     outline: 1px dashed rgba(67, 97, 238, .4);
+}
+
+/* --------------------------------------------------------------------------
+ * Preloader del cruce (Rankings / "Arma tu Informe", 28/08/2026).
+ *
+ * El cruce se rehace ante cualquier cambio de filtro, rango, Dato o Accion, y
+ * entre el pedido del dataset y el dibujado de PivotTable.js pasan segundos sin
+ * ninguna señal en pantalla: el usuario no sabía si estaba cargando o si no
+ * había pasado nada.
+ *
+ * Overlay por encima del contenedor en vez de modal bloqueante: el cruce
+ * anterior se sigue viendo atenuado, que es la referencia de que algo se está
+ * recalculando. `pointer-events` bloquea el arrastre de dimensiones mientras
+ * tanto — soltar una dimensión a mitad del cálculo dispara otro refresh encima.
+ * ------------------------------------------------------------------------ */
+#pivot-cargando {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    /* `flex-start` y no `center`: con un cruce largo el overlay mide lo que la tabla (cientos de
+       px) y un spinner centrado verticalmente cae fuera de la pantalla, justo cuando el usuario
+       necesita verlo. Arriba queda siempre a la vista. */
+    justify-content: flex-start;
+    padding-top: 3rem;
+    /* Sin color propio: toma el fondo de la tarjeta y funciona en claro y oscuro. */
+    background-color: rgba(255, 255, 255, 0.72);
+    /* Con el cruce recién vacío la zona mide 0 y el spinner quedaría invisible. */
+    min-height: 8rem;
+}
+
+#pivot-cargando:not(.d-none) ~ .table-responsive {
+    opacity: 0.35;
+    pointer-events: none;
 }
