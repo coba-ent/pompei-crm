@@ -121,4 +121,51 @@ class EnviarInformacionContadorJobTest extends TestCase
         $this->assertSame('fallido', $envio->estado);
         $this->assertStringContainsString('SMTP caído', $envio->error);
     }
+
+    /**
+     * Incidente real (28/08/2026): un `TimeoutExceededException` lo dispara el propio Worker matando
+     * el proceso desde afuera — nunca pasa por el `try/catch` de `handle()`. Laravel invoca `failed()`
+     * en su lugar; sin este método, `envios_contador` quedaba en `pendiente` para siempre. No llama a
+     * `handle()` a propósito: reproduce el caso exacto en el que `handle()` nunca llegó a correr.
+     */
+    public function test_failed_marca_el_envio_como_fallido_cuando_el_worker_mata_el_job_por_timeout(): void
+    {
+        $envio = $this->envioPendiente();
+        $periodo = new Periodo(2026);
+        $opciones = new OpcionesEnvio(true, false, false);
+
+        $job = new EnviarInformacionContador(
+            $envio->id, $periodo, $opciones,
+            ['contador@estudio.com'], false, null,
+            'Información de Test', 'Cuerpo',
+        );
+
+        $job->failed(new \Illuminate\Queue\TimeoutExceededException(
+            'App\\Jobs\\EnviarInformacionContador has timed out.'
+        ));
+
+        $envio->refresh();
+        $this->assertSame('fallido', $envio->estado);
+        $this->assertStringContainsString('timed out', $envio->error);
+    }
+
+    /** `failed()` no debe pisar un envío que ya se sabe que salió bien (orden de eventos improbable pero posible). */
+    public function test_failed_no_pisa_un_envio_ya_marcado_como_enviado(): void
+    {
+        $envio = $this->envioPendiente(['estado' => 'enviado', 'enviado_en' => now()]);
+        $periodo = new Periodo(2026);
+        $opciones = new OpcionesEnvio(true, false, false);
+
+        $job = new EnviarInformacionContador(
+            $envio->id, $periodo, $opciones,
+            ['contador@estudio.com'], false, null,
+            'Información de Test', 'Cuerpo',
+        );
+
+        $job->failed(new \RuntimeException('llegó tarde'));
+
+        $envio->refresh();
+        $this->assertSame('enviado', $envio->estado);
+        $this->assertNull($envio->error);
+    }
 }
