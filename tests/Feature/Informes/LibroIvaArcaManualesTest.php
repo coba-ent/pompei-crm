@@ -211,7 +211,10 @@ class LibroIvaArcaManualesTest extends TestCase
     /** Lo mismo para una NC/ND sin comprobante fiscal emitido. */
     public function test_nota_sin_comprobante_fiscal_no_aparece(): void
     {
+        // El tipo se fija explícitamente: `VentaFactory` lo randomiza entre A/B/C/E, así que
+        // afirmar 'B' abajo dependía del azar del seed (y del orden en que corran otros tests).
         $venta = $this->ventaManual();
+        $venta->update(['tipo_comprobante' => 'B']);
 
         NotaCreditoDebito::create([
             'venta_id' => $venta->id, 'tipo' => 'credito', 'afecta_stock' => false,

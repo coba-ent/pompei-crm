@@ -2961,6 +2961,42 @@ opciones: el período de un libro IVA es un mes calendario, no un rango libre.
 - **19 columnas** con selector de visibilidad, 8 filtros (Id, Tipo de Comprobante, N° de Comprobante,
   Cliente/Proveedor, N° de CUIT, Condición de IVA, Medio de Cobro/Pago, Provincia) y export a Excel.
 
+#### Formato del Excel exportado (spec 089, 28/08/2026)
+
+**Fuente de verdad**: `tests/Fixtures/LibroIvaExport/IVA Ventas Agosto 2026 Contagram.xlsx` — el Excel
+real que exporta Contagram, aportado por el usuario. El relevamiento original
+(`docs/informe_contagram_contador/`) sólo tiene capturas de **pantalla**, no del archivo; por eso hasta
+la spec 089 el export no tenía ningún formato (volcado de datos sin estilos).
+
+Estructura del archivo (`LibroIvaExport`):
+
+| Bloque | Filas | Formato |
+|---|---|---|
+| Razón social / CUIT | 1-2, col A | Arial 11 negrita, izquierda — de `datos_empresa` |
+| Título del libro | 2, col F | Arial **18** negrita, centrado ("Libro IVA Ventas"/"Compras") |
+| Período | 3, col F | Arial 11 negrita, centrado ("Periodo: Agosto de 2026", mes en castellano) |
+| Títulos de columna | 5 | Arial 10, fondo `0E5DA1`, texto blanco, centrado, borde inferior, alto 27 |
+| Detalle | 6..n | Arial 10; fechas como **valor de fecha** (`DD/MM/YYYY`), importes `0.00;(0.00)` a la derecha |
+| Totales | 3 últimas | "Por Facturación:" / "Por Nota de Crédito:" / "Totales:" (esta última en negrita) |
+
+Hoja **apaisada y sin grilla**, anchos de columna fijados. El azul `0E5DA1` es el corporativo de
+Contagram, ya usado en `Tesoreria\MovimientosExport`.
+
+> **Lo que NO se calca del archivo de Contagram**: sus **13 columnas** (una sola de IVA) — el CRM
+> mantiene las 19 con las cinco alícuotas discriminadas, que es funcionalmente superior; y su carácter
+> roto en "Razón" (`Raz�n`), que es un defecto de codificación del origen.
+
+> **Fechas como valor de fecha, no texto** — divergencia deliberada respecto de
+> `Tesoreria\MovimientosExport`, que las escribe como texto para que el locale del lector no las
+> reinterprete. Allá son dos fechas de cabecera que nadie ordena; acá es la columna de un libro que el
+> contador ordena y filtra (como texto, `01/09` se ordenaría antes que `03/08`). El `numFmt` explícito
+> en la celda es la misma mitigación que usa el propio archivo de Contagram.
+
+> **Los totales pasaron de arriba a abajo**: antes se emitía la barra de 5 KPIs de la pantalla encima
+> de la tabla, sin desglosar. Ahora van al pie y separados en facturación vs. notas de crédito, que es
+> el corte que el contador necesita (y explica por qué el KPI global podía verse negativo cuando las
+> NC del período superaban a la facturación).
+
 #### Divergencias deliberadas respecto de Contagram
 
 - **La ecuación de totales cierra exacta.** En Contagram no siempre: la captura de IVA Ventas muestra

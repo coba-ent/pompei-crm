@@ -37,8 +37,9 @@ class LibroIvaExportTest extends TestCase
         Excel::assertDownloaded('Libro IVA Ventas 08-2026.xlsx', function ($export) {
             $filas = $export->array();
 
-            // Fila 6 son los encabezados (19 columnas); fila 7 en adelante, el detalle.
-            return count($filas[5]) === 19 && count($filas) >= 7;
+            // spec 089: filas 1-4 encabezado del negocio, fila 5 los títulos (19 columnas),
+            // fila 6 en adelante el detalle, y las 3 de totales al pie.
+            return count($filas[4]) === 19 && count($filas) >= 6;
         });
     }
 

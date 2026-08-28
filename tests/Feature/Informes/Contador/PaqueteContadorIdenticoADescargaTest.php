@@ -48,10 +48,35 @@ class PaqueteContadorIdenticoADescargaTest extends TestCase
             \Maatwebsite\Excel\Excel::XLSX
         );
 
-        $this->assertSame($bytesDescarga, $bytesAdjunto);
+        // Se compara el CONTENIDO de la hoja, no los bytes del ZIP: desde la spec 089 el archivo
+        // lleva formato, y un `.xlsx` es un ZIP cuya metadata (`docProps/core.xml`) incluye la marca
+        // de tiempo de creación — dos generaciones en distinto segundo dan bytes distintos aunque la
+        // planilla sea idéntica. Lo que SC-003 exige es que el contador reciba lo mismo que
+        // descargaría, no que los dos ZIP sean binariamente iguales.
+        $this->assertSame(
+            $this->contenidoDeLaHoja($bytesDescarga),
+            $this->contenidoDeLaHoja($bytesAdjunto)
+        );
 
         foreach ($archivos as $ruta) {
             @unlink($ruta);
         }
+    }
+
+    /**
+     * Todas las celdas con valor de la primera hoja, como matriz — lo que el usuario ve, sin la
+     * metadata del contenedor ZIP.
+     */
+    private function contenidoDeLaHoja(string $bytes): array
+    {
+        $ruta = tempnam(sys_get_temp_dir(), 'cmp_').'.xlsx';
+        file_put_contents($ruta, $bytes);
+
+        $hoja = \PhpOffice\PhpSpreadsheet\IOFactory::load($ruta)->getActiveSheet();
+        $celdas = $hoja->toArray(null, true, false, false);
+
+        @unlink($ruta);
+
+        return $celdas;
     }
 }
