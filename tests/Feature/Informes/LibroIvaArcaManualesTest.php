@@ -178,6 +178,54 @@ class LibroIvaArcaManualesTest extends TestCase
         );
     }
 
+    /**
+     * El Libro IVA es un registro de comprobantes FISCALES: una venta sin factura emitida no va,
+     * tildes lo que tildes. Contagram hace lo mismo (su export las trae con `Tipo de Comprobante`
+     * sin letra y `ARCA = ---`), y sin esta exclusión el CRM mostraba ~39% de filas de más.
+     */
+    public function test_venta_sin_comprobante_fiscal_no_aparece_en_ninguna_vista(): void
+    {
+        $this->ventaManual(); // control: sí tiene que aparecer
+
+        Venta::factory()->create([
+            'cliente_id' => Cliente::factory(),
+            'fecha_emision' => '2026-03-12',
+            'sin_comprobante_fiscal' => true,
+        ]);
+
+        foreach ([
+            ['arca' => true, 'manuales' => true],
+            ['arca' => true, 'manuales' => false],
+            ['arca' => false, 'manuales' => true],
+        ] as $casillas) {
+            $filas = app(LibroIvaVentasQuery::class)->detalle($this->request($casillas))->get();
+
+            $this->assertCount(
+                $casillas === ['arca' => true, 'manuales' => false] ? 0 : 1,
+                $filas,
+                'La venta sin comprobante fiscal nunca aparece; la manual sólo del lado Manuales.'
+            );
+        }
+    }
+
+    /** Lo mismo para una NC/ND sin comprobante fiscal emitido. */
+    public function test_nota_sin_comprobante_fiscal_no_aparece(): void
+    {
+        $venta = $this->ventaManual();
+
+        NotaCreditoDebito::create([
+            'venta_id' => $venta->id, 'tipo' => 'credito', 'afecta_stock' => false,
+            'mes_imputacion' => '2026-03-01', 'fecha_emision' => '2026-03-15',
+            'monto' => 100, 'tipo_comprobante' => 'B', 'descripcion' => 'Sin comprobante',
+            'sin_comprobante_fiscal' => true,
+        ]);
+
+        $filas = app(LibroIvaVentasQuery::class)->detalle($this->request(['arca' => true, 'manuales' => true]))->get();
+
+        $this->assertCount(1, $filas, 'Sólo la venta; la nota sin comprobante fiscal queda fuera.');
+        $this->assertSame('B', $filas->first()->tipo);
+    }
+
     /** FR-014a: IVA Compras ignora `arca`/`manuales` y siempre trae todo. */
     public function test_iva_compras_ignora_arca_manuales(): void
     {

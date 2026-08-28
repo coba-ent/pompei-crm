@@ -20,7 +20,7 @@ class NotaCreditoDebito extends Model
     protected $fillable = [
         'legacy_id',
         'venta_id', 'compra_id', 'nota_ajustada_id', 'tipo', 'afecta_stock', 'mes_imputacion',
-        'fecha_emision', 'monto', 'tipo_comprobante', 'nro_comprobante', 'descripcion',
+        'fecha_emision', 'monto', 'tipo_comprobante', 'nro_comprobante', 'sin_comprobante_fiscal', 'descripcion',
         'nota_interna', 'impuestos',
         'descuento_general_tipo', 'descuento_general_pct', 'descuento_general_monto',
     ];

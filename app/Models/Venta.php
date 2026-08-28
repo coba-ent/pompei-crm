@@ -23,7 +23,7 @@ class Venta extends Model
     protected $fillable = [
         'presupuesto_id', 'origen', 'cliente_id', 'categoria_id', 'lista_precio_id', 'deposito_id',
         'fecha_emision', 'fecha_validez', 'servicio_desde', 'servicio_hasta',
-        'tipo_comprobante', 'nro_comprobante', 'fecha_vto_cobro',
+        'tipo_comprobante', 'nro_comprobante', 'sin_comprobante_fiscal', 'fecha_vto_cobro',
         'descuento_general_pct', 'descuento_general_tipo', 'descuento_general_monto', 'subtotal_sin_descuento', 'descuento',
         'subtotal_con_descuento', 'total', 'nota_cliente', 'nota_interna',
         'formas_pago', 'metodos_envio', 'vendedor_id', 'creado_por_id', 'submit_token', 'legacy_id',

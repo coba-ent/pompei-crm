@@ -74,6 +74,10 @@ class LibroIvaVentasQuery extends LibroIvaQuery
                 "'venta' as origen",
             ])));
 
+        // El Libro IVA es un registro de comprobantes FISCALES: las ventas sin factura emitida
+        // quedan fuera, igual que en Contagram (ver `migracion:marcar-sin-comprobante-fiscal`).
+        $query->where('ventas.sin_comprobante_fiscal', false);
+
         $this->filtrarPeriodo($query, $request, 'ventas.fecha_emision');
         $this->aplicarFiltrosComunes($query, $request, 'ventas.id', 'ventas.cliente_id', 'clientes.cuit', 'clientes.condicion_iva_id', 'ventas.tipo_comprobante', 'ventas.nro_comprobante');
         $this->filtrarMedioTesoreria($query, $request, 'cobros', 'venta_id', 'ventas.id');
@@ -192,6 +196,8 @@ class LibroIvaVentasQuery extends LibroIvaQuery
             ->leftJoin('condiciones_iva', 'condiciones_iva.id', '=', 'clientes.condicion_iva_id')
             ->whereNull('notas_credito_debito.deleted_at')
             ->whereNull('ventas.deleted_at')
+            // Misma regla que en la rama de ventas: sin comprobante fiscal emitido, no va al libro.
+            ->where('notas_credito_debito.sin_comprobante_fiscal', false)
             ->whereNotNull('notas_credito_debito.venta_id')
             ->whereDate('notas_credito_debito.mes_imputacion', '>=', $desde)
             ->whereDate('notas_credito_debito.mes_imputacion', '<=', $hasta);
