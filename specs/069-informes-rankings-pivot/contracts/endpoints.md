@@ -48,11 +48,25 @@ Body: `{ "descripcion": "...", "config": { filas, columnas, dato, accion, exclus
 Validaciones servidor (FR-037, data-model invariante 7):
 - `descripcion` requerida, no vacía.
 - `accion` compatible con `dato` (si `dato` es un conteo, `accion` debe ser `suma`).
-- Si ya existe una `descripcion` igual en `informe = 'ventas'`, se **acepta** pero la respuesta
-  incluye `"aviso": "Ya existe una vista con ese nombre."` para que el front lo muestre por Toastr
-  sin bloquear el guardado.
+- Si ya existe una `descripcion` igual en `informe = 'ventas'`, se **rechaza** con `422` y
+  `errors.descripcion`. (Hasta el 28/08/2026 se aceptaba avisando por Toastr; con la edición de
+  vistas —endpoint `PUT` de abajo— el duplicado dejó de ser un nombre incómodo y pasó a ser una
+  trampa: guardar los cambios de un informe abierto creaba una **segunda** pestaña con el mismo
+  nombre y no había forma de saber cuál era la buena.) La unicidad es **por informe**: el mismo
+  nombre puede existir a la vez en Ventas y en Compras.
 
 Respuesta `201`: la vista creada, con su `id`.
+
+### `PUT /informes/ventas/pivot/vistas/{vista}` → `informes.ventas.pivot.vistas.update`
+
+Guarda los cambios **sobre una vista existente** (28/08/2026). Mismo body y mismas validaciones
+que el `POST`, con dos diferencias:
+
+- `404` si la vista no pertenece a `informe = 'ventas'`, igual que `DELETE`.
+- El chequeo de nombre repetido **excluye la propia vista**: conservar su nombre no es duplicado.
+  La `descripcion` viaja igual porque el modal permite renombrar en el mismo paso.
+
+Respuesta `200`: la vista actualizada.
 
 ### `DELETE /informes/ventas/pivot/vistas/{vista}` → `informes.ventas.pivot.vistas.destroy`
 

@@ -96,21 +96,130 @@ class InformesVistasTest extends TestCase
         ])->assertStatus(422)->assertJsonValidationErrors('config.filas.0');
     }
 
-    public function test_una_descripcion_repetida_se_acepta_pero_avisa(): void
+    public function test_una_descripcion_repetida_se_rechaza(): void
     {
-        // Bloquear el guardado sería peor que el nombre repetido: dos personas pueden llamar
-        // igual a cruces distintos.
+        // Antes se aceptaba avisando. Con la edición de vistas (28/08/2026) el duplicado dejó de
+        // ser un nombre incómodo y pasó a ser una trampa: quedaban dos pestañas con el mismo
+        // nombre y ninguna forma de saber cuál era la buena.
         $cuerpo = ['descripcion' => 'Mi informe', 'config' => $this->configValida()];
 
-        $this->postJson(route('informes.ventas.pivot.vistas.store'), $cuerpo)
-            ->assertCreated()
-            ->assertJsonMissing(['aviso' => 'Ya existe una vista con ese nombre.']);
+        $this->postJson(route('informes.ventas.pivot.vistas.store'), $cuerpo)->assertCreated();
 
         $this->postJson(route('informes.ventas.pivot.vistas.store'), $cuerpo)
-            ->assertCreated()
-            ->assertJsonPath('aviso', 'Ya existe una vista con ese nombre.');
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('descripcion');
 
-        $this->assertSame(2, InformeVista::porInforme('ventas')->count());
+        $this->assertSame(1, InformeVista::porInforme('ventas')->count());
+    }
+
+    public function test_el_mismo_nombre_en_ventas_y_en_compras_no_es_duplicado(): void
+    {
+        // La unicidad es POR INFORME: Compras tiene sus propias dimensiones y medidas, así que la
+        // config no se puede reusar tal cual.
+        $this->postJson(route('informes.ventas.pivot.vistas.store'), [
+            'descripcion' => 'Mi informe',
+            'config' => $this->configValida(),
+        ])->assertCreated();
+
+        $this->postJson(route('informes.compras.pivot.vistas.store'), [
+            'descripcion' => 'Mi informe',
+            'config' => $this->configValida([
+                'filas' => ['proveedores'],
+                'dato' => 'total_compra',
+            ]),
+        ])->assertCreated();
+    }
+
+    public function test_actualizar_una_vista_no_crea_otra(): void
+    {
+        // El bug original: editar un informe guardado y volver a guardarlo creaba uno nuevo.
+        $id = $this->postJson(route('informes.ventas.pivot.vistas.store'), [
+            'descripcion' => 'Ventas por cliente',
+            'config' => $this->configValida(),
+        ])->json('data.id');
+
+        $config = $this->configValida();
+        $config['columnas'] = [];
+
+        $this->putJson(route('informes.ventas.pivot.vistas.update', $id), [
+            'descripcion' => 'Ventas por cliente',
+            'config' => $config,
+        ])->assertOk();
+
+        $this->assertSame(1, InformeVista::porInforme('ventas')->count());
+        $this->assertSame([], InformeVista::find($id)->config['columnas']);
+    }
+
+    public function test_actualizar_permite_renombrar_la_vista(): void
+    {
+        $id = $this->postJson(route('informes.ventas.pivot.vistas.store'), [
+            'descripcion' => 'Nombre viejo',
+            'config' => $this->configValida(),
+        ])->json('data.id');
+
+        // Conservar el nombre propio no puede leerse como duplicado de sí misma.
+        $this->putJson(route('informes.ventas.pivot.vistas.update', $id), [
+            'descripcion' => 'Nombre viejo',
+            'config' => $this->configValida(),
+        ])->assertOk();
+
+        $this->putJson(route('informes.ventas.pivot.vistas.update', $id), [
+            'descripcion' => 'Nombre nuevo',
+            'config' => $this->configValida(),
+        ])->assertOk();
+
+        $this->assertSame('Nombre nuevo', InformeVista::find($id)->descripcion);
+    }
+
+    public function test_actualizar_rechaza_el_nombre_de_otra_vista(): void
+    {
+        $this->postJson(route('informes.ventas.pivot.vistas.store'), [
+            'descripcion' => 'Ya existe',
+            'config' => $this->configValida(),
+        ])->assertCreated();
+
+        $id = $this->postJson(route('informes.ventas.pivot.vistas.store'), [
+            'descripcion' => 'La que edito',
+            'config' => $this->configValida(),
+        ])->json('data.id');
+
+        $this->putJson(route('informes.ventas.pivot.vistas.update', $id), [
+            'descripcion' => 'Ya existe',
+            'config' => $this->configValida(),
+        ])->assertStatus(422)->assertJsonValidationErrors('descripcion');
+    }
+
+    public function test_no_se_puede_actualizar_una_vista_de_ventas_desde_el_endpoint_de_compras(): void
+    {
+        // Mismo aislamiento que `destroy`: cambiar el id en la URL no cruza los informes.
+        $id = $this->postJson(route('informes.ventas.pivot.vistas.store'), [
+            'descripcion' => 'De ventas',
+            'config' => $this->configValida(),
+        ])->json('data.id');
+
+        $this->putJson(route('informes.compras.pivot.vistas.update', $id), [
+            'descripcion' => 'Secuestrada',
+            'config' => $this->configValida(),
+        ])->assertNotFound();
+
+        $this->assertSame('De ventas', InformeVista::find($id)->descripcion);
+    }
+
+    public function test_actualizar_valida_la_combinacion_de_dato_y_accion(): void
+    {
+        $id = $this->postJson(route('informes.ventas.pivot.vistas.store'), [
+            'descripcion' => 'Para romper',
+            'config' => $this->configValida(),
+        ])->json('data.id');
+
+        $config = $this->configValida();
+        $config['dato'] = 'cantidad_ventas';
+        $config['accion'] = 'promedio';
+
+        $this->putJson(route('informes.ventas.pivot.vistas.update', $id), [
+            'descripcion' => 'Para romper',
+            'config' => $config,
+        ])->assertStatus(422);
     }
 
     public function test_borrar_una_vista_la_saca_del_listado(): void

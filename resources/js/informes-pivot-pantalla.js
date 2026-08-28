@@ -33,6 +33,9 @@
         let tituloVigente = '';
         let visiblesVigentes = null;
         let vistasGuardadas = [];
+        // Id de la vista guardada que se está viendo, o `null` en un ranking o un informe nuevo
+        // todavía sin guardar. Es lo que decide si "Guardar Informe" sobrescribe o crea.
+        let vistaAbiertaId = null;
 
         const toast = (tipo, msg) => (window.toastr ? window.toastr[tipo](msg) : console.log(msg));
 
@@ -188,6 +191,9 @@
             mostrarPivot();
             history.pushState({ pivot: dimension }, '', $(this).attr('href'));
 
+            // Un ranking no es una vista guardada: guardarlo tiene que CREAR una.
+            vistaAbiertaId = null;
+
             // Cada ranking abre con su dimensión en filas y año › mes en columnas (FR-019).
             render({
                 filas: [dimension],
@@ -203,6 +209,7 @@
 
             $('#pestanas-informe .nav-link').removeClass('active');
             mostrarPivot();
+            vistaAbiertaId = null;
 
             // Arranca vacío: el usuario arrastra las dimensiones que quiera (FR-011).
             render({ filas: [], columnas: [], dato: opciones.datoPorDefecto, accion: 'suma', exclusiones: {} },
@@ -212,6 +219,7 @@
         $(document).on('click', '#pestanas-informe .nav-link[data-panel="detalle"]', function (evento) {
             evento.preventDefault();
             mostrarDetalle();
+            vistaAbiertaId = null;
             history.pushState({}, '', $(this).attr('href'));
         });
 
@@ -235,17 +243,47 @@
 
         // ---- Guardar / exportar ----
 
+        /**
+         * Abre el modal en modo "crear" o en modo "editar" según dónde esté parado el usuario.
+         *
+         * Antes abría SIEMPRE con el campo vacío y el título "Guardar Informe", también estando
+         * dentro de un informe guardado: guardar los cambios de una vista existente creaba otra
+         * nueva y el usuario no tenía forma de darse cuenta hasta ver el desplegable duplicado
+         * (28/08/2026).
+         */
         $(document).on('click', '#btn-pivot-guardar', function () {
-            $('#pivot-descripcion').val('').removeClass('is-invalid');
+            const editando = vistaAbiertaId !== null;
+
+            $('#pivot-descripcion')
+                .val(editando ? tituloVigente : '')
+                .removeClass('is-invalid');
+
+            $('#modal-guardar-informe-titulo').text(editando ? 'Actualizar Informe' : 'Guardar Informe');
+            $('#btn-pivot-guardar-confirmar').text(editando ? 'Actualizar' : 'Guardar');
+            $('#btn-pivot-guardar-como-nuevo').toggleClass('d-none', !editando);
+
             window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-guardar-informe')).show();
         });
 
+        // "Actualizar" sobre una vista abierta; "Guardar" a secas cuando se está creando.
         $(document).on('click', '#btn-pivot-guardar-confirmar', function () {
+            guardarVista(vistaAbiertaId);
+        });
+
+        // Duplica: guarda un informe NUEVO aunque se venga de uno existente.
+        $(document).on('click', '#btn-pivot-guardar-como-nuevo', function () {
+            guardarVista(null);
+        });
+
+        /**
+         * @param {?number} id  id de la vista a sobrescribir, o `null` para crear una nueva.
+         */
+        function guardarVista(id) {
             const descripcion = $('#pivot-descripcion').val();
 
             $.ajax({
-                url: rutas.pivotVistas,
-                method: 'POST',
+                url: id ? rutas.pivotVistaBase + '/' + id : rutas.pivotVistas,
+                method: id ? 'PUT' : 'POST',
                 data: JSON.stringify({ descripcion: descripcion, config: configVigente }),
                 contentType: 'application/json',
                 // El token va explícito: al pasar `headers` propios se pisa el `ajaxSetup` global
@@ -257,9 +295,15 @@
             })
                 .done(function (respuesta) {
                     window.bootstrap.Modal.getInstance(document.getElementById('modal-guardar-informe')).hide();
-                    // El aviso de nombre repetido no bloquea el guardado, sólo informa.
-                    if (respuesta.aviso) { toast('warning', respuesta.aviso); }
-                    toast('success', 'Informe guardado.');
+
+                    // Al crear (o duplicar) se pasa a estar parado SOBRE la vista recién guardada:
+                    // el próximo "Guardar" tiene que actualizarla, no crear una tercera.
+                    if (respuesta.data) {
+                        vistaAbiertaId = respuesta.data.id;
+                        tituloVigente = respuesta.data.descripcion;
+                    }
+
+                    toast('success', id ? 'Informe actualizado.' : 'Informe guardado.');
                     cargarVistasGuardadas();
                 })
                 .fail(function (xhr) {
@@ -270,7 +314,7 @@
                         (xhr.responseJSON && xhr.responseJSON.message) || 'No se pudo guardar.'
                     );
                 });
-        });
+        }
 
         $(document).on('click', '#btn-pivot-exportar', function () {
             const matriz = window.InformesPivot.matrizVisible($('#pivot-contenedor'), tituloVigente || 'Informe');
@@ -329,6 +373,9 @@
             mostrarPivot();
             history.pushState({ vista: id }, '', rutas.pivotVistaBase.replace('/pivot/vistas', '/vista/') + id);
 
+            // A partir de acá "Guardar Informe" actualiza ESTA vista.
+            vistaAbiertaId = id;
+
             // Sin `dimensionesVisibles`: una vista armada a mano conserva las 13 dimensiones a
             // mano, porque el usuario la puede seguir reacomodando.
             render(vista.config, vista.descripcion, null);
@@ -380,6 +427,8 @@
                     // dejar en pantalla un cruce que ya no existe.
                     if (location.pathname.endsWith('/vista/' + id)) {
                         mostrarDetalle();
+                        // Si no, el próximo "Guardar" haría un PUT contra una vista borrada (404).
+                        vistaAbiertaId = null;
                         history.pushState({}, '', rutas.pivotVistaBase.replace('/pivot/vistas', ''));
                     }
                 })
@@ -392,6 +441,27 @@
         const enRanking = location.pathname.match(/\/ranking\/([a-z_.]+)$/);
         if (enRanking) {
             $('.js-abrir-ranking[data-dimension="' + enRanking[1] + '"]').first().trigger('click');
+        }
+
+        // Ídem para el enlace de una vista guardada (/informes/ventas/vista/12), que hasta ahora
+        // no abría nada: la pantalla quedaba en el detalle con la URL de la vista. Importa además
+        // porque `vistaAbiertaId` es lo que decide si "Guardar" sobrescribe o duplica, y entrando
+        // por el enlace quedaba en `null` — o sea, guardar habría creado una copia.
+        const enVista = location.pathname.match(/\/vista\/(\d+)$/);
+        if (enVista) {
+            // El disparo va después de que `cargarVistasGuardadas()` haya respondido: el handler
+            // busca la vista en `vistasGuardadas`, que hasta entonces está vacío.
+            const idBuscado = parseInt(enVista[1], 10);
+            const abrirCuandoCargue = setInterval(function () {
+                if (!vistasGuardadas.length) { return; }
+
+                clearInterval(abrirCuandoCargue);
+                $('.js-vista-guardada[data-id="' + idBuscado + '"]').first().trigger('click');
+            }, 100);
+
+            // Red de seguridad: si la vista fue borrada, `vistasGuardadas` nunca la va a tener y
+            // el intervalo quedaría corriendo para siempre.
+            setTimeout(() => clearInterval(abrirCuandoCargue), 10000);
         }
     }
 

@@ -37,6 +37,11 @@ class InformeVistaController extends Controller
         return $this->store($peticion, 'ventas');
     }
 
+    public function updateVentas(Request $peticion, InformeVista $vista): JsonResponse
+    {
+        return $this->update($peticion, $vista, 'ventas');
+    }
+
     public function destroyVentas(InformeVista $vista): JsonResponse
     {
         return $this->destroy($vista, 'ventas');
@@ -52,6 +57,11 @@ class InformeVistaController extends Controller
     public function storeCompras(Request $peticion): JsonResponse
     {
         return $this->store($peticion, 'compras');
+    }
+
+    public function updateCompras(Request $peticion, InformeVista $vista): JsonResponse
+    {
+        return $this->update($peticion, $vista, 'compras');
     }
 
     public function destroyCompras(InformeVista $vista): JsonResponse
@@ -78,7 +88,66 @@ class InformeVistaController extends Controller
 
     private function store(Request $peticion, string $informe): JsonResponse
     {
-        $datos = $peticion->validate([
+        $datos = $this->validar($peticion, $informe);
+
+        if ($invalida = $this->errorDeCombinacion($informe, $datos)) {
+            return $invalida;
+        }
+
+        // Nombre repetido: se RECHAZA. Antes se aceptaba avisando, pero al poder editar una vista
+        // existente el duplicado dejó de ser un nombre incómodo y pasó a ser una trampa: guardar
+        // los cambios de "Ventas por cliente" creaba una SEGUNDA pestaña con ese mismo nombre y
+        // después no había forma de saber cuál era la buena (28/08/2026).
+        if ($this->nombreRepetido($informe, $datos['descripcion'])) {
+            return $this->errorNombreRepetido();
+        }
+
+        $vista = InformeVista::create([
+            'informe' => $informe,
+            'descripcion' => $datos['descripcion'],
+            'config' => $this->configNormalizada($datos['config']),
+            'creado_por_id' => $peticion->user()?->id,
+        ]);
+
+        return response()->json(['data' => $this->comoJson($vista)], 201);
+    }
+
+    /**
+     * Guarda los cambios SOBRE una vista ya existente (28/08/2026).
+     *
+     * Antes no existía: el único camino era POST, así que editar un informe guardado y volver a
+     * guardarlo creaba uno nuevo en vez de actualizarlo. La descripción viaja igual que en el
+     * `store` porque el modal deja renombrar la vista en el mismo paso.
+     */
+    private function update(Request $peticion, InformeVista $vista, string $informe): JsonResponse
+    {
+        // Mismo aislamiento que `destroy`: una vista de Compras no se edita desde el endpoint de
+        // Ventas ni cambiando el id en la URL.
+        abort_if($vista->informe !== $informe, 404);
+
+        $datos = $this->validar($peticion, $informe);
+
+        if ($invalida = $this->errorDeCombinacion($informe, $datos)) {
+            return $invalida;
+        }
+
+        // Se excluye la propia vista: renombrarla a lo que ya se llamaba no es un duplicado.
+        if ($this->nombreRepetido($informe, $datos['descripcion'], $vista->id)) {
+            return $this->errorNombreRepetido();
+        }
+
+        $vista->update([
+            'descripcion' => $datos['descripcion'],
+            'config' => $this->configNormalizada($datos['config']),
+        ]);
+
+        return response()->json(['data' => $this->comoJson($vista)]);
+    }
+
+    /** Reglas compartidas por `store` y `update`. */
+    private function validar(Request $peticion, string $informe): array
+    {
+        return $peticion->validate([
             'descripcion' => ['required', 'string', 'max:255'],
             'config' => ['required', 'array'],
             'config.filas' => ['present', 'array'],
@@ -91,41 +160,59 @@ class InformeVistaController extends Controller
         ], [
             'descripcion.required' => 'Poné una descripción para la vista.',
         ]);
+    }
 
-        // FR-014 en el servidor, no sólo en el cliente: sobre un conteo de filas la única acción
-        // con sentido es Suma, y un POST fuera de la UI podría mandar "promedio".
-        if (! $this->dimensiones->combinacionValida($informe, $datos['config']['dato'], $datos['config']['accion'])) {
-            return response()->json([
-                'message' => 'Esa combinación de Dato y Acción no es válida.',
-                'errors' => ['config.accion' => ['La acción elegida no aplica al dato seleccionado.']],
-            ], 422);
+    /**
+     * FR-014 en el servidor, no sólo en el cliente: sobre un conteo de filas la única acción con
+     * sentido es Suma, y un POST/PUT fuera de la UI podría mandar "promedio".
+     */
+    private function errorDeCombinacion(string $informe, array $datos): ?JsonResponse
+    {
+        if ($this->dimensiones->combinacionValida($informe, $datos['config']['dato'], $datos['config']['accion'])) {
+            return null;
         }
 
-        // Descripción repetida: se ACEPTA y se avisa (contrato de endpoints). Dos personas pueden
-        // llamar igual a cruces distintos; bloquear el guardado sería peor que el nombre repetido.
-        $repetida = InformeVista::porInforme($informe)->where('descripcion', $datos['descripcion'])->exists();
+        return response()->json([
+            'message' => 'Esa combinación de Dato y Acción no es válida.',
+            'errors' => ['config.accion' => ['La acción elegida no aplica al dato seleccionado.']],
+        ], 422);
+    }
 
-        $vista = InformeVista::create([
-            'informe' => $informe,
-            'descripcion' => $datos['descripcion'],
-            'config' => [
-                'filas' => $datos['config']['filas'],
-                'columnas' => $datos['config']['columnas'],
-                'dato' => $datos['config']['dato'],
-                'accion' => $datos['config']['accion'],
-                'exclusiones' => $datos['config']['exclusiones'] ?? [],
-            ],
-            'creado_por_id' => $peticion->user()?->id,
-        ]);
+    private function nombreRepetido(string $informe, string $descripcion, ?int $exceptoId = null): bool
+    {
+        return InformeVista::porInforme($informe)
+            ->where('descripcion', $descripcion)
+            ->when($exceptoId, fn ($q) => $q->whereKeyNot($exceptoId))
+            ->exists();
+    }
 
-        return response()->json(array_filter([
-            'data' => [
-                'id' => $vista->id,
-                'descripcion' => $vista->descripcion,
-                'config' => $vista->config,
-            ],
-            'aviso' => $repetida ? 'Ya existe una vista con ese nombre.' : null,
-        ]), 201);
+    private function errorNombreRepetido(): JsonResponse
+    {
+        return response()->json([
+            'message' => 'Ya existe un informe con ese nombre.',
+            'errors' => ['descripcion' => ['Ya existe un informe con ese nombre. Poné otro.']],
+        ], 422);
+    }
+
+    /** Sólo las claves del contrato: un POST con campos de más no ensucia el JSON guardado. */
+    private function configNormalizada(array $config): array
+    {
+        return [
+            'filas' => $config['filas'],
+            'columnas' => $config['columnas'],
+            'dato' => $config['dato'],
+            'accion' => $config['accion'],
+            'exclusiones' => $config['exclusiones'] ?? [],
+        ];
+    }
+
+    private function comoJson(InformeVista $vista): array
+    {
+        return [
+            'id' => $vista->id,
+            'descripcion' => $vista->descripcion,
+            'config' => $vista->config,
+        ];
     }
 
     private function destroy(InformeVista $vista, string $informe): JsonResponse

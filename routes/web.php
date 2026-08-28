@@ -244,6 +244,7 @@ Route::middleware('auth')->group(function () {
 
             Route::get('vistas', [InformeVistaController::class, 'indexVentas'])->name('vistas.index');
             Route::post('vistas', [InformeVistaController::class, 'storeVentas'])->name('vistas.store');
+            Route::put('vistas/{vista}', [InformeVistaController::class, 'updateVentas'])->name('vistas.update');
             Route::delete('vistas/{vista}', [InformeVistaController::class, 'destroyVentas'])->name('vistas.destroy');
         });
 
@@ -253,6 +254,7 @@ Route::middleware('auth')->group(function () {
 
             Route::get('vistas', [InformeVistaController::class, 'indexCompras'])->name('vistas.index');
             Route::post('vistas', [InformeVistaController::class, 'storeCompras'])->name('vistas.store');
+            Route::put('vistas/{vista}', [InformeVistaController::class, 'updateCompras'])->name('vistas.update');
             Route::delete('vistas/{vista}', [InformeVistaController::class, 'destroyCompras'])->name('vistas.destroy');
         });
 

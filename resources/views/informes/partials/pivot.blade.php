@@ -64,7 +64,9 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Guardar Informe</h5>
+                {{-- El título dice si se está creando o editando: sin esa señal, guardar cambios
+                     sobre un informe abierto parecía estar creando uno nuevo. Lo cambia el JS. --}}
+                <h5 class="modal-title" id="modal-guardar-informe-titulo">Guardar Informe</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body">
@@ -75,6 +77,10 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                {{-- Sólo visible sobre un informe ya guardado: duplica en vez de sobrescribir. --}}
+                <button type="button" class="btn btn-outline-primary d-none" id="btn-pivot-guardar-como-nuevo">
+                    Guardar como nuevo
+                </button>
                 <button type="button" class="btn btn-primary" id="btn-pivot-guardar-confirmar">Guardar</button>
             </div>
         </div>

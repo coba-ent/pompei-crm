@@ -226,8 +226,12 @@ recargar la pantalla y verificar que la pestaña sigue ahí con el mismo cruce.
 - **Dimensión numérica continua** ("cantidades", "descuento en %"): se agrupa por valor exacto, sin
   rangos. Si eso produjera demasiadas columnas, aplica el tope de arriba.
 - **Ninguna dimensión asignada** en el builder: se muestra un único total general, sin error.
-- **Descripción duplicada al guardar**: se acepta, pero el sistema avisa que ya existe una vista con
-  ese nombre en ese informe.
+- **Descripción duplicada al guardar**: se rechaza y se pide otro nombre (cambiado el 28/08/2026;
+  antes se aceptaba avisando). La unicidad es por informe: el mismo nombre puede existir en Ventas
+  y en Compras a la vez.
+- **Guardar estando dentro de un informe guardado**: sobrescribe ese informe (el modal dice
+  "Actualizar Informe" y trae su nombre). Para duplicarlo hay un botón "Guardar como nuevo".
+  Antes creaba siempre uno nuevo, sin forma de distinguirlo del original (28/08/2026).
 - **Descripción vacía**: no se guarda; se pide una descripción.
 - **Acción no aplicable al Dato elegido**: al cambiar el Dato a un conteo, si la Acción vigente
   dejaba de tener sentido, se vuelve automáticamente a "Suma" en vez de quedar en un estado inválido.
