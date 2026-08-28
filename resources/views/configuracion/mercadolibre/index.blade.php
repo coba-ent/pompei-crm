@@ -202,12 +202,10 @@
                                 </label>
                             </div>
                             <div class="form-text">
-                                Antes de publicar, compara el precio nuevo con el que la publicación tiene hoy
-                                en Mercado Libre. Si la caída es mayor al máximo de al lado, no lo publica y
-                                lo deja para que alguien lo apruebe.
-                                <strong>Activalo recién después de correr el chequeo de precios al menos una
-                                vez</strong>: hasta entonces el CRM no sabe qué precio hay publicado y va a
-                                retener todo.
+                                Evita publicar un precio mucho más barato por error.
+                                Si un precio baja demasiado, el CRM <strong>no lo publica</strong>: en Mercado
+                                Libre queda el precio anterior y te avisa en
+                                <em>Vinculación de publicaciones</em> para que lo apruebes o lo descartes.
                             </div>
                         </div>
                         <div class="col-md-6">
@@ -217,12 +215,10 @@
                                 <span class="input-group-text">%</span>
                             </div>
                             <div class="form-text">
-                                Con 20%, una bajada del 20% se publica sola y una del 21% queda para aprobar.
-                                Las <strong>subidas</strong> nunca se frenan.
-                                Con <strong>0%</strong> se frena cualquier bajada; con <strong>100%</strong> no
-                                se frena por porcentaje, pero se siguen reteniendo los precios en cero y las
-                                publicaciones cuyo precio publicado el CRM desconoce —
-                                <strong>100% no apaga la protección</strong>, para eso está el interruptor.
+                                Hasta cuánto puede bajar un precio sin que nadie lo revise.
+                                Con 20%: un producto de $10.000 puede bajar hasta $8.000 solo;
+                                si baja más, se frena.<br>
+                                <strong>Las subidas de precio nunca se frenan.</strong>
                             </div>
                         </div>
 
