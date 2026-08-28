@@ -2633,7 +2633,7 @@ Excel + PDF abajo a la derecha.
 | **2** | Ventas, Reporte Final | **spec 068 — IMPLEMENTADA** (15/08/2026) |
 | **3** | Rankings, "Arma tu Informe" (**sólo render tabla**) | **spec 069 — IMPLEMENTADA** (16/08/2026) |
 | **4** | Menú de gestión por fila en Cta Cte, ajustes al Informe de Stock | pendiente — spec por armar |
-| **5** | **Información para tu Contador** (Libro IVA Ventas / Compras) | **spec 077 — especificada, lista para implementar** (24/08/2026) — ver §6.7. **spec 086 (IVA Digital RG 3685) — IMPLEMENTADA** (27/08/2026). **spec 087 (envío por correo) — IMPLEMENTADA** (27/08/2026), con el worker de cola pendiente de aplicar en el VPS |
+| **5** | **Información para tu Contador** (Libro IVA Ventas / Compras) | **spec 077 — especificada, lista para implementar** (24/08/2026) — ver §6.7. **spec 086 (IVA Digital RG 3685) — IMPLEMENTADA** (27/08/2026). **spec 087 (envío por correo) — IMPLEMENTADA** (27/08/2026) — el worker de cola ya existía en el VPS |
 
 > **Alcance acotado de la tanda 3, decidido por el cliente (15/08/2026)**: Rankings y "Arma tu
 > Informe" **sí** se construyen, pero el selector "Mostrar Como" queda **fijo en Tabla**. Se
@@ -3004,12 +3004,12 @@ opciones: el período de un libro IVA es un mes calendario, no un rango libre.
     pantalla nueva.
     > **Cola en `database`, no `sync`** (27/08/2026): se cambió `QUEUE_CONNECTION=sync` → `database`
     > en el `.env` local para que FR-021 (envío en segundo plano) se cumpla de verdad. La tabla
-    > `jobs` (migración default de Laravel) ya existía. **Falta correr un worker real en el VPS** —
-    > sin él, los jobs se acumulan en la tabla `jobs` sin procesarse nunca. Unit de systemd lista en
-    > `deploy/contagram-queue-worker.service` (copiar a `/etc/systemd/system/`, `systemctl enable
-    > --now contagram-queue-worker`), pendiente de aplicar en el VPS — no se tocó el VPS desde esta
-    > sesión (memoria del proyecto: nunca probar/deployar sin OK puntual). Hasta que el worker esté
-    > arriba, verificar manualmente que los envíos no queden pendientes para siempre.
+    > `jobs` (migración default de Laravel) ya existía. **El VPS ya tenía resuelto el lado
+    > operativo desde la migración de agosto**: `QUEUE_CONNECTION=database` en su `.env` y un
+    > servicio systemd `contagram-queue` (`queue:work --sleep=3 --tries=3 --max-time=3600`,
+    > `Restart=always`) corriendo — confirmado el 27/08/2026 al deployar esta spec. `deploy_vps.sh`
+    > ya lo reinicia en cada deploy para que tome código nuevo. No hizo falta crear nada nuevo del
+    > lado del worker; sólo faltaba que el código de la 087 aprovechara la cola que ya existía.
 
   > **Hallazgos de spec 086 que conviene no volver a "corregir"** (verificados también contra datos
   > reales de MySQL, no sólo el fixture — la suite corre en SQLite y no lo garantiza por sí sola):
