@@ -42,7 +42,9 @@ class ComprobantesVentasWriter
             $puntoVentaFmt = $this->r->numerico($puntoVenta, 5);
             $numeroFmt = $this->r->numerico($numero, 20);
 
-            $netoPorAlicuota = $this->esNota((string) $fila->tipo) ? [] : $this->datosFiscales->netoPorAlicuotaVenta((int) $fila->id);
+            $netoPorAlicuota = ($this->esNota((string) $fila->tipo) || $this->datosFiscales->esHistorico($fila))
+                ? []
+                : $this->datosFiscales->netoPorAlicuotaVenta((int) $fila->id);
             $cantidadAlicuotas = $this->alicuotasWriter->escribir($handleAlicuotas, $fila, $cbteTipo, $puntoVentaFmt, $numeroFmt, $netoPorAlicuota);
 
             [$docTipo, $docNro] = $this->mapeador->documentoReceptor([

@@ -38,13 +38,13 @@ class LibroIvaPeriodoTest extends TestCase
     /** FR-008: una venta se ubica por su `fecha_emision`. */
     public function test_venta_se_ubica_por_fecha_emision(): void
     {
-        Venta::factory()->create(['cliente_id' => Cliente::factory(), 'fecha_emision' => '2026-08-20']);
+        Venta::factory()->create(['cliente_id' => Cliente::factory(), 'fecha_emision' => '2026-03-20']);
 
-        $agosto = app(LibroIvaVentasQuery::class)->detalle($this->request('/informes/contador/ventas/data', 8, 2026))->get();
-        $julio = app(LibroIvaVentasQuery::class)->detalle($this->request('/informes/contador/ventas/data', 7, 2026))->get();
+        $marzo = app(LibroIvaVentasQuery::class)->detalle($this->request('/informes/contador/ventas/data', 3, 2026))->get();
+        $febrero = app(LibroIvaVentasQuery::class)->detalle($this->request('/informes/contador/ventas/data', 2, 2026))->get();
 
-        $this->assertCount(1, $agosto);
-        $this->assertCount(0, $julio);
+        $this->assertCount(1, $marzo);
+        $this->assertCount(0, $febrero);
     }
 
     /** FR-009/SC-003: compra imputada a un mes distinto del de emisión cae en el imputado. */
@@ -80,25 +80,25 @@ class LibroIvaPeriodoTest extends TestCase
     /** FR-009a: la NC/ND cae en SU PROPIO `mes_imputacion`, no en el de la venta que ajusta. */
     public function test_nota_cae_en_su_propio_mes_imputacion(): void
     {
-        $venta = Venta::factory()->create(['cliente_id' => Cliente::factory(), 'fecha_emision' => '2026-07-10']);
+        $venta = Venta::factory()->create(['cliente_id' => Cliente::factory(), 'fecha_emision' => '2026-02-10']);
 
         NotaCreditoDebito::create([
             'venta_id' => $venta->id,
             'tipo' => 'credito',
             'afecta_stock' => false,
-            'mes_imputacion' => '2026-08-01',
-            'fecha_emision' => '2026-08-02',
+            'mes_imputacion' => '2026-03-01',
+            'fecha_emision' => '2026-03-02',
             'monto' => 100,
             'tipo_comprobante' => 'A',
             'descripcion' => 'Nota',
         ]);
 
-        $agosto = app(LibroIvaVentasQuery::class)->detalle($this->request('/informes/contador/ventas/data', 8, 2026))->get();
-        $julio = app(LibroIvaVentasQuery::class)->detalle($this->request('/informes/contador/ventas/data', 7, 2026))->get();
+        $marzo = app(LibroIvaVentasQuery::class)->detalle($this->request('/informes/contador/ventas/data', 3, 2026))->get();
+        $febrero = app(LibroIvaVentasQuery::class)->detalle($this->request('/informes/contador/ventas/data', 2, 2026))->get();
 
-        // Agosto: la venta NO cae acá (es de julio), pero la nota sí — dos filas distintas de
-        // "julio venta" vs "agosto nota" demuestran que cada una usa su propio período.
-        $this->assertCount(1, $agosto, 'Sólo la nota, imputada a agosto.');
-        $this->assertCount(1, $julio, 'Sólo la venta, emitida en julio.');
+        // Marzo: la venta NO cae acá (es de febrero), pero la nota sí — dos filas distintas de
+        // "febrero venta" vs "marzo nota" demuestran que cada una usa su propio período.
+        $this->assertCount(1, $marzo, 'Sólo la nota, imputada a marzo.');
+        $this->assertCount(1, $febrero, 'Sólo la venta, emitida en febrero.');
     }
 }

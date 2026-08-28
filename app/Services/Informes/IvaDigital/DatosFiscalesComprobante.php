@@ -3,6 +3,7 @@
 namespace App\Services\Informes\IvaDigital;
 
 use App\Models\Compra;
+use App\Models\ComprobanteHistoricoArca;
 use App\Models\NotaCreditoDebito;
 use App\Models\Venta;
 use Illuminate\Support\Collection;
@@ -29,10 +30,21 @@ class DatosFiscalesComprobante
      */
     public function resolverVentas(Collection $filas): Collection
     {
-        $idsComprobante = $filas->filter(fn ($f) => ! $this->esNota($f->tipo))->pluck('id')->all();
-        $idsNota = $filas->filter(fn ($f) => $this->esNota($f->tipo))->pluck('id')->all();
+        $idsHistorico = $filas->filter(fn ($f) => $this->esHistorico($f))->pluck('id')->all();
+        $idsComprobante = $filas->filter(fn ($f) => ! $this->esHistorico($f) && ! $this->esNota($f->tipo))->pluck('id')->all();
+        $idsNota = $filas->filter(fn ($f) => ! $this->esHistorico($f) && $this->esNota($f->tipo))->pluck('id')->all();
 
         $mapa = collect();
+
+        if ($idsHistorico !== []) {
+            ComprobanteHistoricoArca::whereIn('id', $idsHistorico)->get()->each(function (ComprobanteHistoricoArca $h) use ($mapa) {
+                $mapa->put("historico:{$h->id}", [
+                    'total' => (float) $h->total,
+                    'tipo_documento' => $h->cliente_documento_tipo,
+                    'documento' => $h->cliente_documento_numero,
+                ]);
+            });
+        }
 
         if ($idsComprobante !== []) {
             Venta::with('cliente')->whereIn('id', $idsComprobante)->get()->each(function (Venta $v) use ($mapa) {
@@ -90,9 +102,19 @@ class DatosFiscalesComprobante
         return $mapa;
     }
 
-    /** Clave del mapa para una fila de `detalle()`: distingue comprobante de NC/ND (research §1). */
+    /**
+     * Clave del mapa para una fila de `detalle()`: distingue histórico / comprobante / NC-ND
+     * (research §1). La rama histórica se chequea **antes** que las otras dos (plan Decisión 2):
+     * los ids de `comprobantes_historicos_arca` coinciden en valor con ids reales de `ventas`, así
+     * que nunca se puede inferir por rango — el discriminador es el campo `origen` que
+     * `LibroIvaVentasQuery::queryHistoricos()` agrega como literal SQL.
+     */
     public function clave(object $fila): string
     {
+        if ($this->esHistorico($fila)) {
+            return "historico:{$fila->id}";
+        }
+
         return ($this->esNota($fila->tipo) ? 'nota' : 'comprobante').':'.$fila->id;
     }
 
@@ -130,5 +152,11 @@ class DatosFiscalesComprobante
     private function esNota(string $tipo): bool
     {
         return str_starts_with($tipo, 'NC') || str_starts_with($tipo, 'ND');
+    }
+
+    /** spec 088, plan Decisión 2: nunca por rango de `id`, siempre por el literal `origen`. */
+    public function esHistorico(object $fila): bool
+    {
+        return ($fila->origen ?? null) === 'historico_migracion_agosto_2026';
     }
 }

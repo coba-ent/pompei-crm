@@ -31,7 +31,7 @@ class MovimientosClientesExportTest extends TestCase
     private function request(array $extra = []): Request
     {
         return Request::create('/informes/cuenta-corriente/movimientos/exportar', 'GET', array_merge([
-            'fecha_desde' => '2026-08-01', 'fecha_hasta' => '2026-08-31',
+            'fecha_desde' => '2026-03-01', 'fecha_hasta' => '2026-03-31',
         ], $extra));
     }
 
@@ -40,7 +40,7 @@ class MovimientosClientesExportTest extends TestCase
         $cliente = Cliente::factory()->create(['nombre' => 'Cliente Excel']);
         $venta = Venta::factory()->create([
             'cliente_id' => $cliente->id,
-            'fecha_emision' => '2026-08-10',
+            'fecha_emision' => '2026-03-10',
             'subtotal_sin_descuento' => 2000,
             'subtotal_con_descuento' => 2000,
             'total' => 2321,
@@ -54,7 +54,7 @@ class MovimientosClientesExportTest extends TestCase
             'precio_unitario' => 1000, 'iva_pct' => '10.5', 'subtotal' => 1000, 'subtotal_con_iva' => 1105,
         ]);
         Cobro::create([
-            'venta_id' => $venta->id, 'fecha' => '2026-08-11', 'monto' => 2315,
+            'venta_id' => $venta->id, 'fecha' => '2026-03-11', 'monto' => 2315,
             'cuenta_tesoreria_id' => CuentaTesoreria::factory()->create()->id,
         ]);
 
@@ -87,7 +87,7 @@ class MovimientosClientesExportTest extends TestCase
         $cliente = Cliente::factory()->create();
         $venta = Venta::factory()->create([
             'cliente_id' => $cliente->id,
-            'fecha_emision' => '2026-08-05',
+            'fecha_emision' => '2026-03-05',
             'total' => 1210,
         ]);
         VentaItem::create([
@@ -99,8 +99,8 @@ class MovimientosClientesExportTest extends TestCase
             'venta_id' => $venta->id,
             'tipo' => 'credito',
             'afecta_stock' => false,
-            'mes_imputacion' => '2026-08-01',
-            'fecha_emision' => '2026-08-15',
+            'mes_imputacion' => '2026-03-01',
+            'fecha_emision' => '2026-03-15',
             'monto' => 121.0,
             'tipo_comprobante' => 'A',
             'descripcion' => 'Devolución parcial',

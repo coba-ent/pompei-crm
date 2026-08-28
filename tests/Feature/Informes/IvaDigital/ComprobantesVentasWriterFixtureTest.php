@@ -55,7 +55,13 @@ class ComprobantesVentasWriterFixtureTest extends TestCase
             'mes' => 8, 'anio' => 2026, 'arca' => true, 'manuales' => true,
         ]);
 
-        $filas = app(LibroIvaVentasQuery::class)->detalle($request)->orderBy('emision')->orderBy('id')->get();
+        // Agosto 2026 también tiene los 14 comprobantes históricos de spec 088 (migración real,
+        // cargada en toda la suite) — se filtra explícitamente por esta venta para no depender del
+        // orden entre ella y esos 14 al tomar "la línea 1".
+        $filas = app(LibroIvaVentasQuery::class)->detalle($request)
+            ->orderBy('emision')->orderBy('id')->get()
+            ->filter(fn ($f) => $f->id === $venta->id && $f->origen === 'venta')
+            ->values();
 
         $rutaComprobantes = tempnam(sys_get_temp_dir(), 'test_cv_');
         $rutaAlicuotas = tempnam(sys_get_temp_dir(), 'test_av_');
@@ -103,7 +109,9 @@ class ComprobantesVentasWriterFixtureTest extends TestCase
         ]);
 
         $request = Request::create('/informes/contador/ventas/data', 'POST', ['mes' => 8, 'anio' => 2026, 'arca' => true, 'manuales' => true]);
-        $filas = app(LibroIvaVentasQuery::class)->detalle($request)->get();
+        $filas = app(LibroIvaVentasQuery::class)->detalle($request)->get()
+            ->filter(fn ($f) => $f->id === $venta->id && $f->origen === 'venta')
+            ->values();
 
         $rutaComprobantes = tempnam(sys_get_temp_dir(), 'test_cv_');
         $ruta = tempnam(sys_get_temp_dir(), 'test_av_');

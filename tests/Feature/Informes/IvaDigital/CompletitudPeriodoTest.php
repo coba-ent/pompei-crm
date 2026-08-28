@@ -35,7 +35,7 @@ class CompletitudPeriodoTest extends TestCase
         foreach (range(1, 5) as $i) {
             $venta = Venta::factory()->create([
                 'cliente_id' => $cliente->id, 'tipo_comprobante' => 'B',
-                'nro_comprobante' => sprintf('0001-%08d', $i), 'fecha_emision' => '2026-08-10', 'total' => 1210,
+                'nro_comprobante' => sprintf('0001-%08d', $i), 'fecha_emision' => '2026-03-10', 'total' => 1210,
             ]);
             VentaItem::create([
                 'venta_id' => $venta->id, 'descripcion' => 'Ítem', 'cantidad' => 1,
@@ -43,7 +43,7 @@ class CompletitudPeriodoTest extends TestCase
             ]);
         }
 
-        $request = Request::create('/informes/contador/ventas/data', 'POST', ['mes' => 8, 'anio' => 2026, 'arca' => true, 'manuales' => true]);
+        $request = Request::create('/informes/contador/ventas/data', 'POST', ['mes' => 3, 'anio' => 2026, 'arca' => true, 'manuales' => true]);
         $filas = app(LibroIvaVentasQuery::class)->detalle($request)->get();
 
         // "El informe en pantalla" = detalle() en crudo, sin pasar por el TXT — mismo dato, dos

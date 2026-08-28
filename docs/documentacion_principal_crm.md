@@ -3032,6 +3032,30 @@ opciones: el período de un libro IVA es un mes calendario, no un rango libre.
 *Fuente(s): `docs/informe_contagram_contador/`, `specs/077-informe-contador-iva/`,
 `specs/086-iva-digital-rg3685/`, `specs/087-envio-contador-correo/`, archivos reales en `contador/`*
 
+### 6.6.bis Comprobantes históricos con CAE real de ARCA (spec 088, 28/08/2026)
+
+La migración de base de datos de agosto 2026 dejó afuera 14 comprobantes de venta que ya tenían CAE
+real aprobado por ARCA (13 comprobantes de venta — uno de ellos con doble CAE por un error de emisión
+duplicada — más 1 reconstruido únicamente desde `FECompConsultar` de ARCA, sin detalle de ítems ni
+cliente identificado en ninguna base local). Se recuperaron y se cargaron en una tabla nueva
+**`comprobantes_historicos_arca`**, completamente ajena al modelo `Venta` — sin `venta_id`, sin
+`cliente_id` obligatorio, sin `deleted_at` (conjunto fijo y cerrado, no una funcionalidad operativa).
+
+**Regla para el futuro**: esto **no es un flujo recurrente**. No hay pantalla de alta, no hay
+controlador ni rutas HTTP para esta tabla (spec 088 FR-007) — es una carga puntual, una sola vez, para
+cerrar un incidente de migración concreto. Si en el futuro aparece otro caso similar, la solución es
+una migración nueva puntual con el mismo patrón (tabla ajena a `ventas`, `INSERT` de valores fijos
+verificados contra ARCA), no reabrir esta tabla ni construir un flujo de alta genérico.
+
+Estos 14 registros se integran **únicamente** al Libro IVA Ventas (spec 077) y al IVA Digital (spec
+086) vía `UNION ALL` en `LibroIvaVentasQuery::detalle()` — el mismo mecanismo que ya usan las NC/ND.
+Quedan deliberadamente **fuera** de Reporte Final, KPIs de ventas, Informe de Stock, Cuenta Corriente
+de Clientes, Tesorería y cualquier otro módulo que sume `ventas`: la tabla nueva no tiene ninguna
+relación hacia `ventas`, así que ese aislamiento es una garantía estructural, no una regla que cada
+módulo tenga que recordar respetar.
+
+*Fuente(s): `specs/088-comprobantes-historicos-arca/`*
+
 ---
 
 ## 7. Módulos pendientes de re-relevamiento

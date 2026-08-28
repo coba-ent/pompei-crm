@@ -34,7 +34,7 @@ class MovimientosClientesTotalesIgualesLibroIvaTest extends TestCase
         for ($i = 1; $i <= 3; $i++) {
             $venta = Venta::factory()->create([
                 'cliente_id' => $cliente->id,
-                'fecha_emision' => "2026-08-0{$i}",
+                'fecha_emision' => "2026-03-0{$i}",
                 'total' => 1210,
             ]);
             VentaItem::create([
@@ -47,7 +47,7 @@ class MovimientosClientesTotalesIgualesLibroIvaTest extends TestCase
         }
 
         $movRequest = Request::create('/informes/cuenta-corriente/movimientos/exportar', 'GET', [
-            'fecha_desde' => '2026-08-01', 'fecha_hasta' => '2026-08-31',
+            'fecha_desde' => '2026-03-01', 'fecha_hasta' => '2026-03-31',
         ]);
         $filas = app(MovimientosClientesQuery::class)->obtener($movRequest)
             ->whereIn('operacion', ['venta', 'nota_credito', 'nota_debito']);
@@ -58,7 +58,7 @@ class MovimientosClientesTotalesIgualesLibroIvaTest extends TestCase
             'perc_iibb' => round((float) $filas->sum('perc_iibb'), 2),
         ];
 
-        $libroRequest = Request::create('/informes/contador/ventas/data', 'GET', ['mes' => 8, 'anio' => 2026, 'arca' => true, 'manuales' => true]);
+        $libroRequest = Request::create('/informes/contador/ventas/data', 'GET', ['mes' => 3, 'anio' => 2026, 'arca' => true, 'manuales' => true]);
         $totalesLibroIva = app(LibroIvaVentasQuery::class)->totales($libroRequest);
 
         $this->assertEqualsWithDelta(3000.0, $totalesExport['neto_gravado'], 0.02);

@@ -31,7 +31,7 @@ class LibroIvaTotalesTest extends TestCase
     {
         // arca+manuales=true: estos tests no versan sobre la partición ARCA/Manuales (eso lo
         // cubre LibroIvaArcaManualesTest), así que se pide el universo completo del período.
-        return Request::create('/informes/contador/ventas/data', 'POST', array_merge(['mes' => 8, 'anio' => 2026, 'arca' => true, 'manuales' => true], $extra));
+        return Request::create('/informes/contador/ventas/data', 'POST', array_merge(['mes' => 3, 'anio' => 2026, 'arca' => true, 'manuales' => true], $extra));
     }
 
     private function ventaCon(array $lineas, array $conceptos = []): Venta
@@ -50,7 +50,7 @@ class LibroIvaTotalesTest extends TestCase
 
         $venta = Venta::factory()->create([
             'cliente_id' => Cliente::factory(),
-            'fecha_emision' => '2026-08-10',
+            'fecha_emision' => '2026-03-10',
             'subtotal_sin_descuento' => round($neto, 2),
             'subtotal_con_descuento' => round($neto, 2),
             'total' => round($neto + $iva + $extras, 2),
@@ -148,8 +148,8 @@ class LibroIvaTotalesTest extends TestCase
             'venta_id' => $venta->id,
             'tipo' => 'credito',
             'afecta_stock' => false,
-            'mes_imputacion' => '2026-08-01',
-            'fecha_emision' => '2026-08-15',
+            'mes_imputacion' => '2026-03-01',
+            'fecha_emision' => '2026-03-15',
             'monto' => 121.0,
             'tipo_comprobante' => 'A',
             'descripcion' => 'Devolución parcial',

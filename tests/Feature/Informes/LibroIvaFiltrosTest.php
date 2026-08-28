@@ -25,13 +25,13 @@ class LibroIvaFiltrosTest extends TestCase
 
     private function request(array $extra = []): Request
     {
-        return Request::create('/informes/contador/ventas/data', 'POST', array_merge(['mes' => 8, 'anio' => 2026, 'arca' => true, 'manuales' => true], $extra));
+        return Request::create('/informes/contador/ventas/data', 'POST', array_merge(['mes' => 3, 'anio' => 2026, 'arca' => true, 'manuales' => true], $extra));
     }
 
     /** FR-022b: borrado lógico queda fuera. */
     public function test_venta_con_borrado_logico_queda_fuera(): void
     {
-        $venta = Venta::factory()->create(['cliente_id' => Cliente::factory(), 'fecha_emision' => '2026-08-10']);
+        $venta = Venta::factory()->create(['cliente_id' => Cliente::factory(), 'fecha_emision' => '2026-03-10']);
         $venta->delete();
 
         $filas = app(LibroIvaVentasQuery::class)->detalle($this->request())->get();
@@ -60,8 +60,8 @@ class LibroIvaFiltrosTest extends TestCase
         $rc = CondicionIva::firstOrCreate(['nombre' => 'Responsable Inscripto'], ['codigo_afip' => '1']);
         $cf = CondicionIva::firstOrCreate(['nombre' => 'Consumidor Final'], ['codigo_afip' => '5']);
 
-        Venta::factory()->create(['cliente_id' => Cliente::factory()->create(['condicion_iva_id' => $rc->id]), 'fecha_emision' => '2026-08-10']);
-        Venta::factory()->create(['cliente_id' => Cliente::factory()->create(['condicion_iva_id' => $cf->id]), 'fecha_emision' => '2026-08-11']);
+        Venta::factory()->create(['cliente_id' => Cliente::factory()->create(['condicion_iva_id' => $rc->id]), 'fecha_emision' => '2026-03-10']);
+        Venta::factory()->create(['cliente_id' => Cliente::factory()->create(['condicion_iva_id' => $cf->id]), 'fecha_emision' => '2026-03-11']);
 
         $filas = app(LibroIvaVentasQuery::class)->detalle($this->request(['condicion_iva_id' => [$rc->id]]))->get();
 
@@ -73,7 +73,7 @@ class LibroIvaFiltrosTest extends TestCase
     public function test_venta_con_varios_cobros_no_se_multiplica(): void
     {
         $cuenta = CuentaTesoreria::factory()->create();
-        $venta = Venta::factory()->create(['cliente_id' => Cliente::factory(), 'fecha_emision' => '2026-08-10', 'total' => 300]);
+        $venta = Venta::factory()->create(['cliente_id' => Cliente::factory(), 'fecha_emision' => '2026-03-10', 'total' => 300]);
 
         Cobro::factory()->create(['venta_id' => $venta->id, 'cuenta_tesoreria_id' => $cuenta->id, 'monto' => 100]);
         Cobro::factory()->create(['venta_id' => $venta->id, 'cuenta_tesoreria_id' => $cuenta->id, 'monto' => 200]);
@@ -87,7 +87,7 @@ class LibroIvaFiltrosTest extends TestCase
     public function test_filtros_de_comprobante_y_cuit_son_parciales(): void
     {
         $cliente = Cliente::factory()->create(['cuit' => '20304050607']);
-        Venta::factory()->create(['cliente_id' => $cliente->id, 'fecha_emision' => '2026-08-10', 'nro_comprobante' => '0001-00001234']);
+        Venta::factory()->create(['cliente_id' => $cliente->id, 'fecha_emision' => '2026-03-10', 'nro_comprobante' => '0001-00001234']);
 
         $porNro = app(LibroIvaVentasQuery::class)->detalle($this->request(['nro_comprobante' => '1234']))->get();
         $porCuit = app(LibroIvaVentasQuery::class)->detalle($this->request(['cuit' => '304050']))->get();

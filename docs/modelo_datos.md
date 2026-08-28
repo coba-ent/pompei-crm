@@ -2114,3 +2114,32 @@ proyección ya usa para las etiquetas.
 
 *Fuente(s): `specs/076-fidelidad-informe-ventas/` (`research.md` R1-R7; `data-model.md`;
 `contracts/export-detallado.md`)*
+
+---
+
+## 25. Comprobantes históricos con CAE real de ARCA (spec 088, 28/08/2026)
+
+**Tabla nueva**: `comprobantes_historicos_arca` — 14 registros fijos, cargados por una única
+migración con `INSERT`, nunca por UI. Sin relación a `ventas` (sin `venta_id`, sin `cliente_id`
+obligatorio) y sin `deleted_at` (conjunto cerrado, no gestionado activamente).
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | PK | autoincremental propio — **nunca comparar con `ventas.id`**: coinciden en valor con ids reales de `ventas` |
+| `fecha_emision` | date | |
+| `tipo_comprobante` | char(1) | `'A'`/`'B'` |
+| `punto_venta`, `numero` | string | se recombinan como `"{punto_venta}-{numero}"` para `nro_comprobante` |
+| `cae`, `cae_vencimiento` | string(14), date | CAE real de ARCA |
+| `cliente_nombre`, `cliente_documento_tipo`, `cliente_documento_numero` | nullable | denormalizado; null sólo en el comprobante reconstruido sin identificar |
+| `neto_no_gravado`, `neto_exento`, `neto_gravado` | decimal(14,2) | sólo `neto_gravado` tiene datos en este set |
+| `iva_2_5`, `iva_5`, `iva_10_5`, `iva_21`, `iva_27` | decimal(14,2) | mismas 5 columnas que el Libro IVA; sólo `iva_21` tiene datos |
+| `perc_iva`, `perc_iibb`, `imp_internos`, `imp_municipales` | decimal(14,2) | siempre 0 en este set |
+| `total` | decimal(14,2) | tal como ARCA lo tiene aprobado, no se recalcula |
+| `origen` | string | literal `'historico_migracion_agosto_2026'` — discrimina esta rama en `LibroIvaVentasQuery`/`DatosFiscalesComprobante` sin inferir por rango de `id` |
+
+**Integración**: `LibroIvaVentasQuery::queryHistoricos()` la agrega a `detalle()` con `UNION ALL`
+(mismo mecanismo que ya usan las NC/ND). `DatosFiscalesComprobante::clave()`/`resolverVentas()` la
+resuelven directo desde sus propias columnas, nunca vía `Venta::whereIn`. No tiene modelo con
+relaciones, controlador ni rutas — sólo aparece en Libro IVA Ventas / IVA Digital.
+
+*Fuente(s): `specs/088-comprobantes-historicos-arca/`*

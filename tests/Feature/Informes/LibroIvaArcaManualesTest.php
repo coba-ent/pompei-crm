@@ -31,16 +31,16 @@ class LibroIvaArcaManualesTest extends TestCase
 
     private function request(array $extra = []): Request
     {
-        return Request::create('/informes/contador/ventas/data', 'POST', array_merge(['mes' => 8, 'anio' => 2026], $extra));
+        return Request::create('/informes/contador/ventas/data', 'POST', array_merge(['mes' => 3, 'anio' => 2026], $extra));
     }
 
     private function ventaFirme(): Venta
     {
-        $venta = Venta::factory()->create(['cliente_id' => Cliente::factory(), 'fecha_emision' => '2026-08-10']);
+        $venta = Venta::factory()->create(['cliente_id' => Cliente::factory(), 'fecha_emision' => '2026-03-10']);
         ComprobanteFiscal::create([
             'comprobantable_type' => Venta::class, 'comprobantable_id' => $venta->id,
             'tipo_comprobante' => 'A', 'estado' => 'aprobado', 'cae' => '12345678901234',
-            'cae_vencimiento' => '2026-09-01', 'numero' => '0001-00001234',
+            'cae_vencimiento' => '2026-04-01', 'numero' => '0001-00001234',
         ]);
 
         return $venta;
@@ -48,7 +48,7 @@ class LibroIvaArcaManualesTest extends TestCase
 
     private function ventaManual(): Venta
     {
-        return Venta::factory()->create(['cliente_id' => Cliente::factory(), 'fecha_emision' => '2026-08-11']);
+        return Venta::factory()->create(['cliente_id' => Cliente::factory(), 'fecha_emision' => '2026-03-11']);
     }
 
     /** FR-017/SC-004: exhaustiva y sin solapamiento. */
@@ -70,7 +70,7 @@ class LibroIvaArcaManualesTest extends TestCase
     /** FR-018: incidente Venta 24447 — un rechazo y un aprobado cuentan UNA sola vez y como firme. */
     public function test_venta_con_rechazo_y_luego_aprobado_cuenta_una_vez_y_firme(): void
     {
-        $venta = Venta::factory()->create(['cliente_id' => Cliente::factory(), 'fecha_emision' => '2026-08-10']);
+        $venta = Venta::factory()->create(['cliente_id' => Cliente::factory(), 'fecha_emision' => '2026-03-10']);
 
         ComprobanteFiscal::create([
             'comprobantable_type' => Venta::class, 'comprobantable_id' => $venta->id,
@@ -91,7 +91,7 @@ class LibroIvaArcaManualesTest extends TestCase
     /** FR-016: una venta rechazada cae en manuales. */
     public function test_venta_rechazada_cae_en_manuales(): void
     {
-        $venta = Venta::factory()->create(['cliente_id' => Cliente::factory(), 'fecha_emision' => '2026-08-10']);
+        $venta = Venta::factory()->create(['cliente_id' => Cliente::factory(), 'fecha_emision' => '2026-03-10']);
         ComprobanteFiscal::create([
             'comprobantable_type' => Venta::class, 'comprobantable_id' => $venta->id,
             'tipo_comprobante' => 'A', 'estado' => 'rechazado', 'motivo_rechazo' => 'Error',

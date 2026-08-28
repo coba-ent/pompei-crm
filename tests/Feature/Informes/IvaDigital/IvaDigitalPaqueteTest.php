@@ -58,7 +58,10 @@ class IvaDigitalPaqueteTest extends TestCase
     /** FR-005: período sin comprobantes igual arma un ZIP válido con 4 archivos de 0 bytes. */
     public function test_periodo_vacio_genera_zip_valido_con_4_archivos_de_0_bytes(): void
     {
-        $ruta = app(IvaDigitalPaquete::class)->generar($this->request(), 1, 2026);
+        // Enero 2026, no el default de $this->request(): el ZIP lee el período de la request
+        // (mes/anio), no de los argumentos de generar() — que sólo nombran los archivos.
+        $requestEnero = Request::create('/', 'POST', ['mes' => 1, 'anio' => 2026, 'arca' => true, 'manuales' => true]);
+        $ruta = app(IvaDigitalPaquete::class)->generar($requestEnero, 1, 2026);
 
         $zip = new \ZipArchive;
         $abierto = $zip->open($ruta);

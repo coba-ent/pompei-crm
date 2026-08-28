@@ -23,8 +23,11 @@ class LibroIvaVentasQuery extends LibroIvaQuery
     {
         $items = $this->queryVentas($request);
         $notas = $this->queryNotas($request);
+        $historicos = $this->queryHistoricos($request);
 
-        return $notas === null ? $items : $items->unionAll($notas);
+        $query = $notas === null ? $items : $items->unionAll($notas);
+
+        return $historicos === null ? $query : $query->unionAll($historicos);
     }
 
     // -----------------------------------------------------------------------------------
@@ -67,6 +70,7 @@ class LibroIvaVentasQuery extends LibroIvaQuery
                 $this->sqlPercIibb('venta_conceptos', 'venta_id', 'ventas.id').' as perc_iibb',
                 $this->sqlImpuestosInternos('venta_conceptos', 'venta_id', 'ventas.id').' as imp_internos',
                 '0 as imp_municipales',
+                "'venta' as origen",
             ])));
 
         $this->filtrarPeriodo($query, $request, 'ventas.fecha_emision');
@@ -104,6 +108,57 @@ class LibroIvaVentasQuery extends LibroIvaQuery
 
         $firme = $this->sqlFirme();
         $arca ? $query->whereRaw($firme) : $query->whereRaw('NOT '.$firme);
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Rama de comprobantes históricos con CAE real de ARCA (spec 088)
+    // -----------------------------------------------------------------------------------
+
+    /**
+     * Comprobantes históricos (spec 088): mismo contrato de columnas que `queryVentas()`/
+     * `queryNotas()`, en el mismo nombre y orden — un desalineamiento acá no siempre falla en
+     * runtime, puede mezclar valores de columnas distintas en silencio (data-model.md §3). `tipo`
+     * es la letra sola (`'A'`/`'B'`, plan Decisión 1) para que nunca pase por
+     * `filtrarArcaManuales()` (esa función sólo aplica a la rama `queryVentas()`, así que estos
+     * históricos siempre aparecen — FR-010). `origen` es una 20ª columna agregada a las tres ramas
+     * (aquí como literal `'historico_migracion_agosto_2026'`, en las otras dos como `'venta'`/
+     * `'nota'`) para que `UNION ALL` siga alineado y `DatosFiscalesComprobante::clave()` pueda
+     * distinguir esta rama sin inferir por rango de `id` (plan Decisión 2) — los ids de esta tabla
+     * nueva coinciden en valor con ids reales de `ventas`.
+     */
+    private function queryHistoricos(Request $request): Builder
+    {
+        // ExpresionSql::concatPlano() en vez de CONCAT() crudo: MySQL lo soporta pero SQLite (que
+        // corre la suite de tests) no tiene esa función — CONCAT() rompía toda la suite que toca
+        // esta query, no sólo los tests de esta feature.
+        $nroComprobante = ExpresionSql::concatPlano(['punto_venta', ExpresionSql::literal('-'), 'numero']);
+
+        $query = DB::table('comprobantes_historicos_arca')
+            ->selectRaw(implode(', ', array_merge([
+                'id as id',
+                'fecha_emision as emision',
+                'tipo_comprobante as tipo',
+                "{$nroComprobante} as nro_comprobante",
+                "COALESCE(cliente_nombre, 'Sin cliente') as contraparte",
+                'cliente_documento_numero as cuit',
+                "'' as condicion_iva",
+                'neto_no_gravado as neto_no_gravado',
+                'neto_exento as neto_exento',
+                'neto_gravado as neto_gravado',
+            ], array_map(
+                fn (string $a) => 'iva_'.str_replace('.', '_', $a).' as iva_'.str_replace('.', '_', $a),
+                self::ALICUOTAS
+            ), [
+                'perc_iva as perc_iva',
+                'perc_iibb as perc_iibb',
+                'imp_internos as imp_internos',
+                'imp_municipales as imp_municipales',
+                ExpresionSql::literal('historico_migracion_agosto_2026').' as origen',
+            ])));
+
+        $this->filtrarPeriodo($query, $request, 'fecha_emision');
+
+        return $query;
     }
 
     // -----------------------------------------------------------------------------------
@@ -202,6 +257,7 @@ class LibroIvaVentasQuery extends LibroIvaQuery
         $partes[] = $this->num($signo * $percIibb).' as perc_iibb';
         $partes[] = $this->num($signo * $impInternos).' as imp_internos';
         $partes[] = '0 as imp_municipales';
+        $partes[] = ExpresionSql::literal('nota').' as origen';
 
         return implode(', ', $partes);
     }
