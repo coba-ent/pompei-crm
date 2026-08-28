@@ -10,48 +10,37 @@
             </div>
         </div>
 
-        {{-- Cards de KPIs --}}
-        <div class="row">
-            <div class="col-xl-4 col-md-6">
-                <div class="card ic-chart-card">
-                    <div class="card-header d-block border-0 pb-0">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <h6 class="mb-0">Unidades en Stock</h6>
-                            <span class="icon-box icon-box-sm bg-warning-light rounded">
-                                <i class="fas fa-warehouse text-warning"></i>
-                            </span>
-                        </div>
-                        <span class="data-value" id="stat-unidades">{{ number_format($stats['unidades_en_stock'], 0, ',', '.') }}</span>
+        {{-- KPIs: mismo patrón que Ventas y Compras (`widget-stat` + rótulo arriba y valor
+             abajo), para que los informes se lean como una sola familia de pantallas. Antes esta
+             era la única que usaba `ic-chart-card` con ícono, y desentonaba. --}}
+        <div class="row mb-3 g-2">
+            <div class="col-6 col-md-4">
+                <div class="widget-stat card mb-0 h-100">
+                    <div class="card-body p-3">
+                        <p class="mb-1">Unidades en Stock</p>
+                        <h4 class="mb-0" id="stat-unidades">{{ number_format($stats['unidades_en_stock'], 0, ',', '.') }}</h4>
+                        <span class="fs-13 text-muted">Según los filtros vigentes</span>
                     </div>
-                    <div class="card-body pt-2"><span class="fs-13 text-muted">Según los filtros vigentes</span></div>
                 </div>
             </div>
-            <div class="col-xl-4 col-md-6">
-                <div class="card ic-chart-card">
-                    <div class="card-header d-block border-0 pb-0">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <h6 class="mb-0">Costo Total</h6>
-                            <span class="icon-box icon-box-sm bg-danger-light rounded">
-                                <i class="fas fa-coins text-danger"></i>
-                            </span>
-                        </div>
-                        <span class="data-value" id="stat-costo-total">$ {{ number_format($stats['costo_total'], 2, ',', '.') }}</span>
+            <div class="col-6 col-md-4">
+                <div class="widget-stat card mb-0 h-100">
+                    <div class="card-body p-3">
+                        <p class="mb-1">Costo Total</p>
+                        <h4 class="mb-0" id="stat-costo-total">$ {{ number_format($stats['costo_total'], 2, ',', '.') }}</h4>
+                        <span class="fs-13 text-muted">Cantidad en stock × costo</span>
                     </div>
-                    <div class="card-body pt-2"><span class="fs-13 text-muted">Cantidad en stock × costo</span></div>
                 </div>
             </div>
-            <div class="col-xl-4 col-md-6">
-                <div class="card ic-chart-card">
-                    <div class="card-header d-block border-0 pb-0">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <h6 class="mb-0">Valor Venta Total</h6>
-                            <span class="icon-box icon-box-sm bg-success-light rounded">
-                                <i class="fas fa-sack-dollar text-success"></i>
-                            </span>
-                        </div>
-                        <span class="data-value" id="stat-valor-venta-total">$ {{ number_format($stats['valor_venta_total'], 2, ',', '.') }}</span>
+            <div class="col-12 col-md-4">
+                {{-- El valor de venta es el número que se mira: destacado como el "Total Ventas"
+                     de Ventas y el "Total Compras" de Compras. --}}
+                <div class="widget-stat card mb-0 h-100 border border-primary">
+                    <div class="card-body p-3">
+                        <p class="mb-1 fw-bold">Valor Venta Total</p>
+                        <h4 class="mb-0 text-primary" id="stat-valor-venta-total">$ {{ number_format($stats['valor_venta_total'], 2, ',', '.') }}</h4>
+                        <span class="fs-13 text-muted">Cantidad en stock × precio de venta</span>
                     </div>
-                    <div class="card-body pt-2"><span class="fs-13 text-muted">Cantidad en stock × precio de venta</span></div>
                 </div>
             </div>
         </div>
