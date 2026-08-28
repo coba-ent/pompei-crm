@@ -539,8 +539,10 @@
                 window.location.href = rutas.volver;
             })
             .fail((xhr) => {
+                // El 409 es una regla de negocio (no una validación de campos) y trae su propio
+                // mensaje explicativo: se muestra tal cual, sin pasar por el detalle por campo.
                 if (xhr.status === 409) { toast('error', xhr.responseJSON?.mensaje || 'No se puede guardar esta nota.'); }
-                else { toast('error', xhr.responseJSON?.errors ? Object.values(xhr.responseJSON.errors)[0][0] : (xhr.responseJSON?.mensaje || 'No se pudo guardar la nota.')); }
+                else { window.AppErrores.toast(xhr, 'No se pudo guardar la nota.'); }
                 enviando = false;
                 if (window.AppBtn) { window.AppBtn.loading('#btn-nota-guardar', false); }
             });

@@ -8,6 +8,14 @@ use Illuminate\Http\Exceptions\HttpResponseException;
 
 class UpdatePresupuestoRequest extends FormRequest
 {
+    use Concerns\CompletaVendedorPorDefecto;
+
+    /** Toma el vendedor por defecto de Configuración → Ventas si la edición no trae uno. */
+    protected function prepareForValidation(): void
+    {
+        $this->completarVendedor();
+    }
+
     protected function failedValidation(Validator $validator): void
     {
         throw new HttpResponseException(response()->json([
@@ -31,7 +39,9 @@ class UpdatePresupuestoRequest extends FormRequest
             'cliente_id' => 'required|exists:clientes,id',
             'categoria_id' => 'nullable|exists:categorias,id',
             'lista_precio_id' => 'nullable|exists:listas_precio,id',
-            'vendedor_id' => 'nullable|integer|exists:vendedores,id',
+            // Obligatorio: toda venta/presupuesto se le asigna a alguien. La columna es nullable por los
+            // registros migrados de Contagram, que no traían vendedor; la regla aplica de acá en más.
+            'vendedor_id' => 'required|integer|exists:vendedores,id',
             'fecha_emision' => 'required|date',
             'fecha_validez' => 'nullable|date',
             'servicio_desde' => 'nullable|date',

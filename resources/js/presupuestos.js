@@ -906,7 +906,11 @@
         let enviando = false;
         $('#btn-guardar-presupuesto').on('click', function () {
             if (enviando) { return; }
+            // Espeja los `required` de StorePresupuestoRequest/UpdatePresupuestoRequest. La Emisión
+            // faltaba: vacía, el submit rebotaba del backend sin decir cuál era el campo.
             if (!$('#f-cliente').val()) { toast('error', 'Seleccioná un cliente.'); return; }
+            if (!$('#f-vendedor').val()) { toast('error', 'Seleccioná un Vendedor.'); return; }
+            if (!window.AppFecha.get($('#f-fecha-emision'))) { toast('error', 'Ingresá la Fecha de Emisión.'); return; }
             if (!items.length) { toast('error', 'Agregá al menos un ítem.'); return; }
 
             const payload = {
@@ -943,7 +947,7 @@
                     window.location.href = resp.redirect || rutas.index;
                 })
                 .fail((xhr) => {
-                    toast('error', xhr.responseJSON?.message || 'No se salvó el Presupuesto, revise el formulario.');
+                    window.AppErrores.toast(xhr, 'No se salvó el Presupuesto, revise el formulario.');
                     enviando = false;
                     window.AppBtn.loading('#btn-guardar-presupuesto', false);
                 });

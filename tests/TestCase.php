@@ -15,12 +15,34 @@ abstract class TestCase extends BaseTestCase
      */
     protected bool $autenticado = true;
 
+    /**
+     * Vendedor por defecto, como lo tiene una instalación real.
+     *
+     * `vendedor_id` es obligatorio al crear una venta/presupuesto, y los FormRequest caen al
+     * vendedor configurado en Configuración → Ventas cuando el alta no trae uno (la conversión de
+     * órdenes de ML/Tiendanube y la de Presupuesto a Venta no lo mandan). En producción esa
+     * configuración existe; sin ella acá, cualquier test que dé de alta una venta fallaría por un
+     * dato de configuración que no es lo que está probando. Mismo criterio que la autenticación
+     * por defecto de arriba.
+     */
+    protected bool $conConfiguracionVentas = true;
+
     protected function setUp(): void
     {
         parent::setUp();
 
-        if ($this->autenticado && in_array(RefreshDatabase::class, class_uses_recursive($this), true)) {
+        if (! in_array(RefreshDatabase::class, class_uses_recursive($this), true)) {
+            return;
+        }
+
+        if ($this->autenticado) {
             $this->actingAs(User::factory()->create());
+        }
+
+        if ($this->conConfiguracionVentas) {
+            \App\Models\ConfiguracionVentas::query()->updateOrCreate([], [
+                'vendedor_id' => \App\Models\Vendedor::firstOrCreate(['nombre' => 'Vendedor por defecto'])->id,
+            ]);
         }
     }
 }

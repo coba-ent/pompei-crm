@@ -124,6 +124,11 @@
      tiene que cargar ANTES que los bundles de pantalla que lo montan. --}}
 @vite(['resources/js/buscador-catalogo.js'])
 
+{{-- Errores de validación del backend (`AppErrores`): traduce un 422 al toast que ve el usuario,
+     mostrando QUÉ campo falló en vez del genérico "revise el formulario". Mismo motivo que los dos
+     de arriba para vivir acá: lo usan los bundles de Venta/Compra/Presupuesto/NC-ND. --}}
+@vite(['resources/js/errores-validacion.js'])
+
 {{-- Barra superior de Monitoreo (spec 073): indicador + campanita. Sólo con permiso, para que sin
      él no haya ni una llamada al endpoint de resumen (FR-025). --}}
 @can('monitoreo.ver')

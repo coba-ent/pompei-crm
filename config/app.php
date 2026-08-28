@@ -92,9 +92,13 @@ return [
     |
     */
 
-    'locale' => env('APP_LOCALE', 'en'),
+    // Español por defecto: el CRM es de un negocio argentino y la app responde en español (ver
+    // CLAUDE.md). Sin esto los mensajes de validación salían en inglés y con el nombre de la
+    // columna ("The cliente id field is required."), que es lo que terminaba viendo el usuario en
+    // el toast de los formularios de carga. Las traducciones viven en `lang/es/`.
+    'locale' => env('APP_LOCALE', 'es'),
 
-    'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
+    'fallback_locale' => env('APP_FALLBACK_LOCALE', 'es'),
 
     'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),
 

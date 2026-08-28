@@ -765,6 +765,7 @@
             if (!$('#f-deposito').val()) { toast('error', 'Seleccioná un Depósito.'); return false; }
             // "Sin Factura" ('S') es una compra sin comprobante fiscal: no hay número que pedir.
             if (!$('#f-nro-comprobante').val() && $('#f-tipo-comprobante').val() !== 'S') { toast('error', 'Ingresá el N° de Comprobante.'); return false; }
+            if (!window.AppFecha.get($('#f-fecha-emision'))) { toast('error', 'Ingresá la Fecha de Emisión.'); return false; }
             if (!items.length) { toast('error', 'Agregá al menos un ítem.'); return false; }
             return true;
         }
@@ -784,7 +785,7 @@
                     window.location.href = resp.redirect || rutas.index;
                 })
                 .fail((xhr) => {
-                    toast('error', xhr.responseJSON?.message || 'No se salvó la Compra, revise el formulario.');
+                    window.AppErrores.toast(xhr, 'No se salvó la Compra, revise el formulario.');
                     enviando = false;
                     window.AppBtn.loading('#btn-guardar-compra', false);
                 });

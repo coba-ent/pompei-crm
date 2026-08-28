@@ -1088,9 +1088,19 @@
             };
         }
 
+        /**
+         * Espeja los campos `required` de StoreVentaRequest/UpdateVentaRequest, para avisar acá lo
+         * que si no rebota del backend con un 422. Faltaban Emisión y Tipo de Comprobante: al
+         * quedar vacíos el submit fallaba con el mensaje genérico y sin decir cuál era el campo.
+         */
         function validar() {
             if (!$('#f-cliente').val()) { toast('error', 'Seleccioná un cliente.'); return false; }
             if (!$('#f-deposito').val()) { toast('error', 'Seleccioná un Depósito.'); return false; }
+            // El movimiento de stock necesita un depósito y la venta necesita un responsable: los
+            // dos son obligatorios aunque la columna sea nullable (lo es por los datos migrados).
+            if (!$('#f-vendedor').val()) { toast('error', 'Seleccioná un Vendedor.'); return false; }
+            if (!$('#f-tipo-comprobante').val()) { toast('error', 'Elegí el Tipo de Comprobante.'); return false; }
+            if (!window.AppFecha.get($('#f-fecha-emision'))) { toast('error', 'Ingresá la Fecha de Emisión.'); return false; }
             if (!items.length) { toast('error', 'Agregá al menos un ítem.'); return false; }
             return true;
         }
@@ -1107,7 +1117,7 @@
             $.ajax({ url, method, data: payload() })
                 .done((resp) => { toast('success', resp.mensaje || 'Venta guardada.'); onDone(resp); })
                 .fail((xhr) => {
-                    toast('error', xhr.responseJSON?.message || 'No se salvó la Venta, revise el formulario.');
+                    window.AppErrores.toast(xhr, 'No se salvó la Venta, revise el formulario.');
                     enviando = false;
                     window.AppBtn.loading('#btn-guardar-venta, #btn-cobrar-venta', false);
                 });
