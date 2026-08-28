@@ -27,7 +27,10 @@ class LibroIvaNotasDesgloseTest extends TestCase
 
     private function request(): Request
     {
-        return Request::create('/informes/contador/ventas/data', 'POST', ['mes' => 8, 'anio' => 2026]);
+        // arca+manuales=true: estos tests versan sobre el DESGLOSE impositivo de la nota, no sobre
+        // la partición ARCA/Manuales (eso lo cubre LibroIvaArcaManualesTest). Las notas de acá no
+        // tienen comprobante fiscal, así que con el default (sólo ARCA) quedarían fuera del universo.
+        return Request::create('/informes/contador/ventas/data', 'POST', ['mes' => 8, 'anio' => 2026, 'arca' => true, 'manuales' => true]);
     }
 
     private function filas()

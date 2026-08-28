@@ -2,6 +2,7 @@
 
 namespace App\Services\Informes;
 
+use App\Models\NotaCreditoDebito;
 use App\Models\Venta;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
@@ -82,16 +83,23 @@ class LibroIvaVentasQuery extends LibroIvaQuery
         return $query;
     }
 
-    /** T043: EXISTS sobre `comprobantes_fiscales` con `estado = 'aprobado'` — nunca el `morphOne` (data-model §3, incidente Venta 24447). */
-    private function sqlFirme(): string
+    /**
+     * T043: EXISTS sobre `comprobantes_fiscales` con `estado = 'aprobado'` — nunca el `morphOne`
+     * (data-model §3, incidente Venta 24447).
+     *
+     * Parametrizado por comprobante porque la partición ARCA/Manuales aplica a las dos ramas: la
+     * de ventas (`ventas.id` + `Venta`) y la de NC/ND (`notas_credito_debito.id` +
+     * `NotaCreditoDebito`), que también se emiten electrónicamente ante ARCA.
+     */
+    private function sqlFirme(string $columnaId = 'ventas.id', string $morphClass = Venta::class): string
     {
-        return "EXISTS (SELECT 1 FROM comprobantes_fiscales cf WHERE cf.comprobantable_id = ventas.id ".
-            'AND cf.comprobantable_type = '.ExpresionSql::literal(Venta::class).
+        return "EXISTS (SELECT 1 FROM comprobantes_fiscales cf WHERE cf.comprobantable_id = {$columnaId} ".
+            'AND cf.comprobantable_type = '.ExpresionSql::literal($morphClass).
             " AND cf.estado = 'aprobado' AND cf.deleted_at IS NULL)";
     }
 
     /** FR-014/016/017/018/019: casillas ARCA (default tildada) / Manuales (default destildada). */
-    private function filtrarArcaManuales(Builder $query, Request $request): void
+    private function filtrarArcaManuales(Builder $query, Request $request, string $columnaId = 'ventas.id', string $morphClass = Venta::class): void
     {
         $arca = $request->has('arca') ? filter_var($request->input('arca'), FILTER_VALIDATE_BOOLEAN) : true;
         $manuales = $request->has('manuales') ? filter_var($request->input('manuales'), FILTER_VALIDATE_BOOLEAN) : false;
@@ -106,7 +114,7 @@ class LibroIvaVentasQuery extends LibroIvaQuery
             return;
         }
 
-        $firme = $this->sqlFirme();
+        $firme = $this->sqlFirme($columnaId, $morphClass);
         $arca ? $query->whereRaw($firme) : $query->whereRaw('NOT '.$firme);
     }
 
@@ -191,6 +199,10 @@ class LibroIvaVentasQuery extends LibroIvaQuery
         $this->aplicarFiltrosComunes($query, $request, 'notas_credito_debito.id', 'ventas.cliente_id', 'clientes.cuit', 'clientes.condicion_iva_id', null, 'notas_credito_debito.nro_comprobante');
         $this->filtrarMedioTesoreria($query, $request, 'cobros', 'venta_id', 'ventas.id');
         $this->filtrarProvincia($query, $request, 'clientes');
+        // Las NC/ND también se emiten electrónicamente ante ARCA (Contagram las distingue como
+        // NCEB/NCMB), así que participan de la misma partición que los comprobantes: antes caían
+        // siempre en las dos vistas y descuadraban el total contra Contagram.
+        $this->filtrarArcaManuales($query, $request, 'notas_credito_debito.id', NotaCreditoDebito::class);
 
         $notas = $query->select([
             'notas_credito_debito.id', 'notas_credito_debito.venta_id', 'notas_credito_debito.tipo',
