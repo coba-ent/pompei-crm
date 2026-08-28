@@ -763,7 +763,8 @@
         function validar() {
             if (!$('#f-proveedor').val()) { toast('error', 'Seleccioná un proveedor.'); return false; }
             if (!$('#f-deposito').val()) { toast('error', 'Seleccioná un Depósito.'); return false; }
-            if (!$('#f-nro-comprobante').val()) { toast('error', 'Ingresá el N° de Comprobante.'); return false; }
+            // "Sin Factura" ('S') es una compra sin comprobante fiscal: no hay número que pedir.
+            if (!$('#f-nro-comprobante').val() && $('#f-tipo-comprobante').val() !== 'S') { toast('error', 'Ingresá el N° de Comprobante.'); return false; }
             if (!items.length) { toast('error', 'Agregá al menos un ítem.'); return false; }
             return true;
         }

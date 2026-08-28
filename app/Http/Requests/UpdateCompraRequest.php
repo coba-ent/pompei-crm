@@ -22,6 +22,14 @@ class UpdateCompraRequest extends FormRequest
         return true;
     }
 
+    /** Vacío entra como NULL: el índice `unique(tipo_comprobante, nro_comprobante)` tolera varios NULL, no varios ''. */
+    protected function prepareForValidation(): void
+    {
+        if ($this->input('nro_comprobante') === '') {
+            $this->merge(['nro_comprobante' => null]);
+        }
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -31,7 +39,8 @@ class UpdateCompraRequest extends FormRequest
             'proveedor_id' => 'required|exists:proveedores,id',
             'categoria_id' => 'nullable|exists:categorias,id',
             'deposito_id' => 'required|integer|exists:depositos,id,activo,1',
-            'nro_comprobante' => 'required|string|max:20',
+            // Obligatorio salvo "Sin Factura" (`tipo_comprobante = 'S'`) — ver StoreCompraRequest.
+            'nro_comprobante' => 'required_unless:tipo_comprobante,S|nullable|string|max:20',
             'fecha_emision' => 'required|date',
             'fecha_vto_pago' => 'nullable|date',
             'servicio_desde' => 'nullable|date',

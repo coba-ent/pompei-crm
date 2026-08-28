@@ -23,6 +23,20 @@ class StoreCompraRequest extends FormRequest
     }
 
     /**
+     * Un `nro_comprobante` vacío entra como NULL, no como cadena vacía.
+     *
+     * `compras` tiene `unique(['tipo_comprobante','nro_comprobante'])`: en MySQL dos NULL no colisionan
+     * entre sí en un índice único, pero dos `''` sí — así que sin esto la segunda compra sin número
+     * fallaría con un error de duplicado incomprensible para el usuario.
+     */
+    protected function prepareForValidation(): void
+    {
+        if ($this->input('nro_comprobante') === '') {
+            $this->merge(['nro_comprobante' => null]);
+        }
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function rules(): array
@@ -32,7 +46,10 @@ class StoreCompraRequest extends FormRequest
             'proveedor_id' => 'required|exists:proveedores,id',
             'categoria_id' => 'nullable|exists:categorias,id',
             'deposito_id' => 'required|integer|exists:depositos,id,activo,1',
-            'nro_comprobante' => 'required|string|max:20',
+            // Obligatorio salvo "Sin Factura" (`tipo_comprobante = 'S'`): esa opción del formulario
+            // es justamente una compra sin comprobante fiscal, así que no hay número que pedir. Con
+            // `required` a secas no se podía cargar ninguna (952 de las 2.404 migradas no lo tienen).
+            'nro_comprobante' => 'required_unless:tipo_comprobante,S|nullable|string|max:20',
             'fecha_emision' => 'required|date',
             'fecha_vto_pago' => 'nullable|date',
             'servicio_desde' => 'nullable|date',
