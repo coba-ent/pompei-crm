@@ -86,6 +86,11 @@ class MercadoLibreConfiguracionController extends Controller
                 'categoria_venta_id' => $configuracion->categoria_venta_id,
                 'lista_precio_id' => $configuracion->lista_precio_id,
                 'lista_precio_id_premium' => $configuracion->lista_precio_id_premium,
+                // spec 084: mismo motivo que `deposito_full_id` de arriba. Sin estas dos claves el
+                // corte se guarda bien en la base pero el formulario lo muestra apagado al recargar,
+                // y parece que el switch no anduviera.
+                'umbral_caida_precio_pct' => $configuracion->umbral_caida_precio_pct,
+                'corte_precios_activo' => $configuracion->corte_precios_activo,
                 'vendedor_id' => $configuracion->vendedor_id,
                 'dias_primera_sync' => $configuracion->dias_primera_sync,
                 'ultima_sync_en' => optional($configuracion->ultima_sync_en)->toIso8601String(),

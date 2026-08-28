@@ -236,6 +236,25 @@ class RetencionPrecioPantallaTest extends TestCase
             'La previa no aplica nada.');
     }
 
+    /**
+     * El endpoint de estado arma el JSON campo por campo, así que una clave que falte hace que el
+     * formulario pierda el valor al recargar: se guarda bien en la base pero la pantalla lo muestra
+     * apagado, y parece que el switch no anduviera. Ya había pasado con `deposito_full_id` en la
+     * spec 065 y volvió a pasar acá el 28/08/2026.
+     */
+    public function test_el_estado_devuelve_la_configuracion_del_corte(): void
+    {
+        MercadoLibreConfiguracion::actual()->update([
+            'corte_precios_activo' => true,
+            'umbral_caida_precio_pct' => 15,
+        ]);
+
+        $this->getJson(route('configuracion.mercadolibre.estado'))
+            ->assertOk()
+            ->assertJsonPath('configuracion.corte_precios_activo', true)
+            ->assertJsonPath('configuracion.umbral_caida_precio_pct', '15.00');
+    }
+
     /** El corte nace apagado (Decisión 5): sin backfill retendría todo el primer día. */
     public function test_con_el_corte_apagado_se_publica_como_antes(): void
     {
