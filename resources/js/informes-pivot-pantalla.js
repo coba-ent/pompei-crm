@@ -65,13 +65,25 @@
         function mostrarDetalle() {
             $soloDetalle.removeClass('d-none');
             $panelPivot.addClass('d-none');
-            $('#pestanas-informe .nav-link').removeClass('active');
-            $('#pestanas-informe .nav-link[data-panel="detalle"]').addClass('active');
+            marcarPestana('#pestanas-informe .nav-link[data-panel="detalle"]');
         }
 
         function mostrarPivot() {
             $soloDetalle.addClass('d-none');
             $panelPivot.removeClass('d-none');
+        }
+
+        /**
+         * Marca qué pestaña está abierta.
+         *
+         * Al entrar a un ranking o a una vista se desactivaban TODAS y no se activaba ninguna:
+         * la barra quedaba sin nada resaltado y no se sabía dónde estaba uno parado (28/08/2026).
+         *
+         * @param {?string} selector  la pestaña a marcar; sin argumento no marca ninguna.
+         */
+        function marcarPestana(selector) {
+            $('#pestanas-informe .nav-link').removeClass('active');
+            if (selector) { $(selector).addClass('active'); }
         }
 
         /** Trae el dataset una vez y lo cachea hasta que cambien los filtros. */
@@ -187,7 +199,8 @@
             const dimension = $(this).data('dimension');
             const rotulo = $(this).text().trim();
 
-            $('#pestanas-informe .nav-link').removeClass('active');
+            // Queda marcada la pestaña "Rankings", que es de donde salió este cruce.
+            marcarPestana($(this).closest('.nav-item').find('.nav-link').first());
             mostrarPivot();
             history.pushState({ pivot: dimension }, '', $(this).attr('href'));
 
@@ -207,7 +220,7 @@
         $(document).on('click', '.js-crear-informe', function (evento) {
             evento.preventDefault();
 
-            $('#pestanas-informe .nav-link').removeClass('active');
+            marcarPestana($(this).closest('.nav-item').find('.nav-link').first());
             mostrarPivot();
             vistaAbiertaId = null;
 
@@ -369,7 +382,7 @@
             const vista = vistasGuardadas.find((v) => v.id === id);
             if (!vista) { return; }
 
-            $('#pestanas-informe .nav-link').removeClass('active');
+            marcarPestana($(this).closest('.nav-item').find('.nav-link').first());
             mostrarPivot();
             history.pushState({ vista: id }, '', rutas.pivotVistaBase.replace('/pivot/vistas', '/vista/') + id);
 

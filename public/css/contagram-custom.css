@@ -1187,3 +1187,94 @@ tr.cuenta-orden-placeholder {
     opacity: 0.35;
     pointer-events: none;
 }
+
+/* --------------------------------------------------------------------------
+ * Pestañas del informe (detalle · Rankings · Arma tu Informe) — 28/08/2026.
+ *
+ * El template dibuja estas tabs y sus desplegables casi sin contraste:
+ * el `.dropdown-menu` viene con fondo #fcfcfc y `box-shadow: none`, así que
+ * abierto sobre la tarjeta blanca del informe parecía transparente y las
+ * vistas guardadas se leían encimadas con el contenido de atrás; y la tab
+ * activa tenía fondo y borde del MISMO color (#fcfcfc), o sea que no se
+ * distinguía de las inactivas.
+ *
+ * Se acota todo a `#pestanas-informe` y a su menú para no alterar los
+ * desplegables del header ni del sidebar, que sí están bien.
+ * ------------------------------------------------------------------------ */
+
+/* Fondo blanco pleno + sombra: es un panel flotante y tiene que leerse como tal. */
+#pestanas-informe .dropdown-menu {
+    background-color: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: .5rem;
+    box-shadow: 0 .5rem 1.5rem rgba(0, 0, 0, .15);
+    padding: .35rem;
+    min-width: 15rem;
+}
+
+/* El gris #6f767e del template sobre blanco queda lavado para un ítem accionable. */
+#pestanas-informe .dropdown-item {
+    color: #3e4954;
+    border-radius: .375rem;
+    padding: .5rem .75rem;
+}
+
+#pestanas-informe .dropdown-item:hover,
+#pestanas-informe .dropdown-item:focus {
+    background-color: #f1f5f9;
+    color: #1f2937;
+}
+
+/* La papelera vive en la misma fila que el nombre: se mantiene apagada hasta que
+   el mouse entra en la fila, para que no compita con el nombre de la vista. */
+#pestanas-informe .dropdown-menu li {
+    border-radius: .375rem;
+}
+
+#pestanas-informe .dropdown-menu li:hover {
+    background-color: #f1f5f9;
+}
+
+#pestanas-informe .js-borrar-vista {
+    opacity: 0;
+    padding: .25rem .5rem;
+    transition: opacity .15s ease-in-out;
+}
+
+#pestanas-informe .dropdown-menu li:hover .js-borrar-vista,
+#pestanas-informe .js-borrar-vista:focus {
+    opacity: 1;
+}
+
+/* "Crear Informe" es la acción, no una vista más: se separa de la lista. */
+#pestanas-informe .js-crear-informe {
+    font-weight: 600;
+}
+
+#pestanas-informe .js-crear-informe::after {
+    content: '';
+    display: block;
+    margin: .35rem -.35rem -.1rem;
+    border-bottom: 1px solid #e9ecef;
+}
+
+/* Tab activa con forma real: hasta ahora su fondo y su borde eran del mismo
+   color que el resto y no se distinguía cuál estaba abierta. */
+#pestanas-informe .nav-link {
+    color: #6f767e;
+    border-radius: .5rem .5rem 0 0;
+    padding: .6rem 1rem;
+    font-weight: 500;
+}
+
+#pestanas-informe .nav-link:hover {
+    color: #1f2937;
+    background-color: #f8fafc;
+}
+
+#pestanas-informe .nav-link.active {
+    color: #1f2937;
+    font-weight: 600;
+    background-color: #fff;
+    border-color: #dee2e6 #dee2e6 #fff;
+}
