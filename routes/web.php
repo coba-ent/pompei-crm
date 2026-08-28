@@ -19,6 +19,7 @@ use App\Http\Controllers\GeoController;
 use App\Http\Controllers\ImportacionController;
 use App\Http\Controllers\Informes\CuentaCorrienteController;
 use App\Http\Controllers\Informes\CuentaCorrienteProveedorController;
+use App\Http\Controllers\Informes\EnvioContadorController;
 use App\Http\Controllers\Informes\InformeComprasController;
 use App\Http\Controllers\Informes\InformeContadorController;
 use App\Http\Controllers\Informes\InformeGastosController;
@@ -192,6 +193,12 @@ Route::middleware('auth')->group(function () {
         Route::post('informes/contador/compras/data', [InformeContadorController::class, 'comprasData'])->name('informes.contador.compras.data');
         Route::post('informes/contador/compras/stats', [InformeContadorController::class, 'comprasStats'])->name('informes.contador.compras.stats');
         Route::get('informes/contador/compras/exportar', [InformeContadorController::class, 'comprasExportar'])->name('informes.contador.compras.exportar');
+        // IVA Digital (spec 086): descarga del ZIP con los 4 TXT del régimen RG 3685.
+        Route::get('informes/contador/iva-digital', [InformeContadorController::class, 'ivaDigital'])->name('informes.contador.iva-digital');
+
+        // Enviar Información a tu Contador por Correo (spec 087).
+        Route::post('informes/contador/adjuntos-previstos', [EnvioContadorController::class, 'adjuntosPrevistos'])->name('informes.contador.adjuntos-previstos');
+        Route::post('informes/contador/enviar', [EnvioContadorController::class, 'enviar'])->name('informes.contador.enviar');
 
         Route::get('informes/gastos', [InformeGastosController::class, 'index'])->name('informes.gastos.index');
         Route::get('informes/gastos/data', [InformeGastosController::class, 'data'])->name('informes.gastos.data');

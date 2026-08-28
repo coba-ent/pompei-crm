@@ -79,3 +79,7 @@ __pycache__/
 /migracion-nueva/backup-vps
 /migracion-nueva/excel-origen
 /migracion-nueva/scripts-import
+
+# Carpeta de trabajo con archivos reales del contador (cuenta del cliente) — la copia usada como
+# fixture de test vive en tests/Fixtures/IvaDigital/ y esa sí se versiona (spec 086)
+/contador

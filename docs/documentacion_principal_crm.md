@@ -2633,7 +2633,7 @@ Excel + PDF abajo a la derecha.
 | **2** | Ventas, Reporte Final | **spec 068 — IMPLEMENTADA** (15/08/2026) |
 | **3** | Rankings, "Arma tu Informe" (**sólo render tabla**) | **spec 069 — IMPLEMENTADA** (16/08/2026) |
 | **4** | Menú de gestión por fila en Cta Cte, ajustes al Informe de Stock | pendiente — spec por armar |
-| **5** | **Información para tu Contador** (Libro IVA Ventas / Compras) | **spec 077 — especificada, lista para implementar** (24/08/2026) — ver §6.7 |
+| **5** | **Información para tu Contador** (Libro IVA Ventas / Compras) | **spec 077 — especificada, lista para implementar** (24/08/2026) — ver §6.7. **spec 086 (IVA Digital RG 3685) — IMPLEMENTADA** (27/08/2026). **spec 087 (envío por correo) — IMPLEMENTADA** (27/08/2026), con el worker de cola pendiente de aplicar en el VPS |
 
 > **Alcance acotado de la tanda 3, decidido por el cliente (15/08/2026)**: Rankings y "Arma tu
 > Informe" **sí** se construyen, pero el selector "Mostrar Como" queda **fijo en Tabla**. Se
@@ -2977,11 +2977,60 @@ opciones: el período de un libro IVA es un mes calendario, no un rango libre.
 - **Condición de IVA histórica**: el sistema no guarda un snapshot de la condición fiscal en el
   comprobante, se lee de la ficha. Si un cliente cambia de condición, **el libro de un período ya cerrado
   cambia retroactivamente**. Resolverlo (persistir el dato fiscal en la venta) excede la spec 077.
-- **"Exportar IVA Digital"** (formato de ancho fijo de ARCA) y **"Enviar Info. a mi Contador"** (envío por
-  email): existen en Contagram, quedaron fuera de alcance. El primero merece spec propia; el segundo se
-  evaluará junto al módulo de Notificaciones (§7).
+- **"Exportar IVA Digital"**: **implementado** (spec 086, 27/08/2026). **"Enviar Info. a mi Contador"**
+  también **implementado** (spec 087, 27/08/2026).
+  - **spec 086 — IVA Digital (RG 3685)**: los 4 archivos TXT de ancho fijo del régimen más el ZIP que
+    los agrupa. Relevada **decodificando los archivos reales** que genera Contagram (Agosto 2026,
+    cuenta del cliente), guardados en `contador/` y usados como fixture de test
+    (`tests/Fixtures/IvaDigital/`). Anchos de línea: 266 (Comprobantes Ventas), 62 (Alícuotas Ventas),
+    325 (Comprobantes Compras), 84 (Alícuotas Compras); codificación **latin-1** y terminador **CRLF**
+    — en UTF-8 un nombre con `Ñ` correría todas las posiciones del registro y ARCA rechazaría el
+    archivo entero. Endpoint: `GET informes/contador/iva-digital?mes=&anio=` (botón "IVA Digital" en
+    la pantalla de la 077, habilitado sólo con mes elegido). Implementación en
+    `app/Services/Informes/IvaDigital/` (`IvaDigitalPaquete` orquesta los 4 writers) y
+    `app/Support/ArchivosFiscales/RegistroAnchoFijo` (primitiva de padding/truncado/centavos/latin-1,
+    reusable para futuros formatos de ancho fijo).
+  - **spec 087 — Enviar Información a tu Contador por Correo**: **implementada**, el modal de envío
+    relevado con 4 capturas. Regla central: el panel de adjuntos depende del período — sin período va
+    vacío; con año solo van los 2 XLSX anuales; con año **y** mes se suma el ZIP de IVA Digital; y la
+    casilla "PDF factura de ventas" agrega un ZIP más. **"Facturas Manuales" no es un adjunto sino un
+    filtro**: son las ventas sin CAE, misma clasificación que las casillas ARCA/manual de la 077.
+    Endpoints: `POST informes/contador/adjuntos-previstos` (alimenta el panel en vivo, sin generar
+    nada) y `POST informes/contador/enviar` (valida, registra en `envios_contador` y encola
+    `EnviarInformacionContador`). Implementación en `app/Services/Informes/Contador/`
+    (`PaqueteContador` es la única fuente de "qué archivos corresponden" — la usan tanto el panel
+    como el envío, así nunca divergen) y `app/Mail/CorreoContador.php`. El mail del contador se
+    agregó como un único campo (`mail_contador`) a `datos_empresa` (Configuración → Empresa), sin
+    pantalla nueva.
+    > **Cola en `database`, no `sync`** (27/08/2026): se cambió `QUEUE_CONNECTION=sync` → `database`
+    > en el `.env` local para que FR-021 (envío en segundo plano) se cumpla de verdad. La tabla
+    > `jobs` (migración default de Laravel) ya existía. **Falta correr un worker real en el VPS** —
+    > sin él, los jobs se acumulan en la tabla `jobs` sin procesarse nunca. Unit de systemd lista en
+    > `deploy/contagram-queue-worker.service` (copiar a `/etc/systemd/system/`, `systemctl enable
+    > --now contagram-queue-worker`), pendiente de aplicar en el VPS — no se tocó el VPS desde esta
+    > sesión (memoria del proyecto: nunca probar/deployar sin OK puntual). Hasta que el worker esté
+    > arriba, verificar manualmente que los envíos no queden pendientes para siempre.
 
-*Fuente(s): `docs/informe_contagram_contador/`, `specs/077-informe-contador-iva/`*
+  > **Hallazgos de spec 086 que conviene no volver a "corregir"** (verificados también contra datos
+  > reales de MySQL, no sólo el fixture — la suite corre en SQLite y no lo garantiza por sí sola):
+  > 1. En los archivos de ARCA el **importe total del comprobante no se recalcula** como suma de sus
+  >    componentes: se emite el total almacenado, aunque difiera en ±1 centavo por doble redondeo. Debe
+  >    coincidir con lo declarado en el CAE. Es lo **opuesto** al criterio de la 077 para la barra de
+  >    totales en pantalla, y es deliberado en ambos casos.
+  > 2. Contagram tiene un **defecto real** en esos archivos: dos comprobantes de compra de MercadoLibre
+  >    declaran `Cantidad de alícuotas = 0` pero traen una fila de alícuota al 21% y crédito fiscal
+  >    computable. La spec 086 **no lo replica**: emite el conteo real (`count()` de lo efectivamente
+  >    escrito en Alícuotas Compras, nunca un valor calculado en paralelo). El archivo del CRM no será
+  >    byte-idéntico al de Contagram en esos dos registros, y eso es correcto.
+  > 3. **Compras "Sin Factura"** (`compras.tipo_comprobante` `NULL` o `'S'` — la opción del formulario
+  >    para gastos sin comprobante fiscal real) **se excluyen** del período de IVA Digital: no tienen
+  >    tipo/número de comprobante que declarar ante ARCA. Siguen apareciendo normalmente en el Libro IVA
+  >    Compras en pantalla (spec 077) — sólo no entran al TXT. Encontrado recién al validar contra la
+  >    base real (no aparece en el fixture de Agosto 2026, que no tenía ninguna): sin este filtro la
+  >    generación del período rompe con `InvalidArgumentException` apenas aparece la primera.
+
+*Fuente(s): `docs/informe_contagram_contador/`, `specs/077-informe-contador-iva/`,
+`specs/086-iva-digital-rg3685/`, `specs/087-envio-contador-correo/`, archivos reales en `contador/`*
 
 ---
 

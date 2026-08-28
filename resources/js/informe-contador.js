@@ -211,8 +211,8 @@
             // FR-006/FR-007: sin período elegido, no se dispara ninguna llamada.
             mostrarVacio();
 
-            $root.find('.js-mes').on('change', function () { estado.mes = $(this).val(); recargar(); });
-            $root.find('.js-anio').on('change', function () { estado.anio = $(this).val(); recargar(); });
+            $root.find('.js-mes').on('change', function () { estado.mes = $(this).val(); recargar(); actualizarBotonIvaDigital(); });
+            $root.find('.js-anio').on('change', function () { estado.anio = $(this).val(); recargar(); actualizarBotonIvaDigital(); });
             $root.find('.js-arca, .js-manuales').on('change', recargar);
             $root.find('.js-aplicar-filtros').on('click', recargar);
             $root.find('.js-limpiar-filtros').on('click', function () {
@@ -264,6 +264,31 @@
         function pestanaActiva() {
             return $('#tabs-contador .nav-link.active').data('pestana') || 'ventas';
         }
+
+        // US3: el botón de IVA Digital se habilita sólo con mes elegido — en cualquiera de las dos
+        // pestañas, porque el ZIP siempre incluye Ventas y Compras juntos (FR-001).
+        const $btnIvaDigital = $('#btn-iva-digital');
+
+        function actualizarBotonIvaDigital() {
+            const estado = estados[pestanaActiva()];
+            const habilitado = !!(estado && estado.mes && estado.anio);
+            $btnIvaDigital.prop('disabled', !habilitado);
+        }
+
+        $('#tabs-contador button[data-bs-toggle="tab"]').on('shown.bs.tab', actualizarBotonIvaDigital);
+
+        $btnIvaDigital.on('click', function () {
+            const estado = estados[pestanaActiva()];
+
+            if (!estado || !estado.mes || !estado.anio) {
+                avisar('Elegí un mes y un año para generar el IVA Digital.');
+
+                return;
+            }
+
+            const params = { mes: estado.mes, anio: estado.anio };
+            window.location.href = cfg.ivaDigital + '?' + $.param(params);
+        });
 
         $('#btn-exportar').on('click', function () {
             const pestana = pestanaActiva();

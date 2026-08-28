@@ -33,6 +33,7 @@ class MiPerfilController extends Controller
             'domicilio_fiscal' => ['nullable', 'string', 'max:255'],
             'condicion_iva' => ['nullable', 'string', 'max:255'],
             'ingresos_brutos' => ['nullable', 'string', 'max:255'],
+            'mail_contador' => ['nullable', 'string', 'max:255'],
             'logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ]);
 

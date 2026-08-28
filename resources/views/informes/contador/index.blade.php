@@ -9,6 +9,12 @@
                 <h4 class="mb-0 text-primary fw-bold">Información para tu Contador</h4>
             </div>
             <div class="col-sm-6 mb-2 text-sm-end">
+                <button type="button" class="btn btn-outline-primary me-2" id="btn-iva-digital" disabled title="Elegí un mes y un año para habilitar la descarga">
+                    <i class="fas fa-file-archive me-1"></i> IVA Digital
+                </button>
+                <button type="button" class="btn btn-outline-secondary me-2" id="btn-enviar-contador" data-bs-toggle="modal" data-bs-target="#modal-envio-contador">
+                    <i class="fas fa-paper-plane me-1"></i> Enviar a tu Contador
+                </button>
                 <button type="button" class="btn btn-success" id="btn-exportar">
                     <i class="fas fa-file-excel me-1"></i> Exportar
                 </button>
@@ -191,6 +197,9 @@
 
     </div>
 </div>
+
+@include('informes.contador._modal_envio')
+
 @endsection
 
 @section('local-js')
@@ -210,7 +219,17 @@
                 contraparte: @json(route('proveedores.opciones')),
             },
         },
+        ivaDigital: @json(route('informes.contador.iva-digital')),
+    };
+
+    window.EnvioContadorConfig = {
+        rutas: {
+            adjuntosPrevistos: @json(route('informes.contador.adjuntos-previstos')),
+            enviar: @json(route('informes.contador.enviar')),
+        },
+        mailContador: @json($mailContador),
+        nombreNegocio: @json($nombreNegocio),
     };
 </script>
-@vite(['resources/js/informe-contador.js'])
+@vite(['resources/js/informe-contador.js', 'resources/js/envio-contador.js'])
 @endsection

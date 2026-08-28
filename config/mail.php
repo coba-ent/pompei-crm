@@ -115,4 +115,17 @@ return [
         'name' => env('MAIL_FROM_NAME', 'Example'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Límite de adjuntos (spec 087)
+    |--------------------------------------------------------------------------
+    |
+    | Tope en MB para el conjunto de adjuntos de un correo (FR-022). El límite real lo impone el
+    | servidor SMTP configurado; este valor sólo evita intentar un envío que va a fallar del otro
+    | lado. Ajustar según el proveedor real en producción.
+    |
+    */
+
+    'limite_adjuntos_mb' => env('MAIL_LIMITE_ADJUNTOS_MB', 25),
+
 ];

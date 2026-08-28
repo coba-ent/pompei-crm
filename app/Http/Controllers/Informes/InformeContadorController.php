@@ -7,13 +7,16 @@ use App\Http\Controllers\Controller;
 use App\Models\CondicionIva;
 use App\Models\Compra;
 use App\Models\CuentaTesoreria;
+use App\Models\DatosEmpresa;
 use App\Models\Provincia;
 use App\Models\Venta;
+use App\Services\Informes\IvaDigital\IvaDigitalPaquete;
 use App\Services\Informes\LibroIvaComprasQuery;
 use App\Services\Informes\LibroIvaVentasQuery;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Yajra\DataTables\Facades\DataTables;
 
 /**
@@ -30,6 +33,7 @@ class InformeContadorController extends Controller
     public function __construct(
         private LibroIvaVentasQuery $ventasQuery,
         private LibroIvaComprasQuery $comprasQuery,
+        private IvaDigitalPaquete $ivaDigitalPaquete,
     ) {}
 
     public function index()
@@ -44,6 +48,8 @@ class InformeContadorController extends Controller
         $anioMinimo = $anios->isNotEmpty() ? $anios->min() : (int) now()->format('Y');
         $anioActual = (int) now()->format('Y');
 
+        $datosEmpresa = DatosEmpresa::instancia();
+
         return view('informes.contador.index', [
             'CurrentPage' => $CurrentPage,
             'tiposComprobante' => ['FEA', 'FEB', 'FEC', 'FA', 'FB', 'FC', 'NCA', 'NCB', 'NCC', 'NDA', 'NDB', 'NDC'],
@@ -51,6 +57,9 @@ class InformeContadorController extends Controller
             'cuentasTesoreria' => class_exists(CuentaTesoreria::class) ? CuentaTesoreria::orderBy('nombre')->get(['id', 'nombre']) : collect(),
             'provincias' => class_exists(Provincia::class) ? Provincia::orderBy('nombre')->get(['id', 'nombre']) : collect(),
             'anios' => range($anioMinimo, max($anioActual, $anioMinimo)),
+            // spec 087: precarga del modal de envío al contador.
+            'mailContador' => $datosEmpresa->mail_contador ?? '',
+            'nombreNegocio' => $datosEmpresa->razon_social ?? '',
         ]);
     }
 
@@ -122,6 +131,26 @@ class InformeContadorController extends Controller
         $nombre = sprintf('Libro IVA Compras %02d-%04d.xlsx', (int) $request->input('mes'), (int) $request->input('anio'));
 
         return Excel::download(new LibroIvaExport($this->comprasQuery, $request, 'Libro IVA Compras'), $nombre);
+    }
+
+    // -----------------------------------------------------------------------------------
+    // IVA Digital (spec 086)
+    // -----------------------------------------------------------------------------------
+
+    /** FR-004: 422 si falta mes o año, delegando en la misma validación que ventas/compras. */
+    public function ivaDigital(Request $request): JsonResponse|BinaryFileResponse
+    {
+        if ($this->ventasQuery->periodoInvalido($request)) {
+            return $this->errorSinPeriodo();
+        }
+
+        $mes = (int) $request->input('mes');
+        $anio = (int) $request->input('anio');
+
+        $ruta = $this->ivaDigitalPaquete->generar($request, $mes, $anio);
+        $nombre = $this->ivaDigitalPaquete->nombreZip($mes, $anio);
+
+        return response()->download($ruta, $nombre)->deleteFileAfterSend(true);
     }
 
     private function errorSinPeriodo(): JsonResponse

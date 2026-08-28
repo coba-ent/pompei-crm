@@ -42,6 +42,7 @@
                                 <div class="col-md-4"><label class="form-label text-muted mb-1">Domicilio Fiscal</label><div class="fw-bold">{{ $datosEmpresa->domicilio_fiscal ?: '-' }}</div></div>
                                 <div class="col-md-4"><label class="form-label text-muted mb-1">Condición de IVA</label><div class="fw-bold">{{ $datosEmpresa->condicion_iva ?: '-' }}</div></div>
                                 <div class="col-md-4"><label class="form-label text-muted mb-1">Ingresos Brutos</label><div class="fw-bold">{{ $datosEmpresa->ingresos_brutos ?: '-' }}</div></div>
+                                <div class="col-md-4"><label class="form-label text-muted mb-1">Mail del Contador</label><div class="fw-bold">{{ $datosEmpresa->mail_contador ?: '-' }}</div></div>
                             </div>
                         </div>
                     </div>
@@ -156,6 +157,11 @@
                     <div class="mb-3">
                         <label class="form-label">Ingresos Brutos</label>
                         <input type="text" class="form-control" name="ingresos_brutos" value="{{ $datosEmpresa->ingresos_brutos ?? '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Mail del Contador</label>
+                        <input type="email" class="form-control" name="mail_contador" placeholder="contador@estudio.com.ar" value="{{ $datosEmpresa->mail_contador ?? '' }}">
+                        <div class="form-text">Precarga el destinatario al enviarle información por correo desde el informe del contador.</div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Logo</label>

@@ -44,6 +44,9 @@ class MapeadorComprobante
         'DNI' => 96,
     ];
 
+    /** `DocTipo` de ARCA para documento sin identificar (spec 086, research §6). */
+    public const DOC_TIPO_SIN_IDENTIFICAR = 99;
+
     /** @return int|null Código ARCA para la alícuota, o null si no está soportada (FR-004). */
     public function codigoAlicuotaIva(float $ivaPct): ?int
     {
@@ -208,6 +211,24 @@ class MapeadorComprobante
             return [self::DOC_TIPOS['DNI'], preg_replace('/\D/', '', $cliente['dni'])];
         }
 
-        return [99, '0'];
+        return [self::DOC_TIPO_SIN_IDENTIFICAR, '0'];
+    }
+
+    /**
+     * Documento del vendedor (proveedor) para IVA Digital Compras (spec 086, FR-020): mismo criterio
+     * que {@see documentoReceptor}, aplicado al CUIT del proveedor — hoy siempre identificado por
+     * CUIT en el CRM, pero cae a "sin identificar" si faltara.
+     *
+     * @return array{0: int, 1: string} [DocTipo, DocNro]
+     */
+    public function documentoVendedor(?string $cuit): array
+    {
+        $numero = preg_replace('/\D/', '', (string) $cuit);
+
+        if ($numero === '') {
+            return [self::DOC_TIPO_SIN_IDENTIFICAR, '0'];
+        }
+
+        return [self::DOC_TIPOS['CUIT'], $numero];
     }
 }

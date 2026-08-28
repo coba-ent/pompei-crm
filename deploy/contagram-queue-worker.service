@@ -1,0 +1,13 @@
+[Unit]
+Description=Contagram CRM - Queue Worker (spec 087, envío al contador)
+After=network.target mysql.service
+
+[Service]
+User=www-data
+WorkingDirectory=/var/www/contagram
+ExecStart=/usr/bin/php artisan queue:work database --sleep=3 --tries=3 --max-time=3600
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
