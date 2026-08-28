@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Informes;
 
 use App\Http\Controllers\Controller;
+use App\Models\Compra;
 use App\Models\Deposito;
+use App\Models\NotaCreditoDebito;
 use App\Models\Producto;
 use App\Models\Proveedor;
 use App\Models\TipoProducto;
@@ -73,6 +75,16 @@ class InformeStockController extends Controller
                     ->where('mov.origen_type', '=', Venta::class);
             })
             ->leftJoin('clientes', 'clientes.id', '=', 'ventas.cliente_id')
+            // Compras y Notas de Crédito/Débito también mueven stock: sin estos joins la columna
+            // "Documento" sólo sabría enlazar las Ventas.
+            ->leftJoin('compras', function ($join) {
+                $join->on('compras.id', '=', 'mov.origen_id')
+                    ->where('mov.origen_type', '=', Compra::class);
+            })
+            ->leftJoin('notas_credito_debito as notas', function ($join) {
+                $join->on('notas.id', '=', 'mov.origen_id')
+                    ->where('mov.origen_type', '=', NotaCreditoDebito::class);
+            })
             ->select([
                 'mov.id as id',
                 'mov.fecha as fecha',
@@ -81,6 +93,13 @@ class InformeStockController extends Controller
                 'mov.cantidad as cantidad',
                 'mov.stock_saldo as stock_saldo',
                 'mov.usuario_id as usuario_id',
+                // Qué documento originó el movimiento, para que el informe pueda enlazarlo. Una
+                // NC/ND no tiene pantalla propia: cuelga de su Venta o Compra, así que se enlaza
+                // el documento padre.
+                'mov.origen_type as origen_type',
+                'mov.origen_id as origen_id',
+                'notas.venta_id as nota_venta_id',
+                'notas.compra_id as nota_compra_id',
                 'productos.id as producto_id',
                 'productos.nombre as producto',
                 'productos.proveedor_id as proveedor_id',
@@ -161,10 +180,52 @@ class InformeStockController extends Controller
         return DataTables::of($query)
             ->editColumn('cantidad', fn ($row) => (float) $row->cantidad)
             ->editColumn('stock_saldo', fn ($row) => (float) $row->stock_saldo)
+            // El link se resuelve acá y no en el JS: las rutas viven en el servidor, y así el
+            // front sólo pinta lo que le llega en vez de repetir el mapeo origen -> ruta.
+            ->addColumn('documento', fn ($row) => $this->documentoOrigen($row))
             ->order(function ($query) {
                 $query->orderBy('mov.fecha')->orderBy('mov.id');
             })
             ->toJson();
+    }
+
+    /**
+     * Documento que originó el movimiento, con su enlace, para la columna "ID" del informe.
+     *
+     * Un movimiento puede no tener origen (ajuste manual, sincronización con Mercado Libre o
+     * Tiendanube): en ese caso la celda queda vacía, igual que en Contagram.
+     *
+     * Las Notas de Crédito/Débito no tienen pantalla propia —cuelgan de su Venta o Compra—, así
+     * que se enlaza el documento padre. Cuando la nota quedó sin padre (las migradas: `venta_id`
+     * es nullable desde la migración del 18/08/2026) se muestra el id sin enlace, porque no hay
+     * adónde ir.
+     *
+     * @return array{id:int, url:?string, tipo:string}|null
+     */
+    private function documentoOrigen(object $fila): ?array
+    {
+        return match ($fila->origen_type) {
+            Venta::class => [
+                'id' => (int) $fila->origen_id,
+                'url' => route('ventas.show', $fila->origen_id),
+                'tipo' => 'Venta',
+            ],
+            Compra::class => [
+                'id' => (int) $fila->origen_id,
+                'url' => route('compras.show', $fila->origen_id),
+                'tipo' => 'Compra',
+            ],
+            NotaCreditoDebito::class => [
+                'id' => (int) $fila->origen_id,
+                'url' => match (true) {
+                    (bool) $fila->nota_venta_id => route('ventas.show', $fila->nota_venta_id),
+                    (bool) $fila->nota_compra_id => route('compras.show', $fila->nota_compra_id),
+                    default => null,
+                },
+                'tipo' => 'Nota de Crédito/Débito',
+            ],
+            default => null,
+        };
     }
 
     /**

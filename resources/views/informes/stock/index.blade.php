@@ -143,6 +143,10 @@
                     <table id="tabla-informe-stock" class="table table-hover display responsive nowrap" style="width:100%">
                         <thead>
                             <tr>
+                                {{-- Id del documento que originó el movimiento (venta, compra o
+                                     nota), con enlace. Los movimientos sin documento —ajustes
+                                     manuales, sincronizaciones— quedan vacíos. --}}
+                                <th>ID</th>
                                 <th>Fecha</th>
                                 <th>Operación</th>
                                 <th>Detalle</th>

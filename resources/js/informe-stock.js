@@ -142,6 +142,19 @@
             },
             columns: [
                 {
+                    // Id del documento origen, con enlace a la venta/compra. Lo resuelve el
+                    // servidor (`documento`), así que acá sólo se pinta. `orderable:false` y
+                    // `searchable:false` porque es una columna calculada que no existe en el
+                    // SELECT: ordenar o buscar por ella reventaría la query.
+                    data: 'documento', name: 'documento', orderable: false, searchable: false,
+                    render: function (doc) {
+                        if (!doc) { return ''; }
+                        if (!doc.url) { return doc.id; }
+
+                        return `<a href="${doc.url}" title="Ver ${doc.tipo} #${doc.id}">${doc.id}</a>`;
+                    },
+                },
+                {
                     data: 'fecha', name: 'fecha',
                     render: function (val) {
                         if (!val) return '';
@@ -173,8 +186,18 @@
                 },
                 { data: 'usuario', name: 'usuario', defaultContent: '' },
             ],
-            order: [[0, 'asc']],
+            // La columna 0 pasó a ser el ID; el orden por defecto sigue siendo por fecha.
+            order: [[1, 'asc']],
             stateSave: true,
+            // El estado guardado (columnas visibles, orden) se descarta si es de una versión con
+            // otra cantidad de columnas: al agregarse la columna "ID" (28/08/2026) los estados
+            // viejos tenían 8 entradas para 9 columnas, y DataTables restauraba el colvis y el
+            // orden corridos un lugar.
+            stateLoadParams: function (settings, data) {
+                if (!data.columns || data.columns.length !== settings.aoColumns.length) {
+                    return false;
+                }
+            },
             buttons: [
                 {
                     extend: 'colvis',

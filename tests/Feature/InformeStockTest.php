@@ -291,4 +291,35 @@ class InformeStockTest extends TestCase
         $this->assertSame('Ajuste manual de prueba', $fila['detalle']);
         $this->assertSame($fila['descripcion'], $fila['detalle']);
     }
+
+    public function test_la_columna_documento_enlaza_la_venta_que_origino_el_movimiento(): void
+    {
+        $deposito = $this->deposito();
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+        $venta = $this->crearVenta(Cliente::factory()->create());
+
+        app(StockService::class)->registrarSalida($producto, null, $deposito, 1, $venta);
+
+        $fila = collect($this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))
+            ->assertOk()->json('data'))->first();
+
+        $this->assertSame($venta->id, $fila['documento']['id']);
+        $this->assertSame('Venta', $fila['documento']['tipo']);
+        $this->assertStringContainsString('/ventas/'.$venta->id, $fila['documento']['url']);
+    }
+
+    public function test_un_movimiento_sin_documento_de_origen_no_trae_enlace(): void
+    {
+        // Ajustes manuales y sincronizaciones con ML/Tiendanube no nacen de ningún documento: la
+        // celda queda vacía en vez de inventar un id.
+        $deposito = $this->deposito();
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+
+        app(StockService::class)->ajustar($producto, null, $deposito, 5, 'Ajuste manual');
+
+        $fila = collect($this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))
+            ->assertOk()->json('data'))->first();
+
+        $this->assertNull($fila['documento']);
+    }
 }
