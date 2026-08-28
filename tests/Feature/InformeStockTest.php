@@ -144,10 +144,20 @@ class InformeStockTest extends TestCase
         $stock->ajustar($producto, null, $deposito, 5, 'Tarde', fecha: '2026-08-06 18:00:00');
         $stock->ajustar($producto, null, $deposito, 3, 'Mañana', fecha: '2026-08-06 08:00:00');
 
+        // Por defecto el informe muestra lo último primero, así que 'Tarde' (18:00) va arriba de
+        // 'Mañana' (08:00) — pese a haberse insertado antes: manda la hora real, no el id.
         $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
         $descripciones = collect($respuesta->json('data'))->pluck('descripcion')->all();
 
-        $this->assertSame(['Mañana', 'Tarde'], $descripciones);
+        $this->assertSame(['Tarde', 'Mañana'], $descripciones);
+
+        // Y pidiendo el orden ascendente se invierte, para que la pantalla pueda leer el histórico
+        // en orden cronológico.
+        $ascendente = $this->getJson(route('informes.stock.data', [
+            'draw' => 1, 'start' => 0, 'length' => 10, 'order' => [['column' => 1, 'dir' => 'asc']],
+        ]))->assertOk();
+
+        $this->assertSame(['Mañana', 'Tarde'], collect($ascendente->json('data'))->pluck('descripcion')->all());
     }
 
     public function test_saldo_corrido_correcto_con_varios_movimientos_mismo_dia_distinta_hora(): void
@@ -159,10 +169,12 @@ class InformeStockTest extends TestCase
         $stock->ajustar($producto, null, $deposito, 5, 'Tarde', fecha: '2026-08-06 18:00:00');
         $stock->ajustar($producto, null, $deposito, 3, 'Mañana', fecha: '2026-08-06 08:00:00');
 
+        // El saldo se calcula siempre cronológicamente (Mañana=3, Tarde=8); lo que cambia con el
+        // orden de la tabla es en qué fila se muestra cada uno, no su valor.
         $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
         $saldos = collect($respuesta->json('data'))->pluck('stock_saldo')->all();
 
-        $this->assertEquals([3.0, 8.0], $saldos);
+        $this->assertEquals([8.0, 3.0], $saldos);
     }
 
     public function test_ajuste_sin_fecha_explicita_persiste_con_hora_real(): void

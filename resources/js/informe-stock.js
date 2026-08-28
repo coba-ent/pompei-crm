@@ -155,7 +155,10 @@
                     },
                 },
                 {
-                    data: 'fecha', name: 'fecha',
+                    // Calificadas con su tabla: `fecha`, `tipo` y `cantidad` existen también
+                    // en `productos`/otras tablas del join, y el WHERE que arma el buscador
+                    // global fallaba con "Column 'tipo' in WHERE is ambiguous".
+                    data: 'fecha', name: 'mov.fecha',
                     render: function (val) {
                         if (!val) return '';
                         const texto = String(val);
@@ -165,29 +168,50 @@
                     },
                 },
                 {
-                    data: 'tipo', name: 'tipo',
+                    data: 'tipo', name: 'mov.tipo',
                     render: function (val) {
                         const etiquetas = { ajuste: 'Ajuste', transferencia: 'Transferencia', entrada: 'Entrada', salida: 'Salida' };
                         return etiquetas[val] || val;
                     },
                 },
-                { data: 'detalle', name: 'detalle', defaultContent: '' },
-                { data: 'producto', name: 'producto', defaultContent: '' },
+                // `detalle`, `stock_saldo` y `usuario` son ALIAS del SELECT (un CASE, una window
+                // function y un join), no columnas reales: el buscador global los metía en el
+                // WHERE y la consulta reventaba con "Unknown column 'detalle' in 'WHERE'".
+                { data: 'detalle', name: 'detalle', defaultContent: '', searchable: false },
+                {
+                    // Contagram muestra "(código) - nombre" y no el nombre pelado: el código es
+                    // lo que el usuario tiene a mano para identificar el producto. `name` apunta
+                    // a la columna real para que el buscador de la DataTable siga funcionando.
+                    //
+                    // Ojo: en la mayor parte del catálogo el código además viene EMBEBIDO en el
+                    // nombre (dato heredado de la importación), así que se ve repetido. Se decidió
+                    // no recortarlo acá: es un problema del dato, no de esta pantalla.
+                    data: 'producto', name: 'productos.nombre', defaultContent: '',
+                    render: function (nombre, tipo, fila) {
+                        // En export/orden se usa el valor crudo; el formato es sólo para pantalla.
+                        if (tipo !== 'display') { return nombre || ''; }
+                        if (!nombre) { return ''; }
+
+                        return fila.producto_codigo ? `(${fila.producto_codigo}) - ${nombre}` : nombre;
+                    },
+                },
                 // `name` con la tabla y columna reales: `deposito` es un alias del SELECT y no
                 // se puede usar en el WHERE que arma el buscador de la DataTable.
                 { data: 'deposito', name: 'depositos.nombre', defaultContent: '' },
                 {
-                    data: 'cantidad', name: 'cantidad', className: 'text-end',
+                    data: 'cantidad', name: 'mov.cantidad', className: 'text-end',
                     render: function (val) { return new Intl.NumberFormat('es-AR').format(val || 0); },
                 },
                 {
-                    data: 'stock_saldo', name: 'stock_saldo', className: 'text-end',
+                    data: 'stock_saldo', name: 'stock_saldo', className: 'text-end', searchable: false,
                     render: function (val) { return new Intl.NumberFormat('es-AR').format(val || 0); },
                 },
-                { data: 'usuario', name: 'usuario', defaultContent: '' },
+                { data: 'usuario', name: 'users.name', defaultContent: '' },
             ],
-            // La columna 0 pasó a ser el ID; el orden por defecto sigue siendo por fecha.
-            order: [[1, 'asc']],
+            // Por fecha DESCENDENTE: es un histórico, y lo primero que se quiere ver es el
+            // último movimiento registrado, no el más viejo de la base. La columna 1 es Fecha
+            // (la 0 pasó a ser el ID del documento).
+            order: [[1, 'desc']],
             stateSave: true,
             // El estado guardado (columnas visibles, orden) se descarta si es de una versión con
             // otra cantidad de columnas: al agregarse la columna "ID" (28/08/2026) los estados

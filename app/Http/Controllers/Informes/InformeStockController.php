@@ -102,6 +102,7 @@ class InformeStockController extends Controller
                 'notas.compra_id as nota_compra_id',
                 'productos.id as producto_id',
                 'productos.nombre as producto',
+                'productos.codigo as producto_codigo',
                 'productos.proveedor_id as proveedor_id',
                 'productos.tipo_producto_id as tipo_producto_id',
                 'productos.activo as producto_activo',
@@ -183,10 +184,32 @@ class InformeStockController extends Controller
             // El link se resuelve acá y no en el JS: las rutas viven en el servidor, y así el
             // front sólo pinta lo que le llega en vez de repetir el mapeo origen -> ruta.
             ->addColumn('documento', fn ($row) => $this->documentoOrigen($row))
-            ->order(function ($query) {
-                $query->orderBy('mov.fecha')->orderBy('mov.id');
+            // El orden lo decide la pantalla, pero SIEMPRE termina desempatando por fecha+id: dos
+            // movimientos del mismo instante tienen que salir en el orden en que ocurrieron, o el
+            // "Stock Saldo" (saldo corrido) parece contradecirse entre filas contiguas.
+            //
+            // Por defecto es DESCENDENTE: es un histórico de movimientos y lo primero que se
+            // quiere ver es lo último que pasó, no el movimiento más viejo de la base (28/08/2026).
+            ->order(function ($query) use ($request) {
+                $direccion = $this->direccionPedida($request);
+
+                $query->orderBy('mov.fecha', $direccion)->orderBy('mov.id', $direccion);
             })
             ->toJson();
+    }
+
+    /**
+     * Dirección de ordenamiento pedida por la DataTable, acotada a la columna Fecha.
+     *
+     * La tabla ordena por fecha y no por columna arbitraria: el resto de las columnas o son
+     * calculadas (documento) o no aportan como criterio, y ordenar por ellas rompería la lectura
+     * del saldo corrido.
+     */
+    private function direccionPedida(Request $request): string
+    {
+        $direccion = strtolower((string) $request->input('order.0.dir', 'desc'));
+
+        return $direccion === 'asc' ? 'asc' : 'desc';
     }
 
     /**
