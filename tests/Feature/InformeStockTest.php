@@ -10,7 +10,7 @@ use App\Models\Stock;
 use App\Models\Venta;
 use App\Services\Stock\StockService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
+use Tests\Concerns\ActuaComoUsuarioConPermisos;
 use Tests\TestCase;
 
 /**
@@ -22,7 +22,20 @@ use Tests\TestCase;
  */
 class InformeStockTest extends TestCase
 {
+    use ActuaComoUsuarioConPermisos;
     use RefreshDatabase;
+
+    /**
+     * spec 090: el Informe de Stock pasó a exigir el permiso `informes.stock`. Antes no exigía
+     * ninguno —de hecho ese era el bug: sus rutas habían quedado fuera del middleware—, así que
+     * estos tests se apoyaban en el usuario sin roles que autentica el `TestCase` base.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->actingAsUsuarioConPermisos(['informes.stock']);
+    }
 
     public function test_stock_saldo_no_cambia_al_aplicar_filtros_que_excluyen_movimientos_anteriores(): void
     {

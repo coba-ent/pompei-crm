@@ -161,96 +161,59 @@ Route::middleware('auth')->group(function () {
     Route::get('importar-datos/{entidad}/historial/datos', [ImportacionController::class, 'historialDatos'])->name('importacion.historial.datos');
     Route::post('importar-datos/{entidad}/historial/{corrida}/deshacer', [ImportacionController::class, 'deshacer'])->name('importacion.deshacer');
 
+    // ==========================================================================================
+    // INFORMES (spec 090 — un permiso por informe)
+    //
+    // Cada informe tiene su propio permiso `informes.<informe>`; las descargas encadenan además
+    // `informes.exportar` (mismo patrón con que Tesorería eleva `tesoreria.ver` → `tesoreria.editar`
+    // en `cuentas/orden`). Laravel ejecuta la pila en orden, así que dos instancias del alias
+    // producen la conjunción: `informes.exportar` por sí solo no abre ningún informe, porque el
+    // primer middleware ya corta.
+    //
+    // Hasta la spec 090 todo el módulo iba con un único `informes.ver`, y los bloques de Stock y
+    // Cuenta Corriente Clientes habían quedado FUERA del grupo: cualquier usuario autenticado los
+    // abría y exportaba pegando la URL, porque el `@can` del sidebar sólo escondía el enlace.
+    // Por eso toda ruta del módulo nace ahora dentro de un sub-grupo con permiso.
+    // ==========================================================================================
+
     // Informes → Stock
-    Route::get('informes/stock', [InformeStockController::class, 'index'])->name('informes.stock.index');
-    Route::get('informes/stock/data', [InformeStockController::class, 'data'])->name('informes.stock.data');
-    Route::get('informes/stock/stats', [InformeStockController::class, 'stats'])->name('informes.stock.stats');
+    Route::middleware('permiso:informes.stock')->group(function () {
+        Route::get('informes/stock', [InformeStockController::class, 'index'])->name('informes.stock.index');
+        Route::get('informes/stock/data', [InformeStockController::class, 'data'])->name('informes.stock.data');
+        Route::get('informes/stock/stats', [InformeStockController::class, 'stats'])->name('informes.stock.stats');
+    });
 
-    // Informes → Cuenta Corriente (spec 029)
-    Route::get('informes/cuenta-corriente', [CuentaCorrienteController::class, 'index'])->name('informes.cuenta-corriente.index');
-    Route::get('informes/cuenta-corriente/saldos', [CuentaCorrienteController::class, 'saldosData'])->name('informes.cuenta-corriente.saldos.data');
-    Route::get('informes/cuenta-corriente/movimientos', [CuentaCorrienteController::class, 'movimientosData'])->name('informes.cuenta-corriente.movimientos.data');
-    Route::get('informes/cuenta-corriente/exportar', [CuentaCorrienteController::class, 'exportar'])->name('informes.cuenta-corriente.exportar');
-    Route::get('informes/cuenta-corriente/pdf', [CuentaCorrienteController::class, 'pdf'])->name('informes.cuenta-corriente.pdf');
-    Route::get('informes/cuenta-corriente/movimientos/exportar', [CuentaCorrienteController::class, 'exportarMovimientos'])->name('informes.cuenta-corriente.movimientos.exportar');
-    Route::get('informes/cuenta-corriente/movimientos/pdf', [CuentaCorrienteController::class, 'pdfMovimientos'])->name('informes.cuenta-corriente.movimientos.pdf');
+    // Informes → Cuenta Corriente Clientes (spec 029)
+    Route::middleware('permiso:informes.cuenta-corriente-clientes')->group(function () {
+        Route::get('informes/cuenta-corriente', [CuentaCorrienteController::class, 'index'])->name('informes.cuenta-corriente.index');
+        Route::get('informes/cuenta-corriente/saldos', [CuentaCorrienteController::class, 'saldosData'])->name('informes.cuenta-corriente.saldos.data');
+        Route::get('informes/cuenta-corriente/movimientos', [CuentaCorrienteController::class, 'movimientosData'])->name('informes.cuenta-corriente.movimientos.data');
 
-    // Informes → Compras / Gastos / Cta Cte Proveedores (spec 067, tanda 1).
-    // Los tres son de **sólo lectura**: no hay POST/PUT/PATCH/DELETE en este bloque (FR-037).
-    Route::middleware('permiso:informes.ver')->group(function () {
+        Route::middleware('permiso:informes.exportar')->group(function () {
+            Route::get('informes/cuenta-corriente/exportar', [CuentaCorrienteController::class, 'exportar'])->name('informes.cuenta-corriente.exportar');
+            Route::get('informes/cuenta-corriente/pdf', [CuentaCorrienteController::class, 'pdf'])->name('informes.cuenta-corriente.pdf');
+            Route::get('informes/cuenta-corriente/movimientos/exportar', [CuentaCorrienteController::class, 'exportarMovimientos'])->name('informes.cuenta-corriente.movimientos.exportar');
+            Route::get('informes/cuenta-corriente/movimientos/pdf', [CuentaCorrienteController::class, 'pdfMovimientos'])->name('informes.cuenta-corriente.movimientos.pdf');
+        });
+    });
+
+    // Informes → Compras (spec 067, tanda 1). Sólo lectura salvo las vistas guardadas del pivot.
+    Route::middleware('permiso:informes.compras')->group(function () {
         Route::get('informes/compras', [InformeComprasController::class, 'index'])->name('informes.compras.index');
         Route::get('informes/compras/data', [InformeComprasController::class, 'data'])->name('informes.compras.data');
         Route::get('informes/compras/stats', [InformeComprasController::class, 'stats'])->name('informes.compras.stats');
-        Route::get('informes/compras/exportar', [InformeComprasController::class, 'exportar'])->name('informes.compras.exportar');
-        Route::get('informes/compras/pdf', [InformeComprasController::class, 'pdf'])->name('informes.compras.pdf');
 
-        // Informes → Información para tu Contador (spec 077): Libro IVA Ventas / Compras.
-        // Sólo lectura; `data`/`stats` van por POST (research §D9 — incidente 414 de Nginx).
-        Route::get('informes/contador', [InformeContadorController::class, 'index'])->name('informes.contador.index');
-        Route::post('informes/contador/ventas/data', [InformeContadorController::class, 'ventasData'])->name('informes.contador.ventas.data');
-        Route::post('informes/contador/ventas/stats', [InformeContadorController::class, 'ventasStats'])->name('informes.contador.ventas.stats');
-        Route::get('informes/contador/ventas/exportar', [InformeContadorController::class, 'ventasExportar'])->name('informes.contador.ventas.exportar');
-        Route::post('informes/contador/compras/data', [InformeContadorController::class, 'comprasData'])->name('informes.contador.compras.data');
-        Route::post('informes/contador/compras/stats', [InformeContadorController::class, 'comprasStats'])->name('informes.contador.compras.stats');
-        Route::get('informes/contador/compras/exportar', [InformeContadorController::class, 'comprasExportar'])->name('informes.contador.compras.exportar');
-        // IVA Digital (spec 086): descarga del ZIP con los 4 TXT del régimen RG 3685.
-        Route::get('informes/contador/iva-digital', [InformeContadorController::class, 'ivaDigital'])->name('informes.contador.iva-digital');
-
-        // Enviar Información a tu Contador por Correo (spec 087).
-        Route::post('informes/contador/adjuntos-previstos', [EnvioContadorController::class, 'adjuntosPrevistos'])->name('informes.contador.adjuntos-previstos');
-        Route::post('informes/contador/enviar', [EnvioContadorController::class, 'enviar'])->name('informes.contador.enviar');
-
-        Route::get('informes/gastos', [InformeGastosController::class, 'index'])->name('informes.gastos.index');
-        Route::get('informes/gastos/data', [InformeGastosController::class, 'data'])->name('informes.gastos.data');
-        Route::get('informes/gastos/stats', [InformeGastosController::class, 'stats'])->name('informes.gastos.stats');
-        Route::get('informes/gastos/grupo', [InformeGastosController::class, 'grupo'])->name('informes.gastos.grupo');
-        Route::get('informes/gastos/exportar', [InformeGastosController::class, 'exportar'])->name('informes.gastos.exportar');
-        Route::get('informes/gastos/pdf', [InformeGastosController::class, 'pdf'])->name('informes.gastos.pdf');
-
-        Route::prefix('informes/cuenta-corriente-proveedores')->name('informes.cuenta-corriente-proveedores.')->group(function () {
-            Route::get('/', [CuentaCorrienteProveedorController::class, 'index'])->name('index');
-            Route::get('saldos', [CuentaCorrienteProveedorController::class, 'saldosData'])->name('saldos.data');
-            Route::get('movimientos', [CuentaCorrienteProveedorController::class, 'movimientosData'])->name('movimientos.data');
-            Route::get('proveedor/{proveedor}', [CuentaCorrienteProveedorController::class, 'showProveedor'])->name('proveedor.show');
-            Route::get('exportar', [CuentaCorrienteProveedorController::class, 'exportar'])->name('exportar');
-            Route::get('pdf', [CuentaCorrienteProveedorController::class, 'pdf'])->name('pdf');
-            Route::get('movimientos/exportar', [CuentaCorrienteProveedorController::class, 'exportarMovimientos'])->name('movimientos.exportar');
-            Route::get('movimientos/pdf', [CuentaCorrienteProveedorController::class, 'pdfMovimientos'])->name('movimientos.pdf');
+        Route::middleware('permiso:informes.exportar')->group(function () {
+            Route::get('informes/compras/exportar', [InformeComprasController::class, 'exportar'])->name('informes.compras.exportar');
+            Route::get('informes/compras/pdf', [InformeComprasController::class, 'pdf'])->name('informes.compras.pdf');
         });
 
-        // Informes → Ventas / Reporte Final (spec 068, tanda 2). También de sólo lectura.
-        Route::get('informes/ventas', [InformeVentasController::class, 'index'])->name('informes.ventas.index');
-        Route::get('informes/ventas/data', [InformeVentasController::class, 'data'])->name('informes.ventas.data');
-        Route::get('informes/ventas/stats', [InformeVentasController::class, 'stats'])->name('informes.ventas.stats');
-        Route::get('informes/ventas/exportar', [InformeVentasController::class, 'exportar'])->name('informes.ventas.exportar');
-        Route::get('informes/ventas/exportar-detallado', [InformeVentasController::class, 'exportarDetallado'])->name('informes.ventas.exportar-detallado');
-        Route::get('informes/ventas/pdf', [InformeVentasController::class, 'pdf'])->name('informes.ventas.pdf');
-
-        Route::prefix('informes/reporte-final')->name('informes.reporte-final.')->group(function () {
-            Route::get('/', [ReporteFinalController::class, 'index'])->name('index');
-            Route::get('data', [ReporteFinalController::class, 'data'])->name('data');
-            Route::get('exportar', [ReporteFinalController::class, 'exportar'])->name('exportar');
-            Route::get('pdf', [ReporteFinalController::class, 'pdf'])->name('pdf');
-        });
-
-        // Rankings y "Arma tu Informe" (spec 069, tanda 3) sobre Ventas y Compras.
-        //
-        // A diferencia de las tandas 1 y 2, este bloque SÍ escribe: las vistas guardadas son
-        // configuración de presentación que el usuario crea y borra. No llevan permiso propio
-        // (FR-042): quien puede ver el informe puede guardar cruces sobre él.
-        Route::prefix('informes/ventas/pivot')->name('informes.ventas.pivot.')->group(function () {
-            Route::get('dataset', [InformeVentasController::class, 'pivotDataset'])->name('dataset');
-            Route::post('exportar', [InformeVentasController::class, 'pivotExportar'])->name('exportar');
-
-            Route::get('vistas', [InformeVistaController::class, 'indexVentas'])->name('vistas.index');
-            Route::post('vistas', [InformeVistaController::class, 'storeVentas'])->name('vistas.store');
-            Route::put('vistas/{vista}', [InformeVistaController::class, 'updateVentas'])->name('vistas.update');
-            Route::delete('vistas/{vista}', [InformeVistaController::class, 'destroyVentas'])->name('vistas.destroy');
-        });
-
+        // Rankings y "Arma tu Informe" (spec 069, tanda 3). Las vistas guardadas SÍ escriben, pero
+        // no llevan permiso propio (spec 069 FR-042 / spec 090 FR-020): quien puede ver el informe
+        // puede guardar y borrar cruces sobre él.
         Route::prefix('informes/compras/pivot')->name('informes.compras.pivot.')->group(function () {
             Route::get('dataset', [InformeComprasController::class, 'pivotDataset'])->name('dataset');
-            Route::post('exportar', [InformeComprasController::class, 'pivotExportar'])->name('exportar');
+            Route::post('exportar', [InformeComprasController::class, 'pivotExportar'])->middleware('permiso:informes.exportar')->name('exportar');
 
             Route::get('vistas', [InformeVistaController::class, 'indexCompras'])->name('vistas.index');
             Route::post('vistas', [InformeVistaController::class, 'storeCompras'])->name('vistas.store');
@@ -258,13 +221,103 @@ Route::middleware('auth')->group(function () {
             Route::delete('vistas/{vista}', [InformeVistaController::class, 'destroyCompras'])->name('vistas.destroy');
         });
 
-        // Entrada directa por URL a un ranking o a una vista guardada (research R6). Sin esto,
-        // compartir el enlace de un ranking daba 404: la pestaña sólo existía en el cliente.
-        // Las resuelve el `index()` de cada informe con la pestaña inicial ya seleccionada.
-        Route::get('informes/ventas/ranking/{dimension}', [InformeVentasController::class, 'index'])->name('informes.ventas.ranking.show');
-        Route::get('informes/ventas/vista/{vista}', [InformeVentasController::class, 'index'])->name('informes.ventas.vista.show');
+        // Entrada directa por URL a un ranking o a una vista guardada (spec 069 research R6). Sin
+        // esto, compartir el enlace de un ranking daba 404: la pestaña sólo existía en el cliente.
         Route::get('informes/compras/ranking/{dimension}', [InformeComprasController::class, 'index'])->name('informes.compras.ranking.show');
         Route::get('informes/compras/vista/{vista}', [InformeComprasController::class, 'index'])->name('informes.compras.vista.show');
+    });
+
+    // Informes → Gastos (spec 067, tanda 1)
+    Route::middleware('permiso:informes.gastos')->group(function () {
+        Route::get('informes/gastos', [InformeGastosController::class, 'index'])->name('informes.gastos.index');
+        Route::get('informes/gastos/data', [InformeGastosController::class, 'data'])->name('informes.gastos.data');
+        Route::get('informes/gastos/stats', [InformeGastosController::class, 'stats'])->name('informes.gastos.stats');
+        Route::get('informes/gastos/grupo', [InformeGastosController::class, 'grupo'])->name('informes.gastos.grupo');
+
+        Route::middleware('permiso:informes.exportar')->group(function () {
+            Route::get('informes/gastos/exportar', [InformeGastosController::class, 'exportar'])->name('informes.gastos.exportar');
+            Route::get('informes/gastos/pdf', [InformeGastosController::class, 'pdf'])->name('informes.gastos.pdf');
+        });
+    });
+
+    // Informes → Cuenta Corriente Proveedores (spec 067, tanda 1)
+    Route::middleware('permiso:informes.cuenta-corriente-proveedores')
+        ->prefix('informes/cuenta-corriente-proveedores')
+        ->name('informes.cuenta-corriente-proveedores.')
+        ->group(function () {
+            Route::get('/', [CuentaCorrienteProveedorController::class, 'index'])->name('index');
+            Route::get('saldos', [CuentaCorrienteProveedorController::class, 'saldosData'])->name('saldos.data');
+            Route::get('movimientos', [CuentaCorrienteProveedorController::class, 'movimientosData'])->name('movimientos.data');
+            Route::get('proveedor/{proveedor}', [CuentaCorrienteProveedorController::class, 'showProveedor'])->name('proveedor.show');
+
+            Route::middleware('permiso:informes.exportar')->group(function () {
+                Route::get('exportar', [CuentaCorrienteProveedorController::class, 'exportar'])->name('exportar');
+                Route::get('pdf', [CuentaCorrienteProveedorController::class, 'pdf'])->name('pdf');
+                Route::get('movimientos/exportar', [CuentaCorrienteProveedorController::class, 'exportarMovimientos'])->name('movimientos.exportar');
+                Route::get('movimientos/pdf', [CuentaCorrienteProveedorController::class, 'pdfMovimientos'])->name('movimientos.pdf');
+            });
+        });
+
+    // Informes → Ventas (spec 068, tanda 2)
+    Route::middleware('permiso:informes.ventas')->group(function () {
+        Route::get('informes/ventas', [InformeVentasController::class, 'index'])->name('informes.ventas.index');
+        Route::get('informes/ventas/data', [InformeVentasController::class, 'data'])->name('informes.ventas.data');
+        Route::get('informes/ventas/stats', [InformeVentasController::class, 'stats'])->name('informes.ventas.stats');
+
+        Route::middleware('permiso:informes.exportar')->group(function () {
+            Route::get('informes/ventas/exportar', [InformeVentasController::class, 'exportar'])->name('informes.ventas.exportar');
+            Route::get('informes/ventas/exportar-detallado', [InformeVentasController::class, 'exportarDetallado'])->name('informes.ventas.exportar-detallado');
+            Route::get('informes/ventas/pdf', [InformeVentasController::class, 'pdf'])->name('informes.ventas.pdf');
+        });
+
+        Route::prefix('informes/ventas/pivot')->name('informes.ventas.pivot.')->group(function () {
+            Route::get('dataset', [InformeVentasController::class, 'pivotDataset'])->name('dataset');
+            Route::post('exportar', [InformeVentasController::class, 'pivotExportar'])->middleware('permiso:informes.exportar')->name('exportar');
+
+            Route::get('vistas', [InformeVistaController::class, 'indexVentas'])->name('vistas.index');
+            Route::post('vistas', [InformeVistaController::class, 'storeVentas'])->name('vistas.store');
+            Route::put('vistas/{vista}', [InformeVistaController::class, 'updateVentas'])->name('vistas.update');
+            Route::delete('vistas/{vista}', [InformeVistaController::class, 'destroyVentas'])->name('vistas.destroy');
+        });
+
+        Route::get('informes/ventas/ranking/{dimension}', [InformeVentasController::class, 'index'])->name('informes.ventas.ranking.show');
+        Route::get('informes/ventas/vista/{vista}', [InformeVentasController::class, 'index'])->name('informes.ventas.vista.show');
+    });
+
+    // Informes → Reporte Final (spec 068, tanda 2). El más sensible: expone márgenes y CMV.
+    Route::middleware('permiso:informes.reporte-final')
+        ->prefix('informes/reporte-final')
+        ->name('informes.reporte-final.')
+        ->group(function () {
+            Route::get('/', [ReporteFinalController::class, 'index'])->name('index');
+            Route::get('data', [ReporteFinalController::class, 'data'])->name('data');
+
+            Route::middleware('permiso:informes.exportar')->group(function () {
+                Route::get('exportar', [ReporteFinalController::class, 'exportar'])->name('exportar');
+                Route::get('pdf', [ReporteFinalController::class, 'pdf'])->name('pdf');
+            });
+        });
+
+    // Informes → Información para tu Contador (spec 077): Libro IVA Ventas / Compras.
+    // `data`/`stats` van por POST (spec 077 research §D9 — incidente 414 de Nginx).
+    Route::middleware('permiso:informes.contador')->group(function () {
+        Route::get('informes/contador', [InformeContadorController::class, 'index'])->name('informes.contador.index');
+        Route::post('informes/contador/ventas/data', [InformeContadorController::class, 'ventasData'])->name('informes.contador.ventas.data');
+        Route::post('informes/contador/ventas/stats', [InformeContadorController::class, 'ventasStats'])->name('informes.contador.ventas.stats');
+        Route::post('informes/contador/compras/data', [InformeContadorController::class, 'comprasData'])->name('informes.contador.compras.data');
+        Route::post('informes/contador/compras/stats', [InformeContadorController::class, 'comprasStats'])->name('informes.contador.compras.stats');
+
+        Route::middleware('permiso:informes.exportar')->group(function () {
+            Route::get('informes/contador/ventas/exportar', [InformeContadorController::class, 'ventasExportar'])->name('informes.contador.ventas.exportar');
+            Route::get('informes/contador/compras/exportar', [InformeContadorController::class, 'comprasExportar'])->name('informes.contador.compras.exportar');
+            // IVA Digital (spec 086): descarga del ZIP con los 4 TXT del régimen RG 3685.
+            Route::get('informes/contador/iva-digital', [InformeContadorController::class, 'ivaDigital'])->name('informes.contador.iva-digital');
+        });
+
+        // Enviar Información a tu Contador por Correo (spec 087). No exige `informes.exportar`:
+        // no es una descarga para el usuario, es un envío del sistema (spec 090 FR-012).
+        Route::post('informes/contador/adjuntos-previstos', [EnvioContadorController::class, 'adjuntosPrevistos'])->name('informes.contador.adjuntos-previstos');
+        Route::post('informes/contador/enviar', [EnvioContadorController::class, 'enviar'])->name('informes.contador.enviar');
     });
 
     // Tesorería (spec 007) — Saldos, Movimientos, config de cuentas, transferencias, ficha/ledger

@@ -145,6 +145,16 @@
 							@endcan
 						</ul>
 					</li>
+					{{-- El bloque "Informes" entero desaparece si el usuario no tiene ningún permiso de
+					     informe: sin esto quedaría un desplegable vacío (spec 090 FR-016). --}}
+					@php
+						$puedeVerAlgunInforme = collect([
+							'informes.ventas', 'informes.stock', 'informes.compras', 'informes.gastos',
+							'informes.cuenta-corriente-clientes', 'informes.cuenta-corriente-proveedores',
+							'informes.reporte-final', 'informes.contador',
+						])->contains(fn ($permiso) => auth()->user()?->can($permiso));
+					@endphp
+					@if ($puedeVerAlgunInforme)
 					<li><a class="has-arrow " href="javascript:void(0);" aria-expanded="false">
 							<div class="menu-icon">
 								<svg width="24" height="24" viewBox="0 0 16 16" fill="none"
@@ -157,22 +167,39 @@
 							<span class="nav-text">Informes</span>
 						</a>
 						<ul aria-expanded="false">
-							@can('informes.ver')
-								{{-- "Ventas" va primera, como en la landing de tarjetas de Contagram (spec 068 FR-001). --}}
+							{{-- Un permiso por informe (spec 090): cada ítem se gatea con el suyo. El bloque
+							     entero se oculta más abajo si el usuario no tiene ninguno (FR-015, FR-016). --}}
+							{{-- "Ventas" va primera, como en la landing de tarjetas de Contagram (spec 068 FR-001). --}}
+							@can('informes.ventas')
 								<li><a href="{{ route('informes.ventas.index') }}">Ventas</a></li>
+							@endcan
+							@can('informes.stock')
 								<li><a href="{{ route('informes.stock.index') }}">Stock</a></li>
+							@endcan
+							@can('informes.compras')
 								<li><a href="{{ route('informes.compras.index') }}">Compras</a></li>
+							@endcan
+							@can('informes.gastos')
 								<li><a href="{{ route('informes.gastos.index') }}">Gastos</a></li>
-								{{-- Renombrada al sumar el informe de proveedores: "Cuenta Corriente" a secas
-								     dejaba de ser un rótulo distinguible entre las dos pantallas (spec 067 FR-001). --}}
+							@endcan
+							{{-- Renombrada al sumar el informe de proveedores: "Cuenta Corriente" a secas
+							     dejaba de ser un rótulo distinguible entre las dos pantallas (spec 067 FR-001). --}}
+							@can('informes.cuenta-corriente-clientes')
 								<li><a href="{{ route('informes.cuenta-corriente.index') }}">Cuenta Corriente Clientes</a></li>
+							@endcan
+							@can('informes.cuenta-corriente-proveedores')
 								<li><a href="{{ route('informes.cuenta-corriente-proveedores.index') }}">Cuenta Corriente Proveedores</a></li>
+							@endcan
+							@can('informes.reporte-final')
 								<li><a href="{{ route('informes.reporte-final.index') }}">Reporte Final</a></li>
-								{{-- Información para tu Contador (spec 077): Libro IVA Ventas/Compras. --}}
+							@endcan
+							{{-- Información para tu Contador (spec 077): Libro IVA Ventas/Compras. --}}
+							@can('informes.contador')
 								<li><a href="{{ route('informes.contador.index') }}">Información para tu Contador</a></li>
 							@endcan
 						</ul>
 					</li>
+					@endif
 					@can('tesoreria.ver')
 						<li><a href="{{ route('tesoreria.saldos') }}">
 								<div class="menu-icon">

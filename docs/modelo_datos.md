@@ -43,6 +43,17 @@ modulo (agrupador para la matriz de permisos de la UI de Roles).
 > como leída requiere sólo `monitoreo.ver`: es una acción sobre el propio estado de lectura del
 > usuario, no sobre la integración.
 
+> **Módulo `informes` (spec 090, 28/08/2026)**: se **retira** `informes.ver` y se lo reemplaza por
+> nueve códigos — ocho por informe (`informes.ventas`, `informes.compras`, `informes.gastos`,
+> `informes.stock`, `informes.cuenta-corriente-clientes`, `informes.cuenta-corriente-proveedores`,
+> `informes.reporte-final`, `informes.contador`) más el transversal `informes.exportar`, que habilita
+> `exportar`/`pdf` de los informes que el usuario ya pueda ver y **no da acceso a ninguno por sí solo**.
+> **No hay cambio de esquema**: sólo filas de `permisos` y reasignación de `permiso_rol`. La migración
+> reparte por rol según su función (Contable → Compras, Gastos, Cta Cte Proveedores, Contador +
+> exportar; Vendedor → ninguno; cualquier otro rol con el permiso viejo → los nueve) y recién después
+> borra `informes.ver` del catálogo y de sus pivots. Ver `documentacion_principal_crm.md` §Informes
+> "Permisos del módulo" para el detalle y el criterio del reparto.
+
 ### `permiso_rol` (pivot)
 rol_id, permiso_id.
 

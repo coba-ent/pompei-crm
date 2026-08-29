@@ -26,9 +26,11 @@
                 <button type="button" class="btn btn-outline-primary" id="btn-pivot-guardar">
                     <i class="fas fa-save me-1"></i> Guardar Informe
                 </button>
+                @can('informes.exportar')
                 <button type="button" class="btn btn-success" id="btn-pivot-exportar">
                     <i class="fas fa-file-excel me-1"></i> Exportar Excel
                 </button>
+                @endcan
             </div>
         </div>
 

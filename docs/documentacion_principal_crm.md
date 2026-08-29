@@ -2333,7 +2333,9 @@ Cuenta Corriente Clientes, ninguno implementado al momento del relevamiento orig
 (Cuenta Corriente Clientes, §6.4) ya construida, se agregó el ítem: navega a
 `informes/cuenta-corriente?cliente_id=X`, que abre directo en el tab "Movimientos" con el filtro
 Cliente preseleccionado (detalle accionable de ese cliente puntual, no el agregado de Saldos
-Clientes). Gateado por el mismo permiso `informes.ver` que el ítem del sidebar. La brecha de
+Clientes). Gateado por el mismo permiso que el ítem del sidebar: hasta la spec 090, `informes.ver`;
+desde la spec 090, `informes.cuenta-corriente-clientes` (y el ítem análogo del menú de fila de
+Proveedores, `informes.cuenta-corriente-proveedores`) — ver §6.x "Permisos del módulo". La brecha de
 selección múltiple + "Acciones Masivas" en Productos se cerró en spec 004 (ver §2.2).
 
 ### 6.2 Informe de Stock (implementado, spec 003)
@@ -2624,6 +2626,57 @@ Excel + PDF abajo a la derecha.
 > **Regla relevada — "Mes actual" es el mes calendario completo** (día 1 al último del mes),
 > incluyendo fechas futuras dentro del mismo mes; no se recorta a la fecha de hoy. Aplica a todos los
 > informes.
+
+**Permisos del módulo (spec 090 — especificada 28/08/2026)**
+
+Hasta la spec 090 todo el módulo se gobernaba con un **único** permiso `informes.ver`: dar acceso al
+Informe de Stock implicaba dar también el Reporte Final (márgenes/CMV), la Cta Cte de Clientes y el
+Libro IVA. Además, dos bloques de rutas habían quedado **fuera** del middleware —`informes/stock/*` y
+todo `informes/cuenta-corriente/*` (Clientes), incluidos sus `exportar` y `pdf`—, con lo que el `@can`
+del sidebar sólo escondía el enlace y cualquier usuario autenticado entraba y exportaba pegando la URL.
+
+La spec 090 lo reemplaza por **nueve permisos** en el módulo `informes`:
+
+| Código | Alcance |
+|--------|---------|
+| `informes.ventas` | Informe de Ventas + sus rankings y "Arma tu Informe" (y sus vistas guardadas) |
+| `informes.compras` | Informe de Compras + sus rankings y "Arma tu Informe" (y sus vistas guardadas) |
+| `informes.gastos` | Informe de Gastos |
+| `informes.stock` | Informe de Stock |
+| `informes.cuenta-corriente-clientes` | Cuenta Corriente Clientes |
+| `informes.cuenta-corriente-proveedores` | Cuenta Corriente Proveedores |
+| `informes.reporte-final` | Reporte Final (el más sensible: márgenes y CMV) |
+| `informes.contador` | Información para tu Contador: Libro IVA V/C, IVA Digital, envío por correo |
+| `informes.exportar` | **Transversal**: habilita `exportar`/`pdf` de los informes que ya pueda ver |
+
+Reglas:
+
+- El permiso de un informe **no** exige el `.ver` del módulo subyacente (`informes.ventas` no requiere
+  `ventas.ver`): se basta solo. La separación de "quién ve plata" la da esta misma grilla.
+- Las descargas exigen **ambos** permisos, encadenando el alias dos veces en la ruta
+  (`permiso:informes.ventas` + `permiso:informes.exportar`) — mismo patrón con que Tesorería eleva
+  `tesoreria.ver` → `tesoreria.editar` en `cuentas/orden`. `informes.exportar` **por sí solo no da
+  acceso a ningún informe**.
+- Las vistas guardadas y los rankings **no** llevan permiso propio de escritura (regla heredada de
+  spec 069 FR-042): quien ve el informe guarda y borra sus cruces. Su acceso se rige por el permiso
+  del informe al que pertenecen (`ventas` o `compras`).
+- El envío al contador por correo va bajo `informes.contador` **sin** exigir `informes.exportar`: no
+  es una descarga para el usuario. `iva-digital` sí, porque descarga un ZIP.
+- **Ninguna ruta del módulo puede quedar sin permiso** (65 rutas al 28/08/2026). El `@can` del sidebar
+  es cosmética, nunca el control de acceso — es exactamente el error que originó esta spec.
+
+**Reparto sobre los roles existentes** (decidido sobre el estado real de la base: Admin 3 usuarios,
+Vendedor 2, Contable 0):
+
+| Rol | Informes | Descarga |
+|-----|----------|----------|
+| **Admin** | los 8 (pasa cualquier permiso por `Gate::before`) | sí |
+| **Contable** | Compras, Gastos, Cta Cte Proveedores, Información para tu Contador | sí |
+| **Vendedor** | ninguno (hoy tampoco tiene) | no |
+
+Criterio: a cada rol, los informes de los módulos que ya administra. El Contable **pierde** Ventas,
+Stock, Cta Cte Clientes y Reporte Final, que hoy tiene por el permiso único; es aceptable porque no
+tiene usuarios asignados, y el admin puede volver a marcárselos desde Roles.
 
 **Estado por tandas:**
 

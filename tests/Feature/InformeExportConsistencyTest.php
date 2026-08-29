@@ -11,6 +11,7 @@ use App\Models\Producto;
 use App\Models\Venta;
 use App\Models\VentaItem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\ActuaComoUsuarioConPermisos;
 use Tests\TestCase;
 
 /**
@@ -20,7 +21,23 @@ use Tests\TestCase;
  */
 class InformeExportConsistencyTest extends TestCase
 {
+    use ActuaComoUsuarioConPermisos;
     use RefreshDatabase;
+
+    /**
+     * spec 090: cada informe exige su permiso y las descargas además `informes.exportar`. Este test
+     * compara pantalla contra export en varios informes, así que necesita todos.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->actingAsUsuarioConPermisos([
+            'informes.ventas', 'informes.compras', 'informes.gastos', 'informes.stock',
+            'informes.cuenta-corriente-clientes', 'informes.cuenta-corriente-proveedores',
+            'informes.reporte-final', 'informes.contador', 'informes.exportar',
+        ]);
+    }
 
     public function test_ventas_csv_refleja_las_mismas_filas_y_totales_que_la_pantalla(): void
     {

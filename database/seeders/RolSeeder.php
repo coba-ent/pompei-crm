@@ -39,7 +39,11 @@ class RolSeeder extends Seeder
                 'gastos.ver', 'gastos.crear', 'gastos.editar',
                 'tesoreria.ver', 'tesoreria.crear', 'tesoreria.editar',
                 'proveedores.ver', 'proveedores.crear', 'proveedores.editar',
-                'informes.ver',
+                // Informes de los módulos que este rol ya administra (spec 090). No recibe Ventas,
+                // Stock, Cta Cte Clientes ni Reporte Final: exceden su función. Una instalación
+                // limpia tiene que dar el mismo estado que la migración sobre la base existente.
+                'informes.compras', 'informes.gastos', 'informes.cuenta-corriente-proveedores',
+                'informes.contador', 'informes.exportar',
             ])->pluck('id')
         );
     }

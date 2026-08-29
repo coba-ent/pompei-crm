@@ -9,12 +9,14 @@
                 <h4 class="mb-0 text-primary fw-bold">Reporte Final</h4>
             </div>
             <div class="col-sm-6 mb-2 text-sm-end">
+                @can('informes.exportar')
                 <button type="button" class="btn btn-outline-secondary" id="btn-exportar-pdf">
                     <i class="fas fa-file-pdf me-1"></i> Exportar a PDF
                 </button>
                 <button type="button" class="btn btn-success" id="btn-exportar">
                     <i class="fas fa-file-excel me-1"></i> Exportar Resumen
                 </button>
+                @endcan
             </div>
         </div>
 
