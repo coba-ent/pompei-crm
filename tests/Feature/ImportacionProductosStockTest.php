@@ -118,12 +118,19 @@ class ImportacionProductosStockTest extends TestCase
             'deposito_id' => $deposito->id,
             'cantidad' => 25,
         ]);
+        // spec 084 (28/08/2026): la descripción nombra el archivo y el número de corrida. Un
+        // "Ajuste (importación)" a secas no se puede reconstruir meses después — pasó con un −181
+        // de embalaje que hubo que rastrear a mano hasta la planilla que lo originó.
+        $movimiento = \App\Models\MovimientoStock::where('producto_id', $producto->id)
+            ->where('tipo', 'ajuste')->latest('id')->first();
+        $this->assertStringContainsString('importación #', $movimiento->descripcion);
+        $this->assertStringContainsString('.xlsx', $movimiento->descripcion);
+
         // El ajuste es por diferencia (25 - 10 = 15), no por el valor absoluto.
         $this->assertDatabaseHas('movimientos_stock', [
             'producto_id' => $producto->id,
             'tipo' => 'ajuste',
             'cantidad' => 15,
-            'descripcion' => 'Ajuste (importación)',
         ]);
     }
 
@@ -204,7 +211,6 @@ class ImportacionProductosStockTest extends TestCase
         $this->assertDatabaseHas('movimientos_stock', [
             'producto_id' => $producto->id,
             'cantidad' => -6,
-            'descripcion' => 'Ajuste (importación)',
         ]);
     }
 

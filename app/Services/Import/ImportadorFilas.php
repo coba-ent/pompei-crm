@@ -177,7 +177,7 @@ class ImportadorFilas
                 // columnas presentes en $datos (research.md §3 de la spec 026, FR-003).
                 if ($entidad === 'productos') {
                     $snapshotPrevio = $corrida ? $this->armarSnapshotFila($corrida->id, $registro, 'actualizacion', $numeroFila) : null;
-                    $this->actualizarProducto($registro, $datos, $usuario);
+                    $this->actualizarProducto($registro, $datos, $usuario, $corrida);
                     if ($corrida) {
                         // Los `limite_*` se capturan DESPUÉS de aplicar la fila (no antes, como el
                         // resto del snapshot): el propio `fijar()` de esta fila genera un
@@ -356,7 +356,7 @@ class ImportadorFilas
      *
      * @param  array<string, mixed>  $datos
      */
-    private function actualizarProducto(Producto $producto, array $datos, ?User $usuario): void
+    private function actualizarProducto(Producto $producto, array $datos, ?User $usuario, ?ImportacionCorrida $corrida = null): void
     {
         [$precios, $stockPorDeposito] = $this->extraerPreciosYStock($datos);
 
@@ -380,11 +380,41 @@ class ImportadorFilas
                     null,
                     Deposito::findOrFail($depositoId),
                     $cantidadDeseada,
-                    'Ajuste (importación)',
+                    $this->descripcionDelAjuste($corrida),
                     $usuario,
                 );
             }
         }
+    }
+
+    /**
+     * Texto del movimiento de stock que deja una importación.
+     *
+     * Antes decía sólo "Ajuste (importación)", y eso no alcanza para explicar el movimiento meses
+     * después: un −181 de embalaje visto suelto en el listado no se puede reconstruir sin ir a
+     * buscar la corrida a mano. Nombrar el archivo y la corrida convierte cada ajuste en algo
+     * rastreable hasta la planilla que lo originó.
+     *
+     * `movimientos_stock.descripcion` es varchar(255): si el nombre del archivo fuera largo, se
+     * recorta el nombre —nunca el número de corrida, que es lo que permite encontrarla.
+     */
+    private function descripcionDelAjuste(?ImportacionCorrida $corrida): string
+    {
+        if (! $corrida) {
+            return 'Ajuste (importación)';
+        }
+
+        $cola = sprintf(' (importación #%d)', $corrida->id);
+        $archivo = (string) ($corrida->archivo_original ?? '');
+
+        if ($archivo === '') {
+            return 'Ajuste de stock'.$cola;
+        }
+
+        $prefijo = 'Ajuste de stock por ';
+        $espacio = 255 - mb_strlen($prefijo) - mb_strlen($cola);
+
+        return $prefijo.mb_substr($archivo, 0, max(0, $espacio)).$cola;
     }
 
     /**
