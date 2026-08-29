@@ -358,14 +358,38 @@ Productos & Servicios**. Habilita "Deshacer import".
 | deshecho_en | datetime, nullable | `null` = corrida vigente/no deshecha |
 | deshecho_por_id | FK → usuarios, nullable | quién ejecutó el undo |
 | filas_revertidas / filas_no_revertidas | unsignedInteger, nullable | resultado del undo, sólo si `deshecho_en` no es null |
+| archivo_guardado_ruta | string(255), nullable | **Columna nueva (spec 093)**: ruta de la copia del archivo subido, dentro del disco `local`. `null` = nunca se guardó (corrida anterior a la spec 093, o el guardado falló — que **no** hace fallar la importación) |
+| archivo_guardado_en | timestamp, nullable | **Columna nueva (spec 093)**: cuándo se guardó la copia; es lo que la limpieza compara contra el plazo de conservación (90 días por defecto) |
+| archivo_vencido_en | timestamp, nullable | **Columna nueva (spec 093)**: cuándo la limpieza la eliminó. Existe para distinguir **"venció"** de **"nunca se guardó"**, que le dicen cosas distintas a quien audita |
 
 Estado derivado (no columna): `vigente` / `deshecho` / `vencido`, según `deshecho_en` y
 `deshacer_disponible_hasta` vs. `now()`.
+
+Estado del archivo, también derivado (spec 093): `nunca_guardado` / `disponible` / `vencido`, según
+`archivo_guardado_ruta` y `archivo_vencido_en`. No se guarda como enum porque se desincronizaría con
+el archivo real el día que alguien lo borre a mano.
+
+⚠️ `archivo_original` **no es una clave**: el mismo nombre puede repetirse entre corridas
+(`productos_20260825_175146.xlsx` está en las corridas 1 y 2). La copia se identifica por
+`archivo_guardado_ruta`, única por corrida.
 
 ### `importacion_filas_snapshot` (spec 078)
 
 Una fila por cada producto creado o actualizado por una `importacion_corrida` (no se generan para
 filas fallidas ni productos no tocados).
+
+> ⚠️ **NO ES UNA TABLA TEMPORAL — no purgar** (spec 093). Nació como insumo del deshacer, que vence
+> a las 48 horas, y el nombre invita a creer que sus filas son descartables. Desde la spec 093 es
+> además la **única fuente del informe de qué cambió una importación**, así que tiene que sobrevivir
+> indefinidamente al vencimiento del deshacer. Purgarla deja sin informe a todas las corridas
+> viejas. Volumen medido al 28/08/2026: **1.605 filas, 1,33 MB** — no es un problema de espacio.
+>
+> **Formato de las columnas JSON**, porque leerlo mal da resultados absurdos:
+> `estado_anterior` es un **objeto** (`{"id":…,"nombre":…,"costo":…}`), pero `precios_anteriores` y
+> `stock_anterior` son **arrays de objetos** (`[{"lista_precio_id":1,"precio":"213506.29"}, …]`,
+> `[{"deposito_id":5,"cantidad":"0.000"}]`), **no** mapas `id => valor`. Leerlos como mapa toma el
+> índice del array por id de lista: el primer intento de armar el informe reportó "192 productos
+> cambiaron en las 11 listas" cuando la respuesta correcta era **ninguno**.
 
 | Campo | Tipo | Notas |
 |---|---|---|
