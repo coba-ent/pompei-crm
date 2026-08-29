@@ -3014,6 +3014,36 @@ opciones: el período de un libro IVA es un mes calendario, no un rango libre.
 - **19 columnas** con selector de visibilidad, 8 filtros (Id, Tipo de Comprobante, N° de Comprobante,
   Cliente/Proveedor, N° de CUIT, Condición de IVA, Medio de Cobro/Pago, Provincia) y export a Excel.
 
+#### Columnas del Excel exportado (spec 091, 28/08/2026)
+
+**El archivo exportado emite las 13 columnas de Contagram, no las 19 de la pantalla.** Son dos
+contratos distintos a propósito: la pantalla mantiene sus 19 con selector de visibilidad (spec 077); el
+archivo que recibe el contador calca el que venía recibiendo de Contagram.
+
+| # | Columna | Origen |
+|---|---|---|
+| 1-6 | Fecha · Tipo · N° de Comprobante · Razón Social · CUIT / DNI · Condición de IVA | `detalle()` |
+| 7-9 | Neto No Grav. · Neto Exento · Neto Grav. | `detalle()` |
+| 10 | **IVA 21%** | **suma de las cinco alícuotas** — ver salvaguarda abajo |
+| 11 | **Total Facturado** | netos + IVA + percepciones + impuestos internos/municipales |
+| 12 | **Provincia** | `COALESCE(provincia_fiscal, provincia)` del cliente/proveedor; `-` si no hay |
+| 13 | **Medio de Cobro** / **Medio de Pago** | cuenta de tesorería del primer cobro/pago; vacía si no se cobró |
+
+Las tres últimas no las devuelve `LibroIvaVentasQuery`: las resuelve `DatosComercialesComprobante`
+(`app/Services/Informes/Contador/`) con consultas **por lote** sobre las filas ya materializadas —
+mismo patrón que `DatosFiscalesComprobante` usa para el IVA Digital. **La query no se toca**: sus tres
+ramas (`UNION ALL` de ventas, NC/ND e históricos) deben mantener las mismas columnas, y está verificada
+peso por peso contra Contagram.
+
+> **Salvaguarda fiscal de la columna "IVA 21%"**: el rótulo está calcado de Contagram, pero la columna
+> lleva el **IVA total del comprobante**, sumando todas las alícuotas. Hoy el negocio factura sólo al
+> 21% (verificado sobre Julio 2026: las otras cuatro alícuotas suman 0,00), así que el rótulo es
+> exacto en la práctica. Si mirara sólo `iva_21`, una venta al 10,5% **desaparecería del libro** —
+> subdeclaración silenciosa. Hay un test dedicado a ese caso; no cambiar este criterio.
+
+> **Percepciones e impuestos internos perdieron su columna propia** y por eso entran en Total
+> Facturado: si no, sus importes desaparecerían del archivo. Hoy son 0,00 en los datos reales.
+
 #### Formato del Excel exportado (spec 089, 28/08/2026)
 
 **Fuente de verdad**: `tests/Fixtures/LibroIvaExport/IVA Ventas Agosto 2026 Contagram.xlsx` — el Excel

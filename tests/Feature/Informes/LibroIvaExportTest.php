@@ -37,9 +37,9 @@ class LibroIvaExportTest extends TestCase
         Excel::assertDownloaded('Libro IVA Ventas 08-2026.xlsx', function ($export) {
             $filas = $export->array();
 
-            // spec 089: filas 1-4 encabezado del negocio, fila 5 los títulos (19 columnas),
-            // fila 6 en adelante el detalle, y las 3 de totales al pie.
-            return count($filas[4]) === 19 && count($filas) >= 6;
+            // spec 089: filas 1-4 encabezado del negocio, fila 5 los títulos; fila 6 en adelante
+            // el detalle, y las 3 de totales al pie. spec 091: son 13 columnas, las de Contagram.
+            return count($filas[4]) === 13 && count($filas) >= 6;
         });
     }
 

@@ -53,9 +53,10 @@ class FiltroElectronicasManualesTest extends TestCase
         $rutaXlsx = $archivos[$periodo->nombreIvaVentas()];
 
         $hoja = \Maatwebsite\Excel\Facades\Excel::toArray([], $rutaXlsx)[0];
-        // Filas 0-3 son título/encabezado-totales/valores-totales/encabezado-detalle (LibroIvaExport::array()); el detalle arranca en la 4.
-        $comprobantes = array_slice($hoja, 4);
-        $numeros = array_column($comprobantes, 3);
+        // spec 089: filas 0-3 encabezado del negocio, fila 4 los títulos, detalle desde la 5.
+        // spec 091: el N° de Comprobante es la 3ª columna (índice 2), no la 4ª.
+        $comprobantes = array_slice($hoja, 5);
+        $numeros = array_column($comprobantes, 2);
 
         $this->assertContains($manual->nro_comprobante, $numeros);
         $this->assertNotContains('0001-00001234', $numeros);

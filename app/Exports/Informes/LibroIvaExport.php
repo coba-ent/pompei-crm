@@ -3,6 +3,7 @@
 namespace App\Exports\Informes;
 
 use App\Models\DatosEmpresa;
+use App\Services\Informes\Contador\DatosComercialesComprobante;
 use App\Services\Informes\Contador\Periodo;
 use App\Services\Informes\LibroIvaQuery;
 use Illuminate\Http\Request;
@@ -41,23 +42,26 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  */
 class LibroIvaExport implements FromArray, WithColumnFormatting, WithColumnWidths, WithEvents, WithStrictNullComparison, WithStyles, WithTitle
 {
+    /**
+     * Las 13 columnas del Excel de Contagram, en su orden (spec 091, FR-001). El rótulo de la última
+     * cambia según el libro ("Medio de Cobro" / "Medio de Pago", FR-006).
+     */
     private const ENCABEZADOS = [
-        'Id', 'Emisión', 'Tipo', 'N° de Comprobante', 'Cliente/Proveedor', 'CUIT/DNI', 'Condición de IVA',
-        'Importe Neto No Gravado', 'Importe Neto Exento', 'Importe Neto Gravado',
-        'IVA 2,5%', 'IVA 5%', 'IVA 10,5%', 'IVA 21%', 'IVA 27%',
-        'Perc. IVA', 'Perc. IIBB', 'Imp. Internos', 'Imp. Municipales',
+        'Fecha', 'Tipo', 'N° de Comprobante', 'Razón Social', 'CUIT / DNI', 'Condición de IVA',
+        'Neto No Grav.', 'Neto Exento', 'Neto Grav.', 'IVA 21%', 'Total Facturado',
+        'Provincia', 'Medio de Cobro',
     ];
 
     /** Azul corporativo de Contagram, ya usado en `Tesoreria\MovimientosExport`. */
     private const AZUL_ENCABEZADO = '0E5DA1';
 
-    private const ULTIMA_COLUMNA = 'S';
+    private const ULTIMA_COLUMNA = 'M';
 
     /** Fila (base 1) de los títulos de columna. Fija: el encabezado del negocio ocupa 1-4. */
     private const FILA_TITULOS = 5;
 
-    /** Índices (base 0 dentro de la fila) de las columnas de importe — las 12 que llevan formato numérico. */
-    private const COLUMNAS_IMPORTE = ['H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S'];
+    /** Columnas de importe: los 3 netos, el IVA y el Total Facturado. */
+    private const COLUMNAS_IMPORTE = ['G', 'H', 'I', 'J', 'K'];
 
     /** Se completan al armar el array; `styles()` los necesita porque el largo es variable. */
     private int $ultimaFilaDatos = 0;
@@ -86,27 +90,45 @@ class LibroIvaExport implements FromArray, WithColumnFormatting, WithColumnWidth
             $this->filaEncabezado(0, $empresa?->cuit ? 'N° C.U.I.T.: '.$empresa->cuit : '', 5, $this->titulo),
             $this->filaEncabezado(5, 'Periodo: '.$this->textoPeriodo()),
             [null],
-            self::ENCABEZADOS,
+            $this->encabezados(),
         ];
+
+        $detalle = $this->informe->detalle($this->request)->get();
+        $comerciales = (new DatosComercialesComprobante)->resolver($detalle, $this->esCompras());
 
         $acumulado = ['facturacion' => $this->ceros(), 'notas' => $this->ceros()];
 
-        foreach ($this->informe->detalle($this->request)->get() as $fila) {
+        foreach ($detalle as $fila) {
+            // FR-008: la columna rotulada "IVA 21%" (calcada de Contagram) lleva el IVA **total** del
+            // comprobante, no sólo el tramo del 21%. Hoy el negocio factura sólo al 21%, pero si
+            // apareciera una venta a otra alícuota su IVA desaparecería del libro — subdeclaración
+            // silenciosa, justo lo que el principio III de la constitución prohíbe.
+            $ivaTotal = (float) $fila->iva_2_5 + (float) $fila->iva_5 + (float) $fila->iva_10_5
+                + (float) $fila->iva_21 + (float) $fila->iva_27;
+
+            // Decisión 2 del plan: percepciones e impuestos pierden su columna propia, así que entran
+            // en el Total Facturado para que sus importes no desaparezcan del archivo.
+            $extras = (float) $fila->perc_iva + (float) $fila->perc_iibb
+                + (float) $fila->imp_internos + (float) $fila->imp_municipales;
+
             $importes = [
-                (float) $fila->neto_no_gravado, (float) $fila->neto_exento, (float) $fila->neto_gravado,
-                (float) $fila->iva_2_5, (float) $fila->iva_5, (float) $fila->iva_10_5, (float) $fila->iva_21, (float) $fila->iva_27,
-                (float) $fila->perc_iva, (float) $fila->perc_iibb, (float) $fila->imp_internos, (float) $fila->imp_municipales,
+                (float) $fila->neto_no_gravado,
+                (float) $fila->neto_exento,
+                (float) $fila->neto_gravado,
+                $ivaTotal,
+                (float) $fila->neto_no_gravado + (float) $fila->neto_exento + (float) $fila->neto_gravado + $ivaTotal + $extras,
             ];
 
+            $datos = $comerciales->get($this->claveComercial($fila), ['provincia' => '-', 'medio' => '']);
+
             $filas[] = array_merge([
-                $fila->id,
                 $this->fechaExcel((string) $fila->emision),
                 $fila->tipo,
                 $fila->nro_comprobante,
                 $fila->contraparte,
                 $fila->cuit,
                 $fila->condicion_iva,
-            ], $importes);
+            ], $importes, [$datos['provincia'], $datos['medio']]);
 
             // El desglose del pie se acumula acá, sobre las filas ya materializadas: son los mismos
             // números de `detalle()`, agrupados distinto. No se toca `LibroIvaQuery::totales()`, que
@@ -138,22 +160,23 @@ class LibroIvaExport implements FromArray, WithColumnFormatting, WithColumnWidth
     public function columnWidths(): array
     {
         return [
-            'A' => 8.5,   // Id
-            'B' => 11.5,  // Emisión
-            'C' => 7,     // Tipo
-            'D' => 18,    // N° de Comprobante
-            'E' => 30,    // Cliente/Proveedor
-            'F' => 15,    // CUIT/DNI
-            'G' => 20,    // Condición de IVA
-            'H' => 15, 'I' => 13, 'J' => 15,          // netos
-            'K' => 10, 'L' => 10, 'M' => 11, 'N' => 12, 'O' => 10,  // alícuotas
-            'P' => 11, 'Q' => 11, 'R' => 13, 'S' => 15,             // percepciones e impuestos
+            'A' => 11.5,  // Fecha
+            'B' => 7,     // Tipo
+            'C' => 18,    // N° de Comprobante
+            'D' => 30,    // Razón Social
+            'E' => 15,    // CUIT / DNI
+            'F' => 20,    // Condición de IVA
+            'G' => 14, 'H' => 13, 'I' => 15,   // netos
+            'J' => 14,                          // IVA
+            'K' => 16,                          // Total Facturado
+            'L' => 16,                          // Provincia
+            'M' => 18,                          // Medio de Cobro/Pago
         ];
     }
 
     public function columnFormats(): array
     {
-        $formatos = ['B' => 'DD/MM/YYYY'];
+        $formatos = ['A' => 'DD/MM/YYYY'];
 
         foreach (self::COLUMNAS_IMPORTE as $col) {
             $formatos[$col] = '0.00;(0.00)';
@@ -196,20 +219,26 @@ class LibroIvaExport implements FromArray, WithColumnFormatting, WithColumnWidth
         // --- Cuerpo de datos ---
         if ($this->ultimaFilaDatos > $titulos) {
             $primerDato = $titulos + 1;
-            $hoja->getStyle("A{$primerDato}:G{$this->ultimaFilaDatos}")
+            // Texto a la izquierda (razón social, condición de IVA, provincia, medio).
+            $hoja->getStyle("D{$primerDato}:F{$this->ultimaFilaDatos}")
                 ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-            $hoja->getStyle("B{$primerDato}:D{$this->ultimaFilaDatos}")
+            $hoja->getStyle("L{$primerDato}:M{$this->ultimaFilaDatos}")
+                ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+            // Fecha, tipo y número de comprobante centrados, como el original.
+            $hoja->getStyle("A{$primerDato}:C{$this->ultimaFilaDatos}")
                 ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            $hoja->getStyle("H{$primerDato}:{$ultima}{$this->ultimaFilaDatos}")
+            // Importes a la derecha.
+            $hoja->getStyle("G{$primerDato}:K{$this->ultimaFilaDatos}")
                 ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
         }
 
         // --- Totales al pie: rótulos en negrita; los importes sólo en la fila de "Totales:" ---
+        // El rótulo va en F (última columna antes de los importes) y los importes en G..K.
         foreach ([$this->filaPorFacturacion, $this->filaPorNotas, $this->filaTotales] as $fila) {
-            $hoja->getStyle("G{$fila}")->getFont()->setBold(true);
-            $hoja->getStyle("H{$fila}:{$ultima}{$fila}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+            $hoja->getStyle("F{$fila}")->getFont()->setBold(true);
+            $hoja->getStyle("G{$fila}:K{$fila}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
         }
-        $hoja->getStyle("H{$this->filaTotales}:{$ultima}{$this->filaTotales}")->getFont()->setBold(true);
+        $hoja->getStyle("G{$this->filaTotales}:K{$this->filaTotales}")->getFont()->setBold(true);
 
         return [];
     }
@@ -301,7 +330,7 @@ class LibroIvaExport implements FromArray, WithColumnFormatting, WithColumnWidth
     }
 
     /**
-     * Fila de total: el rótulo va en la columna G (la última antes de los importes) y los 12 importes
+     * Fila de total: el rótulo va en la columna F (la última antes de los importes) y los 5 importes
      * a continuación, alineados con sus columnas del detalle.
      *
      * @param  list<float>  $importes
@@ -309,8 +338,40 @@ class LibroIvaExport implements FromArray, WithColumnFormatting, WithColumnWidth
     private function filaTotal(string $rotulo, array $importes): array
     {
         return array_merge(
-            [null, null, null, null, null, null, $rotulo],
+            [null, null, null, null, null, $rotulo],
             array_map(fn (float $v) => round($v, 2), $importes)
         );
+    }
+
+    /**
+     * Las 13 columnas, con el rótulo de la última según el libro (FR-006): en Compras el medio es de
+     * pago al proveedor, no de cobro.
+     *
+     * @return list<string>
+     */
+    private function encabezados(): array
+    {
+        $encabezados = self::ENCABEZADOS;
+
+        if ($this->esCompras()) {
+            $encabezados[array_key_last($encabezados)] = 'Medio de Pago';
+        }
+
+        return $encabezados;
+    }
+
+    private function esCompras(): bool
+    {
+        return str_contains(mb_strtolower($this->titulo), 'compras');
+    }
+
+    /** Misma clave que usa {@see DatosComercialesComprobante} para indexar sus resultados. */
+    private function claveComercial(object $fila): string
+    {
+        if (($fila->origen ?? null) === 'historico_migracion_agosto_2026') {
+            return 'historico:'.$fila->id;
+        }
+
+        return ($this->esNota((string) $fila->tipo) ? 'nota' : 'comprobante').':'.$fila->id;
     }
 }

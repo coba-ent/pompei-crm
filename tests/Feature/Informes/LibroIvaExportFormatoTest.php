@@ -103,37 +103,36 @@ class LibroIvaExportFormatoTest extends TestCase
 
         $fila = self::FILA_PRIMER_DATO;
 
-        // Las 19 columnas del contrato de la spec 077, en su orden, con los valores de la venta.
-        $this->assertSame($venta->id, (int) $hoja->getCell('A'.$fila)->getValue(), 'columna Id');
-        $this->assertSame('B', $hoja->getCell('C'.$fila)->getValue(), 'columna Tipo');
-        $this->assertSame('0001-00000042', (string) $hoja->getCell('D'.$fila)->getValue(), 'columna N° de Comprobante');
-        $this->assertSame('Cliente Uno', $hoja->getCell('E'.$fila)->getValue(), 'columna Cliente/Proveedor');
-        $this->assertSame('20111111112', (string) $hoja->getCell('F'.$fila)->getValue(), 'columna CUIT/DNI');
+        // Las 13 columnas de Contagram (spec 091), en su orden, con los valores de la venta.
+        $this->assertSame('B', $hoja->getCell('B'.$fila)->getValue(), 'columna Tipo');
+        $this->assertSame('0001-00000042', (string) $hoja->getCell('C'.$fila)->getValue(), 'columna N° de Comprobante');
+        $this->assertSame('Cliente Uno', $hoja->getCell('D'.$fila)->getValue(), 'columna Razón Social');
+        $this->assertSame('20111111112', (string) $hoja->getCell('E'.$fila)->getValue(), 'columna CUIT / DNI');
 
-        $this->assertEqualsWithDelta(0, (float) $hoja->getCell('H'.$fila)->getValue(), 0.001, 'Neto No Gravado');
-        $this->assertEqualsWithDelta(0, (float) $hoja->getCell('I'.$fila)->getValue(), 0.001, 'Neto Exento');
-        $this->assertEqualsWithDelta(1000, (float) $hoja->getCell('J'.$fila)->getValue(), 0.001, 'Neto Gravado');
-        $this->assertEqualsWithDelta(210, (float) $hoja->getCell('N'.$fila)->getValue(), 0.001, 'IVA 21%');
+        $this->assertEqualsWithDelta(0, (float) $hoja->getCell('G'.$fila)->getValue(), 0.001, 'Neto No Grav.');
+        $this->assertEqualsWithDelta(0, (float) $hoja->getCell('H'.$fila)->getValue(), 0.001, 'Neto Exento');
+        $this->assertEqualsWithDelta(1000, (float) $hoja->getCell('I'.$fila)->getValue(), 0.001, 'Neto Grav.');
+        $this->assertEqualsWithDelta(210, (float) $hoja->getCell('J'.$fila)->getValue(), 0.001, 'IVA');
+        $this->assertEqualsWithDelta(1210, (float) $hoja->getCell('K'.$fila)->getValue(), 0.001, 'Total Facturado');
 
-        // Las columnas de alícuota que no aplican van en 0, no vacías — es lo que garantiza
-        // WithStrictNullComparison (sin él, `0 == null` las borraría del archivo).
-        foreach (['K', 'L', 'M', 'O'] as $col) {
-            $this->assertSame(0.0, (float) $hoja->getCell($col.$fila)->getValue(), "columna {$col} (alícuota sin uso) debe ser 0, no vacía");
+        // Los netos en cero se escriben igual, no quedan vacíos — lo garantiza
+        // WithStrictNullComparison (sin él, `0 == null` los borraría del archivo).
+        foreach (['G', 'H'] as $col) {
+            $this->assertSame(0.0, (float) $hoja->getCell($col.$fila)->getValue(), "columna {$col} en cero debe escribirse, no quedar vacía");
         }
     }
 
-    /** Las 19 columnas siguen presentes y en el mismo orden (FR-010). */
-    public function test_no_regresion_las_19_columnas_conservan_nombre_y_orden(): void
+    /** Las 13 columnas de Contagram, en su orden (spec 091, FR-001). */
+    public function test_las_13_columnas_calcan_las_de_contagram(): void
     {
         $this->ventaConIva();
 
         $hoja = $this->hojaGenerada();
 
         $esperados = [
-            'Id', 'Emisión', 'Tipo', 'N° de Comprobante', 'Cliente/Proveedor', 'CUIT/DNI', 'Condición de IVA',
-            'Importe Neto No Gravado', 'Importe Neto Exento', 'Importe Neto Gravado',
-            'IVA 2,5%', 'IVA 5%', 'IVA 10,5%', 'IVA 21%', 'IVA 27%',
-            'Perc. IVA', 'Perc. IIBB', 'Imp. Internos', 'Imp. Municipales',
+            'Fecha', 'Tipo', 'N° de Comprobante', 'Razón Social', 'CUIT / DNI', 'Condición de IVA',
+            'Neto No Grav.', 'Neto Exento', 'Neto Grav.', 'IVA 21%', 'Total Facturado',
+            'Provincia', 'Medio de Cobro',
         ];
 
         foreach ($esperados as $i => $esperado) {
@@ -198,14 +197,14 @@ class LibroIvaExportFormatoTest extends TestCase
         $hoja = $this->hojaGenerada();
         $fila = self::FILA_PRIMER_DATO;
 
-        $neto = $hoja->getCell('J'.$fila)->getValue();
+        $neto = $hoja->getCell('I'.$fila)->getValue();
         $this->assertIsNumeric($neto, 'el neto gravado debe ser numérico, no string');
 
         // La fecha se graba como serial de Excel y se muestra con formato DD/MM/YYYY (FR-006).
-        $emision = $hoja->getCell('B'.$fila)->getValue();
+        $emision = $hoja->getCell('A'.$fila)->getValue();
         $this->assertIsNumeric($emision, 'la emisión debe ser un valor de fecha de Excel, no un string');
         $this->assertSame('2026-08-10', ExcelDate::excelToDateTimeObject($emision)->format('Y-m-d'));
-        $this->assertStringContainsString('DD/MM/YYYY', $hoja->getStyle('B'.$fila)->getNumberFormat()->getFormatCode());
+        $this->assertStringContainsString('DD/MM/YYYY', $hoja->getStyle('A'.$fila)->getNumberFormat()->getFormatCode());
     }
 
     /** FR-007: importes con dos decimales y negativos entre paréntesis. */
@@ -215,7 +214,7 @@ class LibroIvaExportFormatoTest extends TestCase
 
         $hoja = $this->hojaGenerada();
 
-        $this->assertSame('0.00;(0.00)', $hoja->getStyle('J'.self::FILA_PRIMER_DATO)->getNumberFormat()->getFormatCode());
+        $this->assertSame('0.00;(0.00)', $hoja->getStyle('I'.self::FILA_PRIMER_DATO)->getNumberFormat()->getFormatCode());
     }
 
     /** FR-005: fila de títulos con fondo azul y texto blanco. */
@@ -300,8 +299,8 @@ class LibroIvaExportFormatoTest extends TestCase
 
         $hoja = $this->hojaGenerada();
 
-        $this->assertSame('Emisión', $hoja->getCell('B'.self::FILA_TITULOS)->getValue());
-        $this->assertSame('Condición de IVA', $hoja->getCell('G'.self::FILA_TITULOS)->getValue());
+        $this->assertSame('Razón Social', $hoja->getCell('D'.self::FILA_TITULOS)->getValue());
+        $this->assertSame('Condición de IVA', $hoja->getCell('F'.self::FILA_TITULOS)->getValue());
     }
 
     // -----------------------------------------------------------------------------------
@@ -323,12 +322,12 @@ class LibroIvaExportFormatoTest extends TestCase
 
         // Las 3 filas de totales son las últimas del archivo.
         // Los rótulos van en G, la última columna antes de los importes.
-        $this->assertSame('Por Facturación:', $hoja->getCell('G'.($ultima - 2))->getValue());
-        $this->assertSame('Por Nota de Crédito:', $hoja->getCell('G'.($ultima - 1))->getValue());
-        $this->assertSame('Totales:', $hoja->getCell('G'.$ultima)->getValue());
+        $this->assertSame('Por Facturación:', $hoja->getCell('F'.($ultima - 2))->getValue());
+        $this->assertSame('Por Nota de Crédito:', $hoja->getCell('F'.($ultima - 1))->getValue());
+        $this->assertSame('Totales:', $hoja->getCell('F'.$ultima)->getValue());
 
         // FR-013: en cada columna de importe, facturación + notas = total.
-        foreach (['J', 'N'] as $col) {
+        foreach (['I', 'J', 'K'] as $col) {
             $facturacion = (float) $hoja->getCell($col.($ultima - 2))->getValue();
             $notas = (float) $hoja->getCell($col.($ultima - 1))->getValue();
             $total = (float) $hoja->getCell($col.$ultima)->getValue();
@@ -345,8 +344,8 @@ class LibroIvaExportFormatoTest extends TestCase
         $hoja = $this->hojaGenerada();
         $ultima = $hoja->getHighestRow();
 
-        $this->assertTrue($hoja->getStyle('J'.$ultima)->getFont()->getBold(), 'los importes del total van en negrita');
-        $this->assertFalse($hoja->getStyle('J'.($ultima - 2))->getFont()->getBold(), 'los de facturación, no');
+        $this->assertTrue($hoja->getStyle('I'.$ultima)->getFont()->getBold(), 'los importes del total van en negrita');
+        $this->assertFalse($hoja->getStyle('I'.($ultima - 2))->getFont()->getBold(), 'los de facturación, no');
     }
 
     /** Un período sin notas de crédito deja ese renglón en cero. */
@@ -357,10 +356,10 @@ class LibroIvaExportFormatoTest extends TestCase
         $hoja = $this->hojaGenerada();
         $ultima = $hoja->getHighestRow();
 
-        $this->assertSame(0.0, (float) $hoja->getCell('J'.($ultima - 1))->getValue());
+        $this->assertSame(0.0, (float) $hoja->getCell('I'.($ultima - 1))->getValue());
         $this->assertEqualsWithDelta(
-            (float) $hoja->getCell('J'.($ultima - 2))->getValue(),
-            (float) $hoja->getCell('J'.$ultima)->getValue(),
+            (float) $hoja->getCell('I'.($ultima - 2))->getValue(),
+            (float) $hoja->getCell('I'.$ultima)->getValue(),
             0.01
         );
     }
@@ -392,11 +391,11 @@ class LibroIvaExportFormatoTest extends TestCase
 
         $this->assertSame('Libro IVA Ventas', $hoja->getCell('F2')->getValue());
         $this->assertSame('Periodo: Enero de 2026', $hoja->getCell('F3')->getValue());
-        $this->assertSame('Id', $hoja->getCell('A'.self::FILA_TITULOS)->getValue());
+        $this->assertSame('Fecha', $hoja->getCell('A'.self::FILA_TITULOS)->getValue());
 
         $ultima = $hoja->getHighestRow();
-        $this->assertSame('Totales:', $hoja->getCell('G'.$ultima)->getValue());
-        $this->assertSame(0.0, (float) $hoja->getCell('J'.$ultima)->getValue());
+        $this->assertSame('Totales:', $hoja->getCell('F'.$ultima)->getValue());
+        $this->assertSame(0.0, (float) $hoja->getCell('I'.$ultima)->getValue());
     }
 
     /** SC-005: el mismo formato aplica al Libro IVA Compras. */
@@ -407,5 +406,128 @@ class LibroIvaExportFormatoTest extends TestCase
         $this->assertSame('FF0E5DA1', $hoja->getStyle('A'.self::FILA_TITULOS)->getFill()->getStartColor()->getARGB());
         $this->assertSame('Arial', $hoja->getStyle('A'.self::FILA_TITULOS)->getFont()->getName());
         $this->assertSame('landscape', $hoja->getPageSetup()->getOrientation());
+    }
+
+    // -----------------------------------------------------------------------------------
+    // spec 091 — las 13 columnas de Contagram
+    // -----------------------------------------------------------------------------------
+
+    /**
+     * FR-008 / SC-003 — **el test crítico de la spec 091**. La columna se rotula "IVA 21%" calcando a
+     * Contagram, pero lleva el IVA **total**: si mirara sólo el tramo del 21%, una venta a otra
+     * alícuota desaparecería del libro sin que nada lo indique (subdeclaración silenciosa).
+     */
+    public function test_una_venta_a_otra_alicuota_no_desaparece_del_libro(): void
+    {
+        $venta = Venta::factory()->create([
+            'cliente_id' => Cliente::factory(),
+            'fecha_emision' => '2026-08-10',
+            'tipo_comprobante' => 'B',
+            'total' => 1105,
+        ]);
+        VentaItem::create([
+            'venta_id' => $venta->id, 'descripcion' => 'Ítem al 10,5%', 'cantidad' => 1,
+            'precio_unitario' => 1000, 'iva_pct' => '10.5', 'subtotal' => 1000, 'subtotal_con_iva' => 1105,
+        ]);
+
+        $hoja = $this->hojaGenerada();
+        $fila = self::FILA_PRIMER_DATO;
+
+        $this->assertEqualsWithDelta(105, (float) $hoja->getCell('J'.$fila)->getValue(), 0.01,
+            'el IVA al 10,5% debe aparecer en la columna de IVA, no en cero');
+        $this->assertEqualsWithDelta(1105, (float) $hoja->getCell('K'.$fila)->getValue(), 0.01,
+            'el Total Facturado debe incluir ese IVA');
+    }
+
+    /**
+     * SC-003: con alícuotas mixtas, la suma de la columna de IVA es el IVA total del período.
+     *
+     * Se usa **Marzo** y no Agosto: la suite carga por migración los 14 comprobantes históricos de
+     * agosto (spec 088), que sumarían su propio IVA al total y harían el assert dependiente de esos
+     * datos en vez de los de este test.
+     */
+    public function test_la_columna_de_iva_suma_todas_las_alicuotas_del_periodo(): void
+    {
+        $una = Venta::factory()->create([
+            'cliente_id' => Cliente::factory(), 'fecha_emision' => '2026-03-10',
+            'tipo_comprobante' => 'B', 'nro_comprobante' => '0001-00000301', 'total' => 1210,
+        ]);
+        VentaItem::create([
+            'venta_id' => $una->id, 'descripcion' => 'Ítem', 'cantidad' => 1,
+            'precio_unitario' => 1000, 'iva_pct' => '21', 'subtotal' => 1000, 'subtotal_con_iva' => 1210,
+        ]);
+
+        $otra = Venta::factory()->create([
+            'cliente_id' => Cliente::factory(), 'fecha_emision' => '2026-03-11',
+            'tipo_comprobante' => 'B', 'nro_comprobante' => '0001-00000302', 'total' => 1105,
+        ]);
+        VentaItem::create([
+            'venta_id' => $otra->id, 'descripcion' => 'Ítem', 'cantidad' => 1,
+            'precio_unitario' => 1000, 'iva_pct' => '10.5', 'subtotal' => 1000, 'subtotal_con_iva' => 1105,
+        ]);
+
+        $hoja = $this->hojaGenerada('Libro IVA Ventas', ['mes' => 3]);
+        $ultima = $hoja->getHighestRow();
+
+        // Fila de "Totales:" al pie — 210 al 21% + 105 al 10,5%.
+        $this->assertEqualsWithDelta(315, (float) $hoja->getCell('J'.$ultima)->getValue(), 0.01);
+    }
+
+    /** FR-003: Total Facturado incluye las percepciones, que perdieron su columna propia. */
+    public function test_total_facturado_incluye_las_percepciones(): void
+    {
+        $venta = $this->ventaConIva();
+        \App\Models\VentaConcepto::create([
+            'venta_id' => $venta->id, 'tipo' => 'percepcion', 'concepto' => 'Percepción IIBB', 'monto' => 50,
+        ]);
+
+        $hoja = $this->hojaGenerada();
+
+        // 1000 neto + 210 IVA + 50 percepción.
+        $this->assertEqualsWithDelta(1260, (float) $hoja->getCell('K'.self::FILA_PRIMER_DATO)->getValue(), 0.01);
+    }
+
+    /** FR-004: provincia fiscal, con respaldo en la comercial, y guion cuando no hay ninguna. */
+    public function test_columna_provincia(): void
+    {
+        $cliente = Cliente::factory()->create(['provincia' => 'Buenos Aires', 'provincia_fiscal' => 'C.A.B.A.']);
+        $this->ventaConIva(['cliente_id' => $cliente->id, 'nro_comprobante' => '0001-00000101']);
+
+        $sinProvincia = Cliente::factory()->create(['provincia' => null, 'provincia_fiscal' => null]);
+        $this->ventaConIva(['cliente_id' => $sinProvincia->id, 'fecha_emision' => '2026-08-11', 'nro_comprobante' => '0001-00000102']);
+
+        $hoja = $this->hojaGenerada();
+
+        $this->assertSame('C.A.B.A.', $hoja->getCell('L'.self::FILA_PRIMER_DATO)->getValue(),
+            'la fiscal tiene precedencia sobre la comercial');
+        $this->assertSame('-', $hoja->getCell('L'.(self::FILA_PRIMER_DATO + 1))->getValue(),
+            'sin provincia va el guion, como Contagram');
+    }
+
+    /** FR-005: medio de cobro del comprobante; vacío si no fue cobrado. */
+    public function test_columna_medio_de_cobro(): void
+    {
+        $cuenta = \App\Models\CuentaTesoreria::factory()->create(['nombre' => 'Mercado Pago']);
+        $venta = $this->ventaConIva(['nro_comprobante' => '0001-00000201']);
+        \App\Models\Cobro::create([
+            'venta_id' => $venta->id, 'fecha' => '2026-08-10',
+            'cuenta_tesoreria_id' => $cuenta->id, 'monto' => 1210,
+        ]);
+
+        $this->ventaConIva(['fecha_emision' => '2026-08-11', 'nro_comprobante' => '0001-00000202']);  // sin cobro
+
+        $hoja = $this->hojaGenerada();
+
+        $this->assertSame('Mercado Pago', $hoja->getCell('M'.self::FILA_PRIMER_DATO)->getValue());
+        $this->assertSame('', (string) $hoja->getCell('M'.(self::FILA_PRIMER_DATO + 1))->getValue(),
+            'un comprobante sin cobrar deja la columna vacía');
+    }
+
+    /** FR-006: en Compras la última columna se rotula "Medio de Pago". */
+    public function test_compras_rotula_medio_de_pago(): void
+    {
+        $hoja = $this->hojaGenerada('Libro IVA Compras');
+
+        $this->assertSame('Medio de Pago', $hoja->getCell('M'.self::FILA_TITULOS)->getValue());
     }
 }
