@@ -14,10 +14,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * recalcula contra los datos vigentes.
  *
  * Las vistas son **compartidas**: `creado_por_id` queda para auditoría, pero cualquiera con el
- * permiso `informes.ver` las ve y las puede borrar (FR-034). No hay borrado lógico — ver el
+ * permiso del informe al que pertenecen —`informes.ventas` o `informes.compras` (spec 090)— las ve
+ * y las puede borrar (FR-034). No llevan permiso propio de escritura: quien ve el informe guarda y
+ * borra cruces sobre él (spec 069 FR-042 / spec 090 FR-020). No hay borrado lógico — ver el
  * comentario de la migración.
  *
- * @property string $informe  'ventas' | 'compras'
+ * @property string $informe 'ventas' | 'compras'
  * @property array{filas: list<string>, columnas: list<string>, dato: string, accion: string, exclusiones: array<string, list<string>>} $config
  */
 class InformeVista extends Model

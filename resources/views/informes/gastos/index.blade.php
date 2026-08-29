@@ -94,12 +94,14 @@
                 <i class="fas fa-angle-double-up me-1"></i> Colapsar todo
             </button>
             <div class="ms-auto d-flex gap-2">
+                @can('informes.exportar')
                 <button type="button" class="btn btn-outline-secondary" id="btn-exportar-pdf">
                     <i class="fas fa-file-pdf me-1"></i> Exportar a PDF
                 </button>
                 <button type="button" class="btn btn-success" id="btn-exportar">
                     <i class="fas fa-file-excel me-1"></i> Exportar
                 </button>
+                @endcan
             </div>
         </div>
 

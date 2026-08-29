@@ -75,8 +75,20 @@ class PermisoSeeder extends Seeder
             'facturacion' => [
                 'ver' => 'Ver Facturación Electrónica (puntos de venta, certificados, comprobantes)',
             ],
+            // Un permiso por informe (spec 090). Antes había uno solo, `informes.ver`, con lo que
+            // dar el Informe de Stock implicaba dar también el Reporte Final (márgenes/CMV), la Cta
+            // Cte de Clientes y el Libro IVA. `exportar` es transversal: habilita las descargas de
+            // los informes que el usuario ya pueda ver, y por sí solo no da acceso a ninguno.
             'informes' => [
-                'ver' => 'Ver Informes',
+                'ventas' => 'Ver el Informe de Ventas (incluye sus rankings y "Arma tu Informe")',
+                'compras' => 'Ver el Informe de Compras (incluye sus rankings y "Arma tu Informe")',
+                'gastos' => 'Ver el Informe de Gastos',
+                'stock' => 'Ver el Informe de Stock',
+                'cuenta-corriente-clientes' => 'Ver la Cuenta Corriente de Clientes',
+                'cuenta-corriente-proveedores' => 'Ver la Cuenta Corriente de Proveedores',
+                'reporte-final' => 'Ver el Reporte Final (incluye márgenes y costo de mercadería vendida)',
+                'contador' => 'Ver Información para tu Contador (Libro IVA, IVA Digital, envío al contador)',
+                'exportar' => 'Exportar a Excel y generar PDF de los informes que ya pueda ver',
             ],
             'mensajeria' => [
                 'ver' => 'Ver la bandeja de Mensajería de Mercado Libre',
