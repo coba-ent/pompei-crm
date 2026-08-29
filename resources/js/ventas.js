@@ -329,6 +329,16 @@
             ],
             order: [[3, 'desc']],
             stateSave: true,
+            // El badge de aviso (cancelación/reembolso/mediación posterior) lleva su explicación
+            // en un tooltip: las filas se redibujan por AJAX, así que hay que instanciarlos en
+            // cada draw y descartar los de la tanda anterior, o quedan colgados en el DOM.
+            drawCallback: function () {
+                $tabla.find('[data-bs-toggle="tooltip"]').each(function () {
+                    if (!window.bootstrap) { return; }
+                    window.bootstrap.Tooltip.getInstance(this)?.dispose();
+                    new window.bootstrap.Tooltip(this);
+                });
+            },
             buttons: [
                 {
                     extend: 'colvis',

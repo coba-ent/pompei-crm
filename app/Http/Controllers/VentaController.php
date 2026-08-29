@@ -336,8 +336,18 @@ class VentaController extends Controller
                 if ($v->mlOrden
                     && $v->mlOrden->estado_conversion === EstadoConversion::RequiereAtencion
                     && in_array($v->mlOrden->motivo, MotivoRequiereAtencion::motivosDeCancelacionPosterior(), true)) {
-                    $html .= ' <span class="badge bg-warning text-dark" title="'.e($v->mlOrden->motivo_detalle).'">'
-                        .'<i class="fas fa-triangle-exclamation me-1"></i>'.e($v->mlOrden->motivo->etiqueta()).'</span>';
+                    // Sólo el ícono: la etiqueta completa ("La orden fue cancelada en Mercado Libre
+                    // después de facturarse") ensanchaba la columna del id. El texto pasa al tooltip.
+                    //
+                    // `motivo_detalle` ya arranca con la etiqueta y le agrega el estado informado por
+                    // ML y la fecha de detección, así que se prefiere ese texto tal cual: anteponerle
+                    // la etiqueta otra vez la duplicaría.
+                    $detalle = trim((string) $v->mlOrden->motivo_detalle);
+                    $titulo = $detalle !== '' ? $detalle : $v->mlOrden->motivo->etiqueta();
+
+                    $html .= ' <span class="badge bg-warning text-dark" data-bs-toggle="tooltip"'
+                        .' title="'.e($titulo).'" aria-label="'.e($titulo).'">'
+                        .'<i class="fas fa-triangle-exclamation"></i></span>';
                 }
 
                 return $html;
