@@ -3130,6 +3130,33 @@ Contagram, ya usado en `Tesoreria\MovimientosExport`.
     > ya lo reinicia en cada deploy para que tome código nuevo. No hizo falta crear nada nuevo del
     > lado del worker; sólo faltaba que el código de la 087 aprovechara la cola que ya existía.
 
+    > **Progreso y resultado visibles en pantalla** (28/08/2026, fix directo sin spec). Hasta acá el
+    > envío era *ciego*: el modal decía "se está procesando", se cerraba, y si el job fallaba minutos
+    > después nadie se enteraba. Dos incidentes reales lo forzaron: (a) un timeout de PDFs dejó el
+    > registro en `pendiente` para siempre — resuelto con `$timeout = 300` y el hook `failed()`; y
+    > (b) un envío con **adjunto propio** murió con `Unable to open path ...` y hubo que mirar la base
+    > por SSH para descubrirlo. Ese segundo caso era un bug aparte: la ruta del adjunto se armaba como
+    > `storage_path('app/'.$ruta)`, pero en **Laravel 11+ el disco `local` tiene su raíz en
+    > `storage/app/private`**, así que apuntaba a un archivo inexistente. Se pide con `Storage::path()`.
+    >
+    > Ahora `envios_contador` tiene una columna **`etapa`** (nullable) que el job va publicando, y la
+    > pantalla la sondea cada 3 s vía `GET informes/contador/envios/{envio}` (valida que el envío sea
+    > del usuario) hasta que llega a un estado final; `GET informes/contador/envios` lista los últimos
+    > 10. El modal se cierra al enviar y el progreso queda en la pantalla de Contador, porque un envío
+    > con PDFs tarda minutos y bloquear el modal ese tiempo no es aceptable.
+    >
+    > Decisiones que conviene no revertir sin motivo: el **100 % se reserva para `enviado`** (llegar a
+    > 100 y seguir esperando se lee como colgado); el sondeo **se corta a los 6 min** y avisa, en vez
+    > de girar para siempre si el worker está caído; y al abrir la pantalla **se muestra el resultado
+    > del último envío aunque ya haya terminado**, porque si no un fallo ocurrido con la pestaña
+    > cerrada seguiría siendo invisible — que es exactamente el problema original.
+    >
+    > La barra avanza **por etapas, no por porcentaje fino**: `PaqueteContador::generar()` recibe un
+    > callback opcional que sólo *anuncia* en qué paso va, sin participar de ningún cálculo. Un
+    > contador fino ("340 de 718 PDFs") exigiría instrumentar por dentro la generación de archivos
+    > fiscales ya verificados peso por peso contra Contagram (specs 077/086/089/091), y no se hizo
+    > por eso. Queda como mejora posible más adelante.
+
   > **Hallazgos de spec 086 que conviene no volver a "corregir"** (verificados también contra datos
   > reales de MySQL, no sólo el fixture — la suite corre en SQLite y no lo garantiza por sí sola):
   > 1. En los archivos de ARCA el **importe total del comprobante no se recalcula** como suma de sus
