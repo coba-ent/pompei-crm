@@ -13,6 +13,7 @@ use App\Services\Import\InformeCambiosImportacion;
 use App\Services\Import\InformePrevalidacion;
 use App\Services\Import\ValidadorFilasImportacion;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -596,10 +597,22 @@ class ImportacionController extends Controller
             return;
         }
 
-        $corrida = ImportacionCorrida::find($corridaId);
+        try {
+            $corrida = ImportacionCorrida::find($corridaId);
 
-        if ($corrida) {
-            app(ArchivoImportacionService::class)->conservar($corrida, 'imports/'.$estado['archivo']);
+            if ($corrida) {
+                app(ArchivoImportacionService::class)->conservar($corrida, 'imports/'.$estado['archivo']);
+            }
+        } catch (\Throwable $e) {
+            // El try/catch va TAMBIÉN acá y no sólo adentro del servicio: la importación ya
+            // terminó y sus filas están escritas, así que nada de lo que pase en el guardado
+            // puede tumbar la respuesta. Cubre lo que el servicio no puede cubrirse a sí mismo
+            // —no poder instanciarse, un `find()` que falla, un servicio reemplazado por otro—
+            // y es la diferencia entre "el archivo no se guardó" y "la importación reventó".
+            Log::warning('Import: falló el guardado del archivo de la corrida; la importación no se ve afectada.', [
+                'corrida_id' => $corridaId,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 
