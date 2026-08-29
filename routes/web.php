@@ -318,6 +318,8 @@ Route::middleware('auth')->group(function () {
         // no es una descarga para el usuario, es un envío del sistema (spec 090 FR-012).
         Route::post('informes/contador/adjuntos-previstos', [EnvioContadorController::class, 'adjuntosPrevistos'])->name('informes.contador.adjuntos-previstos');
         Route::post('informes/contador/enviar', [EnvioContadorController::class, 'enviar'])->name('informes.contador.enviar');
+        Route::get('informes/contador/envios', [EnvioContadorController::class, 'historial'])->name('informes.contador.envios');
+        Route::get('informes/contador/envios/{envio}', [EnvioContadorController::class, 'estado'])->name('informes.contador.envio-estado');
     });
 
     // Tesorería (spec 007) — Saldos, Movimientos, config de cuentas, transferencias, ficha/ledger

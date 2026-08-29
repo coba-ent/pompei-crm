@@ -24,6 +24,114 @@
     const CSRF = $('meta[name="csrf-token"]').attr('content');
     if (CSRF) { $.ajaxSetup({ headers: { 'X-CSRF-TOKEN': CSRF } }); }
 
+    /**
+     * Seguimiento del envío en curso.
+     *
+     * El envío corre en segundo plano y puede tardar minutos, así que la pantalla pregunta cada
+     * pocos segundos cómo va. Antes no preguntaba nada: el modal decía "en proceso", se cerraba, y
+     * si el envío fallaba nadie se enteraba (incidente del 28/08/2026, hubo que mirar la base por
+     * SSH para descubrirlo).
+     */
+    const seguimiento = (function () {
+        const INTERVALO_MS = 3000;
+        // Un envío no debería tardar más que el timeout del job (300 s). Si el worker está caído el
+        // registro se queda en `pendiente` sin que nadie lo toque, así que se corta el sondeo y se
+        // avisa, en vez de dejar la barra girando para siempre.
+        const LIMITE_MS = 360000;
+
+        let timer = null;
+        let arrancoEn = 0;
+
+        const $panel = () => $('#panel-envio-progreso');
+
+        function pintar(p) {
+            const finalizado = p.finalizado;
+            const fallo = p.estado === 'fallido';
+
+            $panel().removeClass('d-none');
+            $('#envio-progreso-rotulo').text(p.rotulo);
+            $('#envio-progreso-barra')
+                .css('width', p.porcentaje + '%')
+                .toggleClass('progress-bar-animated progress-bar-striped', !finalizado)
+                .toggleClass('bg-success', p.estado === 'enviado')
+                .toggleClass('bg-danger', fallo);
+            $('#envio-progreso-barra-cont').attr('aria-valuenow', p.porcentaje);
+            $('#envio-progreso-icono')
+                .removeClass('fa-paper-plane fa-circle-check fa-triangle-exclamation text-primary text-success text-danger')
+                .addClass(fallo ? 'fa-triangle-exclamation text-danger'
+                    : p.estado === 'enviado' ? 'fa-circle-check text-success' : 'fa-paper-plane text-primary');
+
+            $('#envio-progreso-detalle').text(
+                p.estado === 'enviado' ? 'a ' + p.destinatarios + (p.enviado_en ? ' · ' + p.enviado_en : '')
+                    : fallo ? '' : 'a ' + p.destinatarios
+            );
+
+            $('#envio-progreso-error').toggleClass('d-none', !fallo).text(fallo ? (p.error || 'No se pudo completar el envío.') : '');
+            // El panel sólo se puede cerrar cuando terminó: mientras corre, cerrarlo perdería de
+            // vista lo único que informa del resultado.
+            $('#envio-progreso-cerrar').toggleClass('d-none', !finalizado);
+        }
+
+        function detener() {
+            if (timer) { clearInterval(timer); timer = null; }
+        }
+
+        function consultar(id) {
+            $.getJSON(rutas.estado.replace('__ID__', id))
+                .done(function (resp) {
+                    const p = resp.progreso;
+                    pintar(p);
+
+                    if (p.finalizado) {
+                        detener();
+                        if (p.estado === 'enviado') { toast('success', 'El envío al contador se completó.'); }
+                        else { toast('error', 'El envío al contador falló. Revisá el detalle en pantalla.'); }
+                        return;
+                    }
+
+                    if (Date.now() - arrancoEn > LIMITE_MS) {
+                        detener();
+                        $('#envio-progreso-rotulo').text('Sin novedades del envío');
+                        $('#envio-progreso-error').removeClass('d-none')
+                            .text('El envío sigue sin responder. Recargá la página para ver si terminó; si no, revisá que el procesador de tareas esté corriendo.');
+                        $('#envio-progreso-cerrar').removeClass('d-none');
+                    }
+                })
+                .fail(function (xhr) {
+                    // Un 404/403 no se va a arreglar reintentando; un error de red sí puede ser pasajero.
+                    if (xhr.status === 404 || xhr.status === 403) { detener(); $panel().addClass('d-none'); }
+                });
+        }
+
+        return {
+            seguir(id, progresoInicial) {
+                if (!rutas.estado || !id) { return; }
+                detener();
+                arrancoEn = Date.now();
+                if (progresoInicial) { pintar(progresoInicial); }
+                consultar(id);
+                timer = setInterval(() => consultar(id), INTERVALO_MS);
+            },
+            /**
+             * Al abrir la pantalla, retoma un envío que haya quedado corriendo y, si el último ya
+             * terminó, igual muestra su resultado: si no, un fallo ocurrido con la pestaña cerrada
+             * seguiría siendo invisible, que es justo el problema que esto viene a resolver.
+             */
+            retomar() {
+                if (!rutas.envios) { return; }
+                $.getJSON(rutas.envios).done(function (resp) {
+                    const ultimo = (resp.envios || [])[0];
+                    if (!ultimo) { return; }
+                    if (ultimo.finalizado) { pintar(ultimo); } else { seguimiento.seguir(ultimo.id, ultimo); }
+                });
+            },
+        };
+    })();
+
+    $(document).on('click', '#envio-progreso-cerrar', function () {
+        $('#panel-envio-progreso').addClass('d-none');
+    });
+
     $(function () {
         const $modal = $('#modal-envio-contador');
         if (!$modal.length) { return; }
@@ -224,6 +332,9 @@
             }).done(function (resp) {
                 toast('success', (resp && resp.mensaje) || 'Envío en proceso.');
                 $modal.modal('hide');
+                // El modal se cierra y el progreso pasa a la pantalla, así se puede seguir
+                // trabajando mientras el envío corre.
+                if (resp && resp.envio_id) { seguimiento.seguir(resp.envio_id, resp.progreso); }
                 $form[0].reset();
                 cuerpoEditadoManualmente = false;
                 adjuntosPropios = new DataTransfer();
@@ -244,5 +355,7 @@
                 $btnEnviar.prop('disabled', false).find('i').removeClass('fa-spinner fa-spin').addClass('fa-envelope');
             });
         });
+
+        seguimiento.retomar();
     });
 })();

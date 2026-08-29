@@ -25,6 +25,26 @@
             </div>
         </div>
 
+        {{-- Progreso del envío al contador. Vive en la pantalla y no en el modal a propósito: un
+             envío con PDFs puede tardar varios minutos y el modal quedaría trabado todo ese tiempo.
+             Arranca oculto y lo muestra `envio-contador.js` al encolar un envío o al encontrar uno
+             en curso al cargar la página. --}}
+        <div id="panel-envio-progreso" class="card border-0 shadow-sm mb-3 d-none">
+            <div class="card-body py-3">
+                <div class="d-flex align-items-center mb-2">
+                    <i class="fas fa-paper-plane text-primary me-2" id="envio-progreso-icono"></i>
+                    <strong class="me-2" id="envio-progreso-rotulo">En cola</strong>
+                    <span class="text-muted small" id="envio-progreso-detalle"></span>
+                    <button type="button" class="btn-close ms-auto d-none" id="envio-progreso-cerrar" aria-label="Cerrar"></button>
+                </div>
+                <div class="progress" style="height: .5rem;" role="progressbar" aria-label="Progreso del envío"
+                     aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="envio-progreso-barra-cont">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%;" id="envio-progreso-barra"></div>
+                </div>
+                <div class="alert alert-danger mt-3 mb-0 py-2 small d-none" id="envio-progreso-error"></div>
+            </div>
+        </div>
+
         {{-- Dos pestañas: Libro IVA Ventas / Libro IVA Compras. Cada una mantiene su propio
              período, filtros y columnas visibles en el cliente (FR-030) — nunca #fragmento. --}}
         <ul class="nav nav-tabs mb-3" id="tabs-contador" role="tablist">
@@ -230,6 +250,8 @@
         rutas: {
             adjuntosPrevistos: @json(route('informes.contador.adjuntos-previstos')),
             enviar: @json(route('informes.contador.enviar')),
+            envios: @json(route('informes.contador.envios')),
+            estado: @json(route('informes.contador.envio-estado', ['envio' => '__ID__'])),
         },
         mailContador: @json($mailContador),
         nombreNegocio: @json($nombreNegocio),

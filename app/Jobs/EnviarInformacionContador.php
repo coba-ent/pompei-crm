@@ -62,10 +62,15 @@ class EnviarInformacionContador implements ShouldQueue
         $generados = [];
 
         try {
-            $generados = $paquete->generar($this->periodo, $this->opciones);
+            $generados = $paquete->generar(
+                $this->periodo,
+                $this->opciones,
+                fn (string $etapa) => $envio->update(['etapa' => $etapa]),
+            );
             $adjuntos = array_merge($generados, $this->adjuntosPropios);
 
             // FR-022/SC-006: recién acá se conoce el tamaño real de los adjuntos generados.
+            $envio->update(['etapa' => 'verificando']);
             (new VerificadorTamanoAdjuntos)->verificar($adjuntos);
 
             $destinatarios = $this->destinatarios;
@@ -73,9 +78,10 @@ class EnviarInformacionContador implements ShouldQueue
                 $destinatarios[] = $this->mailRemitente;
             }
 
+            $envio->update(['etapa' => 'correo']);
             Mail::to($destinatarios)->send(new CorreoContador($this->asunto, $this->cuerpo, $adjuntos));
 
-            $envio->update(['estado' => 'enviado', 'enviado_en' => now()]);
+            $envio->update(['estado' => 'enviado', 'etapa' => null, 'enviado_en' => now()]);
         } catch (\Throwable $e) {
             $envio->update(['estado' => 'fallido', 'error' => $e->getMessage()]);
 

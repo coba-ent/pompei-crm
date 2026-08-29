@@ -60,12 +60,21 @@ class PaqueteContador
      * Los archivos reales, con los mismos nombres que `listar()` (SC-004) — test de coherencia en
      * T011. Devuelve `[nombre => ruta temporal]`; el llamador borra los temporales tras adjuntar.
      *
+     * `$alEmpezarEtapa` es opcional y sólo **anuncia** en qué paso va (para la barra de progreso del
+     * envío): no participa de ningún cálculo ni cambia qué archivos se generan, así que los importes
+     * verificados contra Contagram quedan intactos. Sin callback, el método se comporta igual que antes.
+     *
+     * @param  callable(string): void|null  $alEmpezarEtapa
      * @return array<string, string>
      */
-    public function generar(Periodo $periodo, OpcionesEnvio $opciones): array
+    public function generar(Periodo $periodo, OpcionesEnvio $opciones, ?callable $alEmpezarEtapa = null): array
     {
+        $etapa = $alEmpezarEtapa ?? static fn () => null;
+
         $requestVentas = $this->requestVentas($periodo, $opciones);
         $requestCompras = $this->requestCompras($periodo);
+
+        $etapa('informes');
 
         $archivos = [
             $periodo->nombreIvaVentas() => $this->exportarXlsx($this->ventasQuery, $requestVentas, 'Libro IVA Ventas'),
@@ -76,6 +85,9 @@ class PaqueteContador
             $archivos[$periodo->nombreIvaDigital()] = $this->ivaDigitalPaquete->generar($requestVentas, $periodo->mes, $periodo->anio);
 
             if ($opciones->incluyePdfs) {
+                // Los PDFs son de lejos lo más lento (~0,2 s por factura, cientos por período), así
+                // que merecen etapa propia: sin esto la barra se queda quieta varios minutos.
+                $etapa('pdfs');
                 $archivos[$periodo->nombrePdfsFacturas()] = $this->pdfsPaquete->generar($this->ventasDelPeriodo($requestVentas));
             }
         }

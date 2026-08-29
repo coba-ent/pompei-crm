@@ -132,8 +132,43 @@ class EnvioContadorController extends Controller
 
         return response()->json([
             'ok' => true,
+            'envio_id' => $envio->id,
             'mensaje' => 'El envío se está procesando. Te avisamos cuando termine.',
+            'progreso' => $envio->progreso(),
         ]);
+    }
+
+    /**
+     * Estado de un envío en curso, que la pantalla consulta cada pocos segundos hasta que termina.
+     *
+     * Sin esto el usuario nunca se enteraba de un fallo: el envío del 28/08/2026 murió en el worker
+     * por un adjunto que no se encontraba y hubo que entrar por SSH a la base para descubrirlo. El
+     * dato del error ya se guardaba; lo único que faltaba era una forma de leerlo desde la pantalla.
+     */
+    public function estado(EnvioContador $envio): JsonResponse
+    {
+        // Un envío es de quien lo hizo: sin esto, cualquiera con permiso de informes podría leer los
+        // destinatarios y el error de un envío ajeno pasando otro id.
+        if ($envio->user_id !== Auth::id()) {
+            abort(403);
+        }
+
+        return response()->json(['progreso' => $envio->progreso()]);
+    }
+
+    /** Los últimos envíos del usuario, para que el resultado de uno viejo no se pierda al recargar. */
+    public function historial(): JsonResponse
+    {
+        $envios = EnvioContador::where('user_id', Auth::id())
+            ->orderByDesc('id')
+            ->take(10)
+            ->get()
+            ->map(fn (EnvioContador $e) => $e->progreso() + [
+                'periodo' => $e->mes ? str_pad((string) $e->mes, 2, '0', STR_PAD_LEFT).'/'.$e->anio : (string) $e->anio,
+                'creado_en' => $e->created_at?->format('d/m/Y H:i'),
+            ]);
+
+        return response()->json(['envios' => $envios]);
     }
 
     private function periodoDesde(Request $request): ?Periodo
