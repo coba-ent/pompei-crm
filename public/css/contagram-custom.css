@@ -376,11 +376,17 @@
 /* Contraste de inputs/selects: el default de NexaDash usa borde casi blanco
  * (#e6e6e6) y placeholder muy claro, y dentro de una card queda todo "lavado".
  * Subimos el contraste del borde (reposo y focus) y del placeholder, sin
- * perder el look flat del template. Regla GLOBAL. */
+ * perder el look flat del template. Regla GLOBAL.
+ *
+ * Fondo BLANCO, no gris (28/08/2026): el gris `#eef0f2` que había acá era casi
+ * idéntico al `#e9ecef` de `:disabled`, así que un campo vacío y editable se
+ * veía igual que uno bloqueado. Quien delimita el campo es el borde, que por eso
+ * se refuerza a `#b9c0c8`. Si se vuelve a poner un fondo gris de reposo, hay que
+ * oscurecer el de `:disabled` para que sigan distinguiéndose. */
 .form-control,
 .form-select {
-    border-color: #c9ced4;
-    background-color: #eef0f2;
+    border-color: #b9c0c8;
+    background-color: #fff;
 }
 
 .form-control::placeholder {
@@ -557,9 +563,9 @@ td.dt-acciones-caret .dropdown-toggle::after {
     padding: 0.375rem 0.85rem;
     font-size: 0.8125rem;
     line-height: 1.4;
-    border: 1px solid #c9ced4;
+    border: 1px solid #b9c0c8;
     border-radius: 0.5rem;
-    background-color: #eef0f2;
+    background-color: #fff;
 }
 .select2-container--default.select2-container--focus .select2-selection--single,
 .select2-container--default.select2-container--open .select2-selection--single {
@@ -606,15 +612,15 @@ td.dt-acciones-caret .dropdown-toggle::after {
  * Filtros de Compras/Ventas/Presupuestos): el template NexaDash sólo pinta el fondo gris de
  * `--single` (arriba); `--multiple` queda blanco por default (`style.css` no le define
  * `background-color` fuera del tema oscuro) y desentona con el resto de los filtros de la misma
- * fila. Mismo gris/borde que `--single` para que ambos se vean como parte del mismo panel. */
+ * fila. Mismo fondo/borde que `--single` para que ambos se vean como parte del mismo panel. */
 .select2-container--default .select2-selection--multiple {
     min-height: 0;
     padding: 0.235rem 0.5rem;
     font-size: 0.8125rem;
     line-height: 1.4;
-    border: 1px solid #c9ced4;
+    border: 1px solid #b9c0c8;
     border-radius: 0.5rem;
-    background-color: #eef0f2;
+    background-color: #fff;
 }
 .select2-container--default.select2-container--focus .select2-selection--multiple,
 .select2-container--default.select2-container--open .select2-selection--multiple {
@@ -835,7 +841,7 @@ table.dataTable > thead > tr > td {
     max-height: 16rem;
     overflow-y: auto;
     background-color: #fff;
-    border: 1px solid #c9ced4;
+    border: 1px solid #b9c0c8;
     border-radius: 0.5rem;
     box-shadow: 0 0.5rem 1.5rem rgba(15, 18, 55, 0.15);
     padding: 0.25rem 0;
