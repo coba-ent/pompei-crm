@@ -184,7 +184,16 @@
                 },
             },
             columns: [
-                { data: 'id', name: 'mov.id' },
+                {
+                    // Id enlazado a la venta del movimiento, como en Contagram. El saldo inicial
+                    // no es un documento, así que va sin enlace. El servidor resuelve la URL.
+                    data: 'id', name: 'mov.id',
+                    render: function (id, tipo, fila) {
+                        if (tipo !== 'display' || !fila.venta_url) { return id; }
+
+                        return `<a href="${fila.venta_url}" title="Ver venta">${id}</a>`;
+                    },
+                },
                 { data: 'fecha_emision', name: 'mov.fecha_emision', render: fmtFecha },
                 { data: 'cliente', name: 'mov.cliente', defaultContent: '' },
                 {

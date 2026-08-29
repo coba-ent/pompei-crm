@@ -174,7 +174,16 @@
                 error: function () { avisar('No se pudieron cargar los movimientos.'); },
             },
             columns: [
-                { data: 'id', name: 'mov.id' },
+                {
+                    // Id enlazado a la compra del movimiento, como en Contagram. El saldo inicial
+                    // no es un documento, así que va sin enlace. El servidor resuelve la URL.
+                    data: 'id', name: 'mov.id',
+                    render: function (id, tipo, fila) {
+                        if (tipo !== 'display' || !fila.compra_url) { return id; }
+
+                        return `<a href="${fila.compra_url}" title="Ver compra">${id}</a>`;
+                    },
+                },
                 { data: 'fecha_emision', name: 'mov.fecha_emision', render: fecha },
                 // Columna técnica: alimenta el deep-link, no se muestra ni se ofrece en colvis.
                 { data: 'proveedor_id', name: 'mov.proveedor_id', visible: false },

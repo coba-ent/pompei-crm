@@ -124,11 +124,23 @@ class CuentaTesoreriaController extends Controller
         return DB::query()
             ->fromSub($ventana, 'mov')
             ->leftJoin('users', 'users.id', '=', 'mov.usuario_id')
+            // Un movimiento nace de un Cobro (que cobra una venta) o de un Pago (que paga una
+            // compra); se traen sus documentos con JOIN y no consultando por fila, que sobre un
+            // ledger de miles de movimientos sería un N+1.
+            ->leftJoin('cobros', function ($join) {
+                $join->on('cobros.id', '=', 'mov.origen_id')
+                    ->where('mov.origen_type', '=', \App\Models\Cobro::class);
+            })
+            ->leftJoin('pagos', function ($join) {
+                $join->on('pagos.id', '=', 'mov.origen_id')
+                    ->where('mov.origen_type', '=', \App\Models\Pago::class);
+            })
             ->select([
                 'mov.id as id', 'mov.fecha as fecha', 'mov.tipo as tipo', 'mov.detalle as detalle',
                 'mov.monto as monto', 'mov.balance as balance', 'mov.nro_comprobante as nro_comprobante',
                 'mov.observacion as observacion', 'mov.transferencia_id as transferencia_id',
-                'mov.origen_type as origen_type', 'users.name as usuario',
+                'mov.origen_type as origen_type', 'mov.origen_id as origen_id', 'users.name as usuario',
+                'cobros.venta_id as cobro_venta_id', 'pagos.compra_id as pago_compra_id',
             ]);
     }
 
@@ -155,6 +167,13 @@ class CuentaTesoreriaController extends Controller
             ->addColumn('operacion', fn ($row) => self::ETIQUETAS_OPERACION[$row->tipo] ?? $row->tipo)
             ->addColumn('es_nativo', fn ($row) => in_array($row->tipo, self::TIPOS_NATIVOS, true))
             ->addColumn('acciones', fn ($row) => view('tesoreria._row_actions', ['id' => $row->id])->render())
+            // Enlace de la columna Id al documento que originó el movimiento, como en Contagram.
+            // Un movimiento entre cuentas o un gasto no tienen venta/compra detrás: van sin enlace.
+            ->addColumn('documento_url', fn ($row) => match (true) {
+                (bool) $row->cobro_venta_id => route('ventas.show', $row->cobro_venta_id),
+                (bool) $row->pago_compra_id => route('compras.show', $row->pago_compra_id),
+                default => null,
+            })
             ->rawColumns(['acciones'])
             ->order(function ($query) {
                 $query->orderBy('mov.fecha', 'desc')->orderBy('mov.id', 'desc');

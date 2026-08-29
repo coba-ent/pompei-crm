@@ -78,6 +78,9 @@ class CuentaCorrienteProveedorController extends Controller
         $this->aplicarFiltrosMovimientos($query, $request);
 
         return DataTables::of($query)
+            // Enlace de la columna Id a la compra del movimiento, como en Contagram. Un saldo
+            // inicial no es un documento: no enlaza a ninguna parte.
+            ->addColumn('compra_url', fn ($fila) => $fila->compra_id ? route('compras.show', $fila->compra_id) : null)
             ->order(fn ($query) => $query->orderBy('mov.fecha_emision', 'desc')->orderBy('mov.id', 'desc'))
             ->toJson();
     }
@@ -93,7 +96,7 @@ class CuentaCorrienteProveedorController extends Controller
             ->leftJoin('categorias', 'categorias.id', '=', 'compras.categoria_id')
             ->whereNull('compras.deleted_at')
             ->selectRaw(
-                'compras.id as id, compras.fecha_emision as fecha_emision, compras.proveedor_id as proveedor_id, '.
+                'compras.id as id, compras.id as compra_id, compras.fecha_emision as fecha_emision, compras.proveedor_id as proveedor_id, '.
                 "'compra' as operacion, categorias.nombre as categoria, compras.total as total_compra, ".
                 'COALESCE((SELECT SUM(p.monto) FROM pagos p WHERE p.compra_id = compras.id AND p.deleted_at IS NULL), 0) as pagado, '.
                 '(compras.total '.
@@ -113,7 +116,7 @@ class CuentaCorrienteProveedorController extends Controller
             ->whereNull('pagos.deleted_at')
             ->whereNull('compras.deleted_at')
             ->selectRaw(
-                'pagos.id as id, pagos.fecha as fecha_emision, compras.proveedor_id as proveedor_id, '.
+                'pagos.id as id, pagos.compra_id as compra_id, pagos.fecha as fecha_emision, compras.proveedor_id as proveedor_id, '.
                 // El importe va en `pagado`, y `nro_comprobante` trae el de la compra cancelada:
                 // sin eso la fila del pago sale en blanco y no se puede seguir la plata (mismo
                 // arreglo que ya se le hizo al informe de clientes).
@@ -129,7 +132,7 @@ class CuentaCorrienteProveedorController extends Controller
             ->whereNull('compras.deleted_at')
             ->whereNotNull('notas_credito_debito.compra_id')
             ->selectRaw(
-                'notas_credito_debito.id as id, notas_credito_debito.fecha_emision as fecha_emision, '.
+                'notas_credito_debito.id as id, notas_credito_debito.compra_id as compra_id, notas_credito_debito.fecha_emision as fecha_emision, '.
                 "compras.proveedor_id as proveedor_id, CASE notas_credito_debito.tipo WHEN 'credito' THEN 'nota_credito' ELSE 'nota_debito' END as operacion, ".
                 'NULL as categoria, NULL as total_compra, NULL as pagado, '.
                 // La NC resta y la ND suma **con una sola expresión**, sin ramas por tipo (FR-016).
@@ -144,7 +147,7 @@ class CuentaCorrienteProveedorController extends Controller
             // de Tesorería, pero no son movimientos que el negocio deba ver).
             ->where('proveedores.nombre', 'not like', Proveedor::PREFIJO_AJUSTE)
             ->selectRaw(
-                'proveedores.id as id, proveedores.saldo_inicial_fecha as fecha_emision, proveedores.id as proveedor_id, '.
+                'proveedores.id as id, NULL as compra_id, proveedores.saldo_inicial_fecha as fecha_emision, proveedores.id as proveedor_id, '.
                 "'saldo_inicial' as operacion, NULL as categoria, NULL as total_compra, NULL as pagado, ".
                 'proveedores.saldo_inicial as a_pagar, NULL as nro_comprobante, NULL as medio_pago, NULL as descripcion'
             );

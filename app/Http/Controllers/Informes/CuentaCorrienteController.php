@@ -69,6 +69,10 @@ class CuentaCorrienteController extends Controller
         $this->aplicarFiltrosMovimientos($query, $request);
 
         return DataTables::of($query)
+            // Enlace de la columna Id a la venta del movimiento, como en Contagram. Se resuelve
+            // acá y no en el JS porque las rutas viven en el servidor. Un saldo inicial no es un
+            // documento: no enlaza a ninguna parte.
+            ->addColumn('venta_url', fn ($fila) => $fila->venta_id ? route('ventas.show', $fila->venta_id) : null)
             ->order(function ($query) {
                 $query->orderBy('mov.fecha_emision', 'desc')->orderBy('mov.id', 'desc');
             })
@@ -87,7 +91,7 @@ class CuentaCorrienteController extends Controller
             ->leftJoin('categorias', 'categorias.id', '=', 'ventas.categoria_id')
             ->whereNull('ventas.deleted_at')
             ->selectRaw(
-                "ventas.id as id, ventas.fecha_emision as fecha_emision, ventas.cliente_id as cliente_id, ".
+                "ventas.id as id, ventas.id as venta_id, ventas.fecha_emision as fecha_emision, ventas.cliente_id as cliente_id, ".
                 'clientes.nombre as cliente, '.
                 "'venta' as operacion, categorias.nombre as categoria, ventas.total as total_venta, ".
                 'COALESCE((SELECT SUM(c.monto) FROM cobros c WHERE c.venta_id = ventas.id AND c.deleted_at IS NULL), 0) as cobrado, '.
@@ -108,7 +112,7 @@ class CuentaCorrienteController extends Controller
             ->leftJoin('cuentas_tesoreria', 'cuentas_tesoreria.id', '=', 'cobros.cuenta_tesoreria_id')
             ->whereNull('cobros.deleted_at')
             ->selectRaw(
-                "cobros.id as id, cobros.fecha as fecha_emision, ventas.cliente_id as cliente_id, ".
+                "cobros.id as id, cobros.venta_id as venta_id, cobros.fecha as fecha_emision, ventas.cliente_id as cliente_id, ".
                 'clientes.nombre as cliente, '.
                 // El monto va en `cobrado`: una fila de cobro sin importe no dice nada. Estaba en
                 // NULL y la cuenta corriente mostraba el cobro en blanco, así que no se podía
@@ -133,7 +137,7 @@ class CuentaCorrienteController extends Controller
             ->whereNull('notas_credito_debito.deleted_at')
             ->whereNotNull('notas_credito_debito.venta_id')
             ->selectRaw(
-                'notas_credito_debito.id as id, notas_credito_debito.fecha_emision as fecha_emision, '.
+                'notas_credito_debito.id as id, notas_credito_debito.venta_id as venta_id, notas_credito_debito.fecha_emision as fecha_emision, '.
                 "ventas.cliente_id as cliente_id, clientes.nombre as cliente, CASE notas_credito_debito.tipo WHEN 'credito' THEN 'nota_credito' ELSE 'nota_debito' END as operacion, ".
                 'categorias.nombre as categoria, NULL as total_venta, notas_credito_debito.monto as cobrado, '.
                 'NULL as a_cobrar, '.
@@ -150,7 +154,7 @@ class CuentaCorrienteController extends Controller
         $saldosIniciales = DB::table('clientes')
             ->where('clientes.saldo_inicial', '!=', 0)
             ->selectRaw(
-                'clientes.id as id, clientes.saldo_inicial_fecha as fecha_emision, clientes.id as cliente_id, '.
+                'clientes.id as id, NULL as venta_id, clientes.saldo_inicial_fecha as fecha_emision, clientes.id as cliente_id, '.
                 'clientes.nombre as cliente, '.
                 "'saldo_inicial' as operacion, NULL as categoria, NULL as total_venta, NULL as cobrado, ".
                 'clientes.saldo_inicial as a_cobrar, NULL as nro_comprobante, NULL as medio_cobro, NULL as descripcion'

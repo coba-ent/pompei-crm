@@ -653,7 +653,16 @@
                 },
                 columns: [
                     { data: 'acciones', name: 'acciones', orderable: false, searchable: false, className: 'dt-acciones-caret no-colvis' },
-                    { data: 'id', name: 'id', className: 'text-end' },
+                    {
+                        // Id enlazado a la venta/compra que originó el movimiento, como en
+                        // Contagram. Un movimiento entre cuentas o un gasto van sin enlace.
+                        data: 'id', name: 'id', className: 'text-end',
+                        render: function (id, tipo, fila) {
+                            if (tipo !== 'display' || !fila.documento_url) { return id; }
+
+                            return `<a href="${fila.documento_url}">${id}</a>`;
+                        },
+                    },
                     { data: 'fecha', name: 'fecha', render: fmtFecha },
                     { data: 'operacion', name: 'tipo' },
                     { data: 'detalle', name: 'detalle', defaultContent: '' },
