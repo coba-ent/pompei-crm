@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\SubirArchivoImportacionRequest;
 use App\Models\ImportacionCorrida;
+use App\Services\Import\ArchivoImportacionService;
 use App\Services\Import\DefinicionCamposImportables;
 use App\Services\Import\DeshacerImportacionService;
 use App\Services\Import\FuenteFilasImportacion;
 use App\Services\Import\ImportadorFilas;
+use App\Services\Import\InformeCambiosImportacion;
 use App\Services\Import\InformePrevalidacion;
 use App\Services\Import\ValidadorFilasImportacion;
 use Illuminate\Http\Request;
@@ -186,6 +188,7 @@ class ImportacionController extends Controller
         $rutaCompleta = Storage::disk('local')->path('imports/'.$estado['archivo']);
         $resultado = $importador->importar($entidad, $rutaCompleta, $mapeo, $personalizados, $request->user(), $estado['columnas'], 0, null, null, $estado['archivo_original'] ?? $estado['archivo']);
 
+        $this->conservarArchivo($resultado['corrida_id'] ?? null, $estado);
         $this->limpiarTemporales($estado);
         session()->forget('importacion');
         session(['importacion_resultado' => ['entidad' => $entidad] + $resultado]);
@@ -398,6 +401,8 @@ class ImportacionController extends Controller
         $terminado = $procesadas >= $lote['total'];
 
         if ($terminado) {
+            // Spec 093 (US2): la copia se hace ANTES de borrar el temporal, y su fallo no propaga.
+            $this->conservarArchivo($lote['corrida_id'] ?? null, $estado);
             $this->limpiarTemporales($estado);
             $acumulado['corrida_id'] = $lote['corrida_id'];
             session()->forget(['importacion', 'importacion_resultado_parcial', 'importacion_corrida_id', 'prevalidacion']);
@@ -485,7 +490,7 @@ class ImportacionController extends Controller
         $start = (int) $request->input('start', 0);
         $length = (int) $request->input('length', 10);
 
-        $corridas = $query->skip($start)->take($length > 0 ? $length : 10)->get();
+        $corridas = $query->skip($start)->take($length > 0 ? $length : 10)->withCount('filas')->get();
 
         return response()->json([
             'draw' => $draw,
@@ -502,8 +507,100 @@ class ImportacionController extends Controller
                 'estado' => $c->estado(),
                 'deshacer_disponible_hasta' => $c->deshacer_disponible_hasta->format('d/m/Y H:i'),
                 'puede_deshacer' => $c->puedeDeshacer(),
+                // Spec 093 — tres estados del archivo, no un booleano (FR-015).
+                'archivo' => [
+                    'estado' => $c->estadoArchivo(),
+                    'descargable' => $c->estadoArchivo() === 'disponible',
+                    'nombre' => $c->archivo_original,
+                    'guardado_en' => $c->archivo_guardado_en?->toIso8601String(),
+                    'vencido_en' => $c->archivo_vencido_en?->toIso8601String(),
+                ],
+                // FR-007: sin filas de snapshot no hay informe — y eso NO es "sin cambios".
+                'informe_disponible' => $c->filas_count > 0,
             ])->values(),
         ]);
+    }
+
+    /**
+     * Informe de qué cambió desde una corrida (spec 093, US1). Sólo lectura.
+     *
+     * `advertencia_metodo` viaja en la respuesta y no está escrita en la vista a propósito: es una
+     * limitación real del dato y tiene que llegar junto con él, no depender de que alguien la deje
+     * puesta en el HTML.
+     */
+    public function informe(string $entidad, int $corrida, InformeCambiosImportacion $servicio)
+    {
+        $this->validarEntidad($entidad);
+
+        $importacionCorrida = ImportacionCorrida::where('entidad', $entidad)->with('usuario')->find($corrida);
+
+        if (! $importacionCorrida) {
+            return response()->json(['error' => 'La corrida de import no existe.'], 404);
+        }
+
+        // Una corrida sin detalle responde 200 con `informe_disponible: false` y NO 404: la corrida
+        // existe, lo que no existe es su detalle (contrato §2).
+        return response()->json($servicio->generar($importacionCorrida));
+    }
+
+    /** Descarga del archivo conservado, con su nombre original (spec 093, US2). */
+    public function descargarArchivo(string $entidad, int $corrida)
+    {
+        $this->validarEntidad($entidad);
+
+        $importacionCorrida = ImportacionCorrida::where('entidad', $entidad)->find($corrida);
+
+        if (! $importacionCorrida) {
+            return response()->json(['error' => 'La corrida de import no existe.'], 404);
+        }
+
+        $estadoArchivo = $importacionCorrida->estadoArchivo();
+
+        // 410 y no 404 a propósito: existió y ya no está, que es información útil para quien audita.
+        if ($estadoArchivo === 'vencido') {
+            return response()->json([
+                'error' => 'El archivo de esta importación se eliminó por antigüedad y ya no está disponible.',
+            ], 410);
+        }
+
+        if ($estadoArchivo === 'nunca_guardado') {
+            return response()->json([
+                'error' => 'De esta importación nunca se guardó una copia del archivo.',
+            ], 404);
+        }
+
+        // Registrado pero ilegible (borrado a mano, corrupto): nunca se devuelve un archivo vacío.
+        if (! Storage::disk('local')->exists($importacionCorrida->archivo_guardado_ruta)) {
+            return response()->json([
+                'error' => 'El archivo está registrado pero no se puede leer del disco.',
+            ], 422);
+        }
+
+        return Storage::disk('local')->download(
+            $importacionCorrida->archivo_guardado_ruta,
+            $importacionCorrida->archivo_original,
+        );
+    }
+
+    /**
+     * Conserva el archivo de una corrida recién confirmada (spec 093, FR-012).
+     *
+     * ⚠️ Va FUERA del camino crítico: si falla, la importación ya terminó y es válida igual
+     * (FR-016). El servicio no propaga excepciones; acá tampoco se agrega ninguna.
+     *
+     * @param  array{archivo: string}  $estado
+     */
+    private function conservarArchivo(?int $corridaId, array $estado): void
+    {
+        if ($corridaId === null || empty($estado['archivo'])) {
+            return;
+        }
+
+        $corrida = ImportacionCorrida::find($corridaId);
+
+        if ($corrida) {
+            app(ArchivoImportacionService::class)->conservar($corrida, 'imports/'.$estado['archivo']);
+        }
     }
 
     /** Deshace una corrida de import (spec 078). */

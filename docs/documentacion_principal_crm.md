@@ -483,6 +483,42 @@ porque ya son un único modelo (`Producto` con campo `tipo`).
     correctamente" **sin haber importado nada**). Ahora el acumulado se ata a la importación en curso y
     el resumen muestra el **archivo y la fecha** de esa corrida.
 
+- **Historial de Importaciones: archivo descargable e informe de qué cambió (spec 093, 29/08/2026)**.
+  La pantalla "Historial de Importaciones" (la del deshacer, spec 078) suma dos cosas por corrida:
+
+  - **Informe "Qué cambió desde esta importación"** — un modal que compara el estado guardado en el
+    snapshot **antes** de la corrida contra el producto **de hoy**, y muestra: cuántos productos
+    cambiaron cada campo con un ejemplo, cuántos cambiaron de precio **por cada lista** (no
+    agregado), y la lista de cambios de stock con depósito, antes, ahora y diferencia, **ordenada
+    por magnitud** (el cambio más grande primero). Es de **sólo lectura**.
+    ⚠️ **Mide "qué cambió desde la importación", no "qué hizo la importación"**: un cambio posterior
+    (una venta, una edición manual) también aparece. Esa advertencia **viaja en la respuesta del
+    endpoint**, no escrita en la vista, y los productos con actividad posterior quedan marcados fila
+    por fila reusando los `limite_*` que el snapshot ya guardaba para el deshacer. Un producto
+    eliminado después se identifica como tal; una corrida deshecha se señala con su fecha.
+    ⚠️ Una corrida **sin filas de snapshot** (las anteriores a la spec 078) informa **"sin detalle
+    disponible"**, nunca "sin cambios" — son cosas distintas.
+  - **Descarga del archivo original** — al confirmar, la copia del archivo subido se conserva
+    asociada a su corrida y se puede descargar con su **nombre original**. El historial distingue
+    **tres estados**, no un booleano: *disponible*, *nunca se guardó* (corrida anterior a esta
+    feature, o el guardado falló) y *vencido por antigüedad* — "no está porque venció" y "no está
+    porque nunca se guardó" le dicen cosas distintas a quien audita. La descarga exige el mismo
+    permiso que la pantalla de importación (`configuracion.importar`), no uno nuevo.
+    ⚠️ **Guardar el archivo no puede hacer fallar una importación**: va fuera del camino crítico y su
+    fallo sólo se registra — un disco lleno no debe impedir actualizar precios. Dos corridas del
+    mismo nombre de archivo conservan cada una su copia (el nombre **no** es la clave).
+
+  Los archivos se conservan **90 días** (configurable). El comando
+  `importaciones:limpiar-archivos [--dias=N] [--dry-run]`, agendado diario, borra lo vencido —
+  marcando la corrida sin perder ningún otro dato— y también los archivos **sueltos sin corrida
+  asociada**; no toca los de importaciones en curso.
+
+  ⚠️ Consecuencia sobre `importacion_filas_snapshot`: **dejó de ser una tabla temporal**. Nació
+  (spec 078) como insumo del deshacer, con vida útil de 48 horas; desde esta spec es además la
+  **única fuente del informe**, así que sus filas tienen que sobrevivir indefinidamente al
+  vencimiento del deshacer. **Nadie debe purgarla** — purgarla deja sin informe a todas las corridas
+  viejas.
+
 *Fuente(s): `docs/informe_contagram_base_de_datos.md` §2.6/§4.10*
 
 ---

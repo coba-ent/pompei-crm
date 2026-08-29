@@ -161,6 +161,13 @@ Route::middleware('auth')->group(function () {
     Route::get('importar-datos/{entidad}/historial/datos', [ImportacionController::class, 'historialDatos'])->name('importacion.historial.datos');
     Route::post('importar-datos/{entidad}/historial/{corrida}/deshacer', [ImportacionController::class, 'deshacer'])->name('importacion.deshacer');
 
+    // Spec 093 — informe de qué cambió y descarga del archivo conservado.
+    // La descarga hereda el permiso de la pantalla de importación (FR-014), no inventa uno nuevo.
+    Route::get('importar-datos/{entidad}/historial/{corrida}/informe', [ImportacionController::class, 'informe'])->name('importacion.informe');
+    Route::middleware('permiso:configuracion.importar')->group(function () {
+        Route::get('importar-datos/{entidad}/historial/{corrida}/archivo', [ImportacionController::class, 'descargarArchivo'])->name('importacion.archivo');
+    });
+
     // ==========================================================================================
     // INFORMES (spec 090 — un permiso por informe)
     //

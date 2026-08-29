@@ -19,6 +19,9 @@ class ImportacionCorrida extends Model
         'entidad',
         'usuario_id',
         'archivo_original',
+        'archivo_guardado_ruta',
+        'archivo_guardado_en',
+        'archivo_vencido_en',
         'confirmado_en',
         'deshacer_disponible_hasta',
         'filas_creadas',
@@ -34,6 +37,8 @@ class ImportacionCorrida extends Model
         'confirmado_en' => 'datetime',
         'deshacer_disponible_hasta' => 'datetime',
         'deshecho_en' => 'datetime',
+        'archivo_guardado_en' => 'datetime',
+        'archivo_vencido_en' => 'datetime',
     ];
 
     public function usuario(): BelongsTo
@@ -64,5 +69,25 @@ class ImportacionCorrida extends Model
     public function puedeDeshacer(): bool
     {
         return $this->estado() === 'vigente';
+    }
+
+    /**
+     * 'disponible' | 'nunca_guardado' | 'vencido' (spec 093, FR-015). Se DERIVA de las columnas,
+     * nunca se persiste: tres estados y no un booleano porque "no está porque venció" y "no está
+     * porque nunca se guardó" le dicen cosas distintas a quien audita.
+     */
+    public function estadoArchivo(): string
+    {
+        if ($this->archivo_vencido_en !== null) {
+            return 'vencido';
+        }
+
+        return $this->archivo_guardado_ruta !== null ? 'disponible' : 'nunca_guardado';
+    }
+
+    /** ¿Hay filas de snapshot para armar el informe de cambios? (FR-007) */
+    public function tieneInforme(): bool
+    {
+        return $this->filas()->exists();
     }
 }

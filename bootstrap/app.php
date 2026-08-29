@@ -72,6 +72,13 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('ml:chequear-precios')
             ->dailyAt('04:30')
             ->withoutOverlapping();
+
+        // spec 093, US3 — limpieza de los archivos de importación vencidos (90 días por defecto)
+        // y de los sueltos sin corrida. De madrugada porque borra del disco y no tiene por qué
+        // competir con una importación en curso.
+        $schedule->command('importaciones:limpiar-archivos')
+            ->dailyAt('04:45')
+            ->withoutOverlapping();
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
