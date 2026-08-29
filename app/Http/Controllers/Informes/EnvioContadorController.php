@@ -13,6 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * "Enviar Información a tu Contador por Correo" (spec 087): modal sobre el informe de la spec 077.
@@ -85,10 +86,15 @@ class EnvioContadorController extends Controller
             return response()->json(['message' => 'Ya se está procesando (o ya se envió) este mismo período. Esperá un momento antes de reintentar.'], 409);
         }
 
+        // La ruta absoluta se le pide al disco (`Storage::path()`) en lugar de componerla a mano con
+        // `storage_path('app/'.$ruta)`: en Laravel 11+ el disco `local` tiene su raíz en
+        // `storage/app/private`, así que concatenar `app/` apuntaba a un archivo inexistente y el
+        // envío moría con `Unable to open path ...` reventando el adjunto propio del usuario
+        // (incidente del 28/08/2026). Preguntándole al disco, la raíz puede cambiar sin romper esto.
         $adjuntosPropios = [];
         foreach ($request->file('adjuntos_propios', []) as $archivo) {
             $ruta = $archivo->store('adjuntos-contador-tmp');
-            $adjuntosPropios[$archivo->getClientOriginalName()] = storage_path('app/'.$ruta);
+            $adjuntosPropios[$archivo->getClientOriginalName()] = Storage::path($ruta);
         }
 
         // FR-022/SC-006: el tamaño de los adjuntos generados (XLSX, ZIPs) sólo se conoce una vez
