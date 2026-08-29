@@ -27,7 +27,7 @@
                         {{-- Gastos tiene un solo selector de fecha, "Emisión" (informe §3.1): un gasto
                              no maneja vencimiento de pago separado de su fecha, como sí Compras. --}}
                         <div class="input-group" style="width:190px">
-                            <input type="text" id="filtro-rango-emision" class="form-control" placeholder="Emisión">
+                            <input type="text" id="filtro-rango-emision" class="form-control" placeholder="Emisión" autocomplete="off">
                             <button type="button" class="btn btn-outline-secondary" id="btn-limpiar-rango-emision" title="Quitar filtro de Emisión"><i class="fas fa-times"></i></button>
                         </div>
                         <span id="dt-buttons-gastos"></span>

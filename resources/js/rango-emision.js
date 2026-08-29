@@ -76,5 +76,39 @@
         return desde && hasta ? fmt(desde) + ' - ' + fmt(hasta) : '';
     }
 
-    window.RangoEmision = { opciones, mesActual, etiqueta, MESES };
+    /**
+     * Apaga el autocompletado del navegador en los inputs de rango.
+     *
+     * Son `<input type="text">` con `name`/`id` estables, así que Chrome les guarda el historial
+     * de lo tipeado y al enfocarlos dibuja su lista de sugerencias **encima** del desplegable del
+     * picker, tapando los presets (Hoy, Mes actual, Desde - Hasta…). Es UI del navegador: no se
+     * puede cerrar ni bajar de z-index desde la página, sólo evitar que aparezca.
+     *
+     * `autocomplete="off"` solo no alcanza — Chrome lo ignora en campos que reconoce como
+     * conocidos —, así que se acompaña con un `autocomplete` de valor no estándar (el navegador
+     * no encuentra heurística que aplicar) y se apagan corrector y capitalización, que en estos
+     * campos tampoco tienen sentido.
+     */
+    function sinAutocompletado(el) {
+        const input = el instanceof Element ? el : document.querySelector(el);
+
+        if (!input) {
+            return;
+        }
+
+        input.setAttribute('autocomplete', 'off');
+        input.setAttribute('autocorrect', 'off');
+        input.setAttribute('autocapitalize', 'off');
+        input.setAttribute('spellcheck', 'false');
+    }
+
+    // Todo input que monte un daterangepicker queda cubierto sin tocar cada pantalla: el plugin
+    // dispara `show.daterangepicker` sobre el input antes de abrir el desplegable.
+    if (window.jQuery) {
+        window.jQuery(document).on('show.daterangepicker', function (e) {
+            sinAutocompletado(e.target);
+        });
+    }
+
+    window.RangoEmision = { opciones, mesActual, etiqueta, sinAutocompletado, MESES };
 })();

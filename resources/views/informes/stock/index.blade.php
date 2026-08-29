@@ -114,7 +114,7 @@
                             </div>
                             <div class="col-md-5">
                                 <label class="form-label">Rango de fechas</label>
-                                <input type="text" id="filtro-rango-fechas" class="form-control" placeholder="Todas las fechas">
+                                <input type="text" id="filtro-rango-fechas" class="form-control" placeholder="Todas las fechas" autocomplete="off">
                                 <input type="hidden" id="filtro-fecha-desde">
                                 <input type="hidden" id="filtro-fecha-hasta">
                             </div>

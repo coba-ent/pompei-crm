@@ -10,7 +10,7 @@
             </div>
             <div class="col-sm-6 mb-2 text-sm-end">
                 <div class="input-group d-inline-flex align-items-stretch" style="width:230px">
-                    <input type="text" id="filtro-rango-emision" class="form-control" placeholder="Emisión">
+                    <input type="text" id="filtro-rango-emision" class="form-control" placeholder="Emisión" autocomplete="off">
                     <button type="button" class="btn btn-outline-secondary" id="btn-limpiar-rango-emision" title="Quitar filtro de Emisión"><i class="fas fa-times"></i></button>
                 </div>
             </div>
