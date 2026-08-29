@@ -1284,3 +1284,19 @@ tr.cuenta-orden-placeholder {
     background-color: #fff;
     border-color: #dee2e6 #dee2e6 #fff;
 }
+
+/* Los tooltips largos se cortaban: el template los define con `white-space: nowrap`
+   (style.css ~37276) y un `max-width: 500px`. Al no poder envolver, el texto seguía
+   de largo pero el fondo terminaba en los 500px, y la frase quedaba cortada a la
+   mitad sobre el contenido de la tabla.
+
+   Se les devuelve el salto de línea y se les acota el ancho a algo legible: un
+   tooltip de una sola línea de 500px es incómodo de leer aunque entre. Aplica a
+   todos los tooltips del proyecto, no sólo al aviso de orden cancelada de Ventas. */
+.tooltip-inner {
+    white-space: normal;
+    max-width: 320px;
+    text-align: left;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
