@@ -776,7 +776,7 @@
                                     $('<li>').append($('<a class="dropdown-item js-item-producto-editar" href="#">').text('Editar').on('click', function (e) { e.preventDefault(); if (window.ProductoModales) { window.ProductoModales.abrirEditar(item.producto_id); } }))
                                 )
                             ),
-                            $('<span>').text(item.descripcion)
+                            $('<span>').text('(' + item.producto_id + ') ' + item.descripcion)
                         )
                     );
                 } else {

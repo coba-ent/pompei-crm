@@ -61,7 +61,7 @@
         lineas.forEach((linea, idx) => {
             const excedeOrigen = Number(linea.cantidad) > Number(linea.cantidad_origen || 0);
             const $tr = $('<tr>');
-            $tr.append($('<td>').text(linea.descripcion || '')
+            $tr.append($('<td>').text((linea.producto_id ? '(' + linea.producto_id + ') ' : '') + (linea.descripcion || ''))
                 .prepend(excedeOrigen
                     ? $('<div>').addClass('small text-warning').text('Supera la cantidad de la operación de origen')
                     : ''));

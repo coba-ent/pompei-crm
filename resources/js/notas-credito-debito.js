@@ -288,7 +288,7 @@
 
             const $tr = $('<tr>');
             if (afectaStock) {
-                $tr.append($('<td>').text(item.descripcion));
+                $tr.append($('<td>').text((item.producto_id ? '(' + item.producto_id + ') ' : '') + (item.descripcion || '')));
             } else {
                 $tr.append($('<td>').append(
                     $('<textarea class="form-control form-control-sm" rows="1">').attr('data-idx', idx).attr('data-field', 'descripcion').val(item.descripcion || '')
