@@ -81,23 +81,10 @@
         let fechaDesde = '';
         let fechaHasta = '';
         if ($.fn.daterangepicker) {
-            $('#filtro-rango-fechas').daterangepicker({
-                autoUpdateInput: false,
-                opens: 'left',
-                locale: {
-                    format: 'DD/MM/YYYY',
-                    applyLabel: 'Aplicar',
-                    cancelLabel: 'Limpiar',
-                    fromLabel: 'Desde',
-                    toLabel: 'Hasta',
-                    customRangeLabel: 'Personalizado',
-                    daysOfWeek: ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'],
-                    monthNames: [
-                        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-                        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
-                    ],
-                },
-            });
+            // Helper compartido (spec 067): trae los 7 presets, "Desde - Hasta" y el
+            // "Borrar filtro" del botón de cancelar. Este picker era una copia anterior al
+            // helper y decía "Limpiar" / "Personalizado", distinto del resto de los informes.
+            $('#filtro-rango-fechas').daterangepicker(window.RangoEmision.opciones());
             $('#filtro-rango-fechas').on('apply.daterangepicker', function (e, picker) {
                 fechaDesde = picker.startDate.format('YYYY-MM-DD');
                 fechaHasta = picker.endDate.format('YYYY-MM-DD');
@@ -111,6 +98,10 @@
                 $(this).val('');
                 tabla.ajax.reload();
                 refrescarStats();
+            });
+            // La "x" hace lo mismo que "Borrar filtro" del picker, sin tener que abrirlo.
+            $('#btn-limpiar-rango-fechas').on('click', function () {
+                $('#filtro-rango-fechas').trigger('cancel.daterangepicker');
             });
         }
 

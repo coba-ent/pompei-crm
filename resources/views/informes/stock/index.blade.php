@@ -114,7 +114,11 @@
                             </div>
                             <div class="col-md-5">
                                 <label class="form-label">Rango de fechas</label>
-                                <input type="text" id="filtro-rango-fechas" class="form-control" placeholder="Todas las fechas" autocomplete="off">
+                                <div class="input-group">
+                                    <input type="text" id="filtro-rango-fechas" class="form-control" placeholder="Todas las fechas" autocomplete="off">
+                                    {{-- Misma "x" que el resto de los informes para quitar el rango sin abrir el picker. --}}
+                                    <button type="button" class="btn btn-outline-secondary" id="btn-limpiar-rango-fechas" title="Quitar filtro de fechas"><i class="fas fa-times"></i></button>
+                                </div>
                                 <input type="hidden" id="filtro-fecha-desde">
                                 <input type="hidden" id="filtro-fecha-hasta">
                             </div>
@@ -171,5 +175,5 @@
         productoId: {{ $productoId ? (int) $productoId : 'null' }},
     };
 </script>
-@vite(['resources/js/informe-stock.js'])
+@vite(['resources/js/rango-emision.js', 'resources/js/informe-stock.js'])
 @endsection

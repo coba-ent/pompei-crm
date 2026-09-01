@@ -141,6 +141,10 @@
                 $(this).val('');
                 tablaMovimientos.ajax.reload();
             });
+            // La "x" hace lo mismo que "Borrar filtro" del picker, sin tener que abrirlo.
+            $('#btn-limpiar-movimientos-rango-fechas').on('click', function () {
+                $rango.trigger('cancel.daterangepicker');
+            });
         }
 
         const ETIQUETAS_OPERACION = {

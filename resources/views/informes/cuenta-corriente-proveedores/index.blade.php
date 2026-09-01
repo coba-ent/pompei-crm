@@ -103,7 +103,11 @@
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Emisión</label>
-                                <input type="text" id="filtro-movimientos-rango-fechas" class="form-control" placeholder="Todas las fechas">
+                                <div class="input-group">
+                                    <input type="text" id="filtro-movimientos-rango-fechas" class="form-control" placeholder="Todas las fechas" autocomplete="off">
+                                    {{-- Misma "x" que el resto de los informes para quitar el rango sin abrir el picker. --}}
+                                    <button type="button" class="btn btn-outline-secondary" id="btn-limpiar-movimientos-rango-fechas" title="Quitar filtro de Emisión"><i class="fas fa-times"></i></button>
+                                </div>
                             </div>
                             <div class="col-md-2 d-flex justify-content-end align-items-end">
                                 <span id="dt-buttons-movimientos"></span>
