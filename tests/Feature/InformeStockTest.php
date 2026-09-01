@@ -3,9 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Cliente;
+use App\Models\Compra;
 use App\Models\Deposito;
 use App\Models\MovimientoStock;
 use App\Models\Producto;
+use App\Models\Proveedor;
 use App\Models\Stock;
 use App\Models\Venta;
 use App\Services\Stock\StockService;
@@ -346,5 +348,84 @@ class InformeStockTest extends TestCase
             ->assertOk()->json('data'))->first();
 
         $this->assertNull($fila['documento']);
+    }
+
+    /**
+     * Los movimientos que genera el CRM guardan `descripcion` en NULL: ni StockDeVenta ni el alta
+     * de Compra le pasan un texto a StockService. Para las ventas nunca se notó porque el CASE ya
+     * las reconstruía; las compras quedaban con la columna Detalle vacía (172 movimientos al
+     * 01/09/2026). Se resuelve reconstruyendo en el informe, sin rellenar datos.
+     */
+    public function test_detalle_de_compra_muestra_comprobante_y_proveedor(): void
+    {
+        $deposito = $this->deposito();
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+        $proveedor = Proveedor::factory()->create(['nombre' => 'JPD AMOBLAMIENTO']);
+        $compra = Compra::factory()->create([
+            'proveedor_id' => $proveedor->id,
+            'tipo_comprobante' => 'A',
+            'nro_comprobante' => '0000-00001475',
+        ]);
+
+        app(StockService::class)->registrarEntrada($producto, null, $deposito, 3, $compra);
+
+        $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
+
+        $this->assertSame(
+            'A 0000-00001475 - JPD AMOBLAMIENTO',
+            collect($respuesta->json('data'))->pluck('detalle')->first()
+        );
+    }
+
+    /**
+     * Hay 2 compras en producción sin número de comprobante (tipo "S"). Concatenar a secas dejaba
+     * un `"S "` que en pantalla parece una celda vacía; el proveedor solo ya identifica el
+     * movimiento, y el separador " - " no debe quedar colgando adelante.
+     */
+    public function test_detalle_de_compra_sin_comprobante_muestra_solo_el_proveedor(): void
+    {
+        $deposito = $this->deposito();
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+        $proveedor = Proveedor::factory()->create(['nombre' => 'GOOD LOOKING']);
+        $compra = Compra::factory()->create([
+            'proveedor_id' => $proveedor->id,
+            'tipo_comprobante' => 'S',
+            'nro_comprobante' => null,
+        ]);
+
+        app(StockService::class)->registrarEntrada($producto, null, $deposito, 1, $compra);
+
+        $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
+
+        $this->assertSame(
+            'GOOD LOOKING',
+            collect($respuesta->json('data'))->pluck('detalle')->first()
+        );
+    }
+
+    /** Un ajuste sin descripción propia muestra el texto neutro en vez de una celda en blanco. */
+    public function test_un_ajuste_sin_descripcion_no_deja_la_celda_vacia(): void
+    {
+        $deposito = $this->deposito();
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+
+        app(StockService::class)->ajustar($producto, null, $deposito, 5);
+
+        $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
+
+        $this->assertSame('Ajuste sin detalle', collect($respuesta->json('data'))->pluck('detalle')->first());
+    }
+
+    /** Un ajuste que sí trae descripción la conserva: el fallback no la pisa. */
+    public function test_un_ajuste_con_descripcion_propia_la_conserva(): void
+    {
+        $deposito = $this->deposito();
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+
+        app(StockService::class)->ajustar($producto, null, $deposito, 5, 'Ajuste por conteo real');
+
+        $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
+
+        $this->assertSame('Ajuste por conteo real', collect($respuesta->json('data'))->pluck('detalle')->first());
     }
 }

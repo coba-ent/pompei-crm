@@ -4,13 +4,13 @@ namespace App\Http\Controllers\Informes;
 
 use App\Http\Controllers\Controller;
 use App\Models\Compra;
-use App\Models\Deposito;
 use App\Models\NotaCreditoDebito;
 use App\Models\Producto;
 use App\Models\Proveedor;
 use App\Models\TipoProducto;
 use App\Models\User;
 use App\Models\Venta;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -56,7 +56,7 @@ class InformeStockController extends Controller
      * histórico COMPLETO (sin filtros), en una subconsulta con función de
      * ventana. Los filtros de pantalla se aplican después, como capa externa.
      */
-    private function baseQuery(): \Illuminate\Database\Query\Builder
+    private function baseQuery(): Builder
     {
         $ventana = DB::table('movimientos_stock')
             ->selectRaw(
@@ -81,6 +81,10 @@ class InformeStockController extends Controller
                 $join->on('compras.id', '=', 'mov.origen_id')
                     ->where('mov.origen_type', '=', Compra::class);
             })
+            // Cuelga de `compras`, que ya viene filtrada por tipo en su propio join: si el
+            // movimiento no es de compra, `compras.proveedor_id` es NULL y este join no aporta
+            // fila, sin descartar la del movimiento.
+            ->leftJoin('proveedores', 'proveedores.id', '=', 'compras.proveedor_id')
             ->leftJoin('notas_credito_debito as notas', function ($join) {
                 $join->on('notas.id', '=', 'mov.origen_id')
                     ->where('mov.origen_type', '=', NotaCreditoDebito::class);
@@ -113,28 +117,84 @@ class InformeStockController extends Controller
     }
 
     /**
-     * Columna calculada `detalle` (CASE SQL): comprobante + cliente cuando el
-     * movimiento viene de una Venta, o `mov.descripcion` para el resto de
-     * orígenes (FR-004/FR-005/FR-006). Sintaxis de concatenación portable
-     * entre MySQL (producción) y SQLite (tests).
+     * Columna calculada `detalle` (CASE SQL), en este orden:
+     *
+     * 1. Venta   → comprobante + cliente (FR-004/FR-005/FR-006).
+     * 2. Compra  → comprobante + proveedor, mismo criterio que la venta.
+     * 3. Resto   → `mov.descripcion`, y si tampoco hay, un texto neutro.
+     *
+     * La rama de Compra existe porque los movimientos que genera el CRM guardan `descripcion` en
+     * NULL: ni `StockDeVenta` ni el alta de Compra le pasan un texto a `StockService`. Para las
+     * ventas eso nunca se notó porque el CASE ya las reconstruía; para las compras la columna
+     * quedaba vacía (172 movimientos al 01/09/2026). Se resuelve reconstruyendo, no rellenando
+     * datos: así quedan cubiertos los que ya están y todos los futuros, sin tocar la base.
+     *
+     * El fallback final evita la celda en blanco. Son 29 ajustes sin origen cuyo detalle no existe
+     * en ninguna parte — inventarles un texto sería peor que decir que no hay.
+     *
+     * OJO con las compras sin número de comprobante (hay 2 en producción, del tipo "S"): concatenar
+     * a secas deja un `"S "` que parece vacío. Por eso el número se antepone sólo si existe, y el
+     * proveedor alcanza para identificar el movimiento cuando no hay comprobante.
+     *
+     * El CASE entero va envuelto en COALESCE/NULLIF: una rama puede matchear y aun así devolver
+     * vacío — pasa con un `origen_id` que ya no resuelve a ninguna fila, donde la concatenación da
+     * NULL y el ELSE nunca llega a ejecutarse. Sin esta envoltura, esos casos siguen mostrando la
+     * celda en blanco, que es justo lo que se quiere evitar.
+     *
+     * Sintaxis de concatenación portable entre MySQL (producción) y SQLite (tests).
      */
     private function sqlDetalle(): string
     {
-        if (DB::getDriverName() === 'sqlite') {
-            return "CASE WHEN ventas.id IS NOT NULL THEN ".
-                "ventas.tipo_comprobante || ' ' || ventas.nro_comprobante || ".
-                "CASE WHEN clientes.nombre IS NOT NULL THEN ' - ' || clientes.nombre ELSE '' END ".
-                'ELSE mov.descripcion END';
+        return "COALESCE(NULLIF(TRIM({$this->sqlDetalleCrudo()}), ''), 'Ajuste sin detalle')";
+    }
+
+    /**
+     * El CASE propiamente dicho; puede devolver NULL o vacío, y sqlDetalle() lo cubre.
+     *
+     * El separador " - " entre comprobante y contraparte se antepone sólo cuando hay comprobante,
+     * en vez de recortarlo después: `TRIM(LEADING ... FROM ...)` es sintaxis de MySQL y en SQLite
+     * es un error de sintaxis que rompe la consulta entera y devuelve el listado vacío.
+     */
+    private function sqlDetalleCrudo(): string
+    {
+        $sqlite = DB::getDriverName() === 'sqlite';
+
+        // Comprobante de compra, o cadena vacía cuando no tiene número (hay 2 así en producción,
+        // del tipo "S": concatenar a secas dejaba un "S " que en pantalla parece vacío).
+        $comprobanteCompra = $sqlite
+            ? "CASE WHEN compras.nro_comprobante IS NOT NULL AND compras.nro_comprobante <> '' "
+                ."THEN COALESCE(compras.tipo_comprobante || ' ', '') || compras.nro_comprobante ELSE '' END"
+            : "IF(compras.nro_comprobante IS NOT NULL AND compras.nro_comprobante <> '', "
+                ."CONCAT(IFNULL(CONCAT(compras.tipo_comprobante, ' '), ''), compras.nro_comprobante), '')";
+
+        // El proveedor lleva " - " adelante sólo si ya hay comprobante que separar.
+        $proveedorCompra = $sqlite
+            ? "CASE WHEN proveedores.nombre IS NULL THEN '' "
+                ."WHEN {$comprobanteCompra} = '' THEN proveedores.nombre "
+                ."ELSE ' - ' || proveedores.nombre END"
+            : "IF(proveedores.nombre IS NULL, '', "
+                ."IF({$comprobanteCompra} = '', proveedores.nombre, CONCAT(' - ', proveedores.nombre)))";
+
+        if ($sqlite) {
+            return 'CASE '
+                ."WHEN ventas.id IS NOT NULL THEN ventas.tipo_comprobante || ' ' || ventas.nro_comprobante || "
+                ."CASE WHEN clientes.nombre IS NOT NULL THEN ' - ' || clientes.nombre ELSE '' END "
+                ."WHEN compras.id IS NOT NULL THEN {$comprobanteCompra} || {$proveedorCompra} "
+                ."WHEN mov.descripcion IS NOT NULL AND mov.descripcion <> '' THEN mov.descripcion "
+                ."ELSE '' END";
         }
 
-        return "CASE WHEN ventas.id IS NOT NULL THEN ".
-            "CONCAT(ventas.tipo_comprobante, ' ', ventas.nro_comprobante, ".
-            "IF(clientes.nombre IS NOT NULL, CONCAT(' - ', clientes.nombre), '')) ".
-            'ELSE mov.descripcion END';
+        return 'CASE '
+            .'WHEN ventas.id IS NOT NULL THEN '
+            ."CONCAT(ventas.tipo_comprobante, ' ', ventas.nro_comprobante, "
+            ."IF(clientes.nombre IS NOT NULL, CONCAT(' - ', clientes.nombre), '')) "
+            ."WHEN compras.id IS NOT NULL THEN CONCAT({$comprobanteCompra}, {$proveedorCompra}) "
+            ."WHEN mov.descripcion IS NOT NULL AND mov.descripcion <> '' THEN mov.descripcion "
+            ."ELSE '' END";
     }
 
     /** Aplica los filtros externos de pantalla (nunca dentro de la ventana). */
-    private function aplicarFiltros(\Illuminate\Database\Query\Builder $query, Request $request): void
+    private function aplicarFiltros(Builder $query, Request $request): void
     {
         if ($request->filled('usuario_id')) {
             $query->where('mov.usuario_id', $request->input('usuario_id'));
