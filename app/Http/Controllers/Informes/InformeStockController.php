@@ -58,11 +58,37 @@ class InformeStockController extends Controller
      */
     private function baseQuery(): Builder
     {
+        // El saldo se calcula HACIA ATRÁS desde el stock real de hoy, no hacia adelante desde cero:
+        //
+        //     saldo(fila) = stock_actual - (todo lo que se movió DESPUÉS de esa fila)
+        //
+        // Acumular hacia adelante daba un número que no es el stock. El histórico arranca en 2024
+        // (faltan los export de 2021-2023), así que todo producto que ya venía con unidades encima
+        // acumulaba desde cero: la TECLA UNIVERSAL mostraba -8 teniendo 21 en depósito. Y aunque
+        // esos años estuvieran, seguirían sin cerrar 152 productos donde lo que el CRM registró no
+        // coincide con lo que Contagram traía.
+        //
+        // Restando desde el stock actual, la última fila de cada producto muestra SIEMPRE su stock
+        // verdadero y cada fila anterior dice en cuánto quedó realmente. No depende de que la
+        // historia esté completa: el punto de partida es un dato cierto, no una suma.
+        //
+        // El SUM va sobre la ventana que EMPIEZA en la fila siguiente (1 FOLLOWING), y COALESCE
+        // cubre la última fila de cada producto, donde no hay nada posterior que restar.
         $ventana = DB::table('movimientos_stock')
+            // La variante entra en el join aunque hoy no haya ninguna cargada: `stocks` la tiene
+            // como columna, y sin ella un producto con dos variantes en el mismo depósito
+            // duplicaría cada fila del informe.
+            ->leftJoin('stocks', function ($join) {
+                $join->on('stocks.producto_id', '=', 'movimientos_stock.producto_id')
+                    ->on('stocks.deposito_id', '=', 'movimientos_stock.deposito_id')
+                    ->whereRaw('(stocks.variante_id = movimientos_stock.variante_id '
+                        .'OR (stocks.variante_id IS NULL AND movimientos_stock.variante_id IS NULL))');
+            })
             ->selectRaw(
-                'movimientos_stock.*, SUM(movimientos_stock.cantidad) OVER '.
+                'movimientos_stock.*, COALESCE(stocks.cantidad, 0) - COALESCE(SUM(movimientos_stock.cantidad) OVER '.
                 '(PARTITION BY movimientos_stock.producto_id, movimientos_stock.variante_id, movimientos_stock.deposito_id '.
-                'ORDER BY movimientos_stock.fecha, movimientos_stock.id) as stock_saldo'
+                'ORDER BY movimientos_stock.fecha, movimientos_stock.id '.
+                'ROWS BETWEEN 1 FOLLOWING AND UNBOUNDED FOLLOWING), 0) as stock_saldo'
             );
 
         return DB::query()

@@ -53,7 +53,13 @@ class InformeStockTest extends TestCase
             'tipo' => 'ajuste', 'cantidad' => 5, 'fecha' => '2026-06-10',
         ]);
 
-        // Sin filtros: la fila del ajuste (06-10) acumula el saldo corrido completo (10 + 5 = 15).
+        // El saldo se calcula restando hacia atrás desde el stock real, así que la foto de `stocks`
+        // tiene que existir: es el punto de partida del cálculo, no un detalle del escenario.
+        Stock::create([
+            'producto_id' => $producto->id, 'deposito_id' => $deposito->id, 'cantidad' => 15,
+        ]);
+
+        // Sin filtros: la fila del ajuste (06-10) es la última, así que muestra el stock actual (15).
         $sinFiltro = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))
             ->assertOk()->json();
         $filaSinFiltro = collect($sinFiltro['data'])->firstWhere('tipo', 'ajuste');
@@ -427,5 +433,72 @@ class InformeStockTest extends TestCase
         $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
 
         $this->assertSame('Ajuste por conteo real', collect($respuesta->json('data'))->pluck('detalle')->first());
+    }
+
+    /**
+     * EL CASO QUE MOTIVÓ EL CAMBIO (01/09/2026).
+     *
+     * El saldo se calcula restando hacia atrás desde el stock real, no acumulando hacia adelante
+     * desde cero. La diferencia importa cuando faltan movimientos viejos: la TECLA UNIVERSAL en
+     * producción mostraba -8 teniendo 21 unidades en depósito, porque su historia arranca en 2024
+     * y el producto ya venía con unidades encima.
+     *
+     * Acá se reproduce el patrón: un producto con 21 en depósito cuyos movimientos conocidos suman
+     * mucho menos. La última fila tiene que mostrar 21, no la suma.
+     */
+    public function test_el_saldo_parte_del_stock_real_aunque_falten_movimientos_viejos(): void
+    {
+        $deposito = Deposito::create(['nombre' => 'Central']);
+        $producto = Producto::factory()->create();
+
+        MovimientoStock::create([
+            'producto_id' => $producto->id, 'deposito_id' => $deposito->id,
+            'tipo' => 'entrada', 'cantidad' => 3, 'fecha' => '2026-06-01',
+        ]);
+        MovimientoStock::create([
+            'producto_id' => $producto->id, 'deposito_id' => $deposito->id,
+            'tipo' => 'salida', 'cantidad' => -1, 'fecha' => '2026-06-10',
+        ]);
+
+        // Los movimientos suman 2, pero en depósito hay 21: al producto le falta historia previa.
+        Stock::create([
+            'producto_id' => $producto->id, 'deposito_id' => $deposito->id, 'cantidad' => 21,
+        ]);
+
+        $filas = collect($this->getJson(route('informes.stock.data', [
+            'draw' => 1, 'start' => 0, 'length' => 10, 'order' => [['column' => 1, 'dir' => 'asc']],
+        ]))->assertOk()->json('data'));
+
+        $ultima = $filas->firstWhere('tipo', 'salida');
+        $anterior = $filas->firstWhere('tipo', 'entrada');
+
+        $this->assertEquals(21, $ultima['stock_saldo'], 'La última fila muestra el stock real de hoy.');
+        $this->assertEquals(22, $anterior['stock_saldo'], 'La anterior, el stock antes de esa salida.');
+    }
+
+    /** Cada depósito lleva su propio saldo: no se mezclan al restar hacia atrás. */
+    public function test_el_saldo_es_independiente_por_deposito(): void
+    {
+        $local = Deposito::create(['nombre' => 'Local']);
+        $full = Deposito::create(['nombre' => 'Full']);
+        $producto = Producto::factory()->create();
+
+        MovimientoStock::create([
+            'producto_id' => $producto->id, 'deposito_id' => $local->id,
+            'tipo' => 'salida', 'cantidad' => -1, 'fecha' => '2026-06-01',
+        ]);
+        MovimientoStock::create([
+            'producto_id' => $producto->id, 'deposito_id' => $full->id,
+            'tipo' => 'salida', 'cantidad' => -1, 'fecha' => '2026-06-02',
+        ]);
+
+        Stock::create(['producto_id' => $producto->id, 'deposito_id' => $local->id, 'cantidad' => 5]);
+        Stock::create(['producto_id' => $producto->id, 'deposito_id' => $full->id, 'cantidad' => 40]);
+
+        $filas = collect($this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))
+            ->assertOk()->json('data'));
+
+        $this->assertEquals(5, $filas->firstWhere('deposito', 'Local')['stock_saldo']);
+        $this->assertEquals(40, $filas->firstWhere('deposito', 'Full')['stock_saldo']);
     }
 }
