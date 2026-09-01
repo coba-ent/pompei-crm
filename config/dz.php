@@ -599,6 +599,7 @@ return [
 				'vendor/datatables/css/buttons.dataTables.min.css',
 				'vendor/toastr/css/toastr.min.css',
 				'vendor/select2/css/select2.min.css',
+				'vendor/bootstrap-daterangepicker/daterangepicker.css',
 			],
 			'js' => [
 				'vendor/datatables/js/jquery.dataTables.min.js',
@@ -606,6 +607,9 @@ return [
 				'vendor/datatables/js/buttons.colVis.min.js',
 				'vendor/toastr/js/toastr.min.js',
 				'vendor/select2/js/select2.full.min.js',
+				// Selector de rango "Emisión" del header, igual que Ventas/Compras.
+				'vendor/moment/moment.min.js',
+				'vendor/bootstrap-daterangepicker/daterangepicker.js',
 				'js/custom.js',
 			],
 		],

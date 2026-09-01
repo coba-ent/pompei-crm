@@ -93,8 +93,30 @@
             }
         });
 
+        // Filtros del panel + rango de "Emisión" del header (informe_contagram_ingresos.md 4.1/4.2).
+        // Los selects de datos dinámicos van con Select2, sin `dropdownParent`: el del modal apunta
+        // a #modal-ingreso y acá el desplegable tiene que colgar del panel, no del modal.
+        if (hasSelect2) {
+            $('#filtro-categoria').select2({ width: '100%', theme: 'default', placeholder: 'Todas', allowClear: true });
+            $('#filtro-medio-cobro').select2({ width: '100%', theme: 'default', placeholder: 'Todos', allowClear: true });
+            $('#filtro-estado-cobro').select2({ width: '100%', theme: 'default', placeholder: 'Todos', allowClear: true });
+            $('#filtro-usuario').select2({ width: '100%', theme: 'default', placeholder: 'Todos', allowClear: true });
+        }
+
+        let fechaDesde = '';
+        let fechaHasta = '';
+
         function filtrosActuales() {
-            return { buscar: $('#filtro-buscar').val() };
+            return {
+                id: $('#filtro-id').val(),
+                categoria_id: $('#filtro-categoria').val(),
+                cuenta_tesoreria_id: $('#filtro-medio-cobro').val(),
+                estado_cobro: $('#filtro-estado-cobro').val(),
+                descripcion: $('#filtro-buscar').val(),
+                usuario_id: $('#filtro-usuario').val(),
+                fecha_desde: fechaDesde,
+                fecha_hasta: fechaHasta,
+            };
         }
 
         const tabla = $tabla.DataTable({
@@ -132,8 +154,36 @@
             tabla.buttons().container().appendTo('#dt-buttons-otros-ingresos');
         });
 
+        if ($.fn.daterangepicker && window.RangoEmision) {
+            const $rango = $('#filtro-rango-emision');
+            $rango.daterangepicker(window.RangoEmision.opciones());
+            $rango.on('apply.daterangepicker', function (e, picker) {
+                fechaDesde = picker.startDate.format('YYYY-MM-DD');
+                fechaHasta = picker.endDate.format('YYYY-MM-DD');
+                $(this).val(window.RangoEmision.etiqueta(fechaDesde, fechaHasta));
+                tabla.ajax.reload();
+            });
+            $rango.on('cancel.daterangepicker', function () {
+                fechaDesde = '';
+                fechaHasta = '';
+                $(this).val('');
+                tabla.ajax.reload();
+            });
+            // La "x" hace lo mismo que "Borrar filtro" del picker, sin tener que abrirlo.
+            $('#btn-limpiar-rango-emision').on('click', function () {
+                $rango.trigger('cancel.daterangepicker');
+            });
+        }
+
         $('#btn-aplicar-filtros').on('click', () => tabla.ajax.reload());
-        $('#btn-limpiar-filtros').on('click', () => { $('#filtro-buscar').val(''); tabla.ajax.reload(); });
+        $('#btn-limpiar-filtros').on('click', () => {
+            $('#filtro-id, #filtro-buscar').val('');
+            $('#filtro-categoria, #filtro-medio-cobro, #filtro-estado-cobro, #filtro-usuario').val(null).trigger('change.select2');
+            $('#filtro-rango-emision').val('');
+            fechaDesde = '';
+            fechaHasta = '';
+            tabla.ajax.reload();
+        });
 
         function togglePendiente() {
             const pendiente = $('#ingreso-pendiente').is(':checked');

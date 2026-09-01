@@ -8,6 +8,7 @@ use App\Models\Categoria;
 use App\Models\CuentaTesoreria;
 use App\Models\OtroIngreso;
 use App\Services\Ingresos\Cobranzas;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,13 +27,50 @@ class OtroIngresoController extends Controller
         $categorias = Categoria::deIngreso()->activas()->orderBy('nombre')->get();
         // Un ingreso entra a una caja, un banco o una cuenta a cobrar.
         $cuentas = CuentaTesoreria::visibles()->paraCobrar()->ordenadas()->get();
+        // Para el filtro "Usuario" del panel (informe_contagram_ingresos.md 4.2).
+        $usuarios = \App\Models\User::orderBy('name')->get(['id', 'name']);
 
-        return view('otros-ingresos.index', compact('CurrentPage', 'categorias', 'cuentas'));
+        return view('otros-ingresos.index', compact('CurrentPage', 'categorias', 'cuentas', 'usuarios'));
     }
 
     public function data(Request $request): JsonResponse
     {
         $query = OtroIngreso::query()->with(['categoria:id,nombre', 'cuentaTesoreria:id,nombre']);
+
+        // Panel de filtros de Contagram (informe_contagram_ingresos.md 4.2): Id, Categoria,
+        // Medio de Cobro, Estado del Cobro, Descripcion y Usuario, mas el rango de Emision
+        // del header. Multi-select como en el resto de los listados, asi que aceptan array.
+        if ($request->filled('id')) {
+            $query->where('id', $request->input('id'));
+        }
+        if ($request->filled('categoria_id')) {
+            $query->whereIn('categoria_id', (array) $request->input('categoria_id'));
+        }
+        if ($request->filled('cuenta_tesoreria_id')) {
+            $query->whereIn('cuenta_tesoreria_id', (array) $request->input('cuenta_tesoreria_id'));
+        }
+        if ($request->filled('estado_cobro')) {
+            $estados = (array) $request->input('estado_cobro');
+            // `pendiente` es el booleano que decide el estado (OtroIngreso::estado()); con las dos
+            // opciones tildadas no se filtra nada, que es lo mismo que no elegir ninguna.
+            $query->where(function (Builder $q) use ($estados) {
+                foreach ($estados as $estado) {
+                    $q->orWhere('pendiente', $estado === 'pendiente');
+                }
+            });
+        }
+        if ($request->filled('descripcion')) {
+            $query->where('descripcion', 'like', '%'.$request->input('descripcion').'%');
+        }
+        if ($request->filled('usuario_id')) {
+            $query->whereIn('usuario_id', (array) $request->input('usuario_id'));
+        }
+        if ($request->filled('fecha_desde')) {
+            $query->whereDate('fecha', '>=', $request->input('fecha_desde'));
+        }
+        if ($request->filled('fecha_hasta')) {
+            $query->whereDate('fecha', '<=', $request->input('fecha_hasta'));
+        }
 
         return DataTables::eloquent($query)
             ->addColumn('acciones', fn (OtroIngreso $o) => view('otros-ingresos._row_actions', ['otroIngreso' => $o])->render())
