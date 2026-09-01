@@ -84,15 +84,22 @@ automática. Ninguna tarea de escritura se da por buena sin su verificación aso
       de ML sin cambios y las 13 de Tiendanube **ya estaban pendientes en producción** — confirmado
       consultando el VPS, no asumido (S-04, S-05).
 - [x] **T029** `--deshacer` sobre el dump fresco: **1.394 → 32.106 → 1.394**, md5 idéntico (S-06).
-- [ ] **T030** Abrir en el navegador el historial del producto **27204** (la alacena) y verificar que
-      se lee bien y que el saldo cierra (SC-001, S-07).
+- [x] **T030** Verificado el historial de la alacena 27204: 24 movimientos desde enero 2024, en
+      orden cronológico y con el saldo acumulado coherente. Verificado además que
+      `InformeStockController` ordena y filtra por `mov.fecha` (no por `created_at`), y que el saldo
+      acumulado se calcula `ORDER BY fecha, id` — o sea que los movimientos históricos aparecen en
+      su lugar cronológico, no amontonados al final (SC-001, S-07).
 
 ## Fase 7 — Producción
 
-- [ ] **T031** Backup de producción (S-08).
-- [ ] **T032** Dry-run en producción; comparar los números con los del clon (S-09, S-10).
-- [ ] **T033** ⚠️ **Requiere OK explícito del usuario.** Corrida real.
-- [ ] **T034** Verificación posterior (S-12 a S-15).
+- [x] **T031** Backup de producción: `contagram_ANTES_094_20260901_005104.sql.gz`, 10 MB (S-08).
+- [x] **T032** Dry-run en producción: **30.712 a cargar, 0 discrepancias de saldos** — idéntico a la
+      prueba sobre el dump. Los tres Excel se subieron con md5 verificado en origen y destino (S-09, S-10).
+- [x] **T033** Corrida real con OK del usuario (01/09/2026): **30.712 movimientos cargados**,
+      corrida `20260901035814`.
+- [x] **T034** Verificación posterior: **md5 de `stocks` idéntico** (`99460ea3...`, 9.177 filas),
+      ML y Tiendanube sin cambios, 0 eventos de auditoría, y los pendientes de sincronización en los
+      mismos valores previos (3 y 13). **7.963 de 9.156 productos (87%) cierran exacto** (S-12 a S-15).
 - [ ] **T035** Actualizar `documentacion_principal_crm.md` y `modelo_datos.md`:
       `carga_historica_id` y la nota de que el histórico arranca en 2024.
 
