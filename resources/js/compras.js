@@ -467,13 +467,32 @@
             });
         }
 
+        // Espejo en JS de Proveedor::tipoComprobanteSugerido(): el endpoint de opciones ya manda
+        // el tipo derivado, pero la ficha que devuelve el modal de alta/edición trae el campo
+        // crudo (NULL en los 148 proveedores migrados), así que ahí hay que derivarlo del nombre
+        // de la condición de IVA igual que en el backend.
+        function tipoComprobanteDeProveedor(proveedor) {
+            if (proveedor.tipo_comprobante_defecto) { return proveedor.tipo_comprobante_defecto; }
+            const condicion = (proveedor.condicion_iva && proveedor.condicion_iva.nombre) || '';
+            if (condicion === 'Responsable Inscripto') { return 'A'; }
+            if (condicion === 'Monotributista') { return 'C'; }
+            return null;
+        }
+
+        function aplicarAutocompletadoProveedor(proveedor) {
+            if (!proveedor) { return; }
+            if (proveedor.categoria_id) { $('#f-categoria').val(proveedor.categoria_id).trigger('change'); }
+            const tipo = tipoComprobanteDeProveedor(proveedor);
+            if (tipo) { $('#f-tipo-comprobante').val(tipo).trigger('change'); }
+        }
+
         function aplicarProveedorGuardado(proveedor) {
             const $proveedorSel = $('#f-proveedor');
             $proveedorSel.find('option[value="' + proveedor.id + '"]').remove();
             $proveedorSel.append(new Option(proveedor.nombre, proveedor.id, true, true));
             refreshSelect2($proveedorSel);
             // Mismo autocompletado que al elegirlo del desplegable.
-            if (proveedor.categoria_id) { $('#f-categoria').val(proveedor.categoria_id).trigger('change'); }
+            aplicarAutocompletadoProveedor(proveedor);
         }
 
         iniciarSelect2Catalogo($('#f-proveedor'), {
@@ -546,10 +565,12 @@
         }
 
         // Autocompletar Categoría de Compras al elegir Proveedor (FR-002).
+        // Autocompletado al elegir Proveedor. El Tipo de Comprobante sale de la ficha del
+        // proveedor (o se deriva de su condición de IVA — ver Proveedor::tipoComprobanteSugerido()):
+        // antes quedaba siempre en el default de Configuración, así que un Responsable Inscripto
+        // como FV aparecía en B cuando siempre nos factura en A.
         $('#f-proveedor').on('select2:select', function (e) {
-            const proveedor = e.params.data.proveedor;
-            if (!proveedor) { return; }
-            if (proveedor.categoria_id) { $('#f-categoria').val(proveedor.categoria_id).trigger('change'); }
+            aplicarAutocompletadoProveedor(e.params.data.proveedor);
         });
 
         // Refresco de fila al editar el producto desde el desplegable ▾ del detalle

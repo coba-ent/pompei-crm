@@ -102,6 +102,29 @@ class Proveedor extends Model
         return $this->belongsTo(CondicionIva::class, 'condicion_iva_id');
     }
 
+    /**
+     * Tipo de comprobante que este proveedor nos emite, para precargarlo en el formulario
+     * de Compra. Manda `tipo_comprobante_defecto` si está cargado; si no, se deriva de la
+     * condición frente al IVA, que es el dato que sí viene completo (la migración desde
+     * Contagram dejó el default en NULL en los 148 proveedores).
+     *
+     * La derivación sale del histórico real de compras, no de una regla inventada:
+     * Responsable Inscripto → A (1.356 compras contra 66 en B) y Monotributista → C (37 de 37).
+     * Sin condición cargada devuelve null y el formulario deja el default de Configuración.
+     */
+    public function tipoComprobanteSugerido(): ?string
+    {
+        if ($this->tipo_comprobante_defecto) {
+            return $this->tipo_comprobante_defecto;
+        }
+
+        return match (optional($this->condicionIva)->nombre) {
+            'Responsable Inscripto' => 'A',
+            'Monotributista' => 'C',
+            default => null,
+        };
+    }
+
     public function categoria(): BelongsTo
     {
         return $this->belongsTo(Categoria::class, 'categoria_id');

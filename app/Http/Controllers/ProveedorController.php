@@ -76,7 +76,8 @@ class ProveedorController extends Controller
             })
             ->orderBy('nombre')
             ->limit(50)
-            ->get(['id', 'nombre', 'categoria_id']);
+            ->with('condicionIva:id,nombre')
+            ->get(['id', 'nombre', 'categoria_id', 'condicion_iva_id', 'tipo_comprobante_defecto']);
 
         // Saldo de cuenta corriente junto al nombre (spec 072, FR-014), acotado a los ids de esta
         // página. Negativo = saldo a favor nuestro con el proveedor; positivo = lo que le debemos.
@@ -88,6 +89,8 @@ class ProveedorController extends Controller
                 'id' => $p->id,
                 'nombre' => $p->nombre,
                 'categoria_id' => $p->categoria_id,
+                // Para precargar el Tipo de Comprobante al elegir el proveedor en una Compra.
+                'tipo_comprobante_defecto' => $p->tipoComprobanteSugerido(),
                 'saldo' => round($saldos[$p->id] ?? 0.0, 2),
             ]);
 
@@ -232,14 +235,14 @@ class ProveedorController extends Controller
         return response()->json([
             'ok' => true,
             'mensaje' => 'Proveedor creado correctamente.',
-            'proveedor' => $proveedor->load('contactos'),
+            'proveedor' => $proveedor->load('contactos', 'condicionIva:id,nombre'),
         ]);
     }
 
     /** Datos del proveedor para precargar el modal de edición. */
     public function show(Proveedor $proveedor): JsonResponse
     {
-        $proveedor->load('contactos');
+        $proveedor->load('contactos', 'condicionIva:id,nombre');
 
         return response()->json(['proveedor' => $proveedor]);
     }
@@ -257,7 +260,7 @@ class ProveedorController extends Controller
         return response()->json([
             'ok' => true,
             'mensaje' => 'Proveedor actualizado correctamente.',
-            'proveedor' => $proveedor->load('contactos'),
+            'proveedor' => $proveedor->load('contactos', 'condicionIva:id,nombre'),
         ]);
     }
 
