@@ -75,14 +75,15 @@ automática. Ninguna tarea de escritura se da por buena sin su verificación aso
 
 ## Fase 6 — Validación real ⚠️ ninguna de estas es opcional
 
-- [ ] **T025** ⚠️ **PENDIENTE.** Bajar un **dump fresco del VPS** y restaurarlo local (S-01, S-02).
-      Todo lo validado hasta ahora corrió sobre `contagram_vps_clon`, una copia de días atrás: alcanza
-      para acreditar el **comportamiento** del comando, no los **números** contra la producción de hoy.
-- [x] **T026** Dry-run sobre el clon; revisar los números.
-- [x] **T027** Corrida real **sobre el clon** con `--escribir` (S-03).
-- [x] **T028** Verificar sobre el clon: `stock_actual` idéntico producto por producto (S-04) y
-      ninguna publicación pendiente nueva (S-05).
-- [x] **T029** Probar `--deshacer` sobre el clon y confirmar el estado exacto anterior (S-06).
+- [x] **T025** Dump fresco del VPS (01/09/2026), md5 verificado en origen y destino, restaurado en
+      `contagram_094_prueba` (S-01, S-02). El dump temporal se borró del VPS.
+- [x] **T026** Dry-run sobre el dump fresco: **30.712 a cargar** (4 menos que en el clon, porque el
+      corte detectó 54 operaciones ya movidas en vez de 50 — actividad nueva de producción).
+- [x] **T027** Corrida real sobre el dump fresco con `--escribir` (S-03).
+- [x] **T028** Verificado: las **9.177 filas de stock idénticas** (md5 `8e00fb31...`), 3 pendientes
+      de ML sin cambios y las 13 de Tiendanube **ya estaban pendientes en producción** — confirmado
+      consultando el VPS, no asumido (S-04, S-05).
+- [x] **T029** `--deshacer` sobre el dump fresco: **1.394 → 32.106 → 1.394**, md5 idéntico (S-06).
 - [ ] **T030** Abrir en el navegador el historial del producto **27204** (la alacena) y verificar que
       se lee bien y que el saldo cierra (SC-001, S-07).
 
