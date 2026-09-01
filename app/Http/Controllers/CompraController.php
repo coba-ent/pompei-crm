@@ -9,11 +9,13 @@ use App\Http\Requests\StoreRetencionRequest;
 use App\Models\Categoria;
 use App\Models\Compra;
 use App\Models\ComprobanteFiscal;
+use App\Models\CondicionIva;
 use App\Models\ConfiguracionVentas;
 use App\Models\CuentaTesoreria;
 use App\Models\Deposito;
 use App\Models\ListaPrecio;
 use App\Models\Pago;
+use App\Models\Provincia;
 use App\Models\Proveedor;
 use App\Models\Remito;
 use App\Models\TipoProducto;
@@ -305,6 +307,12 @@ class CompraController extends Controller
             'tiposProducto' => TipoProducto::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']),
             'proveedores' => Proveedor::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']),
             'listasPrecioProductos' => ListaPrecio::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']),
+            // Catálogos del modal de alta/edición de Proveedor abierto desde el select de
+            // Proveedor. `categorias` son TODAS las de compra (no sólo las activas): la ficha
+            // de un proveedor existente puede apuntar a una categoría ya inactivada.
+            'condicionesIva' => CondicionIva::orderBy('nombre')->get(),
+            'categorias' => Categoria::compra()->orderBy('nombre')->get(),
+            'provincias' => Provincia::orderBy('nombre')->pluck('nombre'),
         ]);
     }
 
@@ -404,8 +412,12 @@ class CompraController extends Controller
         $tiposProducto = TipoProducto::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']);
         $proveedores = Proveedor::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']);
         $listasPrecioProductos = ListaPrecio::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']);
+        // Catálogos del modal de alta/edición de Proveedor (ver el comentario en create()).
+        $condicionesIva = CondicionIva::orderBy('nombre')->get();
+        $categorias = Categoria::compra()->orderBy('nombre')->get();
+        $provincias = Provincia::orderBy('nombre')->pluck('nombre');
 
-        return view('compras.form', compact('CurrentPage', 'compra', 'categoriasCompra', 'depositos', 'tiposProducto', 'proveedores', 'listasPrecioProductos'));
+        return view('compras.form', compact('CurrentPage', 'compra', 'categoriasCompra', 'depositos', 'tiposProducto', 'proveedores', 'listasPrecioProductos', 'condicionesIva', 'categorias', 'provincias'));
     }
 
     public function update(\App\Http\Requests\UpdateCompraRequest $request, Compra $compra): JsonResponse

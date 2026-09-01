@@ -60,6 +60,72 @@
         return nombre + (valor < 0 ? '  ·  a favor ' + money(-valor) : '  ·  debe ' + money(valor));
     }
 
+    // ---- Select2 de catálogo editable inline ("Crear X" + lápiz por fila) ----
+    // Mismo helper que en ventas.js/presupuestos.js para el select de Cliente: la primera
+    // opción del desplegable crea la ficha completa y cada fila trae un lápiz para editarla,
+    // sin salir del formulario.
+    const ID_CREAR = '__crear__';
+
+    function templateResultCatalogo($el, opts) {
+        return function (data) {
+            if (!data.id || data.loading) { return data.text; }
+            if (data.id === ID_CREAR) {
+                const $fila = $('<span class="d-flex align-items-center justify-content-between w-100 text-primary fw-semibold select2-resultado-crear"></span>');
+                $fila.append($('<span></span>').text(data.text));
+                $fila.append('<i class="fas fa-plus-circle ms-2"></i>');
+                return $fila;
+            }
+            const $fila = $('<span class="d-flex align-items-center justify-content-between w-100"></span>');
+            $fila.append($('<span></span>').text(data.text));
+            if (typeof opts.onEditar === 'function') {
+                const $lapiz = $('<a href="#" class="js-editar-item text-muted ms-2" title="Editar"><i class="fas fa-pencil-alt"></i></a>');
+                $lapiz.on('mousedown mouseup', function (e) { e.stopPropagation(); });
+                $lapiz.on('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    $el.select2('close');
+                    opts.onEditar(data.id, data);
+                });
+                $fila.append($lapiz);
+            }
+            return $fila;
+        };
+    }
+
+    function iniciarSelect2Catalogo($el, opciones) {
+        if (!hasSelect2 || !$el || !$el.length) { return; }
+        const opts = opciones || {};
+        const select2Opts = Object.assign({}, opts.select2 || {});
+        let ultimoTermino = '';
+
+        const ajaxOrig = select2Opts.ajax;
+        const processResultsOrig = ajaxOrig.processResults;
+        select2Opts.ajax = Object.assign({}, ajaxOrig, {
+            processResults: function (resp, params) {
+                ultimoTermino = (params && params.term) || '';
+                const out = processResultsOrig ? processResultsOrig(resp, params) : { results: resp };
+                if (!params.page) {
+                    out.results = [{ id: ID_CREAR, text: opts.textoCrear || 'Crear' }].concat(out.results || []);
+                }
+                return out;
+            },
+        });
+
+        select2Opts.templateResult = templateResultCatalogo($el, opts);
+        initSelect2($el, select2Opts);
+
+        $el.on('select2:selecting', function (e) {
+            if (e.params.args.data.id === ID_CREAR) {
+                // `preventDefault()` cancela la selección y, con ella, el cierre automático del
+                // desplegable: sin este `close()` la lista queda abierta POR ENCIMA del modal que
+                // se acaba de abrir, tapándole los primeros campos.
+                e.preventDefault();
+                $el.select2('close');
+                if (typeof opts.onCrear === 'function') { opts.onCrear(ultimoTermino); }
+            }
+        });
+    }
+
     const PCT_IVA = { '5': 5, '10.5': 10.5, '21': 21, '27': 27 };
     function pctIva(valor) {
         return PCT_IVA[valor] || 0;
@@ -390,13 +456,38 @@
         initSelect2($('#f-deposito'), { placeholder: 'Seleccioná un Depósito' });
 
 
-        initSelect2($('#f-proveedor'), {
-            placeholder: 'Seleccionar Proveedor',
-            ajax: {
-                url: rutas.proveedoresOpciones,
-                data: (params) => ({ q: params.term }),
-                processResults: (resp) => ({ results: resp.data.map((p) => ({ id: p.id, text: etiquetaConSaldo(p.nombre, p.saldo), proveedor: p })) }),
+        // ---- Proveedor (catálogo editable inline: "Crear Proveedor" + lápiz por fila, abren la
+        // ficha COMPLETA de Proveedor — mismo modal que en el módulo Proveedores) ----
+        if (window.ProveedorModal) {
+            window.ProveedorModal.init({
+                store: rutas.proveedoresStore,
+                show: rutas.proveedoresUpdateBase,
+                localidades: rutas.proveedoresLocalidades,
+                verificarDocumento: rutas.proveedoresVerificarDocumento,
+            });
+        }
+
+        function aplicarProveedorGuardado(proveedor) {
+            const $proveedorSel = $('#f-proveedor');
+            $proveedorSel.find('option[value="' + proveedor.id + '"]').remove();
+            $proveedorSel.append(new Option(proveedor.nombre, proveedor.id, true, true));
+            refreshSelect2($proveedorSel);
+            // Mismo autocompletado que al elegirlo del desplegable.
+            if (proveedor.categoria_id) { $('#f-categoria').val(proveedor.categoria_id).trigger('change'); }
+        }
+
+        iniciarSelect2Catalogo($('#f-proveedor'), {
+            select2: {
+                placeholder: 'Seleccionar Proveedor',
+                ajax: {
+                    url: rutas.proveedoresOpciones,
+                    data: (params) => ({ q: params.term }),
+                    processResults: (resp) => ({ results: resp.data.map((p) => ({ id: p.id, text: etiquetaConSaldo(p.nombre, p.saldo), proveedor: p })) }),
+                },
             },
+            textoCrear: 'Crear Proveedor',
+            onCrear: (termino) => window.ProveedorModal && window.ProveedorModal.crear(termino, aplicarProveedorGuardado),
+            onEditar: (id) => window.ProveedorModal && window.ProveedorModal.editar(id, aplicarProveedorGuardado),
         });
 
         // Buscador de productos con foco persistente (spec 071): ver ventas.js para el contexto

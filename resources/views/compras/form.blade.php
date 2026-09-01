@@ -148,6 +148,9 @@
 </div>
 
 @include('compras._modal_categoria')
+{{-- Crear/Editar de proveedor desde el select de Proveedor, sin salir del formulario:
+     misma ficha completa que en el módulo Proveedores (espejo del select de Cliente en Ventas). --}}
+@include('proveedores._modal_form')
 {{-- Ver/Editar de producto desde el detalle (spec 052): reutiliza los modales de Productos. --}}
 @include('productos._modal_form')
 @include('productos._modal_ver')
@@ -188,6 +191,10 @@
             update: @json($compra ? route('compras.update', $compra) : null),
             index: "{{ route('compras.index') }}",
             proveedoresOpciones: "{{ route('proveedores.opciones') }}",
+            proveedoresStore: "{{ route('proveedores.store') }}",
+            proveedoresUpdateBase: "{{ url('proveedores') }}",
+            proveedoresLocalidades: "{{ route('geo.localidades') }}",
+            proveedoresVerificarDocumento: "{{ route('proveedores.verificar-documento') }}",
             productosOpciones: "{{ route('productos.opciones') }}",
             categoriaCompraStore: "{{ route('categorias.compra.store') }}",
             categoriaUpdateBase: "{{ url('categorias') }}",
@@ -208,5 +215,5 @@
         proveedores: @json($proveedores->map(fn ($p) => ['id' => $p->id, 'nombre' => $p->nombre])),
     };
 </script>
-@vite(['resources/js/producto-modales.js', 'resources/js/compras.js'])
+@vite(['resources/js/proveedor-modal.js', 'resources/js/producto-modales.js', 'resources/js/compras.js'])
 @endsection

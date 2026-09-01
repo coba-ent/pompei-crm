@@ -145,7 +145,11 @@
 
         $el.on('select2:selecting', function (e) {
             if (e.params.args.data.id === ID_CREAR) {
+                // `preventDefault()` cancela la selección y, con ella, el cierre automático del
+                // desplegable: sin este `close()` la lista queda abierta POR ENCIMA del modal que
+                // se acaba de abrir, tapándole los primeros campos.
                 e.preventDefault();
+                $el.select2('close');
                 if (typeof opts.onCrear === 'function') { opts.onCrear(ultimoTermino); }
             }
         });
