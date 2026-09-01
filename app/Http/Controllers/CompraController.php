@@ -184,11 +184,22 @@ class CompraController extends Controller
         }
         if ($request->filled('facturado')) {
             $valores = (array) $request->input('facturado');
-            $query->where(function (Builder $q) use ($valores) {
+            // En Compra la factura la emite el PROVEEDOR y se registra en la compra misma
+            // (`tipo_comprobante` + `nro_comprobante`); `comprobantes_fiscales` guarda lo que
+            // emitimos nosotros por ARCA, que en Compras no existe. Filtrar por esa relación
+            // devolvía 0 resultados para "Sí" sobre 1.463 compras que sí tienen factura.
+            // "Sin factura" es `tipo_comprobante` en [NULL, '', 'S'] — mismo criterio que usa
+            // IvaDigitalPaquete::generarLadoCompras() para excluirlas del TXT de RG 3685.
+            $sinFactura = static fn (Builder $qq) => $qq->where(
+                fn (Builder $qqq) => $qqq->whereNull('tipo_comprobante')
+                    ->orWhereIn('tipo_comprobante', ['', 'S'])
+            );
+
+            $query->where(function (Builder $q) use ($valores, $sinFactura) {
                 foreach ($valores as $valor) {
                     $q->orWhere(fn (Builder $qq) => $valor === '1'
-                        ? $qq->whereHas('comprobanteFiscal')
-                        : $qq->whereDoesntHave('comprobanteFiscal'));
+                        ? $qq->whereNotNull('tipo_comprobante')->whereNotIn('tipo_comprobante', ['', 'S'])
+                        : $sinFactura($qq));
                 }
             });
         }

@@ -188,14 +188,17 @@ class FiltrosCompraTest extends TestCase
         $this->assertEquals([$c1->id], $ids->all());
     }
 
+    /**
+     * "Facturado" mira el comprobante que declaró el PROVEEDOR en la propia compra
+     * (`tipo_comprobante`), no `comprobantes_fiscales`, que guarda lo que emitimos nosotros por
+     * ARCA y en Compras está siempre vacío. Antes este test creaba un ComprobanteFiscal para
+     * simular "facturada" y por eso pasaba con un filtro que en producción devolvía 0 de 1.460.
+     * Ver FiltroFacturadoCompraTest para los casos de borde ('S', '' y NULL).
+     */
     public function test_filtra_por_facturado(): void
     {
-        $conFactura = $this->compra();
-        ComprobanteFiscal::create([
-            'comprobantable_type' => Compra::class, 'comprobantable_id' => $conFactura->id,
-            'tipo_comprobante' => 'A', 'numero' => '0001-00000001', 'estado' => 'aprobado',
-        ]);
-        $sinFactura = $this->compra();
+        $conFactura = $this->compra(['tipo_comprobante' => 'A', 'nro_comprobante' => '0001-00000001']);
+        $sinFactura = $this->compra(['tipo_comprobante' => 'S', 'nro_comprobante' => null]);
 
         $respSi = $this->getJson(route('compras.data', ['facturado' => '1']));
         $ids = collect($respSi->json('data'))->pluck('id');

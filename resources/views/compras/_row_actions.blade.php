@@ -1,9 +1,12 @@
 @php
+    // Colores de Contagram (docs/informe_contagram_egresos.md §2.1): "Pagado" en verde y
+    // "A Pagar" en amarillo/ámbar. El rojo queda reservado para "Vencido", que es el estado
+    // que realmente pide atención — antes "A Pagar" caía en el `default` y salía en rojo.
     $badge = match ($compra->estadoPago()) {
         'pagado' => 'success',
         'parcial' => 'warning',
         'vencido' => 'danger',
-        default => 'danger',
+        default => 'warning',
     };
     $label = match ($compra->estadoPago()) {
         'pagado' => 'Pagado',
