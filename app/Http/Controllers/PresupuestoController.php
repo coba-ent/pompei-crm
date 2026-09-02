@@ -354,6 +354,10 @@ class PresupuestoController extends Controller
             'ok' => true,
             'mensaje' => 'Presupuesto '.$presupuesto->id.' actualizado con éxito.',
             'presupuesto' => $presupuesto->fresh(),
+            // Igual que el alta: se vuelve a la ficha del presupuesto recién guardado. Sin este
+            // `redirect` el JS caía al fallback `rutas.index` y editar terminaba en el listado,
+            // obligando a buscar de nuevo el presupuesto para ver cómo quedó.
+            'redirect' => route('presupuestos.show', $presupuesto),
         ]);
     }
 
