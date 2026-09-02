@@ -73,6 +73,8 @@
     <table style="width:40%; margin-left:auto;">
         <tr><td>Subtotal sin Descuento</td><td class="text-end">$ {{ number_format((float) $presupuesto->subtotal_sin_descuento, 2, ',', '.') }}</td></tr>
         <tr><td>Descuento</td><td class="text-end">$ {{ number_format((float) $presupuesto->descuento, 2, ',', '.') }}</td></tr>
+        <tr><td>Subtotal</td><td class="text-end">$ {{ number_format((float) $presupuesto->subtotal_con_descuento, 2, ',', '.') }}</td></tr>
+        <tr><td>IVA</td><td class="text-end">$ {{ number_format((float) $presupuesto->total - (float) $presupuesto->subtotal_con_descuento, 2, ',', '.') }}</td></tr>
         <tr><td><strong>Total Presupuesto</strong></td><td class="text-end"><strong>$ {{ number_format((float) $presupuesto->total, 2, ',', '.') }}</strong></td></tr>
     </table>
 

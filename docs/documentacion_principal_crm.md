@@ -683,6 +683,28 @@ Otros Ingresos y Abonos son independientes.
   Compras como en Ventas — spec 045). Paso 2 ("Siguiente"): Fecha de Emisión, Monto, Tipo de
   comprobante (igual al de la factura original), Descripción, Impuestos aplicables. Al guardar se
   puede solicitar aprobación ante ARCA.
+  **El paso 2 nace como ESPEJO del comprobante de origen (relevamiento propio en Contagram real,
+  02/09/2026 — cuenta demo, venta 34925956 de $6.382,75 con 3 productos; base de la spec 095)**: al
+  abrirlo viene precargado con Cliente, Categoría, las 4 fechas (Emisión, Vto. del Cobro, Servicio
+  Desde/Hasta), Tipo de comprobante (el mismo de la venta), N° de la factura que ajusta, los
+  productos con cantidad/precio/IVA/descuento de línea, el campo Descuento General propio de la nota
+  y los bloques +Percepciones/+Impuestos Internos/+Intereses. **El Total precargado coincide con el
+  del comprobante**: la nota nace valiendo lo mismo y el usuario RESTA lo que no corresponda, en vez
+  de armarla desde cero. Todos los campos quedan editables — precargar no es imponer: la NC también
+  sirve para anular parcialmente.
+  **Los dos niveles de descuento se mantienen separados**: Contagram NO prorratea el descuento
+  general en las líneas. En su formulario conviven `note[discount]` (general, de cabecera) y
+  `note[note_products_attributes][N][discount]` (por línea), más `line_discount` y `general_discount`
+  por producto. En este CRM eso se traduce a replicar el descuento general del comprobante en los
+  campos de cabecera que `notas_credito_debito` ya tiene (`descuento_general_tipo`/`_pct`/`_monto`),
+  dejando intacto el descuento de cada línea.
+  > **Por qué el descuento general no se aplica dos veces (spec 095, 02/09/2026)**: la Venta guarda
+  > en cada ítem el `subtotal` ya neto del descuento general (venta 24740: bruto 3.572,30 →
+  > `subtotal` 3.393,69, el 5% menos) aunque el `descuento_pct` de la línea esté vacío, pero
+  > `AjustesPendientesNotaCreditoDebito::itemsDisponibles()` sirve el **`precio_unitario` bruto**
+  > con `descuento_pct = 0`. El descuento general heredado se aplica sobre ese bruto, una sola vez.
+  > Verificado: sin heredarlo la NC de la venta 24740 proponía $229.956,12 contra los $218.458,32
+  > reales ($11.497,80 de más); heredándolo cierra en $0,00 de diferencia.
   **Editar/Eliminar/Ver Detalle (capturas propias del usuario, 11/08/2026 — ver
   `informe_contagram_egresos.md` §2.5.1, mismo patrón confirmado también en Ventas)**: con notas ya
   cargadas, la fila de la tabla de NC/ND tiene menú de acciones (trigger en la columna "Estado")

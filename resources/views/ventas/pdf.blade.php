@@ -95,6 +95,8 @@
     <table style="width:40%; margin-left:auto;">
         <tr><td>Subtotal sin Descuento</td><td class="text-end">$ {{ number_format((float) $venta->subtotal_sin_descuento, 2, ',', '.') }}</td></tr>
         <tr><td>Descuento</td><td class="text-end">$ {{ number_format((float) $venta->descuento, 2, ',', '.') }}</td></tr>
+        <tr><td>Subtotal</td><td class="text-end">$ {{ number_format((float) $venta->subtotal_con_descuento, 2, ',', '.') }}</td></tr>
+        <tr><td>IVA</td><td class="text-end">$ {{ number_format((float) $venta->total - (float) $venta->subtotal_con_descuento, 2, ',', '.') }}</td></tr>
         <tr><td><strong>Total</strong></td><td class="text-end"><strong>$ {{ number_format((float) $venta->total, 2, ',', '.') }}</strong></td></tr>
         {{-- Sólo los totales: el detalle movimiento por movimiento de las cobranzas (fecha, cuenta,
              nota, monto) no va en un PDF que se le manda al cliente. Igual que en Contagram. --}}

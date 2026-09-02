@@ -48,6 +48,14 @@ class NotaCreditoDebitoController extends Controller
     /** Spec 059 (T005): página completa de creación (Ventas) — GET, sólo navegación. */
     public function create(Venta $venta)
     {
+        // FR-016 (spec 095): no se ofrece crear una nota sobre un comprobante dado de baja.
+        // El binding ya filtra los soft-deleted, pero un 404 pelado no explica el motivo.
+        if ($venta->trashed()) {
+            return redirect()
+                ->route('ventas.index')
+                ->with('error', 'La venta fue eliminada: no se puede crear una NC/ND sobre ella.');
+        }
+
         $CurrentPage = 'ventas';
         $depositos = Deposito::orderBy('nombre')->get();
 
@@ -57,6 +65,8 @@ class NotaCreditoDebitoController extends Controller
             'compra' => null,
             'notaCreditoDebito' => null,
             'depositos' => $depositos,
+            // Spec 095: la nota nace como espejo del comprobante de origen.
+            'cabeceraOrigen' => $this->ajustesPendientes->cabeceraComprobante($venta),
         ]);
     }
 
@@ -79,6 +89,13 @@ class NotaCreditoDebitoController extends Controller
     /** Spec 059 (T005): página completa de creación (Compras) — GET, sólo navegación. */
     public function createCompra(Compra $compra)
     {
+        // FR-016 (spec 095): idem Ventas — no se precarga desde un comprobante dado de baja.
+        if ($compra->trashed()) {
+            return redirect()
+                ->route('compras.index')
+                ->with('error', 'La compra fue eliminada: no se puede crear una NC/ND sobre ella.');
+        }
+
         $CurrentPage = 'compras';
         $depositos = Deposito::orderBy('nombre')->get();
 
@@ -88,6 +105,8 @@ class NotaCreditoDebitoController extends Controller
             'compra' => $compra,
             'notaCreditoDebito' => null,
             'depositos' => $depositos,
+            // Spec 095: misma cabecera que en Ventas, con el Proveedor como tercero (FR-010).
+            'cabeceraOrigen' => $this->ajustesPendientes->cabeceraComprobante($compra),
         ]);
     }
 

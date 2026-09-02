@@ -170,6 +170,42 @@
         refreshSelect2($('#f-documento-ajusta'));
     }
 
+    // ---------------------------------------------------------------------
+    // Espejo del comprobante de origen (spec 095)
+    //
+    // Hasta acá el alta precargaba SÓLO los ítems: el descuento general y el tipo de
+    // comprobante nacían vacíos, así que una NC sobre una venta con 5% de descuento
+    // proponía el total SIN descuento — $11.497,80 de más en la venta 24740.
+    //
+    // `cabecera` llega null en edición a propósito (FR-011): ahí manda la nota existente.
+    // ---------------------------------------------------------------------
+    const cabeceraOrigen = (!editando && data.comprobanteOrigen) ? (data.comprobanteOrigen.cabecera || null) : null;
+
+    if (cabeceraOrigen) {
+        // FR-004: el tipo se DERIVA del comprobante. Si el origen no tiene, queda vacío:
+        // no se infiere ninguno, porque una nota con el tipo cruzado no se corrige editándola.
+        if (cabeceraOrigen.tipoComprobante) {
+            $('#f-tipo-comprobante').val(cabeceraOrigen.tipoComprobante);
+        }
+
+        // FR-005: las fechas llegan en ISO y AppFecha las muestra en dd/mm/aaaa. El form tiene
+        // el vencimiento y el "servicio desde" en un solo campo, así que el vencimiento manda
+        // y el servicio cubre el caso del comprobante que no tiene vencimiento cargado.
+        if (cabeceraOrigen.fechaEmision) { AppFecha.set($('#f-fecha-emision'), cabeceraOrigen.fechaEmision); }
+        const vtoDesde = cabeceraOrigen.fechaVencimiento || cabeceraOrigen.servicioDesde;
+        if (vtoDesde) { AppFecha.set($('#f-vto-desde'), vtoDesde); }
+        if (cabeceraOrigen.servicioHasta) { AppFecha.set($('#f-vto-hasta'), cabeceraOrigen.servicioHasta); }
+
+        // FR-007: percepciones e impuestos internos del comprobante.
+        if (Array.isArray(cabeceraOrigen.conceptos) && cabeceraOrigen.conceptos.length) {
+            conceptos = cabeceraOrigen.conceptos.map((c) => ({
+                tipo: c.tipo,
+                concepto: c.concepto,
+                monto: c.monto,
+            }));
+        }
+    }
+
     function depositoInicial() {
         if (editando) { return notaExistente.deposito_id || null; }
         // Al crear, el depósito correcto es el del comprobante que se está ajustando:
@@ -389,15 +425,44 @@
     }
     $('#f-descuento-general').on('input', recalcular);
 
-    // Precarga del modo/valor en edición (US2): no dispara la limpieza de setModoDescuentoGeneral.
-    setModoDescuentoGeneral((notaExistente && notaExistente.descuento_general_tipo) || 'porcentaje', false);
-    if (notaExistente && notaExistente.descuento_general_tipo === 'monto') {
-        if (notaExistente.descuento_general_monto !== undefined && notaExistente.descuento_general_monto !== null) {
-            $('#f-descuento-general').val(notaExistente.descuento_general_monto);
+    // Precarga del modo/valor del Descuento General. En EDICIÓN manda la nota existente (US2,
+    // FR-011); en ALTA lo hereda del comprobante de origen (spec 095, FR-002), que hasta ahora
+    // nacía vacío y hacía que la nota propusiera el total SIN descuento.
+    //
+    // El descuento general se hereda CON su modalidad, sin convertir entre porcentaje y monto:
+    // pasar de un modo al otro introduce un redondeo en un documento con efecto fiscal.
+    // FR-003: va en la CABECERA, no prorrateado en las líneas — el descuento por línea de cada
+    // ítem queda intacto y no se aplica dos veces, porque recalcular() los combina como
+    // factores separados.
+    //
+    // `false` en el segundo argumento evita que el toggle limpie el valor recién puesto.
+    //
+    // Por qué el descuento general NO se aplica dos veces: `itemsDisponibles()` sirve el
+    // `precio_unitario` BRUTO del ítem (venta 24740: 3.572,30), no el `subtotal` que la venta
+    // guarda ya descontado. Sin heredar el descuento, el front calcula $229.956,12 — los
+    // $11.497,80 de más del reporte original. Heredándolo da $218.458,32, el total real.
+    const descuentoOrigen = editando
+        ? {
+            tipo: notaExistente && notaExistente.descuento_general_tipo,
+            pct: notaExistente && notaExistente.descuento_general_pct,
+            monto: notaExistente && notaExistente.descuento_general_monto,
         }
-    } else if (notaExistente && notaExistente.descuento_general_pct !== undefined && notaExistente.descuento_general_pct !== null) {
-        $('#f-descuento-general').val(notaExistente.descuento_general_pct);
+        : {
+            tipo: cabeceraOrigen && cabeceraOrigen.descuentoGeneralTipo,
+            pct: cabeceraOrigen && cabeceraOrigen.descuentoGeneralPct,
+            monto: cabeceraOrigen && cabeceraOrigen.descuentoGeneralMonto,
+        };
+
+    setModoDescuentoGeneral(descuentoOrigen.tipo || 'porcentaje', false);
+    if (descuentoOrigen.tipo === 'monto') {
+        if (descuentoOrigen.monto !== undefined && descuentoOrigen.monto !== null) {
+            $('#f-descuento-general').val(descuentoOrigen.monto);
+        }
+    } else if (descuentoOrigen.pct !== undefined && descuentoOrigen.pct !== null) {
+        $('#f-descuento-general').val(descuentoOrigen.pct);
     }
+    // T010: deja el total propuesto ya calculado al abrir, sin esperar a que se toque un campo.
+    recalcular();
 
     // Percepciones/Impuestos Internos/Intereses (spec 061) — mismo patrón que compras.js/ventas.js.
     const PERCEPCIONES = ['IVA (Percepción)', 'Ganancias', 'Sellos', 'IIBB Buenos Aires', 'IIBB CABA', 'IIBB Catamarca', 'IIBB Chaco', 'IIBB Chubut', 'IIBB Córdoba', 'IIBB Corrientes', 'IIBB Entre Ríos', 'IIBB Formosa', 'IIBB Jujuy', 'IIBB La Pampa', 'IIBB La Rioja', 'IIBB Mendoza', 'IIBB Misiones', 'IIBB Neuquén', 'IIBB Río Negro', 'IIBB Salta', 'IIBB San Juan', 'IIBB San Luis', 'IIBB Santa Cruz', 'IIBB Santa Fe', 'IIBB Santiago del Estero', 'IIBB Tierra del Fuego', 'IIBB Tucumán'];
@@ -520,13 +585,41 @@
             return false;
         }
         if (!AppFecha.get($('#f-fecha-emision'))) { toast('error', 'Ingresá la fecha de Emisión.'); return false; }
+
+        // FR-012/FR-015 (spec 095): el descuento general en modo monto puede superar el subtotal
+        // de las líneas que quedaron — típicamente al borrar filas de una precarga. Se evalúa
+        // acá, AL GUARDAR, y no mientras se edita: durante la edición un estado intermedio
+        // inválido es normal y avisar en cada tecla sería ruido. El sistema no reajusta el
+        // descuento solo: avisa y deja que la persona decida.
+        if ($('#f-descuento-general-toggle').data('modo') === 'monto') {
+            const descuento = Number($('#f-descuento-general').val()) || 0;
+            if (descuento > subtotalSinDescuentoActual()) {
+                toast('error', 'El Descuento General supera el subtotal de las líneas: corregilo antes de guardar.');
+                return false;
+            }
+        }
+
         if (!totalActual()) { toast('error', 'El total tiene que ser mayor a 0.'); return false; }
         return true;
     }
 
+    // FR-004a (spec 095): el tipo de comprobante se puede cambiar, pero si difiere del
+    // comprobante de origen se avisa una vez antes de guardar. Informa, no bloquea: hay casos
+    // legítimos, pero una nota emitida con el tipo cruzado NO se corrige editándola después.
+    let avisoTipoCruzadoMostrado = false;
+    function tipoCruzadoConfirmado() {
+        const tipoOrigen = cabeceraOrigen && cabeceraOrigen.tipoComprobante;
+        const tipoElegido = $('#f-tipo-comprobante').val();
+        if (!tipoOrigen || !tipoElegido || tipoElegido === tipoOrigen) { return true; }
+        if (avisoTipoCruzadoMostrado) { return true; }
+        avisoTipoCruzadoMostrado = true;
+        toast('warning', 'El Tipo de Comprobante (' + tipoElegido + ') no coincide con el del comprobante de origen (' + tipoOrigen + '). Una nota emitida con el tipo cruzado no se corrige editándola. Volvé a Guardar para confirmar.');
+        return false;
+    }
+
     let enviando = false;
     $('#btn-nota-guardar').on('click', function () {
-        if (enviando || !validar()) { return; }
+        if (enviando || !validar() || !tipoCruzadoConfirmado()) { return; }
         enviando = true;
         if (window.AppBtn) { window.AppBtn.loading('#btn-nota-guardar', true); }
 

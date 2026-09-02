@@ -83,3 +83,6 @@ __pycache__/
 # Carpeta de trabajo con archivos reales del contador (cuenta del cliente) — la copia usada como
 # fixture de test vive en tests/Fixtures/IvaDigital/ y esa sí se versiona (spec 086)
 /contador
+
+# Backups del .env (contienen credenciales) — nunca al repo
+.env.bak-*

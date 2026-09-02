@@ -79,6 +79,8 @@
     <table style="width:40%; margin-left:auto;">
         <tr><td>Subtotal sin Descuento</td><td class="text-end">$ {{ number_format((float) $compra->subtotal_sin_descuento, 2, ',', '.') }}</td></tr>
         <tr><td>Descuento</td><td class="text-end">$ {{ number_format((float) $compra->descuento, 2, ',', '.') }}</td></tr>
+        <tr><td>Subtotal</td><td class="text-end">$ {{ number_format((float) $compra->subtotal_con_descuento, 2, ',', '.') }}</td></tr>
+        <tr><td>IVA</td><td class="text-end">$ {{ number_format((float) $compra->total - (float) $compra->subtotal_con_descuento, 2, ',', '.') }}</td></tr>
         <tr><td><strong>Total</strong></td><td class="text-end"><strong>$ {{ number_format((float) $compra->total, 2, ',', '.') }}</strong></td></tr>
     </table>
 </body>

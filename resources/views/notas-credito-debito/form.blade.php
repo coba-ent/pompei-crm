@@ -234,6 +234,10 @@
             // del listado. Puede venir null en comprobantes migrados o anteriores al
             // fix de depósito de las integraciones — ahí el selector queda en blanco.
             depositoId: @json($comprobante->deposito_id),
+            // Spec 095: la cabecera del comprobante que la nota espeja al crearse. En EDICIÓN
+            // llega null a propósito (FR-011): ahí se precarga desde la nota, no desde el origen.
+            // Las fechas viajan en ISO — el helper AppFecha las muestra en dd/mm/aaaa.
+            cabecera: @json($cabeceraOrigen ?? null),
         },
     };
     window.NotaFormConfig = {
