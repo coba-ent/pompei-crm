@@ -173,24 +173,25 @@ class InformeStockController extends Controller
     {
         $base = "COALESCE(NULLIF(TRIM({$this->sqlDetalleCrudo()}), ''), 'Ajuste sin detalle')";
 
-        return $this->sqlConSentidoDelAjuste($base);
+        return $this->sqlConSentidoDelMovimiento($base);
     }
 
     /**
-     * Antepone "Aumento" o "Disminución" a los ajustes, según el signo de la cantidad.
+     * Antepone "Aumento" o "Disminución" a TODOS los movimientos, según el signo de la cantidad.
      *
-     * Pedido del 02/09/2026: en un ajuste, la columna no decía si sumó o restó unidades. Los
-     * movimientos históricos ya lo traían del export de Contagram ("Aumento — por Juan"), pero los
-     * 156 que genera el CRM mostraban sólo su texto libre ("Reversión de Nota de Crédito #876") o
-     * el fallback neutro, sin indicar el sentido.
+     * Pedido del 02/09/2026. Primero se aplicó sólo a los ajustes, con el razonamiento de que en
+     * una venta o una compra el sentido ya se deduce del documento. Ese razonamiento era falso:
      *
-     * Sólo aplica a `tipo = 'ajuste'`: en ventas y compras el sentido ya se lee del documento y de
-     * la propia columna Cantidad, y anteponerlo ahí sería ruido.
+     *   - 304 movimientos de Venta SUMAN stock (devoluciones, anulaciones).
+     *   - 106 movimientos de Compra RESTAN (devoluciones al proveedor).
      *
-     * No se antepone si el texto ya empieza diciéndolo — evita el "Aumento — Aumento por
-     * Importación" de los 3.728 movimientos históricos, que ya vienen con el sentido adelante.
+     * Son justamente los casos donde el documento engaña —se lee "Venta" y se asume que restó— y
+     * donde más falta hace que la columna lo diga. Se aplica a todo, sin excepción por tipo.
+     *
+     * No se antepone si el texto ya empieza diciéndolo: los 3.728 ajustes históricos vienen del
+     * export de Contagram con el sentido adelante, y quedaría "Aumento — Aumento por Importación".
      */
-    private function sqlConSentidoDelAjuste(string $detalle): string
+    private function sqlConSentidoDelMovimiento(string $detalle): string
     {
         $sentido = "CASE WHEN mov.cantidad > 0 THEN 'Aumento' ELSE 'Disminución' END";
 
@@ -201,9 +202,7 @@ class InformeStockController extends Controller
         // LOWER() para que el chequeo no dependa de mayúsculas ni del collation.
         $yaLoDice = "LOWER({$detalle}) LIKE 'aumento%' OR LOWER({$detalle}) LIKE 'disminuci%'";
 
-        return "CASE WHEN mov.tipo = 'ajuste' AND NOT ({$yaLoDice}) "
-            ."THEN {$conSentido} "
-            ."ELSE {$detalle} END";
+        return "CASE WHEN NOT ({$yaLoDice}) THEN {$conSentido} ELSE {$detalle} END";
     }
 
     /**

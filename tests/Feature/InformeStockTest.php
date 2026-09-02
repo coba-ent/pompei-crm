@@ -268,7 +268,7 @@ class InformeStockTest extends TestCase
         $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
         $detalle = collect($respuesta->json('data'))->pluck('detalle')->first();
 
-        $this->assertSame('B 0001-00000001 - Juan Pérez', $detalle);
+        $this->assertSame('Disminución — B 0001-00000001 - Juan Pérez', $detalle);
     }
 
     /**
@@ -308,7 +308,13 @@ class InformeStockTest extends TestCase
         $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
         $detalles = collect($respuesta->json('data'))->pluck('detalle')->all();
 
-        $this->assertSame(['B 0001-00000001 - Juan Pérez', 'B 0001-00000001 - Juan Pérez'], $detalles);
+        // Los dos movimientos son de la MISMA venta y antes se veían idénticos. Ahora el sentido
+        // los distingue: uno descontó al vender, el otro reintegró al eliminarla.
+        sort($detalles);
+        $this->assertSame([
+            'Aumento — B 0001-00000001 - Juan Pérez',
+            'Disminución — B 0001-00000001 - Juan Pérez',
+        ], $detalles);
     }
 
     public function test_movimientos_de_compra_ajuste_y_transferencia_usan_descripcion_como_detalle(): void
@@ -380,7 +386,7 @@ class InformeStockTest extends TestCase
         $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
 
         $this->assertSame(
-            'A 0000-00001475 - JPD AMOBLAMIENTO',
+            'Aumento — A 0000-00001475 - JPD AMOBLAMIENTO',
             collect($respuesta->json('data'))->pluck('detalle')->first()
         );
     }
@@ -406,7 +412,7 @@ class InformeStockTest extends TestCase
         $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
 
         $this->assertSame(
-            'GOOD LOOKING',
+            'Aumento — GOOD LOOKING',
             collect($respuesta->json('data'))->pluck('detalle')->first()
         );
     }
@@ -576,10 +582,14 @@ class InformeStockTest extends TestCase
     }
 
     /**
-     * El sentido se antepone SÓLO a los ajustes: en una venta o una compra ya se lee del documento
-     * y de la propia columna Cantidad, y ahí sería ruido.
+     * Una venta que DEVUELVE stock lleva "Aumento", no "Disminución".
+     *
+     * Es el caso que invalidó la primera versión de esta feature, que anteponía el sentido sólo a
+     * los ajustes con el razonamiento de que en una venta ya se deduce del documento. En producción
+     * hay 304 movimientos de Venta que SUMAN (devoluciones, anulaciones) y 106 de Compra que RESTAN:
+     * justo donde el documento engaña es donde más falta hace que la columna lo diga.
      */
-    public function test_una_venta_no_lleva_el_prefijo_de_sentido(): void
+    public function test_una_venta_que_devuelve_stock_dice_aumento(): void
     {
         $deposito = $this->deposito();
         $producto = Producto::factory()->create(['tipo' => 'producto']);
@@ -588,12 +598,12 @@ class InformeStockTest extends TestCase
             'cliente_id' => $cliente->id, 'tipo_comprobante' => 'B', 'nro_comprobante' => '0001-00000001',
         ]);
 
-        app(StockService::class)->registrarSalida($producto, null, $deposito, 1, $venta);
+        app(StockService::class)->registrarEntrada($producto, null, $deposito, 1, $venta);
 
         $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
 
         $this->assertSame(
-            'B 0001-00000001 - Juan Pérez',
+            'Aumento — B 0001-00000001 - Juan Pérez',
             collect($respuesta->json('data'))->pluck('detalle')->first()
         );
     }
