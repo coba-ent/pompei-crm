@@ -71,7 +71,10 @@
             categoriasJerarquia().forEach(({ raiz, hijos }) => {
                 out.push({ id: raiz.id, tipo: 'categoria', text: raiz.nombre, esSistema: !!raiz.es_sistema, padre: true });
                 out.push({ id: PREFIJO_CREAR_SUB + raiz.id, tipo: 'crear_sub', text: 'Crear Subcategoría', categoriaId: raiz.id, padreId: raiz.id });
-                hijos.forEach((h) => out.push({ id: h.id, tipo: 'subcategoria', text: h.nombre, esSistema: !!h.es_sistema, padreId: raiz.id }));
+                hijos.forEach((h) => out.push({
+                    id: h.id, tipo: 'subcategoria', text: h.nombre, esSistema: !!h.es_sistema,
+                    padreId: raiz.id, padreNombre: raiz.nombre,
+                }));
             });
             return out;
         }
@@ -82,8 +85,16 @@
 
         // Con el buscador vacío se respeta el plegado; al tipear se busca sobre TODAS las
         // subcategorías aunque su padre esté cerrado (si no, el buscador quedaría inservible).
+        // Con el desplegable plegado, la sangría y el padre abierto arriba ya dicen de qué
+        // categoría cuelga cada subcategoría. Al buscar eso se pierde: los resultados salen sueltos
+        // y hay nombres que se repiten bajo varios padres ("Otros" existe en 6, con 305, 208, 53,
+        // 24 y 14 gastos cada uno). Sin el padre al lado son indistinguibles y es fácil imputar un
+        // gasto a la categoría equivocada.
+        let buscandoCategoria = false;
+
         function matcherCategoriaGasto(params, data) {
             const termino = normalizar(params && params.term).trim();
+            buscandoCategoria = termino.length > 0;
             if (!termino) {
                 if (data.padreId != null && !expandidas.has(String(data.padreId))) { return null; }
                 return data;
@@ -139,6 +150,9 @@
                 $izq.append($chevron);
             }
             $izq.append($('<span></span>').text(data.text));
+            if (esSub && buscandoCategoria && data.padreNombre) {
+                $izq.append($('<small class="text-muted ms-2"></small>').text('· ' + data.padreNombre));
+            }
             $fila.append($izq);
             if (!data.esSistema) {
                 const $lapiz = $('<a href="#" class="js-editar-categoria-gasto text-muted ms-2" title="Editar"><i class="fas fa-pencil-alt"></i></a>');
