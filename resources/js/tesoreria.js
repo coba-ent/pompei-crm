@@ -544,18 +544,43 @@
             return c.nombre + ' — ' + fmtMoney(c.saldo);
         }
 
+        /**
+         * Fila del desplegable: nombre a la izquierda y saldo pegado al margen derecho, en vez de
+         * "Nombre — $ 1.234" todo corrido. Con nombres de largo dispar los montos quedaban a
+         * distinta altura y no se podían comparar de un vistazo.
+         *
+         * Sólo aplica al desplegable: la opción ya elegida sigue usando `text` (el string de
+         * `etiquetaCuenta`), que es lo que Select2 muestra en el campo cerrado.
+         */
+        function filaCuenta(data) {
+            if (!data.id || data.loading) { return data.text; }
+
+            const $fila = $('<span class="d-flex align-items-center justify-content-between w-100 gap-3"></span>');
+            $fila.append($('<span class="text-truncate"></span>').text(data.nombre || data.text));
+            $fila.append($('<span class="text-nowrap text-muted"></span>').text(fmtMoney(data.saldo)));
+
+            return $fila;
+        }
+
         function initSelectCuenta($el) {
             initSelect2($el, {
                 dropdownParent: $modalTransf,
                 placeholder: 'Elija una cuenta',
                 minimumInputLength: 0,
+                templateResult: filaCuenta,
                 ajax: {
                     url: rutas.cuentasOpciones,
                     dataType: 'json',
                     delay: 250,
                     data: function (params) { return { q: params.term || '' }; },
                     processResults: function (data) {
-                        return { results: (data.data || []).map(function (c) { return { id: c.id, text: etiquetaCuenta(c) }; }) };
+                        return {
+                            results: (data.data || []).map(function (c) {
+                                // `nombre` y `saldo` aparte del `text` para poder maquetarlos en
+                                // columnas desde `templateResult`.
+                                return { id: c.id, text: etiquetaCuenta(c), nombre: c.nombre, saldo: c.saldo };
+                            }),
+                        };
                     },
                 },
             });

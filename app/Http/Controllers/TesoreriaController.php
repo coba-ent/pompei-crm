@@ -103,9 +103,13 @@ class TesoreriaController extends Controller
     {
         $termino = $request->input('q');
 
+        // Alfabético y no `ordenadas()`: ese scope respeta el `orden` manual, que se repite entre
+        // tipos de cuenta (hay varios `1`, varios `2`...) y deja el desplegable de "Elija una
+        // cuenta" con las cajas salteadas. Para buscar una cuenta entre 21, el alfabético es el
+        // único orden predecible.
         $cuentas = CuentaTesoreria::visibles()
             ->when($termino, fn ($q) => $q->where('nombre', 'like', "%{$termino}%"))
-            ->ordenadas()
+            ->orderBy('nombre')
             ->get();
 
         return response()->json([
