@@ -209,6 +209,14 @@
             aggregators: { [nombreAccion]: () => agg[nombreAccion] },
             aggregatorName: nombreAccion,
 
+            // En un RANKING la fila de arriba tiene que ser la de mayor valor: es lo que se va a
+            // mirar. Por defecto PivotTable.js ordena por la etiqueta (`key_a_to_z`), así que el
+            // ranking salía alfabético y había que tocar la flechita para ordenarlo cada vez.
+            // `value_z_to_a` es el mismo orden que aplica esa flecha, sólo que ya puesto.
+            // "Arma tu Informe" (sin `dimensionesVisibles`) queda con el default: ahí el usuario
+            // arma la tabla a mano y el alfabético es más previsible para leer una lista larga.
+            ...(cfg.dimensionesVisibles ? { rowOrder: 'value_z_to_a' } : {}),
+
             // Las columnas que no son dimensión no tienen por qué aparecer en el pool. Y en un
             // RANKING se ocultan además las dimensiones ajenas: Contagram deja en el pool sólo
             // "fecha de emision" (relevado 16/08/2026 sobre su Ranking de Categorías), no las 13.
