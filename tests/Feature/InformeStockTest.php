@@ -321,8 +321,10 @@ class InformeStockTest extends TestCase
         $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
         $fila = collect($respuesta->json('data'))->first();
 
-        $this->assertSame('Ajuste manual de prueba', $fila['detalle']);
-        $this->assertSame($fila['descripcion'], $fila['detalle']);
+        // Desde el 02/09/2026 los ajustes llevan el sentido adelante; la descripción propia se
+        // conserva intacta detrás.
+        $this->assertSame('Aumento — Ajuste manual de prueba', $fila['detalle']);
+        $this->assertStringContainsString($fila['descripcion'], $fila['detalle']);
     }
 
     public function test_la_columna_documento_enlaza_la_venta_que_origino_el_movimiento(): void
@@ -419,7 +421,7 @@ class InformeStockTest extends TestCase
 
         $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
 
-        $this->assertSame('Ajuste sin detalle', collect($respuesta->json('data'))->pluck('detalle')->first());
+        $this->assertSame('Aumento — Ajuste sin detalle', collect($respuesta->json('data'))->pluck('detalle')->first());
     }
 
     /** Un ajuste que sí trae descripción la conserva: el fallback no la pisa. */
@@ -432,7 +434,7 @@ class InformeStockTest extends TestCase
 
         $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
 
-        $this->assertSame('Ajuste por conteo real', collect($respuesta->json('data'))->pluck('detalle')->first());
+        $this->assertSame('Aumento — Ajuste por conteo real', collect($respuesta->json('data'))->pluck('detalle')->first());
     }
 
     /**
@@ -500,5 +502,99 @@ class InformeStockTest extends TestCase
 
         $this->assertEquals(5, $filas->firstWhere('deposito', 'Local')['stock_saldo']);
         $this->assertEquals(40, $filas->firstWhere('deposito', 'Full')['stock_saldo']);
+    }
+
+    /**
+     * Pedido del 02/09/2026: en un ajuste, la columna Detalle tiene que decir si sumó o restó.
+     *
+     * Los movimientos históricos ya lo traían del export de Contagram ("Aumento — por Juan"), pero
+     * los 156 que genera el CRM mostraban sólo su texto libre, sin indicar el sentido.
+     */
+    public function test_un_ajuste_positivo_dice_aumento(): void
+    {
+        $deposito = $this->deposito();
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+
+        app(StockService::class)->ajustar($producto, null, $deposito, 5, 'Reversión de Nota de Crédito #876');
+
+        $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
+
+        $this->assertSame(
+            'Aumento — Reversión de Nota de Crédito #876',
+            collect($respuesta->json('data'))->pluck('detalle')->first()
+        );
+    }
+
+    public function test_un_ajuste_negativo_dice_disminucion(): void
+    {
+        $deposito = $this->deposito();
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+
+        app(StockService::class)->ajustar($producto, null, $deposito, -3, 'Ajuste por conteo real');
+
+        $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
+
+        $this->assertSame(
+            'Disminución — Ajuste por conteo real',
+            collect($respuesta->json('data'))->pluck('detalle')->first()
+        );
+    }
+
+    /** Un ajuste sin texto propio queda con el sentido y el fallback, nunca en blanco. */
+    public function test_un_ajuste_sin_texto_igual_dice_el_sentido(): void
+    {
+        $deposito = $this->deposito();
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+
+        app(StockService::class)->ajustar($producto, null, $deposito, 2);
+
+        $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
+
+        $this->assertSame(
+            'Aumento — Ajuste sin detalle',
+            collect($respuesta->json('data'))->pluck('detalle')->first()
+        );
+    }
+
+    /**
+     * Los 3.728 ajustes históricos ya vienen del export con el sentido adelante ("Aumento por
+     * Importación — por Juan"). Anteponérselo de nuevo daría "Aumento — Aumento por Importación".
+     */
+    public function test_no_duplica_el_sentido_cuando_el_texto_ya_lo_trae(): void
+    {
+        $deposito = $this->deposito();
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+
+        app(StockService::class)->ajustar($producto, null, $deposito, 7, 'Aumento por Importación — por Juan Ignacio Conlon');
+
+        $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
+
+        $this->assertSame(
+            'Aumento por Importación — por Juan Ignacio Conlon',
+            collect($respuesta->json('data'))->pluck('detalle')->first()
+        );
+    }
+
+    /**
+     * El sentido se antepone SÓLO a los ajustes: en una venta o una compra ya se lee del documento
+     * y de la propia columna Cantidad, y ahí sería ruido.
+     */
+    public function test_una_venta_no_lleva_el_prefijo_de_sentido(): void
+    {
+        $deposito = $this->deposito();
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+        $cliente = Cliente::factory()->create(['nombre' => 'Juan Pérez']);
+        $venta = Venta::factory()->create([
+            'cliente_id' => $cliente->id, 'tipo_comprobante' => 'B', 'nro_comprobante' => '0001-00000001',
+        ]);
+
+        app(StockService::class)->registrarSalida($producto, null, $deposito, 1, $venta);
+
+        $respuesta = $this->getJson(route('informes.stock.data', ['draw' => 1, 'start' => 0, 'length' => 10]))->assertOk();
+
+        $this->assertSame(
+            'B 0001-00000001 - Juan Pérez',
+            collect($respuesta->json('data'))->pluck('detalle')->first()
+        );
     }
 }
