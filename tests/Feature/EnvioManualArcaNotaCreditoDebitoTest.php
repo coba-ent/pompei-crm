@@ -425,6 +425,40 @@ class EnvioManualArcaNotaCreditoDebitoTest extends TestCase
         $this->assertSame('aprobado', $nota->refresh()->estadoArca());
     }
 
+    public function test_nota_con_cae_aprobado_no_ofrece_editar_ni_eliminar_en_el_detalle(): void
+    {
+        $venta = $this->crearVentaConCae($this->cliente(), [
+            ['descripcion' => 'Producto', 'cantidad' => 1, 'precio_unitario' => 1000, 'iva_pct' => '21'],
+        ]);
+
+        $this->postJson(route('ventas.notas.store', $venta), [
+            'tipo' => 'credito',
+            'fecha_emision' => now()->toDateString(),
+            'mes_imputacion' => now()->toDateString(),
+            'monto' => 100,
+            'afecta_stock' => false,
+            'descripcion' => 'Ajuste de prueba',
+        ])->assertCreated();
+
+        $nota = $venta->notasCreditoDebito()->firstOrFail();
+
+        // Sin CAE propio todavía: ambas acciones disponibles.
+        $this->get(route('ventas.show', $venta))
+            ->assertOk()
+            ->assertSee('js-editar-nota')
+            ->assertSee('js-eliminar-nota');
+
+        $this->postJson(route('ventas.notas.enviarArca', [$venta, $nota]))->assertOk();
+        $this->assertTrue($nota->refresh()->tieneCaeAprobado());
+
+        // Con CAE aprobado la nota ya fue declarada al fisco: el backend rechaza editar/eliminar
+        // con 409, así que la vista tampoco debe ofrecer esas acciones.
+        $this->get(route('ventas.show', $venta))
+            ->assertOk()
+            ->assertDontSee('js-editar-nota')
+            ->assertDontSee('js-eliminar-nota');
+    }
+
     public function test_venta_estado_arca_devuelve_los_4_valores(): void
     {
         $cliente = $this->cliente();

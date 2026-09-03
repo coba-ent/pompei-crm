@@ -318,8 +318,12 @@
                                         <a href="#" class="dropdown-toggle" data-bs-toggle="dropdown">Estado</a>
                                         <ul class="dropdown-menu">
                                             <li><a class="dropdown-item js-ver-detalle-nota" href="#" data-url="{{ route('compras.notas.pdf', $nota) }}">Ver Detalle</a></li>
-                                            <li><a class="dropdown-item js-editar-nota" href="#" data-id="{{ $nota->id }}">Editar</a></li>
-                                            <li><a class="dropdown-item text-danger js-eliminar-nota" href="#" data-id="{{ $nota->id }}">Eliminar</a></li>
+                                            {{-- Idem Ventas: con CAE aprobado el backend rechaza editar/eliminar
+                                                 (409), así que la acción no se ofrece. --}}
+                                            @if (! $nota->tieneCaeAprobado())
+                                                <li><a class="dropdown-item js-editar-nota" href="#" data-id="{{ $nota->id }}">Editar</a></li>
+                                                <li><a class="dropdown-item text-danger js-eliminar-nota" href="#" data-id="{{ $nota->id }}">Eliminar</a></li>
+                                            @endif
                                         </ul>
                                     </td>
                                 </tr>

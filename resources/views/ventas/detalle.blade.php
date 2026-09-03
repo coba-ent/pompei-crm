@@ -465,11 +465,18 @@
                                         <a href="#" class="dropdown-toggle" data-bs-toggle="dropdown">Estado</a>
                                         <ul class="dropdown-menu">
                                             <li><a class="dropdown-item js-ver-detalle-nota" href="#" data-url="{{ route('ventas.notas.pdf', $nota) }}">Ver Detalle</a></li>
-                                            <li><a class="dropdown-item js-editar-nota" href="#" data-id="{{ $nota->id }}">Editar</a></li>
+                                            {{-- Con CAE aprobado la nota ya fue declarada al fisco: el backend
+                                                 rechaza editarla y eliminarla (409), así que la acción tampoco
+                                                 se ofrece acá — antes se ofrecía y fallaba recién al apretarla. --}}
+                                            @if (! $nota->tieneCaeAprobado())
+                                                <li><a class="dropdown-item js-editar-nota" href="#" data-id="{{ $nota->id }}">Editar</a></li>
+                                            @endif
                                             @if ($nota->puedeEnviarseAArca($venta))
                                                 <li><a class="dropdown-item js-enviar-arca-nota" href="#" data-id="{{ $nota->id }}" data-url="{{ route('ventas.notas.enviarArca', [$venta, $nota]) }}">Enviar a ARCA</a></li>
                                             @endif
-                                            <li><a class="dropdown-item text-danger js-eliminar-nota" href="#" data-id="{{ $nota->id }}">Eliminar</a></li>
+                                            @if (! $nota->tieneCaeAprobado())
+                                                <li><a class="dropdown-item text-danger js-eliminar-nota" href="#" data-id="{{ $nota->id }}">Eliminar</a></li>
+                                            @endif
                                         </ul>
                                     </td>
                                 </tr>
