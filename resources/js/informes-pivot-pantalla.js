@@ -106,13 +106,28 @@
         }
 
         /**
+         * Atributos extra que quedan en el pool de un ranking, además de su propia dimensión.
+         *
+         * El ranking de Productos suma los que identifican al producto —Id, Código y Proveedor—
+         * para poder desglosar el mismo cruce por cualquiera de ellos sin salir del ranking:
+         * dos productos pueden llamarse igual, y el Id o el Código los separan.
+         */
+        const ATRIBUTOS_EXTRA_RANKING = {
+            productos: ['producto_id', 'codigo_producto', 'proveedores'],
+        };
+
+        /**
          * Qué dimensiones quedan a mano en el pool.
          *
-         * En un ranking, sólo la del ranking más el desglose de fecha — así lo muestra Contagram.
-         * En "Arma tu Informe" se devuelve `null` y quedan las 13.
+         * En un ranking, sólo la del ranking más el desglose de fecha —así lo muestra Contagram—
+         * y los atributos extra que declare ese ranking. En "Arma tu Informe" se devuelve `null`
+         * y quedan todas.
          */
         function visiblesDeRanking(dimension) {
-            return dimension ? [dimension, 'fecha_emision', 'fecha_emision.anio', 'fecha_emision.mes'] : null;
+            if (!dimension) { return null; }
+
+            return [dimension, 'fecha_emision', 'fecha_emision.anio', 'fecha_emision.mes']
+                .concat(ATRIBUTOS_EXTRA_RANKING[dimension] || []);
         }
 
         function render(config, titulo, dimensionesVisibles) {

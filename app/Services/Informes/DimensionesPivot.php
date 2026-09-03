@@ -32,6 +32,8 @@ class DimensionesPivot
             'tipos_factura' => ['Tipos de Factura', 'tipo_comprobante'],
             'vendedores' => ['Vendedores', 'vendedor'],
             'productos' => ['Productos', 'producto'],
+            'producto_id' => ['Id de Producto', 'producto_id'],
+            'codigo_producto' => ['Código de Producto', 'codigo'],
             'tipos_producto' => ['Tipos de Producto', 'tipo_producto'],
             'proveedores' => ['Proveedores', 'proveedor'],
             'cantidades' => ['Cantidades', 'cantidad'],
