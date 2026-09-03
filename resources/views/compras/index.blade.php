@@ -215,19 +215,19 @@
                             <tr>
                                 <th>Estado</th>
                                 <th>Id</th>
-                                <th>Creado</th>
                                 <th>Emisión</th>
                                 <th>Vencimiento</th>
                                 <th>Proveedor</th>
                                 <th>Nro. Factura</th>
-                                <th>Categoría</th>
-                                <th>Subtotal sin Descuento</th>
-                                <th>Descuento</th>
-                                <th>Subtotal con Descuento</th>
                                 <th>Total Compra</th>
                                 <th>Pagado</th>
                                 <th>A Pagar</th>
                                 <th>Medio de Pago</th>
+                                <th>Creado</th>
+                                <th>Categoría</th>
+                                <th>Subtotal sin Descuento</th>
+                                <th>Descuento</th>
+                                <th>Subtotal con Descuento</th>
                                 <th>Etiquetas</th>
                                 <th>CUIT</th>
                                 <th>Teléfono</th>

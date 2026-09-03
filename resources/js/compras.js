@@ -285,26 +285,36 @@
             columns: [
                 { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
                 { data: 'id', name: 'id' },
-                { data: 'created_at', name: 'created_at' },
                 { data: 'fecha_emision', name: 'fecha_emision' },
                 { data: 'fecha_vto_pago', name: 'fecha_vto_pago' },
                 { data: 'proveedor', name: 'proveedor.nombre' },
                 { data: 'nro_comprobante', name: 'nro_comprobante' },
-                { data: 'categoria', name: 'categoria.nombre' },
-                { data: 'subtotal_sin_descuento', name: 'subtotal_sin_descuento', render: money },
-                { data: 'descuento', name: 'descuento', render: money },
-                { data: 'subtotal_con_descuento', name: 'subtotal_con_descuento', render: money },
                 { data: 'total', name: 'total', render: money },
                 { data: 'pagado', name: 'pagado', render: money },
                 { data: 'a_pagar', name: 'a_pagar', render: money },
                 { data: 'medio_de_pago', name: 'medio_de_pago' },
+                { data: 'created_at', name: 'created_at' },
+                { data: 'categoria', name: 'categoria.nombre' },
+                { data: 'subtotal_sin_descuento', name: 'subtotal_sin_descuento', render: money },
+                { data: 'descuento', name: 'descuento', render: money },
+                { data: 'subtotal_con_descuento', name: 'subtotal_con_descuento', render: money },
                 { data: 'etiquetas', name: 'etiquetas', orderable: false, searchable: false, visible: false },
                 { data: 'cuit', name: 'cuit', orderable: false, searchable: false, visible: false },
                 { data: 'telefono', name: 'telefono', orderable: false, searchable: false, visible: false },
                 { data: 'mail', name: 'mail', orderable: false, searchable: false, visible: false },
             ],
-            order: [[2, 'desc']], // índice 2 = "Creado" (created_at), mismo criterio que Ventas/Gastos: la única columna con hora, evita empates de mismo día en desorden.
+            order: [[10, 'desc']], // índice 10 = "Creado" (created_at), mismo criterio que Ventas/Gastos: la única columna con hora, evita empates de mismo día en desorden.
             stateSave: true,
+            // El estado guardado (orden, visibilidad, búsqueda) se persiste por ÍNDICE de columna,
+            // así que al reordenar las columnas el estado viejo del navegador aplicaría cada
+            // ajuste a la columna equivocada. `stateLoadParams` descarta cualquier estado
+            // anterior a la reorganización — subir el número invalida el guardado otra vez.
+            stateLoadParams: function (settings, data) {
+                if (data.ordenColumnas !== 2) { return false; }
+            },
+            stateSaveParams: function (settings, data) {
+                data.ordenColumnas = 2;
+            },
             buttons: [
                 {
                     extend: 'colvis',
