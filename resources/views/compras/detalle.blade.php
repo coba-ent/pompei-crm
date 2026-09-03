@@ -15,6 +15,7 @@
                 <a href="{{ route('compras.index') }}" class="btn btn-light btn-sm">
                     <i class="fas fa-arrow-left me-1"></i> Volver
                 </a>
+                <span class="badge bg-dark ms-2 align-middle">Compra #{{ $compra->id }}</span>
             </div>
             <div class="col-sm-6 text-sm-end">
                 <a href="{{ route('compras.edit', $compra) }}" class="btn btn-primary me-1">
