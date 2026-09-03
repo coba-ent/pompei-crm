@@ -274,9 +274,18 @@
                 </div>
                 <div class="table-responsive">
                     <table class="table table-sm">
-                        <thead><tr><th>Id</th><th>Tipo</th><th>Fecha</th><th>Afecta Stock</th><th>Mes de Imputación</th><th>N° Comprobante</th><th>Documento que Ajusta</th><th>Monto</th><th>Nota Interna</th><th></th></tr></thead>
+                        <thead><tr><th>Id</th><th>Tipo</th><th>Fecha</th><th>Afecta Stock</th><th>Mes de Imputación</th><th>N° Comprobante</th><th>Documento que Ajusta</th><th>Estado ARCA</th><th>Monto</th><th>Nota Interna</th><th></th></tr></thead>
                         <tbody>
                             @forelse ($compra->notasCreditoDebito as $nota)
+                                @php
+                                    $estadoArcaNotaCompra = $nota->estadoArca();
+                                    $badgeArcaNotaCompra = [
+                                        'sin_enviar' => ['bg-secondary', 'Sin enviar'],
+                                        'pendiente' => ['bg-info text-dark', 'Pendiente'],
+                                        'aprobado' => ['bg-success', 'Aprobado'],
+                                        'rechazado' => ['bg-danger', 'Rechazado'],
+                                    ][$estadoArcaNotaCompra] ?? ['bg-secondary', 'Sin enviar'];
+                                @endphp
                                 <tr>
                                     <td>{{ $nota->id }}</td>
                                     <td>{{ $nota->tipo === 'credito' ? 'Nota de Crédito' : 'Nota de Débito' }}</td>
@@ -285,6 +294,24 @@
                                     <td>{{ $nota->mes_imputacion->format('m/Y') }}</td>
                                     <td>{{ $nota->comprobanteFiscal?->numero ?? $nota->nro_comprobante ?? '-' }}</td>
                                     <td>{{ $nota->documentoQueAjusta($compra) ?? '-' }}</td>
+                                    {{-- FR-015 (spec 097): estado propio de la nota. La acción "Enviar a
+                                         ARCA" para Compra NO se ofrece todavía en esta vista — el mapeo
+                                         del receptor fiscal (Proveedor) para el payload de ARCA quedó
+                                         pendiente de definir (ver NotaCreditoDebitoController). --}}
+                                    <td>
+                                        <span class="badge {{ $badgeArcaNotaCompra[0] }}"
+                                              @if ($estadoArcaNotaCompra === 'rechazado' && $nota->comprobanteFiscal?->motivo_rechazo)
+                                                  title="{{ $nota->comprobanteFiscal->motivo_rechazo }}"
+                                              @endif>
+                                            {{ $badgeArcaNotaCompra[1] }}
+                                        </span>
+                                        @if ($estadoArcaNotaCompra === 'aprobado')
+                                            <br><span class="text-muted small">
+                                                CAE {{ $nota->comprobanteFiscal->cae }}
+                                                — vto. {{ optional($nota->comprobanteFiscal->cae_vencimiento)->format('d/m/Y') }}
+                                            </span>
+                                        @endif
+                                    </td>
                                     <td>$ {{ number_format((float) $nota->monto, 2, ',', '.') }}</td>
                                     <td>{{ $nota->nota_interna ?: '-' }}</td>
                                     <td class="dropdown">
@@ -297,7 +324,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="10" class="text-center text-muted">Sin notas</td></tr>
+                                <tr><td colspan="11" class="text-center text-muted">Sin notas</td></tr>
                             @endforelse
                         </tbody>
                     </table>

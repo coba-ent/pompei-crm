@@ -129,6 +129,35 @@ class NotaCreditoDebito extends Model
     }
 
     /**
+     * Habilita la acción manual "Enviar a ARCA" (spec 097, FR-003): tipo A/B/C, sin CAE propio
+     * aprobado, con el comprobante original (Venta/Compra) ya aprobado por ARCA, y con la Función
+     * Avanzada de Facturación Electrónica activa — mismo criterio que `Venta::puedeEnviarseAArca()`
+     * (spec 040) más la condición extra del comprobante original.
+     */
+    public function puedeEnviarseAArca(Venta|Compra|null $comprobanteOriginal): bool
+    {
+        if (! in_array($this->tipo_comprobante, ['A', 'B', 'C'], true)) {
+            return false;
+        }
+
+        if ($this->tieneCaeAprobado()) {
+            return false;
+        }
+
+        if (! FuncionAvanzada::activa('facturacion_electronica')) {
+            return false;
+        }
+
+        return $comprobanteOriginal?->comprobanteFiscal?->aprobado() === true;
+    }
+
+    /** Estado de ARCA propio de la nota (FR-015), mismos 4 valores que `Venta::estadoArca()`. */
+    public function estadoArca(): string
+    {
+        return $this->comprobanteFiscal?->estado ?? 'sin_enviar';
+    }
+
+    /**
      * "Documento que Ajusta" a mostrar en la tabla (research.md R4): prioridad
      * `notaAjustada` (encadenamiento, FR-013) sobre el comprobante fiscal de la
      * Venta/Compra original. Null si no hay nada que mostrar.

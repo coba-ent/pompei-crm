@@ -141,7 +141,15 @@ class EmisionComprobanteNotaCreditoDebitoTest extends TestCase
         $response->assertCreated()->assertJsonPath('ok', true);
 
         $nota = $venta->notasCreditoDebito()->firstOrFail();
-        $comprobanteNota = $nota->comprobanteFiscal;
+
+        // Spec 097: crear la nota ya NO dispara el envío — se envía manualmente.
+        $this->assertNull($nota->comprobanteFiscal);
+
+        $this->postJson(route('ventas.notas.enviarArca', [$venta, $nota]))
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $comprobanteNota = $nota->refresh()->comprobanteFiscal;
 
         $this->assertNotNull($comprobanteNota);
         $this->assertSame('aprobado', $comprobanteNota->estado);

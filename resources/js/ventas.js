@@ -1530,6 +1530,63 @@
         });
 
         // ---------------------------------------------------------------------
+        // Envío manual a ARCA de una NC/ND (spec 097) — mismo patrón que
+        // inicializarArca() de Venta (spec 040), pero con modales propios: la
+        // confirmación es modal-confirmar-arca-nota y el resultado real de ARCA
+        // (aprobado/rechazado) va en modal-resultado-arca-nota, persistente hasta
+        // que el usuario lo cierra. Un rechazo de precondición (422) va por toast.
+        // ---------------------------------------------------------------------
+        let $btnArcaNotaPendiente = null;
+        $(document).on('click', '.js-enviar-arca-nota', function (e) {
+            e.preventDefault();
+            $btnArcaNotaPendiente = $(this);
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-confirmar-arca-nota')).show();
+        });
+
+        $('#btn-confirmar-arca-nota').on('click', function () {
+            const $btn = $btnArcaNotaPendiente;
+            if (!$btn) { return; }
+            bootstrap.Modal.getInstance(document.getElementById('modal-confirmar-arca-nota'))?.hide();
+
+            $btn.addClass('disabled');
+            $.ajax({ url: $btn.data('url'), method: 'POST' })
+                .done((resp) => mostrarResultadoArcaNota(resp))
+                .fail((xhr) => {
+                    if (xhr.status === 422) {
+                        toast('error', xhr.responseJSON?.motivo || 'No se pudo enviar a ARCA.');
+                    } else {
+                        mostrarResultadoArcaNota(xhr.responseJSON || { ok: false, motivo: 'No se pudo enviar a ARCA.' });
+                    }
+                })
+                .always(() => {
+                    $btn.removeClass('disabled');
+                    $btnArcaNotaPendiente = null;
+                });
+        });
+
+        function mostrarResultadoArcaNota(resp) {
+            const $body = $('#modal-resultado-arca-nota-body');
+            if (resp.ok) {
+                $body.html(
+                    '<p class="text-success fw-bold mb-2"><i class="fas fa-check-circle me-1"></i> CAE obtenido correctamente.</p>' +
+                    '<div><strong>CAE:</strong> ' + (resp.cae || '-') + '</div>' +
+                    '<div><strong>Vencimiento:</strong> ' + (resp.cae_vencimiento || '-') + '</div>'
+                );
+            } else {
+                $body.html(
+                    '<p class="text-danger fw-bold mb-2"><i class="fas fa-times-circle me-1"></i> ARCA rechazó el envío.</p>' +
+                    '<div>' + (resp.motivo || 'Motivo no informado.') + '</div>'
+                );
+            }
+            const $modal = $('#modal-resultado-arca-nota');
+            // Al cerrar, refresca la fila sin recargar la página completa (FR-006) — la NC/ND no
+            // tiene un DataTable AJAX propio (vive embebida en el Detalle), así que el refresh más
+            // simple y consistente con el resto de la pantalla (editar/eliminar nota) es recargar.
+            $modal.one('hidden.bs.modal', () => window.location.reload());
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-resultado-arca-nota')).show();
+        }
+
+        // ---------------------------------------------------------------------
         // Siguiente (spec 059): ya no muestra un 2do paso — navega a la página
         // completa (ventas.notas.create/edit) pasando el paso 1 por query string.
         // ---------------------------------------------------------------------

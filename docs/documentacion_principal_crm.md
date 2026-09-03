@@ -1577,6 +1577,28 @@ vencimiento de CAE, QR fiscal y una referencia visible al comprobante de Venta q
 número y fecha) — cierra el pendiente que había quedado abierto en spec 034 (T027). Ese PDF y el de
 Venta muestran además el encabezado del emisor con los datos de "Mi Perfil" (ver §5) cuando están
 cargados; si no lo están, el encabezado se omite sin bloquear la generación del comprobante.
+
+**Actualización (spec 097, 03/09/2026 — corrige para NC/ND el mismo defecto que spec 040 corrigió para
+Venta, y agrega IVA real por línea):** hasta esta spec, crear una Nota de Crédito/Débito sobre una
+Venta/Compra con `ComprobanteFiscal` aprobado **disparaba sola** la solicitud de CAE a ARCA
+(`NotaCreditoDebitoController::store()`/`storeCompra()`), sin ninguna confirmación del usuario — spec 040
+había dejado esto expresamente fuera de su alcance. Ahora, igual que Venta: crear la nota **ya NO** envía
+nada; el envío es una acción manual **"Enviar a ARCA"** en el menú de fila de la tabla de NC/ND (Detalle
+de Venta/Compra), disponible sólo si la nota es tipo A/B/C, no tiene su propio `ComprobanteFiscal`
+aprobado, el comprobante original sí lo tiene, y la Función Avanzada de Facturación Electrónica está
+activa (`NotaCreditoDebito::puedeEnviarseAArca()`). El resultado real de ARCA se muestra en modales
+**propios** de NC/ND (`#modal-confirmar-arca-nota`/`#modal-resultado-arca-nota`, independientes de los de
+Venta) — un rechazo de precondición va por toast. Además, el payload de IVA hacia ARCA dejó de calcular
+el neto/IVA de toda la nota como `monto / 1.21` fijo: cuando **todos** los ítems de la nota tienen línea
+de origen (`venta_item_id`/`compra_item_id`, spec 096), se arma en cambio el desglose real por alícuota a
+partir de esos ítems (`cantidad × precio × (1 - descuento_pct/100)` y su `iva_pct` real), consistente con
+el neto/IVA agregados que exige `ValidadorDatosFiscales`. Si algún ítem de la nota no tiene línea de
+origen (nota vieja, o con ítems mixtos), la nota completa cae al fallback agregado — nunca se combinan
+ambos criterios. Paridad Compras: `enviarArcaCompra()` valida las mismas precondiciones, pero el receptor
+fiscal (`Proveedor`) en el payload de ARCA **queda pendiente de definir** — `Proveedor` no tiene hoy un
+`datosFiscalesArca()` equivalente al de `Cliente`, y el trigger original nunca llegó a probarse contra
+Compra. La vista de Compra sólo muestra el estado de la nota, sin ofrecer el botón de envío hasta que se
+resuelva ese mapeo. Detalle completo en `specs/097-envio-manual-arca-ncnd/`.
 También se agregó "Ver Recibo" en la tabla de Cobranzas del Detalle de Venta y en la tabla de
 Pagos del Detalle de Compra: un documento imprimible **no fiscal** (no pasa por WSFEv1/ARCA) con
 los datos del emisor, la contraparte (Cliente/Proveedor), medio, monto, fecha y un número interno

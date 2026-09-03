@@ -402,6 +402,8 @@ Route::middleware('auth')->group(function () {
         Route::delete('{venta}/notas/{notaCreditoDebito}', [NotaCreditoDebitoController::class, 'destroy'])->name('notas.destroy');
         Route::get('notas/{notaCreditoDebito}/pdf', [NotaCreditoDebitoController::class, 'pdf'])->name('notas.pdf');
         Route::get('{venta}/notas-credito-debito/items-disponibles', [NotaCreditoDebitoController::class, 'itemsDisponiblesVenta'])->name('notas.itemsDisponibles');
+        // Spec 097: envío manual a ARCA de una NC/ND — reemplaza el trigger automático de store().
+        Route::post('{venta}/notas/{notaCreditoDebito}/enviar-arca', [NotaCreditoDebitoController::class, 'enviarArca'])->name('notas.enviarArca');
         Route::get('{venta}/remitos/nuevo', [RemitoController::class, 'create'])->name('remitos.create');
         Route::post('{venta}/remitos', [RemitoController::class, 'store'])->name('remitos.store');
         Route::get('{venta}/remitos/{remito}/editar', [RemitoController::class, 'edit'])->name('remitos.edit');
@@ -527,6 +529,8 @@ Route::middleware('auth')->group(function () {
         Route::delete('{compra}/notas/{notaCreditoDebito}', [NotaCreditoDebitoController::class, 'destroyCompra'])->name('notas.destroy');
         Route::get('notas/{notaCreditoDebito}/pdf', [NotaCreditoDebitoController::class, 'pdf'])->name('notas.pdf');
         Route::get('{compra}/notas-credito-debito/items-disponibles', [NotaCreditoDebitoController::class, 'itemsDisponiblesCompra'])->name('notas.itemsDisponibles');
+        // Spec 097: paridad Compras (FR-011).
+        Route::post('{compra}/notas/{notaCreditoDebito}/enviar-arca', [NotaCreditoDebitoController::class, 'enviarArcaCompra'])->name('notas.enviarArca');
         Route::get('{compra}/remitos/nuevo', [RemitoController::class, 'createCompra'])->name('remitos.create');
         Route::post('{compra}/remitos', [RemitoController::class, 'storeCompra'])->name('remitos.store');
         Route::get('{compra}/remitos/{remito}/editar', [RemitoController::class, 'editCompra'])->name('remitos.edit');

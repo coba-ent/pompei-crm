@@ -9,6 +9,7 @@ use App\Models\DatosEmpresa;
 use App\Models\Deposito;
 use App\Models\FuncionAvanzada;
 use App\Models\NotaCreditoDebito;
+use App\Models\NotaCreditoDebitoItem;
 use App\Models\Producto;
 use App\Models\Venta;
 use App\Services\AjustesPendientesNotaCreditoDebito;
@@ -186,20 +187,59 @@ class NotaCreditoDebitoController extends Controller
             return $nota;
         });
 
-        $arcaError = null;
-        $comprobanteVenta = $venta->comprobanteFiscal;
-        if ($comprobanteVenta && $comprobanteVenta->aprobado()) {
-            $arcaError = $this->emitirComprobanteFiscalNota($nota, $venta, $comprobanteVenta);
-        }
-
+        // FR-001 (spec 097): crear la nota ya NO dispara el envío a ARCA — queda a cargo de la
+        // acción manual "Enviar a ARCA" (enviarArca()), igual que spec 040 hizo para Venta.
         return response()->json([
             'ok' => true,
             'mensaje' => 'Nota de '.($datos['tipo'] === 'credito' ? 'Crédito' : 'Débito').' creada correctamente.',
             'nota' => $nota,
             'a_cobrar' => $venta->aCobrar(),
             'comprobante_fiscal' => $nota->comprobanteFiscal()->first(),
-            'arca_error' => $arcaError,
         ], 201);
+    }
+
+    /** US1 (spec 097): envío manual a ARCA de una NC/ND de Venta — reemplaza el trigger de store(). */
+    public function enviarArca(Venta $venta, NotaCreditoDebito $notaCreditoDebito): JsonResponse
+    {
+        return $this->enviarArcaComun($notaCreditoDebito, $venta, null);
+    }
+
+    /** Idem para Compra (FR-011, paridad). */
+    public function enviarArcaCompra(Compra $compra, NotaCreditoDebito $notaCreditoDebito): JsonResponse
+    {
+        return $this->enviarArcaComun($notaCreditoDebito, null, $compra);
+    }
+
+    private function enviarArcaComun(NotaCreditoDebito $nota, ?Venta $venta, ?Compra $compra): JsonResponse
+    {
+        $comprobanteOriginal = $venta ?? $compra;
+
+        if (! $nota->puedeEnviarseAArca($comprobanteOriginal)) {
+            return response()->json([
+                'ok' => false,
+                'motivo' => 'Esta nota no puede enviarse a ARCA (tipo de comprobante no fiscal, ya tiene CAE propio aprobado, el comprobante original todavía no tiene CAE aprobado, o la Facturación Electrónica está desactivada).',
+            ], 422);
+        }
+
+        $comprobanteOriginalFiscal = $comprobanteOriginal->comprobanteFiscal;
+        $arcaError = $this->emitirComprobanteFiscalNota($nota, $comprobanteOriginal, $comprobanteOriginalFiscal);
+
+        if ($arcaError !== null) {
+            return response()->json([
+                'ok' => false,
+                'motivo' => $arcaError,
+                'estado_arca' => $nota->refresh()->estadoArca(),
+            ]);
+        }
+
+        $comprobante = $nota->refresh()->comprobanteFiscal;
+
+        return response()->json([
+            'ok' => true,
+            'cae' => $comprobante?->cae,
+            'cae_vencimiento' => $comprobante?->cae_vencimiento,
+            'estado_arca' => $nota->estadoArca(),
+        ]);
     }
 
     /** US1 (spec 039): documento imprimible con CAE propio y referencia al comprobante ajustado. */
@@ -225,30 +265,65 @@ class NotaCreditoDebitoController extends Controller
         return $pdf->stream('nota-'.$notaCreditoDebito->id.'.pdf', ['Content-Disposition' => 'inline']);
     }
 
-    /** US3: la NC/ND obtiene su propio CAE referenciando el comprobante original de la Venta. */
-    private function emitirComprobanteFiscalNota($nota, Venta $venta, $comprobanteVenta): ?string
+    /**
+     * La NC/ND obtiene su propio CAE referenciando el comprobante original (spec 097: Venta o
+     * Compra, FR-011 paridad).
+     *
+     * El neto/IVA agregados (`monto / 1.21`) sólo se usan como fallback (FR-010): cuando **todos**
+     * los ítems de la nota tienen línea de origen identificada (`venta_item_id`/`compra_item_id`,
+     * spec 096), se arma en cambio el desglose real por alícuota vía `items`, que
+     * `MapeadorComprobante::armarBloquesAlicIva()` ya sabe agrupar (FR-009). Si algún ítem no tiene
+     * línea de origen, la nota completa cae al bloque único agregado (FR-010a) — nunca se combinan
+     * ambos criterios dentro de la misma nota.
+     */
+    private function emitirComprobanteFiscalNota(NotaCreditoDebito $nota, Venta|Compra $comprobanteOriginal, $comprobanteFiscalOriginal): ?string
     {
         if (! FuncionAvanzada::activa('facturacion_electronica')) {
             return null;
         }
 
-        $venta->load('cliente.condicionIva');
+        $esVenta = $comprobanteOriginal instanceof Venta;
+
+        // PENDIENTE (spec 097): para NC/ND de Compra, el receptor fiscal correcto en el payload de
+        // ARCA (Proveedor::datosFiscalesArca()) todavía no está definido/implementado — Proveedor
+        // no tiene ese método hoy y el trigger original nunca llegó a probarse contra Compra
+        // (storeCompra() jamás invocaba el envío). Se deja explícitamente sin resolver: enviarArca()
+        // valida y arma el resto del payload por igual (FR-011), pero el campo 'cliente' queda vacío
+        // para Compra hasta que se decida el mapeo fiscal correcto en una spec futura.
+        $tercero = $esVenta ? $comprobanteOriginal->cliente()->with('condicionIva')->first() : null;
+
+        $itemsReales = $this->itemsRealesParaArca($nota, $esVenta);
+
+        if ($itemsReales !== null) {
+            // FR-009: neto/iva agregados se recalculan a partir de las líneas reales — el
+            // ValidadorDatosFiscales exige que coincidan con la suma por alícuota de `items`
+            // (no puede convivir un desglose real con un agregado fijo al 21%).
+            $neto = round(array_sum(array_column($itemsReales, 'neto')), 2);
+            $iva = round(array_sum(array_map(fn ($i) => round($i['neto'] * $i['iva_pct'] / 100, 2), $itemsReales)), 2);
+        } else {
+            $neto = round((float) $nota->monto / 1.21, 2);
+            $iva = round((float) $nota->monto - $neto, 2);
+        }
 
         $datos = [
             'tipo_comprobante' => $nota->tipo_comprobante,
             'tipo_nota' => $nota->tipo,
             'fecha' => $nota->fecha_emision,
-            'cliente' => $venta->cliente?->datosFiscalesArca() ?? [],
-            'neto' => round((float) $nota->monto / 1.21, 2),
-            'iva' => round((float) $nota->monto - round((float) $nota->monto / 1.21, 2), 2),
+            'cliente' => $tercero?->datosFiscalesArca() ?? [],
+            'neto' => $neto,
+            'iva' => $iva,
             'total' => (float) $nota->monto,
-            'comprobante_ajustado_id' => $comprobanteVenta->id,
+            'comprobante_ajustado_id' => $comprobanteFiscalOriginal->id,
             'comprobante_ajustado' => [
-                'tipo' => (new MapeadorComprobante)->cbteTipo($comprobanteVenta->tipo_comprobante),
-                'punto_venta' => $comprobanteVenta->puntoVenta?->numero ?? 0,
-                'numero' => (int) last(explode('-', $comprobanteVenta->numero ?? '0-0')),
+                'tipo' => (new MapeadorComprobante)->cbteTipo($comprobanteFiscalOriginal->tipo_comprobante),
+                'punto_venta' => $comprobanteFiscalOriginal->puntoVenta?->numero ?? 0,
+                'numero' => (int) last(explode('-', $comprobanteFiscalOriginal->numero ?? '0-0')),
             ],
         ];
+
+        if ($itemsReales !== null) {
+            $datos['items'] = $itemsReales;
+        }
 
         try {
             $this->emisorComprobante->emitir($nota, $datos);
@@ -259,6 +334,34 @@ class NotaCreditoDebitoController extends Controller
         } catch (ArcaRechazoException|ArcaNoDisponibleException $e) {
             return $e->getMessage();
         }
+    }
+
+    /**
+     * Desglose real de IVA por línea (FR-009), o `null` si corresponde el fallback agregado
+     * (FR-010/FR-010a): sólo se arma cuando la nota tiene ítems y **todos** tienen línea de origen
+     * (`venta_item_id`/`compra_item_id` según corresponda, spec 096).
+     *
+     * @return array<int, array{neto: float, iva_pct: float}>|null
+     */
+    private function itemsRealesParaArca(NotaCreditoDebito $nota, bool $esVenta): ?array
+    {
+        $items = $nota->items;
+
+        if ($items->isEmpty()) {
+            return null;
+        }
+
+        $campoOrigen = $esVenta ? 'venta_item_id' : 'compra_item_id';
+
+        $todosConOrigen = $items->every(fn (NotaCreditoDebitoItem $item) => $item->{$campoOrigen} !== null);
+        if (! $todosConOrigen) {
+            return null;
+        }
+
+        return $items->map(fn (NotaCreditoDebitoItem $item) => [
+            'neto' => round((float) $item->cantidad * (float) $item->precio * (1 - (float) ($item->descuento_pct ?? 0) / 100), 2),
+            'iva_pct' => (float) $item->iva_pct,
+        ])->all();
     }
 
     /** NC/ND sobre una Compra (US4, spec 009): recomputa la compra en vez de la venta. */

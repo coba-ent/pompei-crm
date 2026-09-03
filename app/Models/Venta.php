@@ -295,6 +295,17 @@ class Venta extends Model
     }
 
     /**
+     * Estado de ARCA de la Venta (spec 097, FR-014): sin_enviar / pendiente / aprobado / rechazado,
+     * derivado de `comprobanteFiscal` — null si nunca se intentó un envío.
+     */
+    public function estadoArca(): string
+    {
+        $comprobante = $this->relationLoaded('comprobanteFiscal') ? $this->comprobanteFiscal : $this->comprobanteFiscal()->first();
+
+        return $comprobante?->estado ?? 'sin_enviar';
+    }
+
+    /**
      * Prefijo de la serie interna, sin significado fiscal (research.md §5).
      *
      * Vive en un espacio de nombres separado a propósito: la numeración fiscal real la asigna ARCA

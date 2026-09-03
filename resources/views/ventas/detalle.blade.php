@@ -27,15 +27,26 @@
                 @endif
             </div>
             <div class="col-sm-6 text-sm-end">
+                @php
+                    $estadoArcaVenta = $venta->estadoArca();
+                    $badgeArca = [
+                        'sin_enviar' => ['bg-secondary', 'Sin enviar'],
+                        'pendiente' => ['bg-info text-dark', 'Pendiente'],
+                        'aprobado' => ['bg-success', 'Aprobado'],
+                        'rechazado' => ['bg-danger', 'Rechazado'],
+                    ][$estadoArcaVenta] ?? ['bg-secondary', 'Sin enviar'];
+                @endphp
+                {{-- FR-014: indicador de estado siempre visible, no sólo un tooltip. --}}
+                <span class="badge {{ $badgeArca[0] }} me-1 align-middle"
+                      @if ($estadoArcaVenta === 'rechazado' && $venta->comprobanteFiscal?->motivo_rechazo)
+                          title="{{ $venta->comprobanteFiscal->motivo_rechazo }}"
+                      @endif>
+                    <i class="fas fa-file-invoice-dollar me-1"></i> {{ $badgeArca[1] }}
+                </span>
                 @if ($venta->puedeEnviarseAArca())
                     <button type="button" class="btn btn-warning js-enviar-arca me-1"
                             data-id="{{ $venta->id }}" data-url="{{ route('ventas.enviarArca', $venta) }}">
                         <i class="fas fa-paper-plane me-1"></i> Enviar a ARCA
-                    </button>
-                @elseif ($venta->estaFacturada())
-                    <button type="button" class="btn btn-secondary me-1" disabled
-                            title="Ya enviada a ARCA: tiene CAE aprobado.">
-                        <i class="fas fa-check me-1"></i> Enviada a ARCA
                     </button>
                 @endif
                 @if (! $venta->estaFacturada())
@@ -392,9 +403,18 @@
                 </div>
                 <div class="table-responsive">
                     <table class="table table-sm">
-                        <thead><tr><th>Id</th><th>Tipo</th><th>Fecha</th><th>Afecta Stock</th><th>Mes de Imputación</th><th>N° Comprobante</th><th>Documento que Ajusta</th><th>Monto</th><th>Saldo a favor</th><th>Nota Interna</th><th></th></tr></thead>
+                        <thead><tr><th>Id</th><th>Tipo</th><th>Fecha</th><th>Afecta Stock</th><th>Mes de Imputación</th><th>N° Comprobante</th><th>Documento que Ajusta</th><th>Estado ARCA</th><th>Monto</th><th>Saldo a favor</th><th>Nota Interna</th><th></th></tr></thead>
                         <tbody>
                             @forelse ($venta->notasCreditoDebito as $nota)
+                                @php
+                                    $estadoArcaNota = $nota->estadoArca();
+                                    $badgeArcaNota = [
+                                        'sin_enviar' => ['bg-secondary', 'Sin enviar'],
+                                        'pendiente' => ['bg-info text-dark', 'Pendiente'],
+                                        'aprobado' => ['bg-success', 'Aprobado'],
+                                        'rechazado' => ['bg-danger', 'Rechazado'],
+                                    ][$estadoArcaNota] ?? ['bg-secondary', 'Sin enviar'];
+                                @endphp
                                 <tr>
                                     <td>{{ $nota->id }}</td>
                                     <td>{{ $nota->tipo === 'credito' ? 'Nota de Crédito' : 'Nota de Débito' }}</td>
@@ -403,6 +423,23 @@
                                     <td>{{ $nota->mes_imputacion->format('m/Y') }}</td>
                                     <td>{{ $nota->comprobanteFiscal?->numero ?? $nota->nro_comprobante ?? '-' }}</td>
                                     <td>{{ $nota->documentoQueAjusta($venta) ?? '-' }}</td>
+                                    {{-- FR-015: estado PROPIO de la nota, distinto de "Documento que Ajusta"
+                                         (que muestra el estado del comprobante ORIGINAL). --}}
+                                    <td>
+                                        <span class="badge {{ $badgeArcaNota[0] }}"
+                                              @if ($estadoArcaNota === 'rechazado' && $nota->comprobanteFiscal?->motivo_rechazo)
+                                                  title="{{ $nota->comprobanteFiscal->motivo_rechazo }}"
+                                              @endif>
+                                            {{ $badgeArcaNota[1] }}
+                                        </span>
+                                        @if ($estadoArcaNota === 'aprobado')
+                                            {{-- FR-016: CAE y vencimiento visibles sin abrir el PDF. --}}
+                                            <br><span class="text-muted small">
+                                                CAE {{ $nota->comprobanteFiscal->cae }}
+                                                — vto. {{ optional($nota->comprobanteFiscal->cae_vencimiento)->format('d/m/Y') }}
+                                            </span>
+                                        @endif
+                                    </td>
                                     <td>$ {{ number_format((float) $nota->monto, 2, ',', '.') }}</td>
                                     {{-- Saldo a favor de esta NC: cuánto se consumió, cuánto queda
                                          y en qué comprobantes se aplicó (spec 072, FR-016). --}}
@@ -429,12 +466,15 @@
                                         <ul class="dropdown-menu">
                                             <li><a class="dropdown-item js-ver-detalle-nota" href="#" data-url="{{ route('ventas.notas.pdf', $nota) }}">Ver Detalle</a></li>
                                             <li><a class="dropdown-item js-editar-nota" href="#" data-id="{{ $nota->id }}">Editar</a></li>
+                                            @if ($nota->puedeEnviarseAArca($venta))
+                                                <li><a class="dropdown-item js-enviar-arca-nota" href="#" data-id="{{ $nota->id }}" data-url="{{ route('ventas.notas.enviarArca', [$venta, $nota]) }}">Enviar a ARCA</a></li>
+                                            @endif
                                             <li><a class="dropdown-item text-danger js-eliminar-nota" href="#" data-id="{{ $nota->id }}">Eliminar</a></li>
                                         </ul>
                                     </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="11" class="text-center text-muted">Sin notas</td></tr>
+                                <tr><td colspan="12" class="text-center text-muted">Sin notas</td></tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -447,6 +487,7 @@
 @include('ventas._modal_cobranza')
 @includeIf('ventas._modal_ncnd')
 @include('ventas._modales_arca')
+@include('ventas._modales_arca_nota')
 @endsection
 
 @php

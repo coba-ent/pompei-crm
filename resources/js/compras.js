@@ -1310,6 +1310,58 @@
         });
 
         // ---------------------------------------------------------------------
+        // Envío manual a ARCA de una NC/ND de Compra (spec 097, FR-011 paridad) —
+        // mismo patrón que ventas.js (modales propios, resultado real en modal
+        // persistente, rechazo de precondición en toast).
+        // ---------------------------------------------------------------------
+        let $btnArcaNotaPendiente = null;
+        $(document).on('click', '.js-enviar-arca-nota', function (e) {
+            e.preventDefault();
+            $btnArcaNotaPendiente = $(this);
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-confirmar-arca-nota')).show();
+        });
+
+        $('#btn-confirmar-arca-nota').on('click', function () {
+            const $btn = $btnArcaNotaPendiente;
+            if (!$btn) { return; }
+            bootstrap.Modal.getInstance(document.getElementById('modal-confirmar-arca-nota'))?.hide();
+
+            $btn.addClass('disabled');
+            $.ajax({ url: $btn.data('url'), method: 'POST' })
+                .done((resp) => mostrarResultadoArcaNota(resp))
+                .fail((xhr) => {
+                    if (xhr.status === 422) {
+                        toast('error', xhr.responseJSON?.motivo || 'No se pudo enviar a ARCA.');
+                    } else {
+                        mostrarResultadoArcaNota(xhr.responseJSON || { ok: false, motivo: 'No se pudo enviar a ARCA.' });
+                    }
+                })
+                .always(() => {
+                    $btn.removeClass('disabled');
+                    $btnArcaNotaPendiente = null;
+                });
+        });
+
+        function mostrarResultadoArcaNota(resp) {
+            const $body = $('#modal-resultado-arca-nota-body');
+            if (resp.ok) {
+                $body.html(
+                    '<p class="text-success fw-bold mb-2"><i class="fas fa-check-circle me-1"></i> CAE obtenido correctamente.</p>' +
+                    '<div><strong>CAE:</strong> ' + (resp.cae || '-') + '</div>' +
+                    '<div><strong>Vencimiento:</strong> ' + (resp.cae_vencimiento || '-') + '</div>'
+                );
+            } else {
+                $body.html(
+                    '<p class="text-danger fw-bold mb-2"><i class="fas fa-times-circle me-1"></i> ARCA rechazó el envío.</p>' +
+                    '<div>' + (resp.motivo || 'Motivo no informado.') + '</div>'
+                );
+            }
+            const $modal = $('#modal-resultado-arca-nota');
+            $modal.one('hidden.bs.modal', () => window.location.reload());
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-resultado-arca-nota')).show();
+        }
+
+        // ---------------------------------------------------------------------
         // Siguiente (spec 059): ya no muestra un 2do paso — navega a la página
         // completa (compras.notas.create/edit) pasando el paso 1 por query string.
         // ---------------------------------------------------------------------
