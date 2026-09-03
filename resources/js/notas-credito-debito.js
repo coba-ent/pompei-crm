@@ -96,6 +96,8 @@
         items = (data.items || []).map((i) => ({
             producto_id: i.producto_id, descripcion: i.descripcion, cantidad: i.cantidad,
             precio: i.precio, descuento_pct: i.descuento_pct, iva_pct: i.iva_pct,
+            // Spec 096: se conserva la referencia de línea que la nota ya tenía guardada.
+            item_origen_id: i.item_origen_id || null,
         }));
     } else if (editando && !afectaStock) {
         // Sin stock: una única fila fija — descripción libre, cantidad/precio/iva del primer ítem si existía.
@@ -285,9 +287,16 @@
                     // Precarga precio/descuento/IVA con los que ya tenía el comprobante de
                     // origen para ese producto — el usuario los puede editar igual si la
                     // nota corresponde a un monto distinto.
+                    //
+                    // Spec 096: cada elemento de itemsDisponibles es ya una LÍNEA independiente
+                    // (no fusionada por producto — ver AjustesPendientesNotaCreditoDebito). Si el
+                    // comprobante repite un producto, acá llegan varios elementos con el mismo
+                    // producto_id y distinto item_origen_id/precio/descuento_pct: el .map() 1:1
+                    // los respeta sin deduplicar.
                     items = itemsDisponibles.map((d) => ({
                         producto_id: d.producto_id, descripcion: d.descripcion, cantidad: d.pendiente,
                         precio: d.precio || 0, descuento_pct: d.descuento_pct || 0, iva_pct: d.iva_pct || null, _max: d.pendiente,
+                        item_origen_id: d.item_origen_id || null,
                     }));
                 }
                 renderItems();
@@ -543,6 +552,9 @@
                 precio: i.precio,
                 descuento_pct: i.descuento_pct || 0,
                 iva_pct: i.iva_pct || null,
+                // Spec 096 (FR-004): referencia a la línea del comprobante que este ítem ajusta,
+                // cuando viene de la precarga. Si el usuario agregó la línea a mano, viaja null.
+                item_origen_id: i.item_origen_id || null,
             }));
         } else {
             p.descripcion = items[0]?.descripcion || '';

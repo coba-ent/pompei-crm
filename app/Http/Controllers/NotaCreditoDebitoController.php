@@ -159,7 +159,7 @@ class NotaCreditoDebitoController extends Controller
                     $producto = Producto::findOrFail($item['producto_id']);
 
                     $nota->items()->create($this->atributosItemNota(
-                        ['producto_id' => $producto->id] + $item, 'venta_original', $costosOriginales
+                        ['producto_id' => $producto->id] + $item, 'venta_original', $costosOriginales, true
                     ));
 
                     $this->stockService->ajustar(
@@ -179,7 +179,7 @@ class NotaCreditoDebitoController extends Controller
                 // en silencio y el form de editar quedaba con el IVA en "Elegir" (detectado en
                 // QA manual 11/08/2026).
                 foreach ($datos['items'] as $item) {
-                    $nota->items()->create($this->atributosItemNota($item, 'nuevo', $costosOriginales));
+                    $nota->items()->create($this->atributosItemNota($item, 'nuevo', $costosOriginales, true));
                 }
             }
 
@@ -297,7 +297,7 @@ class NotaCreditoDebitoController extends Controller
                     $producto = Producto::findOrFail($item['producto_id']);
 
                     $nota->items()->create($this->atributosItemNota(
-                        ['producto_id' => $producto->id] + $item, 'venta_original', $costosOriginales
+                        ['producto_id' => $producto->id] + $item, 'venta_original', $costosOriginales, false
                     ));
 
                     $this->stockService->ajustar(
@@ -314,7 +314,7 @@ class NotaCreditoDebitoController extends Controller
             } elseif (! empty($datos['items'])) {
                 // Sin stock: idem store() — persistir el ítem para que la edición lo reconstruya.
                 foreach ($datos['items'] as $item) {
-                    $nota->items()->create($this->atributosItemNota($item, 'nuevo', $costosOriginales));
+                    $nota->items()->create($this->atributosItemNota($item, 'nuevo', $costosOriginales, false));
                 }
             }
 
@@ -391,7 +391,7 @@ class NotaCreditoDebitoController extends Controller
                     $producto = Producto::findOrFail($item['producto_id']);
 
                     $nota->items()->create($this->atributosItemNota(
-                        ['producto_id' => $producto->id] + $item, 'venta_original', $costosOriginales
+                        ['producto_id' => $producto->id] + $item, 'venta_original', $costosOriginales, (bool) $venta
                     ));
 
                     $this->stockService->ajustar(
@@ -407,7 +407,7 @@ class NotaCreditoDebitoController extends Controller
                 }
             } elseif (! empty($datos['items'])) {
                 foreach ($datos['items'] as $item) {
-                    $nota->items()->create($this->atributosItemNota($item, 'nuevo', $costosOriginales));
+                    $nota->items()->create($this->atributosItemNota($item, 'nuevo', $costosOriginales, (bool) $venta));
                 }
             }
         });
@@ -526,13 +526,26 @@ class NotaCreditoDebitoController extends Controller
      * @param  array<int, list<array{cantidad: float, costo: float|null}>>  $costosOriginales  cola por producto, consumida acá
      * @return array<string, mixed>
      */
-    private function atributosItemNota(array $item, string $origen, array &$costosOriginales): array
+    /**
+     * @param bool|null $esVenta Spec 096: null = no persistir referencia de línea (nota sin
+     *   comprobante de origen fiable en este punto, ej. líneas 'nuevo' agregadas a mano); true/false
+     *   decide si `item_origen_id` (si viene) se guarda en `venta_item_id` o `compra_item_id`.
+     */
+    private function atributosItemNota(array $item, string $origen, array &$costosOriginales, ?bool $esVenta = null): array
     {
         $productoId = $item['producto_id'] ?? null;
         $cantidad = $item['cantidad'] ?? 1;
+        $itemOrigenId = $item['item_origen_id'] ?? null;
 
         return [
             'producto_id' => $productoId,
+            // Spec 096 (FR-004): referencia a la línea puntual del comprobante que esta línea de
+            // la nota ajusta. Sólo se persiste si el front la mandó (precarga desde items
+            // disponibles) — una línea agregada a mano por el usuario, sin pasar por la precarga,
+            // no la trae y ese producto queda en modo agregado/fallback (FR-006) hasta que sí se
+            // use una con referencia.
+            'venta_item_id' => $esVenta === true ? $itemOrigenId : null,
+            'compra_item_id' => $esVenta === false ? $itemOrigenId : null,
             'cantidad' => $cantidad,
             'precio' => $item['precio'] ?? 0,
             'costo_unitario' => $this->costoCongeladoDeLaNota($productoId, (float) $cantidad, $costosOriginales),

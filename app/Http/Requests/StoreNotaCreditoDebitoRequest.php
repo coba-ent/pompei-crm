@@ -49,6 +49,10 @@ class StoreNotaCreditoDebitoRequest extends FormRequest
             'items.*.precio' => 'nullable|numeric|gte:0',
             'items.*.descuento_pct' => 'nullable|numeric|between:0,100',
             'items.*.iva_pct' => 'nullable|numeric|gte:0',
+            // Spec 096: referencia a la línea puntual del comprobante que este ítem ajusta —
+            // opcional (una línea agregada a mano no la trae; el controlador decide en qué FK
+            // guardarla según sea Venta o Compra).
+            'items.*.item_origen_id' => 'nullable|integer',
             'descripcion' => 'required_unless:afecta_stock,1,true|nullable|string',
             'nota_interna' => 'nullable|string',
             'fecha_emision' => 'required|date',

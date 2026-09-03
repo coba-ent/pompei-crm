@@ -10,7 +10,8 @@ class NotaCreditoDebitoItem extends Model
     protected $table = 'nota_credito_debito_items';
 
     protected $fillable = [
-        'nota_credito_debito_id', 'producto_id', 'cantidad', 'precio', 'costo_unitario', 'descuento_pct', 'iva_pct', 'origen',
+        'nota_credito_debito_id', 'producto_id', 'venta_item_id', 'compra_item_id', 'cantidad',
+        'precio', 'costo_unitario', 'descuento_pct', 'iva_pct', 'origen',
     ];
 
     protected $casts = [
@@ -31,5 +32,17 @@ class NotaCreditoDebitoItem extends Model
     public function producto(): BelongsTo
     {
         return $this->belongsTo(Producto::class);
+    }
+
+    /** Spec 096: línea del comprobante de Venta que este ítem ajusta. Null en notas viejas o de Compra. */
+    public function ventaItem(): BelongsTo
+    {
+        return $this->belongsTo(VentaItem::class);
+    }
+
+    /** Spec 096: idem para Compra. Mutuamente excluyente con ventaItem() según el tipo de nota. */
+    public function compraItem(): BelongsTo
+    {
+        return $this->belongsTo(CompraItem::class);
     }
 }

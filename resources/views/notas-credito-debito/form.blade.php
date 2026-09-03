@@ -208,6 +208,9 @@
             'precio' => (float) $i->precio,
             'descuento_pct' => (float) ($i->descuento_pct ?? 0),
             'iva_pct' => $i->iva_pct !== null ? (float) $i->iva_pct : null,
+            // Spec 096: se conserva al editar, para que volver a guardar no pierda la referencia
+            // de línea que la nota ya tenía (evita que un producto "vuelva" a modo agregado).
+            'item_origen_id' => $i->venta_item_id ?? $i->compra_item_id,
         ])->values()
         : collect();
 @endphp

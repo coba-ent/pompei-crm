@@ -3,26 +3,58 @@
 namespace App\Services;
 
 use App\Models\Compra;
+use App\Models\CompraItem;
 use App\Models\NotaCreditoDebito;
 use App\Models\Venta;
+use App\Models\VentaItem;
+use Illuminate\Support\Collection;
 
 /**
- * Cantidad pendiente de ajuste por producto en un comprobante (Venta o Compra), spec 045
- * data-model.md "Regla derivada": cantidad facturada menos lo ya ajustado por NC/ND previas
- * no eliminadas de ese mismo comprobante para ese producto.
+ * Cantidad pendiente de ajuste en un comprobante (Venta o Compra).
+ *
+ * Spec 045 data-model.md "Regla derivada": cantidad facturada menos lo ya ajustado por NC/ND
+ * previas no eliminadas de ese mismo comprobante.
+ *
+ * Spec 096: la unidad de ajuste es la LÍNEA del comprobante (`venta_items.id`/`compra_items.id`),
+ * no el producto agregado. Antes, `itemsDisponibles()` agrupaba por `producto_id`: si el mismo
+ * producto aparecía en varias líneas con precio/bonificación distintos (bug real, venta 24854: 3
+ * líneas fundidas en 1, total propuesto a la mitad), se perdía esa información. Para no romper las
+ * NC/ND ya creadas con el cálculo agregado viejo (sin referencia de línea), el cálculo de pendiente
+ * de un producto es DUAL: agregado mientras ninguna nota existente de ese producto tenga referencia
+ * de línea (fallback, FR-006), y por línea en cuanto exista al menos una que sí la tenga.
  */
 class AjustesPendientesNotaCreditoDebito
 {
-    /** @param NotaCreditoDebito|null $excluir Nota en edición (FR-005): se excluye del "ya ajustado". */
+    /**
+     * Pendiente de una LÍNEA puntual del comprobante (modo por línea, FR-003).
+     *
+     * @param NotaCreditoDebito|null $excluir Nota en edición: se excluye del "ya ajustado".
+     */
+    public function pendienteDeLinea(VentaItem|CompraItem $linea, ?NotaCreditoDebito $excluir = null): float
+    {
+        $yaAjustada = (float) $this->notasDelProducto($linea->producto_id, $this->comprobanteDeLinea($linea))
+            ->reject(fn ($nota) => $excluir && $nota->id === $excluir->id)
+            ->flatMap(fn ($nota) => $nota->items)
+            ->filter(fn ($item) => $this->refiereALinea($item, $linea))
+            ->sum('cantidad');
+
+        return round((float) $linea->cantidad - $yaAjustada, 3);
+    }
+
+    /**
+     * Pendiente de un producto AGREGADO en el comprobante (modo fallback, FR-006) — el cálculo
+     * original de la spec 045, sin distinguir línea. Se usa cuando ninguna nota existente de ese
+     * producto tiene la referencia de línea nueva.
+     *
+     * @param NotaCreditoDebito|null $excluir Nota en edición (FR-005): se excluye del "ya ajustado".
+     */
     public function pendiente(Venta|Compra $comprobante, int $productoId, ?NotaCreditoDebito $excluir = null): float
     {
         $facturada = (float) $comprobante->items()
             ->where('producto_id', $productoId)
             ->sum('cantidad');
 
-        $yaAjustada = (float) $comprobante->notasCreditoDebito()
-            ->with('items')
-            ->get()
+        $yaAjustada = (float) $this->notasDelProducto($productoId, $comprobante)
             ->reject(fn ($nota) => $excluir && $nota->id === $excluir->id)
             ->flatMap(fn ($nota) => $nota->items)
             ->where('producto_id', $productoId)
@@ -32,32 +64,90 @@ class AjustesPendientesNotaCreditoDebito
     }
 
     /**
-     * @return array<int, array{producto_id:int, descripcion:string, pendiente:float, precio:float, descuento_pct:float, iva_pct:?string}>
+     * @return array<int, array{producto_id:int, descripcion:string, pendiente:float, precio:float, descuento_pct:float, iva_pct:?string, item_origen_id:int}>
      */
     public function itemsDisponibles(Venta|Compra $comprobante): array
     {
-        return $comprobante->items()
-            ->whereNotNull('producto_id')
-            ->get()
-            ->groupBy('producto_id')
-            ->map(function ($items, $productoId) use ($comprobante) {
-                $primero = $items->first();
+        $productosPorLinea = $comprobante->items()->whereNotNull('producto_id')->get()
+            ->groupBy('producto_id');
 
-                return [
-                    'producto_id' => (int) $productoId,
-                    'descripcion' => $primero->descripcion,
-                    'pendiente' => $this->pendiente($comprobante, (int) $productoId),
-                    // Precarga la página completa de NC/ND (spec 059) con el precio/descuento/IVA
-                    // que ya tenía el comprobante de origen para ese producto — el usuario puede
-                    // editarlos igual si la nota corresponde a un monto distinto.
-                    'precio' => (float) $primero->precio_unitario,
-                    'descuento_pct' => (float) ($primero->descuento_pct ?? 0),
-                    'iva_pct' => $primero->iva_pct,
-                ];
-            })
-            ->filter(fn ($item) => $item['pendiente'] > 0)
-            ->values()
-            ->all();
+        $resultado = [];
+
+        foreach ($productosPorLinea as $productoId => $lineas) {
+            if ($this->productoEnModoPorLinea((int) $productoId, $comprobante)) {
+                // FR-001/FR-002/FR-003: una fila por línea, cada una con su propio precio,
+                // bonificación, IVA y pendiente — sin fusionar aunque compartan producto.
+                foreach ($lineas as $linea) {
+                    $pendiente = $this->pendienteDeLinea($linea);
+                    if ($pendiente > 0) {
+                        $resultado[] = $this->filaDesdeLinea($linea, $pendiente);
+                    }
+                }
+            } else {
+                // FR-006: fallback agregado — comportamiento idéntico al de antes de esta spec.
+                $primero = $lineas->first();
+                $pendiente = $this->pendiente($comprobante, (int) $productoId);
+                if ($pendiente > 0) {
+                    $resultado[] = $this->filaDesdeLinea($primero, $pendiente);
+                }
+            }
+        }
+
+        return $resultado;
+    }
+
+    /** @return array{producto_id:int, descripcion:string, pendiente:float, precio:float, descuento_pct:float, iva_pct:?string, item_origen_id:int} */
+    private function filaDesdeLinea(VentaItem|CompraItem $linea, float $pendiente): array
+    {
+        return [
+            'producto_id' => (int) $linea->producto_id,
+            'descripcion' => $linea->descripcion,
+            'pendiente' => $pendiente,
+            // Precarga la página completa de NC/ND (spec 059) con el precio/descuento/IVA que ya
+            // tenía ESA línea del comprobante de origen — el usuario puede editarlos igual si la
+            // nota corresponde a un monto distinto.
+            'precio' => (float) $linea->precio_unitario,
+            'descuento_pct' => (float) ($linea->descuento_pct ?? 0),
+            'iva_pct' => $linea->iva_pct,
+            'item_origen_id' => (int) $linea->id,
+        ];
+    }
+
+    /**
+     * FR-006: un producto cae en "modo agregado" (fallback) SÓLO cuando existe alguna NC/ND ya
+     * creada de ese producto en ese comprobante que NO trae la referencia de línea nueva — el
+     * cálculo agregado viejo es necesario ahí porque no hay forma de saber qué línea puntual
+     * ajustó. Sin notas previas, o con notas que sí traen la referencia, se usa modo por línea
+     * (que es lo que corrige el bug: SC-002 exige una fila por línea del comprobante, no una por
+     * producto, en el caso normal de "todavía no se ajustó nada").
+     */
+    private function productoEnModoPorLinea(int $productoId, Venta|Compra $comprobante): bool
+    {
+        return ! $this->notasDelProducto($productoId, $comprobante)
+            ->flatMap(fn ($nota) => $nota->items)
+            ->where('producto_id', $productoId)
+            ->contains(fn ($item) => $item->venta_item_id === null && $item->compra_item_id === null);
+    }
+
+    /** @return Collection<int, NotaCreditoDebito> */
+    private function notasDelProducto(int $productoId, Venta|Compra $comprobante): Collection
+    {
+        return $comprobante->notasCreditoDebito()
+            ->with('items')
+            ->get()
+            ->filter(fn ($nota) => $nota->items->contains('producto_id', $productoId));
+    }
+
+    private function refiereALinea($item, VentaItem|CompraItem $linea): bool
+    {
+        return $linea instanceof VentaItem
+            ? $item->venta_item_id === $linea->id
+            : $item->compra_item_id === $linea->id;
+    }
+
+    private function comprobanteDeLinea(VentaItem|CompraItem $linea): Venta|Compra
+    {
+        return $linea instanceof VentaItem ? $linea->venta : $linea->compra;
     }
 
     /**

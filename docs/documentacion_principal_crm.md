@@ -705,6 +705,21 @@ Otros Ingresos y Abonos son independientes.
   > con `descuento_pct = 0`. El descuento general heredado se aplica sobre ese bruto, una sola vez.
   > Verificado: sin heredarlo la NC de la venta 24740 proponía $229.956,12 contra los $218.458,32
   > reales ($11.497,80 de más); heredándolo cierra en $0,00 de diferencia.
+  > **Cada línea del comprobante es un ajuste independiente, no cada producto (spec 096,
+  > 03/09/2026)**: `AjustesPendientesNotaCreditoDebito::itemsDisponibles()` agrupaba por
+  > `producto_id`, así que cuando el mismo producto aparecía en varias líneas del comprobante con
+  > precio y/o bonificación distintos (típico en ítems de servicio genéricos como "99999" cargados
+  > a mano), las fundía en una sola fila — precio de la primera línea, cantidad sumada de todas.
+  > Verificado en producción (venta 24854, `0001-00000347`): 3 líneas a $13.000, $25.000 (10%
+  > bonif.) y $50.000 (15% bonif.), total real $94.380, precargaban como 1 sola línea a $13.000 con
+  > cantidad 3, proponiendo $47.190 — la mitad. El fix identifica cada línea por su propio id
+  > (`venta_items.id`/`compra_items.id`, guardado en `nota_credito_debito_items.venta_item_id` o
+  > `.compra_item_id`) en vez de por producto agregado. **Notas ya existentes**: como no tienen esa
+  > referencia, el cálculo de pendiente cae a un **fallback agregado** (idéntico al método viejo)
+  > para cualquier producto de un comprobante donde exista al menos una NC/ND sin la referencia —
+  > incluso si además hay una nota nueva que sí la trae, porque mientras coexistan no hay forma de
+  > saber qué línea puntual consumió la vieja. Recién cuando ya no queda ninguna nota sin referencia
+  > sobre ese producto, pasa a calcularse por línea.
   **Editar/Eliminar/Ver Detalle (capturas propias del usuario, 11/08/2026 — ver
   `informe_contagram_egresos.md` §2.5.1, mismo patrón confirmado también en Ventas)**: con notas ya
   cargadas, la fila de la tabla de NC/ND tiene menú de acciones (trigger en la columna "Estado")
