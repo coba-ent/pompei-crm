@@ -5,8 +5,11 @@ namespace Tests\Feature\Informes;
 use App\Models\Categoria;
 use App\Models\Cliente;
 use App\Models\Cobro;
+use App\Models\Compra;
+use App\Models\CompraItem;
 use App\Models\CuentaTesoreria;
 use App\Models\Producto;
+use App\Models\Proveedor;
 use App\Models\Venta;
 use App\Services\Informes\VentasInformeQuery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -383,8 +386,8 @@ class InformeVentasTest extends TestCase
     {
         $producto = Producto::factory()->create(['costo' => 0]);
 
-        $compra = \App\Models\Compra::factory()->create(['fecha_emision' => '2026-07-01']);
-        \App\Models\CompraItem::create([
+        $compra = Compra::factory()->create(['fecha_emision' => '2026-07-01']);
+        CompraItem::create([
             'compra_id' => $compra->id,
             'producto_id' => $producto->id,
             'descripcion' => $producto->nombre,
@@ -395,5 +398,94 @@ class InformeVentasTest extends TestCase
         ]);
 
         return $producto;
+    }
+
+    /**
+     * EL CASO QUE MOTIVÓ EL CAMBIO (03/09/2026).
+     *
+     * Con un filtro que actúa sobre la LÍNEA (Proveedor, Producto, Tipo de Producto), los KPIs de
+     * comprobante sumaban la factura entera aunque sólo una de sus líneas matcheara, mientras
+     * Precio Neto sumaba sólo las líneas. El bloque no cerraba: en producción, filtrando por un
+     * proveedor en agosto 2026, daba $12.435.090 de "ventas" contra $3.545.808 de neto — de las
+     * 136 líneas de esas facturas sólo 49 eran del proveedor filtrado.
+     *
+     * Contagram suma las líneas filtradas: verificado sobre dos exports reales de la MISMA venta
+     * con distinto proveedor, que dan $3.055,25 y $3.993. Si sumara la factura entera, darían igual.
+     */
+    public function test_con_filtro_de_proveedor_los_kpis_suman_solo_sus_lineas(): void
+    {
+        $proveedorA = Proveedor::factory()->create(['nombre' => 'Proveedor A']);
+        $proveedorB = Proveedor::factory()->create(['nombre' => 'Proveedor B']);
+
+        $delA = Producto::factory()->create(['proveedor_id' => $proveedorA->id]);
+        $delB = Producto::factory()->create(['proveedor_id' => $proveedorB->id]);
+
+        // Una sola venta con líneas de los dos proveedores: $1.000 de A y $3.000 de B.
+        $this->venta([
+            ['producto_id' => $delA->id, 'cantidad' => 1, 'precio' => 1000, 'iva_pct' => '0'],
+            ['producto_id' => $delB->id, 'cantidad' => 1, 'precio' => 3000, 'iva_pct' => '0'],
+        ]);
+
+        $kpis = $this->informe()->kpis($this->request(['proveedor_id' => [$proveedorA->id]]));
+
+        $this->assertEqualsWithDelta(1000.0, $kpis['total_ventas_creadas'], 0.01,
+            'Suma la línea del proveedor filtrado, no los $4.000 de la factura entera.');
+        $this->assertEqualsWithDelta(1000.0, $kpis['precio_neto'], 0.01);
+        $this->assertEqualsWithDelta(1000.0, $kpis['total_ventas'], 0.01);
+    }
+
+    /**
+     * La invariante que protege el uso normal: sin filtros de línea, el KPI tiene que dar lo mismo
+     * que daba cuando salía de `ventas.total`. Sumar todas las líneas de una factura da su total.
+     */
+    public function test_sin_filtros_el_total_sigue_siendo_el_de_la_factura_entera(): void
+    {
+        $this->venta([
+            ['cantidad' => 1, 'precio' => 1000, 'iva_pct' => '0'],
+            ['cantidad' => 1, 'precio' => 3000, 'iva_pct' => '0'],
+        ]);
+
+        $kpis = $this->informe()->kpis($this->request());
+
+        $this->assertEqualsWithDelta(4000.0, $kpis['total_ventas_creadas'], 0.01);
+        $this->assertSame(1, $kpis['cantidad_ventas_creadas']);
+    }
+
+    /**
+     * Una venta sin ítems sigue aportando su total.
+     *
+     * `queryItems` arranca desde `venta_items`, así que no produce ninguna fila y su importe se
+     * perdería al pasar el KPI al nivel línea. En producción son 2 órdenes de Mercado Libre del
+     * 13/08/2026 que se importaron con su total pero sin líneas ($561.753 entre las dos): sin esta
+     * suma, el total del mes bajaría ese importe sin que nadie haya filtrado nada.
+     */
+    public function test_una_venta_sin_items_igual_aporta_su_total(): void
+    {
+        $this->venta([['cantidad' => 1, 'precio' => 1000, 'iva_pct' => '0']]);
+
+        $huerfana = $this->venta([['cantidad' => 1, 'precio' => 500, 'iva_pct' => '0']]);
+        $huerfana->items()->delete();
+
+        $kpis = $this->informe()->kpis($this->request());
+
+        $this->assertEqualsWithDelta(1500.0, $kpis['total_ventas_creadas'], 0.01);
+        $this->assertSame(2, $kpis['cantidad_ventas_creadas']);
+    }
+
+    /** Pero con un filtro de línea NO entra: no tiene producto que pueda matchear. */
+    public function test_una_venta_sin_items_no_entra_si_hay_filtro_de_linea(): void
+    {
+        $proveedor = Proveedor::factory()->create();
+        $producto = Producto::factory()->create(['proveedor_id' => $proveedor->id]);
+
+        $this->venta([['producto_id' => $producto->id, 'cantidad' => 1, 'precio' => 1000, 'iva_pct' => '0']]);
+
+        $huerfana = $this->venta([['cantidad' => 1, 'precio' => 500, 'iva_pct' => '0']]);
+        $huerfana->items()->delete();
+
+        $kpis = $this->informe()->kpis($this->request(['proveedor_id' => [$proveedor->id]]));
+
+        $this->assertEqualsWithDelta(1000.0, $kpis['total_ventas_creadas'], 0.01);
+        $this->assertSame(1, $kpis['cantidad_ventas_creadas']);
     }
 }

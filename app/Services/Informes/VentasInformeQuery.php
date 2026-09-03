@@ -373,7 +373,7 @@ class VentasInformeQuery
     {
         $tipoLiteral = ExpresionSql::literal($clase);
 
-        $vigente = "(SELECT cf.id FROM comprobantes_fiscales cf ".
+        $vigente = '(SELECT cf.id FROM comprobantes_fiscales cf '.
             "WHERE cf.comprobantable_id = {$idExpr} AND cf.comprobantable_type = {$tipoLiteral} ".
             'AND cf.deleted_at IS NULL '.
             'ORDER BY (CASE WHEN cf.estado = \'aprobado\' AND cf.cae IS NOT NULL THEN 1 ELSE 0 END) DESC, cf.id DESC '.
@@ -382,7 +382,7 @@ class VentasInformeQuery
         return [
             'arca' => "COALESCE((SELECT CASE WHEN cf.estado = 'aprobado' AND cf.cae IS NOT NULL THEN 'Aprobado' ELSE 'Sin Enviar' END ".
                 "FROM comprobantes_fiscales cf WHERE cf.id = {$vigente}), '---')",
-            'punto_venta' => "COALESCE((SELECT pv.numero FROM comprobantes_fiscales cf ".
+            'punto_venta' => 'COALESCE((SELECT pv.numero FROM comprobantes_fiscales cf '.
                 "LEFT JOIN puntos_venta pv ON pv.id = cf.punto_venta_id WHERE cf.id = {$vigente}), '-')",
             'nro_factura' => "COALESCE((SELECT cf.numero FROM comprobantes_fiscales cf WHERE cf.id = {$vigente}), '-')",
         ];
@@ -679,6 +679,67 @@ class VentasInformeQuery
     }
 
     /** Filtros que dependen del ítem, comunes a las dos ramas. */
+    /**
+     * Las ventas que no tienen ninguna línea cargada, con sus filtros de comprobante aplicados.
+     *
+     * `queryItems` arranca desde `venta_items`, así que estas ventas no producen fila y quedarían
+     * fuera del KPI ahora que los importes salen del nivel línea. Se las suma aparte para que el
+     * informe sin filtros dé exactamente lo mismo que antes del cambio.
+     *
+     * Si hay algún filtro de línea activo se devuelve cero: una venta sin líneas no puede matchear
+     * un filtro de producto, proveedor o tipo de producto, así que no corresponde contarla.
+     *
+     * @return object{cantidad: int, total: float}
+     */
+    private function ventasSinItems(Request $request): object
+    {
+        $filtrosDeLinea = ['producto_id', 'tipo_producto_id', 'proveedor_id', 'solo_productos'];
+
+        foreach ($filtrosDeLinea as $filtro) {
+            if ($request->filled($filtro)) {
+                return (object) ['cantidad' => 0, 'total' => 0.0];
+            }
+        }
+
+        $query = DB::table('ventas')
+            ->leftJoin('clientes', 'clientes.id', '=', 'ventas.cliente_id')
+            ->leftJoin('categorias as cat_venta', 'cat_venta.id', '=', 'ventas.categoria_id')
+            ->leftJoin('categorias as cat_padre', 'cat_padre.id', '=', 'cat_venta.categoria_padre_id')
+            ->leftJoin('vendedores', 'vendedores.id', '=', 'ventas.vendedor_id')
+            ->whereNull('ventas.deleted_at')
+            ->whereNotExists(fn ($sub) => $sub->select(DB::raw(1))
+                ->from('venta_items')
+                ->whereColumn('venta_items.venta_id', 'ventas.id')
+            );
+
+        // Sólo los filtros de comprobante, y no `aplicarFiltrosVenta()`: ése llama por dentro a
+        // `aplicarFiltrosItem()`, que referencia `venta_items` y `productos` — tablas que esta
+        // query no joinea justamente porque busca las ventas que NO tienen ítems. Hoy no rompería
+        // (los filtros de línea ya cortaron arriba), pero depender de eso es frágil: alcanzaría con
+        // que se agregue un filtro de comprobante nuevo dentro de `aplicarFiltrosItem` para romper.
+        $this->aplicarFiltrosComprobante($query, $request, 'ventas.fecha_emision', 'ventas.id', ['venta']);
+
+        if ($request->filled('nota_cliente')) {
+            $query->where('ventas.nota_cliente', 'like', '%'.$request->input('nota_cliente').'%');
+        }
+
+        if ($request->filled('nota_interna')) {
+            $query->where('ventas.nota_interna', 'like', '%'.$request->input('nota_interna').'%');
+        }
+
+        if ($request->filled('tipo_comprobante')) {
+            $query->whereIn('ventas.tipo_comprobante', (array) $request->input('tipo_comprobante'));
+        }
+
+        if ($request->filled('nro_comprobante')) {
+            $query->where('ventas.nro_comprobante', 'like', '%'.$request->input('nro_comprobante').'%');
+        }
+
+        return $query
+            ->selectRaw('COUNT(*) as cantidad, COALESCE(SUM(ventas.total), 0) as total')
+            ->first();
+    }
+
     private function aplicarFiltrosItem(Builder $query, Request $request, string $columnaProducto): void
     {
         if ($request->filled('producto_id')) {
@@ -769,30 +830,64 @@ class VentasInformeQuery
      * Los 11 valores de los 3 bloques (FR-010), siempre sobre el **conjunto filtrado completo** y
      * nunca sobre la página visible (FR-017).
      *
-     * Los importes de comprobante (`ventas.total`, `notas.monto`) salen de queries agrupadas por
-     * comprobante, no de sumar la columna repetida del detalle: una venta de 10 ítems tiene que
-     * aportar su total una sola vez. Las cantidades, el costo, el neto y el CMV sí salen del nivel
-     * ítem, que es donde viven.
+     * TODOS los importes salen del **nivel línea**, incluidos los de comprobante. Antes
+     * `Total Ventas Creadas` sumaba `ventas.total` de los comprobantes que matcheaban, y eso rompía
+     * el informe en cuanto había un filtro que actúa sobre la línea (Proveedor, Producto, Tipo de
+     * Producto, Categoría): la factura entraba entera aunque sólo una de sus líneas matcheara.
+     *
+     * Caso real que lo destapó (agosto 2026, proveedor Mauricio): Total Ventas Creadas daba
+     * $12.435.090 —29 facturas completas— mientras Precio Neto daba $3.545.808 —sus 49 líneas—. De
+     * las 136 líneas de esas facturas sólo 49 eran del proveedor filtrado.
+     *
+     * Contagram suma las líneas filtradas, verificado sobre dos exports reales de la MISMA venta
+     * (id 5) con distinto proveedor: da $3.055,25 y $3.993 respectivamente. Si sumara la factura
+     * entera, los dos darían igual.
+     *
+     * `total_comprobante` es el total **de la línea** con su IVA y con el prorrateo de los conceptos
+     * extra del comprobante (spec 076) — no el del comprobante entero, pese al nombre. Es la misma
+     * expresión que alimenta la columna "Total Venta" del export, así que el KPI y el detalle
+     * exportado quedan siempre de acuerdo.
+     *
+     * Sin filtros de línea el resultado es idéntico al anterior: sumar todas las líneas de una
+     * factura da su total.
      *
      * @return array<string, float|int>
      */
     public function kpis(Request $request): array
     {
-        $idsVentas = $this->queryItems($request)->distinct()->select('ventas.id');
-
-        $ventas = DB::table('ventas')
-            ->whereNull('ventas.deleted_at')
-            ->whereIn('ventas.id', $idsVentas)
-            ->selectRaw('COUNT(*) as cantidad, COALESCE(SUM(ventas.total), 0) as total')
+        // `total_venta` y no `total_comprobante`: en las notas, `total_comprobante` es el monto de
+        // la nota ENTERA repetido en cada línea, así que sumarlo lo multiplicaría por la cantidad
+        // de líneas. `total_venta` es el importe de la línea con IVA en los dos casos, y es la
+        // columna que el export publica como "Total Venta".
+        $ventas = DB::query()
+            ->fromSub($this->queryItems($request), 'v')
+            ->selectRaw(
+                'COUNT(DISTINCT v.comprobante_id) as cantidad, '.
+                'COALESCE(SUM(v.total_venta), 0) as total'
+            )
             ->first();
 
-        $idsNotas = $this->queryNotas($request)->distinct()->select('notas_credito_debito.id');
+        // Una venta sin ítems no produce ninguna fila —`queryItems` arranca desde `venta_items`—,
+        // así que su importe se perdería al pasar el KPI al nivel línea. Se lo suma aparte con su
+        // total completo, que es el mismo criterio que el informe ya aplica a las notas migradas
+        // sin detalle (ver `totalConImpuestos` en queryNotas).
+        //
+        // Hoy son 2 en toda la base: dos órdenes de Mercado Libre del 13/08/2026 que se importaron
+        // con su total pero sin líneas ($561.753 entre las dos). Sin esta suma, el total de agosto
+        // bajaría ese importe SIN que nadie haya filtrado nada — y el informe es lo que el cliente
+        // mira todos los días. Son datos rotos que hay que recuperar desde ML; hasta entonces el
+        // informe no puede empeorar por su culpa.
+        //
+        // Con un filtro de línea activo (Proveedor, Producto…) NO entran, y es correcto: no tienen
+        // producto que pueda matchear.
+        $sinItems = $this->ventasSinItems($request);
 
-        $notas = DB::table('notas_credito_debito')
-            ->whereIn('notas_credito_debito.id', $idsNotas)
+        // Las líneas de nota ya vienen con signo: negativo las de crédito, positivo las de débito.
+        $notas = DB::query()
+            ->fromSub($this->queryNotas($request), 'n')
             ->selectRaw(
-                "COALESCE(SUM(CASE WHEN notas_credito_debito.tipo = 'debito' THEN notas_credito_debito.monto ELSE 0 END), 0) as nd, ".
-                "COALESCE(SUM(CASE WHEN notas_credito_debito.tipo = 'credito' THEN notas_credito_debito.monto ELSE 0 END), 0) as nc"
+                'COALESCE(SUM(CASE WHEN n.total_venta > 0 THEN n.total_venta ELSE 0 END), 0) as nd, '.
+                'COALESCE(SUM(CASE WHEN n.total_venta < 0 THEN -n.total_venta ELSE 0 END), 0) as nc'
             )
             ->first();
 
@@ -807,10 +902,10 @@ class VentasInformeQuery
             )
             ->first();
 
-        $creadas = round((float) $ventas->total, 2);
+        $creadas = round((float) $ventas->total + (float) $sinItems->total, 2);
         $nd = round((float) $notas->nd, 2);
         $nc = round((float) $notas->nc, 2);
-        $cantidadVentas = (int) $ventas->cantidad;
+        $cantidadVentas = (int) $ventas->cantidad + (int) $sinItems->cantidad;
         $totalVentas = round($creadas + $nd - $nc, 2);
 
         $precioNeto = round((float) $lineas->precio_neto, 2);
