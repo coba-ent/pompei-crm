@@ -50,6 +50,36 @@ class NotaCreditoDebito extends Model
         return $this->hasMany(NotaCreditoDebitoItem::class);
     }
 
+    /**
+     * Importe que representa el Descuento General de la nota sobre el subtotal de sus ítems
+     * (sin IVA), para la fila "Descuento General" del PDF (spec 098, FR-009).
+     *
+     * A diferencia de Presupuesto/Venta/Compra, `notas_credito_debito` NO persiste un subtotal
+     * intermedio de ítems — el `monto` final se calcula 100% client-side en
+     * `notas-credito-debito.js::recalcular()` y se guarda tal cual llega, sin que el backend lo
+     * recalcule. Por eso este método replica ESE MISMO algoritmo (no uno propio): si usara una
+     * fórmula distinta, la fila nueva del PDF podría no cuadrar con el `monto` ya impreso más
+     * abajo, exactamente la clase de inconsistencia que esta spec busca eliminar.
+     */
+    public function montoDescuentoGeneral(): float
+    {
+        $subtotalSinDescuento = $this->items->sum(function (NotaCreditoDebitoItem $item) {
+            $bruto = (float) $item->cantidad * (float) $item->precio;
+
+            return $bruto - ($bruto * (float) ($item->descuento_pct ?? 0) / 100);
+        });
+
+        if ($this->descuento_general_tipo === 'monto') {
+            $factor = $subtotalSinDescuento > 0
+                ? max(0, 1 - ((float) ($this->descuento_general_monto ?? 0) / $subtotalSinDescuento))
+                : 1;
+        } else {
+            $factor = 1 - ((float) ($this->descuento_general_pct ?? 0) / 100);
+        }
+
+        return round($subtotalSinDescuento * (1 - $factor), 2);
+    }
+
     /** Comprobante fiscal vigente: el aprobado si existe, si no el último intento (ver Venta::comprobanteFiscal()). */
     public function comprobanteFiscal(): MorphOne
     {

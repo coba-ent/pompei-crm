@@ -91,6 +91,10 @@
     <table>
         <tr><td>Descripción</td><td>{{ $notaCreditoDebito->descripcion ?: '-' }}</td></tr>
         <tr><td>Afecta Stock</td><td>{{ $notaCreditoDebito->afecta_stock ? 'Sí' : 'No' }}</td></tr>
+        {{-- El descuento de línea (columna %Bonif. de arriba) y el Descuento General de la nota
+             se muestran separados, sin combinar — a diferencia de Presupuesto/Venta/Compra, acá
+             Contagram mantiene los dos campos independientes (spec 098, FR-008/FR-009). --}}
+        <tr><td>Descuento General</td><td class="text-end">$ {{ number_format($notaCreditoDebito->montoDescuentoGeneral(), 2, ',', '.') }}</td></tr>
         <tr><td><strong>Monto</strong></td><td class="text-end"><strong>$ {{ number_format((float) $notaCreditoDebito->monto, 2, ',', '.') }}</strong></td></tr>
     </table>
 </body>

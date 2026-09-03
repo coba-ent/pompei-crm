@@ -582,6 +582,19 @@ Otros Ingresos y Abonos son independientes.
   para porcentaje (ver más abajo "Descuento general aplicado proporcionalmente a neto e IVA"); se
   rechaza el guardado si el monto supera el subtotal de ítems. Ver
   `specs/060-toggle-descuento-general/`.
+- **Columna "Bonif." del PDF: % efectivo combinado, no el crudo de línea (spec 098, 03/09/2026,
+  verificado contra captura real de Contagram)**: en los PDF de Presupuesto/Venta/Compra, la columna
+  "Bonif." de cada ítem muestra el porcentaje de descuento EFECTIVO de esa línea — la combinación del
+  descuento propio de línea con el Descuento General del comprobante — no sólo `descuento_pct` crudo.
+  El backend (`CalculoComprobante::calcular()`) ya multiplica cada línea por el factor del Descuento
+  General antes de guardar `subtotal`; sin este ajuste, una línea sin bonificación propia mostraba
+  "-" en Bonif. aunque su Subtotal impreso estuviera reducido por el Descuento General, contradiciendo
+  al propio documento. La composición no es aditiva: 5% de línea + 10% general no da 15%, da 14,5%
+  (`1 - 0,95×0,90`). Mismo criterio aplica en pantalla (alta/edición): el Subtotal y Total de cada
+  fila de la grilla reflejan el Descuento General en tiempo real, aunque el campo editable "Desc."
+  de la fila NO se reescribe — sigue mostrando sólo el descuento propio de línea, igual que en
+  Contagram real. **NC/ND queda fuera de este criterio a propósito** — ver el bloque de NC/ND más
+  abajo, donde Contagram mantiene ambos descuentos separados en vez de combinarlos.
 - **Fila de Percepciones — desplegable estático, no campo de texto libre (30/07/2026)**: el selector de
   la fila "+ Percepciones" es un `<select>` con el catálogo fijo de 27 percepciones vigentes en
   Argentina (IVA, Ganancias, Sellos e IIBB de las 24 jurisdicciones), no un input de texto libre. Es una
@@ -727,6 +740,12 @@ Otros Ingresos y Abonos son independientes.
   (hoy sólo existe Crear). "Ver Detalle" es un PDF propio de la nota (marca "X", sin CAE), con su
   propia tabla de conceptos (Código, Descripción, Cant., Precio Unit., %Bonif., Subtotal, Alícuota
   IVA, Subtotal c/IVA) — la nota **no es un monto global**, es un documento con ítems e IVA propios.
+  **La columna "%Bonif." muestra el descuento propio de línea, sin combinar con el Descuento
+  General de la nota (spec 098, 03/09/2026)** — a diferencia de Presupuesto/Venta/Compra (ver más
+  arriba), acá los dos descuentos se mantienen separados, consistente con que el propio formulario
+  de Contagram los maneja como campos independientes (`discount` de línea vs. `note[discount]`
+  general, ya documentado más abajo). El bloque de totales del PDF sí agrega una fila "Descuento
+  General" con el importe correspondiente, para que ese dato no quede ausente del documento.
   "Editar" reabre el wizard: paso 1 igual al de creación, con el agregado de que el select
   "Documento que Ajusta" también lista **las demás NC/ND ya creadas sobre el mismo comprobante**
   (permite encadenar una NC/ND como corrección de otra, no sólo de la Compra/Venta original); paso 2

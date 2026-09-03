@@ -760,13 +760,18 @@
         function renderItems() {
             const foco = capturarFoco('#items-body');
             const $body = $('#items-body').empty();
+            // El Subtotal/Total de cada fila tienen que reflejar también el Descuento General,
+            // no sólo el de línea — si no, dos productos sin bonificación por línea muestran el
+            // mismo importe con o sin descuento general cargado, aunque el total de abajo sí
+            // cambie (spec 098). Mismo factor que aplica el backend en CalculoComprobante.
+            const factorGeneral = factorDescuentoGeneral();
             items.forEach((item, idx) => {
                 const cant = Number(item.cantidad) || 0;
                 const precio = Number(item.precio_unitario) || 0;
                 const descPct = Number(item.descuento_pct) || 0;
                 const ivaPct = { '5': 5, '10.5': 10.5, '21': 21, '27': 27 }[item.iva_pct] || 0;
                 const bruto = cant * precio;
-                const subtotal = bruto - (bruto * descPct / 100);
+                const subtotal = (bruto - (bruto * descPct / 100)) * factorGeneral;
                 const subtotalConIva = subtotal + (subtotal * ivaPct / 100);
 
                 const $tr = $('<tr>');
@@ -822,7 +827,11 @@
         }
 
         $('.js-add-concepto').on('click', function (e) { e.preventDefault(); conceptos.push({ tipo: $(this).data('tipo'), concepto: '', monto: 0 }); renderConceptos(); });
-        $('#f-descuento-general').on('input', recalcular);
+        // renderItems() (no recalcular() directo): el Descuento General también cambia el
+        // Subtotal/Total de CADA FILA (spec 098), no sólo el total de pie de página que arma
+        // recalcular() — sin pasar por renderItems() las filas quedaban con el factor viejo
+        // hasta que el usuario tocara cualquier campo de un ítem.
+        $('#f-descuento-general').on('input', renderItems);
 
         // Toggle %/$ inline del Descuento General (spec 060). El backend recalcula siempre —
         // este preview client-side sólo replica el mismo criterio de conversión monto→% efectivo.
@@ -842,7 +851,7 @@
             }
             if (limpiarValor) {
                 $input.val('');
-                recalcular();
+                renderItems();
             }
         }
 
@@ -851,13 +860,17 @@
             setModoDescuentoGeneral(modoActual === 'porcentaje' ? 'monto' : 'porcentaje', true);
         });
 
-        function recalcular() {
-            // Descuento General % se aplica sobre la base imponible de cada linea (subtotal
-            // post-descuento de linea) y por lo tanto tambien reduce el IVA proporcionalmente
-            // -- igual que App\Services\Ingresos\CalculoComprobante (backend, fuente de verdad
-            // real al guardar). Antes este preview calculaba el IVA completo sin descontar y
-            // solo restaba el descuento del subtotal, mostrando un Total mas alto del que
-            // terminaba quedando guardado.
+        // Descuento General % se aplica sobre la base imponible de cada linea (subtotal
+        // post-descuento de linea) y por lo tanto tambien reduce el IVA proporcionalmente
+        // -- igual que App\Services\Ingresos\CalculoComprobante (backend, fuente de verdad
+        // real al guardar). Antes este preview calculaba el IVA completo sin descontar y
+        // solo restaba el descuento del subtotal, mostrando un Total mas alto del que
+        // terminaba quedando guardado.
+        //
+        // Compartida entre renderItems() (Subtotal/Total por fila) y recalcular() (totales de
+        // pie): las dos tienen que partir del mismo factor o la fila y el total quedan
+        // inconsistentes entre sí (spec 098).
+        function factorDescuentoGeneral() {
             const modoDescuentoGeneral = $('#f-descuento-general-toggle').data('modo') || 'porcentaje';
             const valorDescuentoGeneral = Number($('#f-descuento-general').val()) || 0;
 
@@ -873,7 +886,12 @@
             const descuentoGeneralPct = modoDescuentoGeneral === 'monto'
                 ? (subtotalBruto > 0 ? Math.min(100, (valorDescuentoGeneral / subtotalBruto) * 100) : 0)
                 : valorDescuentoGeneral;
-            const factor = 1 - (descuentoGeneralPct / 100);
+
+            return 1 - (descuentoGeneralPct / 100);
+        }
+
+        function recalcular() {
+            const factor = factorDescuentoGeneral();
 
             let subtotalSinDescuento = 0;
             let subtotalConDescuento = 0;
