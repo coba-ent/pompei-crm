@@ -257,10 +257,22 @@
     // disponible... es 0", y el <select> nativo auto-seleccionaba el primer producto
     // (o el único, cuando sólo había uno) sin disparar el evento de selección de select2.
     // ---------------------------------------------------------------------
+    // Match por LÍNEA cuando el renglón la identifica (spec 099): con varias líneas del mismo
+    // producto, buscar sólo por producto_id devuelve siempre la primera y le asigna a todos los
+    // renglones el máximo de esa. Es el mismo criterio que ahora usa la validación del servidor.
+    function disponibleDe(it) {
+        if (it.item_origen_id) {
+            const porLinea = itemsDisponibles.find((d) => d.item_origen_id === it.item_origen_id);
+            if (porLinea) { return porLinea; }
+        }
+
+        return itemsDisponibles.find((d) => d.producto_id === it.producto_id);
+    }
+
     function actualizarMaximosItems() {
         items.forEach((it) => {
             if (!it.producto_id) { return; }
-            const encontrado = itemsDisponibles.find((d) => d.producto_id === it.producto_id);
+            const encontrado = disponibleDe(it);
             if (encontrado) { it._max = encontrado.pendiente; }
         });
     }
@@ -275,11 +287,16 @@
                     // se le devuelve acá lo que ella misma consume (mismo ajuste que ya
                     // hacía `abrirEdicionNota` en el modal viejo, ventas.js/compras.js).
                     (data.items || []).forEach((it) => {
-                        const existente = itemsDisponibles.find((d) => d.producto_id === it.producto_id);
+                        const existente = disponibleDe(it);
                         if (existente) {
                             existente.pendiente = Math.round((existente.pendiente + it.cantidad) * 1000) / 1000;
                         } else {
-                            itemsDisponibles.push({ producto_id: it.producto_id, descripcion: it.descripcion || ('Producto #' + it.producto_id), pendiente: it.cantidad });
+                            itemsDisponibles.push({
+                                producto_id: it.producto_id,
+                                descripcion: it.descripcion || ('Producto #' + it.producto_id),
+                                pendiente: it.cantidad,
+                                item_origen_id: it.item_origen_id || null,
+                            });
                         }
                     });
                     actualizarMaximosItems();
@@ -333,7 +350,20 @@
 
             const $tr = $('<tr>');
             if (afectaStock) {
-                $tr.append($('<td>').text((item.producto_id ? '(' + item.producto_id + ') ' : '') + (item.descripcion || '')));
+                const $celda = $('<td>').text((item.producto_id ? '(' + item.producto_id + ') ' : '') + (item.descripcion || ''));
+
+                // Con varias líneas del mismo producto la descripción se repite y no hay forma de
+                // saber cuál renglón es cuál: la compra 2478 muestra tres veces "99999". El importe
+                // de la línea es lo único que las distingue (spec 099, FR-006).
+                if (item.item_origen_id && items.filter((o) => o.producto_id === item.producto_id).length > 1) {
+                    $celda.append(
+                        $('<small class="text-muted d-block">').text(
+                            'Línea de $' + Number(item.precio || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })
+                        )
+                    );
+                }
+
+                $tr.append($celda);
             } else {
                 $tr.append($('<td>').append(
                     $('<textarea class="form-control form-control-sm" rows="1">').attr('data-idx', idx).attr('data-field', 'descripcion').val(item.descripcion || '')

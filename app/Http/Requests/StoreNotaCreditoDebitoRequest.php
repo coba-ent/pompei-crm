@@ -8,6 +8,7 @@ use App\Services\AjustesPendientesNotaCreditoDebito;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Support\Carbon;
 
 class StoreNotaCreditoDebitoRequest extends FormRequest
 {
@@ -28,7 +29,7 @@ class StoreNotaCreditoDebitoRequest extends FormRequest
     {
         if ($this->filled('mes_imputacion')) {
             $this->merge([
-                'mes_imputacion' => \Illuminate\Support\Carbon::parse($this->input('mes_imputacion'))->startOfMonth()->toDateString(),
+                'mes_imputacion' => Carbon::parse($this->input('mes_imputacion'))->startOfMonth()->toDateString(),
             ]);
         }
     }
@@ -98,19 +99,24 @@ class StoreNotaCreditoDebitoRequest extends FormRequest
                 return;
             }
 
-            $helper = new AjustesPendientesNotaCreditoDebito();
+            $helper = new AjustesPendientesNotaCreditoDebito;
 
             foreach ($this->input('items') as $i => $item) {
                 if (empty($item['producto_id']) || ! isset($item['cantidad'])) {
                     continue;
                 }
 
-                $pendiente = $helper->pendiente($comprobante, (int) $item['producto_id']);
+                // Por LÍNEA cuando el renglón la identifica, agregado si no (spec 099). La compra
+                // 2478 tiene 3 líneas del mismo producto —+1, −1, +1— y la negativa se comía una
+                // unidad en la suma agregada: la línea libre de $4.616.354 quedaba con "máximo 0"
+                // aunque la pantalla la ofrecía.
+                $itemOrigenId = isset($item['item_origen_id']) ? (int) $item['item_origen_id'] : null;
+                $pendiente = $helper->topeDelRenglon($comprobante, (int) $item['producto_id'], $itemOrigenId);
 
                 if ((float) $item['cantidad'] > $pendiente) {
                     $validator->errors()->add(
                         "items.{$i}.cantidad",
-                        "La cantidad máxima disponible para ajustar es {$pendiente}."
+                        $helper->mensajeDeTope($comprobante, $itemOrigenId, $pendiente)
                     );
                 }
             }

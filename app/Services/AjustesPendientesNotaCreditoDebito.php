@@ -7,6 +7,7 @@ use App\Models\CompraItem;
 use App\Models\NotaCreditoDebito;
 use App\Models\Venta;
 use App\Models\VentaItem;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
@@ -28,7 +29,7 @@ class AjustesPendientesNotaCreditoDebito
     /**
      * Pendiente de una LÍNEA puntual del comprobante (modo por línea, FR-003).
      *
-     * @param NotaCreditoDebito|null $excluir Nota en edición: se excluye del "ya ajustado".
+     * @param  NotaCreditoDebito|null  $excluir  Nota en edición: se excluye del "ya ajustado".
      */
     public function pendienteDeLinea(VentaItem|CompraItem $linea, ?NotaCreditoDebito $excluir = null): float
     {
@@ -46,7 +47,7 @@ class AjustesPendientesNotaCreditoDebito
      * original de la spec 045, sin distinguir línea. Se usa cuando ninguna nota existente de ese
      * producto tiene la referencia de línea nueva.
      *
-     * @param NotaCreditoDebito|null $excluir Nota en edición (FR-005): se excluye del "ya ajustado".
+     * @param  NotaCreditoDebito|null  $excluir  Nota en edición (FR-005): se excluye del "ya ajustado".
      */
     public function pendiente(Venta|Compra $comprobante, int $productoId, ?NotaCreditoDebito $excluir = null): float
     {
@@ -61,6 +62,64 @@ class AjustesPendientesNotaCreditoDebito
             ->sum('cantidad');
 
         return round($facturada - $yaAjustada, 3);
+    }
+
+    /**
+     * Tope de un renglón que llega en el request, eligiendo el modo igual que `itemsDisponibles()`.
+     *
+     * Existe para que la decisión del modo viva en UN solo lugar. El bug de la spec 099 nació
+     * justamente de que la pantalla y la validación la tomaban cada una por su cuenta: en la compra
+     * 2478 (3 líneas del mismo producto: +1, −1, +1, con la tercera ya ajustada) `itemsDisponibles()`
+     * ofrecía la línea libre de $4.616.354 mientras la validación la rechazaba con "máximo
+     * disponible 0", porque `pendiente()` suma todas las líneas del producto y la negativa se comía
+     * una de las positivas.
+     *
+     * Un `itemOrigenId` que no pertenece a este comprobante NO lanza: cae al agregado, que es el
+     * criterio más restrictivo. Un renglón manipulado tiene que quedar bloqueado, no producir un 500.
+     *
+     * @param  int|null  $itemOrigenId  Línea del comprobante que el renglón dice ajustar.
+     * @param  NotaCreditoDebito|null  $excluir  Nota en edición: se excluye del "ya ajustado".
+     */
+    public function topeDelRenglon(
+        Venta|Compra $comprobante,
+        int $productoId,
+        ?int $itemOrigenId,
+        ?NotaCreditoDebito $excluir = null,
+    ): float {
+        if ($itemOrigenId !== null) {
+            $linea = $comprobante->items()->whereKey($itemOrigenId)->first();
+
+            if ($linea) {
+                return $this->pendienteDeLinea($linea, $excluir);
+            }
+        }
+
+        return $this->pendiente($comprobante, $productoId, $excluir);
+    }
+
+    /**
+     * Mensaje del tope, nombrando la línea cuando el renglón la identifica (spec 099, FR-005).
+     *
+     * Con varias líneas del mismo producto, "máximo disponible 0" no le dice al usuario CUÁL
+     * renglón topó — parece que el producto entero está agotado. El importe es lo que distingue
+     * una línea de otra en pantalla.
+     *
+     * El importe se muestra sólo si la línea es de ESTE comprobante: nombrar el de una línea ajena
+     * sería filtrar un dato de otro comprobante.
+     */
+    public function mensajeDeTope(Venta|Compra $comprobante, ?int $itemOrigenId, float $pendiente): string
+    {
+        $linea = $itemOrigenId !== null
+            ? $comprobante->items()->whereKey($itemOrigenId)->first()
+            : null;
+
+        if ($linea === null) {
+            return "La cantidad máxima disponible para ajustar es {$pendiente}.";
+        }
+
+        $importe = number_format((float) $linea->precio_unitario, 2, ',', '.');
+
+        return "La cantidad máxima disponible para ajustar en esta línea (\${$importe}) es {$pendiente}.";
     }
 
     /**
@@ -223,6 +282,6 @@ class AjustesPendientesNotaCreditoDebito
 
         return $fecha instanceof \DateTimeInterface
             ? $fecha->format('Y-m-d')
-            : \Illuminate\Support\Carbon::parse($fecha)->format('Y-m-d');
+            : Carbon::parse($fecha)->format('Y-m-d');
     }
 }

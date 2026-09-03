@@ -9,7 +9,7 @@ use App\Services\AjustesPendientesNotaCreditoDebito;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Carbon;
 
 class UpdateNotaCreditoDebitoRequest extends FormRequest
 {
@@ -30,7 +30,7 @@ class UpdateNotaCreditoDebitoRequest extends FormRequest
     {
         if ($this->filled('mes_imputacion')) {
             $this->merge([
-                'mes_imputacion' => \Illuminate\Support\Carbon::parse($this->input('mes_imputacion'))->startOfMonth()->toDateString(),
+                'mes_imputacion' => Carbon::parse($this->input('mes_imputacion'))->startOfMonth()->toDateString(),
             ]);
         }
     }
@@ -132,19 +132,23 @@ class UpdateNotaCreditoDebitoRequest extends FormRequest
                 return;
             }
 
-            $helper = new AjustesPendientesNotaCreditoDebito();
+            $helper = new AjustesPendientesNotaCreditoDebito;
 
             foreach ($this->input('items') as $i => $item) {
                 if (empty($item['producto_id']) || ! isset($item['cantidad'])) {
                     continue;
                 }
 
-                $pendiente = $helper->pendiente($comprobante, (int) $item['producto_id'], $nota);
+                // Mismo criterio que el alta (spec 099): por línea cuando el renglón la identifica.
+                // `$nota` se sigue excluyendo del "ya ajustado", o editar una nota sin tocarla daría
+                // error contra sí misma.
+                $itemOrigenId = isset($item['item_origen_id']) ? (int) $item['item_origen_id'] : null;
+                $pendiente = $helper->topeDelRenglon($comprobante, (int) $item['producto_id'], $itemOrigenId, $nota);
 
                 if ((float) $item['cantidad'] > $pendiente) {
                     $validator->errors()->add(
                         "items.{$i}.cantidad",
-                        "La cantidad máxima disponible para ajustar es {$pendiente}."
+                        $helper->mensajeDeTope($comprobante, $itemOrigenId, $pendiente)
                     );
                 }
             }
