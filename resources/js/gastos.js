@@ -110,7 +110,16 @@
             const s2 = $('#gasto-categoria').data('select2');
             if (!s2) { return; }
             const $busqueda = s2.$dropdown ? s2.$dropdown.find('.select2-search__field') : $();
+            // `query` reconstruye el <ul> de resultados entero, y al reemplazarlo el navegador
+            // pierde el scroll y salta al tope: plegar/desplegar una categoría del medio de la
+            // lista mandaba la vista al principio. Se guarda el scroll y se restaura sobre la
+            // lista nueva, para que el chevron pliegue en el lugar donde está el mouse.
+            // El que scrollea es el propio <ul class="select2-results__options"> (`$results`):
+            // el CSS del template le pone max-height:200px + overflow-y:auto.
+            const $resultados = s2.$results || $();
+            const scrollPrevio = $resultados.length ? $resultados.scrollTop() : null;
             s2.trigger('query', { term: $busqueda.length ? $busqueda.val() : '' });
+            if (scrollPrevio) { $resultados.scrollTop(scrollPrevio); }
         }
 
         function alternarCategoria(id) {
