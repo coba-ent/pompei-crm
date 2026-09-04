@@ -8,7 +8,7 @@
 				<div class="login-form">
 					<div class="text-center">
 						<h3 class="title">Iniciar sesión</h3>
-						<p>Ingresá a tu cuenta para usar Contagram CRM</p>
+						<p>Ingresá a tu cuenta para usar Pompei Sanitarios CRM</p>
 					</div>
 
 					@if (session('status'))
