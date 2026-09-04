@@ -20,7 +20,23 @@ use Illuminate\Support\Facades\DB;
  */
 class CuentaCorriente
 {
-    private const TOLERANCIA = 0.005;
+    /**
+     * Por debajo de esto un saldo se considera cerrado y no se lista.
+     *
+     * Es $1 y no medio centavo porque quedaron 7 ventas de 2021-2023 —todas migradas de Contagram—
+     * cobradas por unos centavos de más: la venta tenía un total redondeado ($1.531,00) y el cobro
+     * traía el importe real ($1.531,86). El desvío de las 7 juntas es **$4,08 en cinco años**.
+     *
+     * No se corrigen los datos: los cobros tienen movimiento de tesorería —tocarlos descuadraría la
+     * caja, que ya concilió contra Contagram— y en 5 de las 7 el total ya coincide con la suma de
+     * sus líneas, así que bajarlo rompería la venta por dentro. Los dos datos son correctos; lo que
+     * sobra es mostrar como saldo vivo una diferencia de $0,02.
+     *
+     * El umbral sigue siendo simétrico, así que un saldo A FAVOR de más de $1 se sigue listando —
+     * eso es plata real del cliente y Contagram también la muestra (ver el bloque de aging: con el
+     * criterio viejo había más de 20 clientes y $1,44 millones invisibles).
+     */
+    private const TOLERANCIA = 1.0;
 
     /**
      * Criterio del saldo a una fecha pasada: **se replica el de Contagram** (decisión del usuario,

@@ -101,6 +101,36 @@ class CuentaCorrienteProveedorTest extends TestCase
         $this->assertCount(0, $this->saldos(), 'Una compra saldada no ocupa una fila del aging.');
     }
 
+    /**
+     * Un rezago de centavos tampoco se lista.
+     *
+     * Quedaron 7 ventas de 2021-2023 migradas de Contagram cobradas por centavos de más —la venta
+     * tenía el total redondeado y el cobro el importe real—, con un desvío de $4,08 entre las 7 en
+     * cinco años. Los datos no se corrigen: los cobros tienen movimiento de tesorería y la caja ya
+     * concilió. Lo que sobra es mostrar como saldo vivo una diferencia de $0,02.
+     */
+    public function test_un_rezago_de_centavos_no_se_lista(): void
+    {
+        $proveedor = Proveedor::factory()->create();
+        $compra = Compra::factory()->create(['proveedor_id' => $proveedor->id, 'total' => 1531.00]);
+        Pago::factory()->create(['compra_id' => $compra->id, 'monto' => 1531.86]);
+
+        $this->assertCount(0, $this->saldos(), 'Los $0,86 de más no son un saldo a mostrar.');
+    }
+
+    /** Pero un peso y medio SÍ: el umbral separa el ruido de un saldo real, por chico que sea. */
+    public function test_un_saldo_de_mas_de_un_peso_si_se_lista(): void
+    {
+        $proveedor = Proveedor::factory()->create();
+        $compra = Compra::factory()->create([
+            'proveedor_id' => $proveedor->id, 'total' => 1000,
+            'fecha_vto_pago' => Carbon::today()->addDays(5)->toDateString(),
+        ]);
+        Pago::factory()->create(['compra_id' => $compra->id, 'monto' => 998.50]);
+
+        $this->assertCount(1, $this->saldos());
+    }
+
     /** FR-032: el saldo inicial crea la fila aunque el proveedor no tenga ninguna compra. */
     public function test_saldo_inicial_sin_compras_crea_fila(): void
     {
