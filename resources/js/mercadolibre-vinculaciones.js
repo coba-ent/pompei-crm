@@ -512,7 +512,11 @@
         const tabla = $('#tabla-retenciones-precio').DataTable({
             processing: true,
             serverSide: true,
-            responsive: true,
+            // `scrollX` y NO `responsive: true`, igual que la tabla de vinculaciones de arriba: el
+            // modo responsive colapsa las columnas que no entran en vez de dar scroll, y acá se
+            // comía "Motivo" — justo la columna que explica por qué se frenó ese precio, que es lo
+            // único que el usuario necesita leer para decidir si aprueba o no.
+            scrollX: true,
             searching: false,
             lengthChange: false,
             pageLength: 10,
