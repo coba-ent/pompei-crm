@@ -298,7 +298,35 @@ spec 003 (24/07/2026) junto con el Informe de Stock (§4.2).
   Nota Interna, Saldo Inicial. **Sin "Lista de Precios"** (Proveedor no vende con lista de precios) ni
   "Descuento General %".
 - Datos de facturación: idéntico a Cliente (Razón social, N° de Doc + tipo, Condición de IVA, Tipo de
-  comprobante por defecto, domicilio/teléfonos fiscales). Reutiliza la misma validación de CUIT.
+  comprobante por defecto, domicilio/teléfonos fiscales).
+  - **Botón "Verificar" — las dos verificaciones, igual que en Cliente (spec 100, 07/09/2026)**: corre
+    el **algoritmo de dígito verificador** (local, sin red) y, cuando el documento es CUIT/CUIL válido,
+    la **consulta real al padrón de ARCA** (`ws_sr_padron_a13` + `ws_sr_constancia_inscripcion`), que
+    autocompleta Razón Social, Domicilio Fiscal, Provincia Fiscal, Localidad Fiscal y Condición de IVA
+    sin pisar lo que el usuario haya editado a mano desde que abrió el modal. Si ARCA no está
+    disponible, no hay certificado activo o el CUIT no figura en el padrón, se informa por toast **sin
+    bloquear el guardado**. Mismos mensajes y mismo contrato de respuesta que Cliente (§2.1).
+    - *Corrección histórica*: hasta la spec 100 este documento afirmaba que Proveedor "reutiliza la
+      misma validación de CUIT" que Cliente. Era cierto sólo para el dígito verificador: el botón
+      existía en el front pero **nunca consultó el padrón**, porque esa mitad no se había implementado
+      del lado del servidor. La spec 100 cierra esa brecha.
+    - La consulta al padrón está centralizada en `App\Services\Arca\ConsultaPadron`, compartida por
+      Cliente, Proveedor y las conversiones automáticas de órdenes de Mercado Libre y Tiendanube.
+  - **Comprobante por defecto derivado de la Condición de IVA — regla propia de compra (spec 100)**: al
+    quedar determinada la Condición de IVA (por "Verificar" o a mano), "Tipo de comprobante por
+    defecto" se autocompleta con **Responsable Inscripto → Factura A, Monotributista → Factura C,
+    cualquier otra condición → Factura B**. El usuario puede sobreescribirlo sin que se le pise.
+    - **Ojo, no es la misma regla que en Cliente** (§2.1: RI → A, resto → B), y la diferencia es
+      deliberada: en Cliente el campo describe el comprobante que **el negocio emite**; en Proveedor,
+      el que **el proveedor nos emite**. Un monotributista nos factura C, no B. No unificar ambas
+      reglas en un refactor.
+    - "Factura E" (exportación) queda fuera de la derivación automática: no se deduce de la condición
+      de IVA sino del carácter internacional de la operación, y se elige a mano.
+  - **Aplica a las dos pantallas donde se da de alta un proveedor**: el listado de Proveedores y el
+    **alta rápida dentro del formulario de Compra** (ambas comparten `proveedores/_modal_form`). El
+    mismo proveedor debe autocompletarse igual y recibir la misma sugerencia de comprobante desde
+    cualquiera de las dos. El paralelo del lado de Cliente son el listado de Clientes y el alta
+    rápida en Venta/Presupuesto, que conservan su regla A/B.
 - Listado: columnas Id, Proveedor, Nombre, Apellido, Mail, Teléfono, Teléfono Celular, Domicilio,
   Localidad, Provincia, DNI, CUIT, Condición de IVA, Nota, Página Web (sin "Usuario de Mercado
   Libre", exclusivo de Cliente). Buscador único, selector de columnas, exportar a CSV. Acciones por

@@ -2,14 +2,10 @@
 
 namespace App\Services\Tiendanube;
 
-use App\Models\CertificadoFiscal;
 use App\Models\Cliente;
 use App\Models\CondicionIva;
 use App\Models\Integraciones\TiendanubeOrden;
-use App\Services\Arca\ClienteConstanciaInscripcion;
-use App\Services\Arca\ClientePadron;
-use App\Services\Arca\ClienteWsaa;
-use App\Services\Arca\Excepciones\ArcaNoDisponibleException;
+use App\Services\Arca\ConsultaPadron;
 use App\Services\Arca\ResultadoConsultaPadron;
 
 /**
@@ -31,6 +27,11 @@ class ResolutorCliente
 
     /** Resultado de la última consulta al padrón hecha por tipoComprobante(), reusado por completarDatosFiscalesSinPisar() (FR-007b). */
     private ?ResultadoConsultaPadron $ultimaConsultaPadron = null;
+
+    public function __construct(
+        private readonly ConsultaPadron $consultaPadron,
+    ) {
+    }
 
     /**
      * @return array{cliente: ?Cliente, ambiguo: bool, tipo_comprobante: string, aproximado: bool}
@@ -115,7 +116,7 @@ class ResolutorCliente
             return $this->tipoComprobantePorCondicionIva($cliente->condicion_iva_id);
         }
 
-        $resultadoPadron = $this->consultarPadron($orden->billing_document_number);
+        $resultadoPadron = $this->consultaPadron->consultar($orden->billing_document_number);
 
         if ($resultadoPadron && $resultadoPadron->condicionIvaId) {
             $this->ultimaConsultaPadron = $resultadoPadron;
@@ -124,45 +125,6 @@ class ResolutorCliente
         }
 
         return $this->tipoComprobantePorDocumento($orden->billing_document_number);
-    }
-
-    /**
-     * Consulta ws_sr_padron_a13 cuando el documento de la orden tiene forma de
-     * CUIT (research.md R4). Best effort: cualquier falla degrada a `null` sin
-     * propagar excepción (FR-008/FR-009, Constitución III).
-     */
-    private function consultarPadron(?string $documento): ?ResultadoConsultaPadron
-    {
-        $cuit = $documento ? preg_replace('/\D/', '', $documento) : '';
-
-        if (strlen($cuit) !== 11) {
-            return null;
-        }
-
-        $certificado = CertificadoFiscal::activo();
-
-        if (! $certificado) {
-            return null;
-        }
-
-        try {
-            $ticketAcceso = app()->makeWith(ClienteWsaa::class, ['certificado' => $certificado])->obtenerTicketAcceso('ws_sr_padron_a13');
-            $respuesta = app()->makeWith(ClientePadron::class, ['certificado' => $certificado])->consultarConstancia($ticketAcceso, $cuit);
-
-            $resultado = ResultadoConsultaPadron::desdeRespuesta($cuit, $respuesta);
-        } catch (ArcaNoDisponibleException) {
-            return null;
-        }
-
-        // Consulta independiente y best-effort a ws_sr_constancia_inscripcion (research.md R5 de spec 047).
-        try {
-            $ticketConstancia = app()->makeWith(ClienteWsaa::class, ['certificado' => $certificado])->obtenerTicketAcceso('ws_sr_constancia_inscripcion');
-            $respuestaConstancia = app()->makeWith(ClienteConstanciaInscripcion::class, ['certificado' => $certificado])->consultarConstancia($ticketConstancia, $cuit);
-
-            return ResultadoConsultaPadron::conCondicionIva($resultado, $respuestaConstancia);
-        } catch (ArcaNoDisponibleException) {
-            return $resultado;
-        }
     }
 
     /** FR-037/FR-040d: alta automática con condición de IVA y comprobante por defecto siempre cargados. */

@@ -9,6 +9,7 @@ use App\Models\CondicionIva;
 use App\Models\Provincia;
 use App\Models\Proveedor;
 use App\Rules\CuitValido;
+use App\Services\Arca\ConsultaPadron;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -38,8 +39,8 @@ class ProveedorController extends Controller
     }
 
     /**
-     * Verifica localmente (sin consultar ARCA/padrón) si un CUIT/CUIL es
-     * matemáticamente válido, para el botón "Verificar" del modal (FR-002).
+     * Verifica el dígito verificador del CUIT/CUIL y, si es válido, consulta el
+     * padrón de ARCA para autocompletar datos fiscales (FR-001/FR-002, spec 100).
      * Sólo aplica cuando el tipo de documento es CUIT o CUIL (FR-005 análogo).
      */
     public function verificarDocumento(Request $request): JsonResponse
@@ -58,9 +59,11 @@ class ProveedorController extends Controller
 
         $valido = CuitValido::esValido($numero);
 
-        return response()->json($valido
-            ? ['aplica' => true, 'valido' => true]
-            : ['aplica' => true, 'valido' => false, 'mensaje' => 'El CUIT ingresado no es válido.']);
+        if (! $valido) {
+            return response()->json(['aplica' => true, 'valido' => false, 'mensaje' => 'El CUIT ingresado no es válido.']);
+        }
+
+        return response()->json(['aplica' => true, 'valido' => true, 'padron' => app(ConsultaPadron::class)->paraModal($numero)]);
     }
 
     /** Opciones para el Select2 de Proveedor (formulario de Compra, spec 009). */

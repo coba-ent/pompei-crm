@@ -5,17 +5,12 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreClienteRequest;
 use App\Http\Requests\UpdateClienteRequest;
 use App\Models\Categoria;
-use App\Models\CertificadoFiscal;
 use App\Models\Cliente;
 use App\Models\CondicionIva;
 use App\Models\ListaPrecio;
 use App\Models\Provincia;
 use App\Rules\CuitValido;
-use App\Services\Arca\ClienteConstanciaInscripcion;
-use App\Services\Arca\ClientePadron;
-use App\Services\Arca\ClienteWsaa;
-use App\Services\Arca\Excepciones\ArcaNoDisponibleException;
-use App\Services\Arca\ResultadoConsultaPadron;
+use App\Services\Arca\ConsultaPadron;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -46,8 +41,8 @@ class ClienteController extends Controller
     }
 
     /**
-     * Verifica localmente (sin consultar ARCA/padrón) si un CUIT/CUIL es
-     * matemáticamente válido, para el botón "Verificar" del modal (FR-002).
+     * Verifica el dígito verificador del CUIT/CUIL y, si es válido, consulta el
+     * padrón de ARCA para autocompletar datos fiscales (FR-001/FR-002, spec 100).
      * Sólo aplica cuando el tipo de documento es CUIT o CUIL (FR-005 análogo).
      */
     public function verificarDocumento(Request $request): JsonResponse
@@ -70,53 +65,7 @@ class ClienteController extends Controller
             return response()->json(['aplica' => true, 'valido' => false, 'mensaje' => 'El CUIT ingresado no es válido.']);
         }
 
-        return response()->json(['aplica' => true, 'valido' => true, 'padron' => $this->consultarPadron($numero)]);
-    }
-
-    /**
-     * Consulta ws_sr_padron_a13 (FR-002/FR-004, spec 037): degrada sin bloquear
-     * si ARCA no está disponible o el certificado fiscal no está configurado.
-     */
-    private function consultarPadron(string $cuit): array
-    {
-        $certificado = CertificadoFiscal::activo();
-
-        if (! $certificado) {
-            return ['consultado' => false, 'mensaje' => 'No se pudo consultar el padrón de ARCA en este momento.'];
-        }
-
-        try {
-            $ticketAcceso = app()->makeWith(ClienteWsaa::class, ['certificado' => $certificado])->obtenerTicketAcceso('ws_sr_padron_a13');
-            $respuesta = app()->makeWith(ClientePadron::class, ['certificado' => $certificado])->consultarConstancia($ticketAcceso, $cuit);
-            $resultado = ResultadoConsultaPadron::desdeRespuesta($cuit, $respuesta);
-        } catch (ArcaNoDisponibleException) {
-            return ['consultado' => false, 'mensaje' => 'No se pudo consultar el padrón de ARCA en este momento.'];
-        }
-
-        if (! $resultado->encontrado) {
-            return ['consultado' => true, 'encontrado' => false, 'mensaje' => 'No se encontró el CUIT en el padrón de ARCA.'];
-        }
-
-        // Consulta independiente y best-effort a ws_sr_constancia_inscripcion (research.md R5 de spec 047):
-        // su éxito o fracaso no condiciona el resto de los datos ya resueltos por A13.
-        try {
-            $ticketConstancia = app()->makeWith(ClienteWsaa::class, ['certificado' => $certificado])->obtenerTicketAcceso('ws_sr_constancia_inscripcion');
-            $respuestaConstancia = app()->makeWith(ClienteConstanciaInscripcion::class, ['certificado' => $certificado])->consultarConstancia($ticketConstancia, $cuit);
-            $resultado = ResultadoConsultaPadron::conCondicionIva($resultado, $respuestaConstancia);
-        } catch (ArcaNoDisponibleException) {
-            // Sin efecto: la condición de IVA queda ausente, razón social/domicilio ya resueltos por A13.
-        }
-
-        return array_filter([
-            'consultado' => true,
-            'encontrado' => true,
-            'razon_social' => $resultado->razonSocial,
-            'domicilio_fiscal' => $resultado->domicilioFiscal,
-            'localidad_fiscal' => $resultado->localidadFiscal,
-            'provincia_fiscal' => $resultado->provinciaFiscal,
-            'condicion_iva' => $resultado->condicionIvaId ? CondicionIva::find($resultado->condicionIvaId)?->nombre : null,
-            'activo' => $resultado->activo,
-        ], fn ($valor) => $valor !== null);
+        return response()->json(['aplica' => true, 'valido' => true, 'padron' => app(ConsultaPadron::class)->paraModal($numero)]);
     }
 
     /** Opciones de cliente para Select2 (Presupuestos/Ventas), con categoría/lista/descuento para autocompletar (FR-003). */

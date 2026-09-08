@@ -2,16 +2,11 @@
 
 namespace App\Services\MercadoLibre;
 
-use App\Models\CertificadoFiscal;
 use App\Models\CondicionIva;
 use App\Models\Integraciones\MercadoLibreConfiguracion;
 use App\Models\Integraciones\MercadoLibreOrden;
 use App\Rules\CuitValido;
-use App\Services\Arca\ClienteConstanciaInscripcion;
-use App\Services\Arca\ClientePadron;
-use App\Services\Arca\ClienteWsaa;
-use App\Services\Arca\Excepciones\ArcaNoDisponibleException;
-use App\Services\Arca\ResultadoConsultaPadron;
+use App\Services\Arca\ConsultaPadron;
 
 /**
  * Deriva el tipo de comprobante (A/B) de la condición frente al IVA del
@@ -40,6 +35,7 @@ class DerivadorComprobante
     public function __construct(
         private readonly ClienteMercadoLibre $cliente,
         private readonly TraductorOrdenes $traductor,
+        private readonly ConsultaPadron $consultaPadron,
     ) {
     }
 
@@ -69,7 +65,7 @@ class DerivadorComprobante
         if ($orden->comprador_doc_tipo) {
             [$docTipo, $docNumero] = $this->sanearDocumento($orden->comprador_doc_tipo, $orden->comprador_doc_numero);
 
-            $resultadoPadron = $docTipo === 'CUIT' ? $this->consultarPadron($docNumero) : null;
+            $resultadoPadron = $docTipo === 'CUIT' ? $this->consultaPadron->consultar($docNumero) : null;
 
             if ($resultadoPadron && $resultadoPadron->condicionIvaId) {
                 $nombreCondicionIva = CondicionIva::find($resultadoPadron->condicionIvaId)?->nombre ?? 'Consumidor Final';
@@ -112,44 +108,6 @@ class DerivadorComprobante
             'localidad_fiscal' => null,
             'provincia_fiscal' => null,
         ];
-    }
-
-    /**
-     * Consulta ws_sr_padron_a13 (research.md R4, spec 037). Best effort: cualquier
-     * falla degrada a `null` sin propagar excepción (FR-008/FR-009, Constitución III).
-     */
-    private function consultarPadron(?string $cuit): ?ResultadoConsultaPadron
-    {
-        $cuit = $cuit ? preg_replace('/\D/', '', $cuit) : '';
-
-        if (strlen($cuit) !== 11) {
-            return null;
-        }
-
-        $certificado = CertificadoFiscal::activo();
-
-        if (! $certificado) {
-            return null;
-        }
-
-        try {
-            $ticketAcceso = app()->makeWith(ClienteWsaa::class, ['certificado' => $certificado])->obtenerTicketAcceso('ws_sr_padron_a13');
-            $respuesta = app()->makeWith(ClientePadron::class, ['certificado' => $certificado])->consultarConstancia($ticketAcceso, $cuit);
-
-            $resultado = ResultadoConsultaPadron::desdeRespuesta($cuit, $respuesta);
-        } catch (ArcaNoDisponibleException) {
-            return null;
-        }
-
-        // Consulta independiente y best-effort a ws_sr_constancia_inscripcion (research.md R5 de spec 047).
-        try {
-            $ticketConstancia = app()->makeWith(ClienteWsaa::class, ['certificado' => $certificado])->obtenerTicketAcceso('ws_sr_constancia_inscripcion');
-            $respuestaConstancia = app()->makeWith(ClienteConstanciaInscripcion::class, ['certificado' => $certificado])->consultarConstancia($ticketConstancia, $cuit);
-
-            return ResultadoConsultaPadron::conCondicionIva($resultado, $respuestaConstancia);
-        } catch (ArcaNoDisponibleException) {
-            return $resultado;
-        }
     }
 
     /**

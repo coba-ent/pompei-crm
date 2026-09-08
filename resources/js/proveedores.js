@@ -41,6 +41,20 @@
         return (v || v === 0) ? $('<div>').text(v).html() : '';
     }
 
+    /** Matchea por texto (case/acentos-insensitive) contra las <option> de un <select>; devuelve el value si matchea. */
+    function normalizarTexto(txt) {
+        return (txt || '').toString().trim().toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    }
+
+    function buscarOpcionPorTexto($select, valor) {
+        if (!valor) { return null; }
+        const buscado = normalizarTexto(valor);
+        const $opcion = $select.find('option').filter(function () {
+            return normalizarTexto($(this).text()) === buscado || normalizarTexto($(this).val()) === buscado;
+        });
+        return $opcion.length ? $opcion.first().val() : null;
+    }
+
     const CSRF = $('meta[name="csrf-token"]').attr('content');
     $.ajaxSetup({ headers: { 'X-CSRF-TOKEN': CSRF } });
 
@@ -165,6 +179,7 @@
             // Vaciar los selects de localidad (dependen de la provincia).
             $form.find('.js-localidad').html('<option value="">Seleccionar</option>');
             $('#saldo-inicial-wrap').addClass('d-none');
+            resetearTocadoPadron();
         }
 
         // --- Verificación de CUIT/CUIL (US1, spec 014) ---
@@ -227,17 +242,126 @@
 
         $form.on('change', 'select[name="tipo_documento"]', limpiarResultadoVerificacion);
 
-        $form.on('click', '.js-verificar-documento', function () {
-            if (!rutas.verificarDocumento) {
+        // --- Autocompletado desde el padrón de ARCA (US1, espejo de clientes.js) ---
+        // Campos que el padrón puede completar: sólo se pisan si el usuario no
+        // los tocó manualmente desde la última consulta (se resetea al abrir el
+        // modal / cambiar de proveedor, en resetForm()).
+        const CAMPOS_PADRON = ['razon_social', 'domicilio_fiscal', 'provincia_fiscal', 'localidad_fiscal', 'condicion_iva_id', 'tipo_comprobante_defecto'];
+        let tocadoPadron = {};
+
+        function resetearTocadoPadron() {
+            tocadoPadron = {};
+            CAMPOS_PADRON.forEach(function (campo) {
+                tocadoPadron[campo] = false;
+            });
+        }
+        resetearTocadoPadron();
+
+        CAMPOS_PADRON.forEach(function (campo) {
+            $form.on('input change', '[name="' + campo + '"]', function () {
+                tocadoPadron[campo] = true;
+            });
+        });
+
+        function autocompletarDesdePadron(padron) {
+            if (!padron || !padron.encontrado) {
                 return;
             }
+            if (padron.razon_social && !tocadoPadron.razon_social) {
+                $form.find('input[name="razon_social"]').val(padron.razon_social);
+            }
+            if (padron.domicilio_fiscal && !tocadoPadron.domicilio_fiscal) {
+                $form.find('input[name="domicilio_fiscal"]').val(padron.domicilio_fiscal);
+            }
+            // Provincia y Localidad son selects linkeados: primero seleccionar la provincia
+            // que devuelve el padrón, y recién con eso disparar la carga AJAX de localidades
+            // de esa provincia para poder seleccionar la localidad devuelta (FR-011).
+            if (padron.provincia_fiscal && !tocadoPadron.provincia_fiscal) {
+                const $provincia = $form.find('select[name="provincia_fiscal"]');
+                const valorProvincia = buscarOpcionPorTexto($provincia, padron.provincia_fiscal);
+                if (valorProvincia !== null) {
+                    $provincia.val(valorProvincia);
+                    const $loc = $form.find('select[name="localidad_fiscal"]');
+                    if (!tocadoPadron.localidad_fiscal) {
+                        cargarLocalidades($loc, valorProvincia, padron.localidad_fiscal || null);
+                    }
+                }
+            }
+            if (padron.condicion_iva && !tocadoPadron.condicion_iva_id) {
+                const $select = $form.find('select[name="condicion_iva_id"]');
+                const $opcion = $select.find('option').filter(function () {
+                    return $(this).text().trim() === padron.condicion_iva;
+                });
+                if ($opcion.length) {
+                    $select.val($opcion.val()).trigger('change');
+                }
+            }
+        }
+
+        // Deriva el comprobante por defecto según el texto de la Condición de IVA elegida
+        // (US3, spec 100). Regla DE COMPRA, deliberadamente distinta de la de Cliente
+        // (que deriva A/B): acá el comprobante describe lo que el PROVEEDOR nos emite, y un
+        // Monotributista nos factura C, no B. No unificar con la de Cliente en un refactor.
+        function derivarComprobantePorCondicionIva() {
+            if (tocadoPadron.tipo_comprobante_defecto) {
+                return;
+            }
+            const $condicion = $form.find('select[name="condicion_iva_id"]');
+            const texto = $condicion.find('option:selected').text().trim();
+            if (!texto) {
+                return;
+            }
+            let tipo = 'B';
+            if (texto === 'Responsable Inscripto') {
+                tipo = 'A';
+            } else if (texto === 'Monotributista') {
+                tipo = 'C';
+            }
+            $form.find('select[name="tipo_comprobante_defecto"]').val(tipo);
+        }
+
+        $form.on('change', 'select[name="condicion_iva_id"]', derivarComprobantePorCondicionIva);
+
+        function mostrarMensajePadron(padron) {
+            if (!padron) {
+                return;
+            }
+            if (!padron.consultado) {
+                toast('info', padron.mensaje || 'No se pudo consultar el padrón de ARCA en este momento.');
+            } else if (!padron.encontrado) {
+                toast('info', padron.mensaje || 'No se encontró el CUIT en el padrón de ARCA.');
+            } else {
+                toast('success', 'Datos del padrón de ARCA cargados.');
+            }
+        }
+
+        let verificacionEnCurso = false;
+
+        $form.on('click', '.js-verificar-documento', function () {
+            if (!rutas.verificarDocumento || verificacionEnCurso) {
+                return;
+            }
+            const $boton = $(this);
+            verificacionEnCurso = true;
+            $boton.prop('disabled', true);
+
             $.getJSON(rutas.verificarDocumento, {
                 tipo_documento: $form.find('select[name="tipo_documento"]').val(),
                 numero: $form.find('input[name="cuit"]').val(),
             })
-                .done(pintarResultadoVerificacion)
+                .done(function (resp) {
+                    pintarResultadoVerificacion(resp);
+                    if (resp && resp.padron) {
+                        autocompletarDesdePadron(resp.padron);
+                        mostrarMensajePadron(resp.padron);
+                    }
+                })
                 .fail(function () {
                     toast('error', 'No se pudo verificar el documento.');
+                })
+                .always(function () {
+                    verificacionEnCurso = false;
+                    $boton.prop('disabled', false);
                 });
         });
 

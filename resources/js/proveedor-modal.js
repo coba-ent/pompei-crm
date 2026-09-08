@@ -153,13 +153,22 @@
         }
     }
 
-    /** Deriva Factura A/B en "Comprobante por defecto" según el texto de la Condición de IVA elegida (docs §2.1). */
+    // Deriva el comprobante por defecto según el texto de la Condición de IVA elegida.
+    // Regla DE COMPRA (spec 100), deliberadamente distinta de la de Cliente (A/B): acá el
+    // comprobante describe lo que el PROVEEDOR nos emite, y un Monotributista nos factura
+    // C, no B. No unificar con la regla de Cliente (cliente-modal.js) en un refactor.
     function derivarComprobantePorCondicionIva() {
         if (tocadoPadron.tipo_comprobante_defecto) { return; }
         const $condicion = $form.find('select[name="condicion_iva_id"]');
         const texto = $condicion.find('option:selected').text().trim();
         if (!texto) { return; }
-        $form.find('select[name="tipo_comprobante_defecto"]').val(texto === 'Responsable Inscripto' ? 'A' : 'B');
+        let tipo = 'B';
+        if (texto === 'Responsable Inscripto') {
+            tipo = 'A';
+        } else if (texto === 'Monotributista') {
+            tipo = 'C';
+        }
+        $form.find('select[name="tipo_comprobante_defecto"]').val(tipo);
     }
 
     function mostrarMensajePadron(padron) {
