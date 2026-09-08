@@ -61,7 +61,12 @@
                     </div>
                     <div class="card-body">
                         <div class="table-responsive">
-                            <table id="tabla-retenciones-precio" class="table table-hover display nowrap" style="width:100%">
+                            {{-- Sin `nowrap`: las columnas Producto y Motivo traen textos largos —el
+                                 producto repite su código dos veces y el motivo es una frase entera—
+                                 y forzarlos a una línea estiraba la tabla al punto de que el scroll
+                                 no alcanzaba para llegar a las Acciones. Acá conviene que bajen de
+                                 renglón. --}}
+                            <table id="tabla-retenciones-precio" class="table table-hover display" style="width:100%">
                                 <thead>
                                     <tr>
                                         <th>Publicación</th>

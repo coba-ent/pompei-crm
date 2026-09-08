@@ -512,23 +512,25 @@
         const tabla = $('#tabla-retenciones-precio').DataTable({
             processing: true,
             serverSide: true,
-            // `scrollX` y NO `responsive: true`, igual que la tabla de vinculaciones de arriba: el
-            // modo responsive colapsa las columnas que no entran en vez de dar scroll, y acá se
-            // comía "Motivo" — justo la columna que explica por qué se frenó ese precio, que es lo
-            // único que el usuario necesita leer para decidir si aprueba o no.
-            scrollX: true,
+            // Ni `responsive` ni `scrollX`: son 8 columnas que entran en pantalla si se las deja
+            // partir en varias líneas. `responsive` colapsaba "Motivo" —la columna que explica por
+            // qué se frenó ese precio, o sea lo único que hace falta leer para decidir— y `scrollX`
+            // con textos largos estiraba la tabla tanto que el scroll no llegaba a las Acciones.
+            // Los anchos de abajo evitan que Producto y Motivo se coman todo el espacio.
+            autoWidth: false,
             searching: false,
             lengthChange: false,
             pageLength: 10,
             ajax: { url: rutas.retenciones },
             language: { url: '/vendor/datatables/es-AR.json' },
             columns: [
-                { data: 'ml_item_id', render: (v) => '<code>' + v + '</code>' },
-                { data: 'producto' },
-                { data: 'tipo_publicacion' },
-                { data: 'precio_publicado', className: 'text-end', render: money },
+                { data: 'ml_item_id', width: '9%', render: (v) => '<code>' + v + '</code>' },
+                { data: 'producto', width: '26%' },
+                { data: 'tipo_publicacion', width: '7%' },
+                { data: 'precio_publicado', width: '11%', className: 'text-end', render: money },
                 {
                     data: null,
+                    width: '13%',
                     className: 'text-end',
                     // Si el precio de la lista cambió desde que se retuvo, se muestran los dos: al
                     // aprobar se publica el VIGENTE, y ver un número y que salga otro sería peor
@@ -547,14 +549,16 @@
                 },
                 {
                     data: 'caida_pct',
+                    width: '8%',
                     className: 'text-end fw-semibold text-danger',
                     render: (v) => v === null ? '—' : Number(v).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' %',
                 },
-                { data: 'motivo_legible' },
+                { data: 'motivo_legible', width: '16%' },
                 {
                     data: 'id',
+                    width: '10%',
                     orderable: false,
-                    className: 'text-end',
+                    className: 'text-end text-nowrap',
                     render: (id) => '<button type="button" class="btn btn-sm btn-success js-aprobar-retencion" data-id="' + id + '">Publicar</button> ' +
                         '<button type="button" class="btn btn-sm btn-outline-secondary js-rechazar-retencion" data-id="' + id + '">Descartar</button>',
                 },
