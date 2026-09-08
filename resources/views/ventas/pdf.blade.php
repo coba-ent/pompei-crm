@@ -100,8 +100,31 @@
         <tr><td><strong>Total</strong></td><td class="text-end"><strong>$ {{ number_format((float) $venta->total, 2, ',', '.') }}</strong></td></tr>
         {{-- Sólo los totales: el detalle movimiento por movimiento de las cobranzas (fecha, cuenta,
              nota, monto) no va en un PDF que se le manda al cliente. Igual que en Contagram. --}}
-        <tr><td><strong>Total Cobrado</strong></td><td class="text-end"><strong>$ {{ number_format((float) $venta->cobros->sum('monto'), 2, ',', '.') }}</strong></td></tr>
-        <tr><td><strong>Total a Cobrar</strong></td><td class="text-end"><strong>$ {{ number_format((float) $venta->total - (float) $venta->cobros->sum('monto'), 2, ',', '.') }}</strong></td></tr>
+        <tr><td><strong>Total Cobrado</strong></td><td class="text-end"><strong>$ {{ number_format($venta->cobrado(), 2, ',', '.') }}</strong></td></tr>
+
+        {{-- Una venta puede estar saldada sin que haya entrado plata: con una Nota de Crédito propia
+             o con un crédito aplicado desde otra venta del mismo cliente (una devolución que se
+             cambió por otro producto). Esas líneas sólo se imprimen cuando existen, para no llenar
+             de ceros el comprobante de una venta normal. --}}
+        @if ($venta->totalNotasCredito() > 0)
+            <tr><td>Nota de Crédito</td><td class="text-end">$ {{ number_format($venta->totalNotasCredito(), 2, ',', '.') }}</td></tr>
+        @endif
+        @if ($venta->totalNotasDebito() > 0)
+            <tr><td>Nota de Débito</td><td class="text-end">$ {{ number_format($venta->totalNotasDebito(), 2, ',', '.') }}</td></tr>
+        @endif
+        @if ($venta->creditoRecibido() > 0)
+            <tr><td>Crédito Aplicado</td><td class="text-end">$ {{ number_format($venta->creditoRecibido(), 2, ',', '.') }}</td></tr>
+        @endif
+        @if ($venta->creditoCedido() > 0)
+            <tr><td>Crédito Cedido</td><td class="text-end">$ {{ number_format($venta->creditoCedido(), 2, ',', '.') }}</td></tr>
+        @endif
+
+        {{-- `aCobrar()` y no `total - cobros`: ese cálculo a mano ignoraba las NC y los créditos
+             aplicados, así que la venta 24996 —saldada con el crédito de una devolución— se imprimía
+             con "$108.581,80 a cobrar" y se le entregó a la clienta un comprobante que decía que
+             debía plata cuando no debía nada. El modelo ya tenía la cuenta correcta; el PDF era el
+             único lugar que la rehacía por su cuenta. --}}
+        <tr><td><strong>Total a Cobrar</strong></td><td class="text-end"><strong>$ {{ number_format($venta->aCobrar(), 2, ',', '.') }}</strong></td></tr>
     </table>
 
     <div>Formas de Pago: {{ $venta->formas_pago ?: '-' }}</div>
