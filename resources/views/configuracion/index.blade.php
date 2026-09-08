@@ -52,6 +52,11 @@
                     <i class="fas fa-cash-register me-1"></i> Ventas
                 </button>
             </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-vendedores-btn" data-bs-toggle="tab" data-bs-target="#tab-vendedores" type="button" role="tab">
+                    <i class="fas fa-user-tie me-1"></i> Vendedores
+                </button>
+            </li>
         </ul>
 
         <div class="tab-content" id="configuracion-tabs-content">
@@ -73,6 +78,9 @@
             <div class="tab-pane fade" id="tab-ventas" role="tabpanel">
                 @include('configuracion.ventas._tab')
             </div>
+            <div class="tab-pane fade" id="tab-vendedores" role="tabpanel">
+                @include('configuracion.vendedores._tab')
+            </div>
         </div>
 
     </div>
@@ -80,6 +88,7 @@
 
 @include('presupuestos._modal_vendedor')
 @include('presupuestos._modal_categoria')
+@include('configuracion._modal_vendedores')
 @endsection
 
 @section('local-js')
@@ -227,4 +236,15 @@
     };
 </script>
 @vite(['resources/js/configuracion-ventas.js'])
+
+<script>
+    window.VendedoresConfig = {
+        rutas: {
+            data: @json(route('vendedores.data')),
+            store: @json(route('vendedores.store')),
+            base: @json(url('vendedores')),
+        },
+    };
+</script>
+@vite(['resources/js/configuracion-vendedores.js'])
 @endsection

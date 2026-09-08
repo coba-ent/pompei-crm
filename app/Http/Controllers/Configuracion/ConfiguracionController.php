@@ -27,7 +27,7 @@ class ConfiguracionController extends Controller
         $depositos = Deposito::activos()->orderBy('nombre')->get();
         $categoriasVenta = Categoria::venta()->activas()->orderBy('nombre')->get();
         $listasPrecio = ListaPrecio::where('activo', true)->orderBy('nombre')->get();
-        $vendedores = Vendedor::orderBy('nombre')->get();
+        $vendedores = Vendedor::activos()->orderBy('nombre')->get();
 
         $depositoPorDefecto = Deposito::porDefecto();
 
@@ -50,6 +50,11 @@ class ConfiguracionController extends Controller
         $configuracionVentas = ConfiguracionVentas::first();
         $categoriasCompra = Categoria::compra()->activas()->orderBy('nombre')->get();
 
+        // Spec 101: avisar si el vendedor por defecto configurado quedó inactivo.
+        $vendedorPorDefectoInactivo = $configuracionVentas && $configuracionVentas->vendedor_id
+            ? Vendedor::where('id', $configuracionVentas->vendedor_id)->where('activo', false)->exists()
+            : false;
+
         return view('configuracion.index', compact(
             'CurrentPage',
             'funciones',
@@ -67,6 +72,7 @@ class ConfiguracionController extends Controller
             'certificado',
             'puntosVenta',
             'configuracionVentas',
+            'vendedorPorDefectoInactivo',
         ));
     }
 }

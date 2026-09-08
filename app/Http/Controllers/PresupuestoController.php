@@ -40,7 +40,7 @@ class PresupuestoController extends Controller
             'CurrentPage' => $CurrentPage,
             'kpis' => $kpis,
             'categoriasVenta' => Categoria::venta()->activas()->orderBy('nombre')->get(['id', 'nombre']),
-            'vendedores' => Vendedor::orderBy('nombre')->get(['id', 'nombre']),
+            'vendedores' => Vendedor::activos()->orderBy('nombre')->get(['id', 'nombre']),
             'etiquetas' => Etiqueta::orderBy('nombre')->get(['id', 'nombre']),
             'usuarios' => \App\Models\User::orderBy('name')->get(['id', 'name']),
         ]);
@@ -211,7 +211,7 @@ class PresupuestoController extends Controller
             'defaults' => $defaults,
             'categoriasVenta' => Categoria::venta()->activas()->orderBy('nombre')->get(),
             'listasPrecio' => ListaPrecio::where('activo', true)->orderBy('nombre')->get(),
-            'vendedores' => Vendedor::orderBy('nombre')->get(),
+            'vendedores' => Vendedor::activos()->orderBy('nombre')->get(),
             // Para el modal completo de alta/edición de Cliente reutilizado desde el select (clientes._modal_form).
             'categorias' => Categoria::venta()->orderBy('nombre')->get(),
             'condicionesIva' => CondicionIva::orderBy('nombre')->get(),
@@ -295,7 +295,10 @@ class PresupuestoController extends Controller
         $presupuesto->load(['items', 'conceptos', 'etiquetas', 'cliente', 'categoria', 'listaPrecio', 'vendedor']);
         $categoriasVenta = Categoria::venta()->activas()->orderBy('nombre')->get();
         $listasPrecio = ListaPrecio::where('activo', true)->orderBy('nombre')->get();
-        $vendedores = Vendedor::orderBy('nombre')->get();
+        $vendedores = Vendedor::activos()->orderBy('nombre')->get();
+        if ($presupuesto->vendedor && ! $presupuesto->vendedor->activo && ! $vendedores->contains('id', $presupuesto->vendedor->id)) {
+            $vendedores->push($presupuesto->vendedor);
+        }
         $categorias = Categoria::venta()->orderBy('nombre')->get();
         $condicionesIva = CondicionIva::orderBy('nombre')->get();
         $provincias = Provincia::orderBy('nombre')->pluck('nombre');

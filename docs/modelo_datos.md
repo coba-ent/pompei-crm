@@ -455,15 +455,19 @@ id, nombre (unique). Usado por Presupuestos y Ventas ("+ Nueva Etiqueta" en el p
 etiqueta_id (FK → etiquetas), etiquetable_type, etiquetable_id. Permite reutilizar el mismo catálogo
 de etiquetas entre `presupuestos` y `ventas` sin dos pivots separados.
 
-### `vendedores` (catálogo global — spec 020, implementada)
-id, nombre (unique). Catálogo plano: sin jerarquía, sin tipo, sin `activo`, sin `es_sistema` — a
-diferencia de `categorias` (no lo necesita, ver `specs/020-vendedores/research.md` R1). ABM inline
-desde el select de Vendedor de Presupuestos/Ventas y desde el select de "Vendedor por defecto" de
-Configuración Tiendanube/MercadoLibre (mismo patrón que Categorías: crear/renombrar/eliminar sin
-pantalla propia; eliminar está bloqueado si el vendedor está en uso en cualquiera de las cuatro
-tablas que lo referencian). Reemplaza al `vendedor_id → usuarios` que existía hasta la spec 020 (ver
-nota en `presupuestos`/`ventas` más abajo); la migración a esta tabla preserva el historial existente
-(un vendedor por cada usuario que ya aparecía como vendedor de alguna Venta/Presupuesto).
+### `vendedores` (catálogo global — spec 020, implementada; `activo` agregado en spec 101)
+id, nombre (unique), activo (boolean, default true — spec 101). Catálogo plano: sin jerarquía, sin
+tipo, sin `es_sistema` — a diferencia de `categorias` (no lo necesita, ver
+`specs/020-vendedores/research.md` R1). ABM inline desde el select de Vendedor de
+Presupuestos/Ventas y desde el select de "Vendedor por defecto" de Configuración
+Tiendanube/MercadoLibre (mismo patrón que Categorías: crear/renombrar sin pantalla propia salvo el
+tab "Vendedores" agregado en Configuración & Ajustes — spec 101 — para alta/edición/activar-desactivar;
+eliminar físico está bloqueado si el vendedor está en uso en cualquiera de las cuatro tablas que lo
+referencian). Reemplaza al `vendedor_id → usuarios` que existía hasta la spec 020 (ver nota en
+`presupuestos`/`ventas` más abajo); la migración a esta tabla preserva el historial existente (un
+vendedor por cada usuario que ya aparecía como vendedor de alguna Venta/Presupuesto). Un vendedor
+`activo = false` deja de ofrecerse en los selects de asignación nuevos (`scopeActivos`, calco de
+`Deposito::scopeActivos`) pero conserva intacta su referencia en comprobantes ya emitidos.
 
 ### `presupuestos`
 | Campo | Tipo | Notas |

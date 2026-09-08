@@ -2038,6 +2038,7 @@ numeración local (`tipo_comprobante`/`nro_comprobante`) sin validez fiscal, igu
 | Mercado Libre | Configuración de la integración y vinculación de cuenta (spec 011) — ver §5.2 |
 | Tiendanube | Configuración de la integración (OAuth 2.1 vía admin-mcp.tiendanube.com, spec 019, corrige a spec 015) + apartado aislado de conexión vía Application REST del Partner Portal (spec 022) — ver §5.3 |
 | Ventas | Valores globales por defecto para "Crear Venta" (Categoría, Vendedor, Lista de Precios, Tipo de Comprobante, días de Vto. de Cobro, **Depósito** — spec 043/049), sección "Presupuestos" (días de Vto. de Validez, spec 044) y sección "Compras" (Categoría de Compra, Tipo de Comprobante, días de Vto. de Pago, **Depósito** — spec 044/049), todo en una misma pantalla/tabla `configuracion_ventas` |
+| Vendedores | ABM de vendedores con activar/desactivar (baja lógica, spec 101) — un vendedor inactivo deja de ofrecerse en los selects de asignación de Venta/Presupuesto/Tiendanube/MercadoLibre, pero conserva su nombre en comprobantes ya emitidos. **Divergencia deliberada**: no hay evidencia en los informes de Contagram relevados de una pantalla de gestión de Vendedores propia (antes vivía sólo como ABM inline desde los selects, spec 020) |
 
 > **Recuperación de contraseña por email (spec 081, 25/08/2026):** desde el login, un link
 > "¿Olvidaste tu contraseña?" abre un modal (email) que dispara el envío de un correo con un link

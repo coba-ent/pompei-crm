@@ -15,13 +15,21 @@ use Illuminate\Validation\Rule;
  */
 class VendedorController extends Controller
 {
+    /** Lista completa de vendedores, sin paginado (catálogo chico). */
+    public function data(): JsonResponse
+    {
+        return response()->json([
+            'data' => Vendedor::orderBy('nombre')->get(['id', 'nombre', 'activo']),
+        ]);
+    }
+
     public function store(Request $request): JsonResponse
     {
         $datos = $request->validate([
             'nombre' => 'required|string|max:255|unique:vendedores,nombre',
         ]);
 
-        $vendedor = Vendedor::create(['nombre' => $datos['nombre']]);
+        $vendedor = Vendedor::create(['nombre' => $datos['nombre'], 'activo' => true]);
 
         return response()->json([
             'ok' => true,
@@ -39,6 +47,19 @@ class VendedorController extends Controller
         $vendedor->update(['nombre' => $datos['nombre']]);
 
         return response()->json(['ok' => true, 'mensaje' => 'Vendedor renombrado.', 'vendedor' => $vendedor]);
+    }
+
+    /** Alternar activo/inactivo (baja lógica). */
+    public function estado(Vendedor $vendedor): JsonResponse
+    {
+        $vendedor->activo = ! $vendedor->activo;
+        $vendedor->save();
+
+        return response()->json([
+            'ok' => true,
+            'activo' => $vendedor->activo,
+            'mensaje' => $vendedor->activo ? 'Vendedor activado.' : 'Vendedor desactivado.',
+        ]);
     }
 
     public function destroy(Vendedor $vendedor): JsonResponse

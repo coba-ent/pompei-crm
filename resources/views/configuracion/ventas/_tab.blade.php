@@ -35,6 +35,12 @@
                             </option>
                         @endforeach
                     </select>
+                    @if ($vendedorPorDefectoInactivo ?? false)
+                        <div class="alert alert-warning mt-2 mb-0 py-2 px-3">
+                            <i class="fas fa-triangle-exclamation me-1"></i>
+                            El vendedor por defecto configurado está inactivo y no se precargará en "Crear Venta". Elegí otro o reactivalo desde el tab Vendedores.
+                        </div>
+                    @endif
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Lista de Precios por defecto</label>

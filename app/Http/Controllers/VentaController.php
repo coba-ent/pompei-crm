@@ -62,7 +62,7 @@ class VentaController extends Controller
             'CurrentPage' => $CurrentPage,
             'kpis' => $this->kpis($request),
             'categoriasVenta' => Categoria::venta()->activas()->orderBy('nombre')->get(['id', 'nombre']),
-            'vendedores' => Vendedor::orderBy('nombre')->get(['id', 'nombre']),
+            'vendedores' => Vendedor::activos()->orderBy('nombre')->get(['id', 'nombre']),
             'etiquetas' => Etiqueta::orderBy('nombre')->get(['id', 'nombre']),
             // paraCobrar(): en una cobranza sólo tienen sentido las cuentas donde entra plata.
             'cuentasTesoreria' => CuentaTesoreria::visibles()->paraCobrar()->ordenadas()->get(['id', 'nombre']),
@@ -395,7 +395,7 @@ class VentaController extends Controller
                     ? Categoria::venta()->activas()->find($configuracionVentas->categoria_id)
                     : null;
                 $vendedorDefault = $configuracionVentas->vendedor_id
-                    ? Vendedor::find($configuracionVentas->vendedor_id)
+                    ? Vendedor::activos()->find($configuracionVentas->vendedor_id)
                     : null;
                 $listaPrecioDefault = $configuracionVentas->lista_precio_id
                     ? ListaPrecio::where('activo', true)->find($configuracionVentas->lista_precio_id)
@@ -425,7 +425,7 @@ class VentaController extends Controller
             'defaults' => $defaults,
             'categoriasVenta' => Categoria::venta()->activas()->orderBy('nombre')->get(),
             'listasPrecio' => ListaPrecio::where('activo', true)->orderBy('nombre')->get(),
-            'vendedores' => Vendedor::orderBy('nombre')->get(),
+            'vendedores' => Vendedor::activos()->orderBy('nombre')->get(),
             'depositos' => Deposito::activos()->orderBy('nombre')->get(),
             // Para el modal completo de alta/edición de Cliente reutilizado desde el select (clientes._modal_form).
             'categorias' => Categoria::venta()->orderBy('nombre')->get(),
@@ -523,7 +523,10 @@ class VentaController extends Controller
         $venta->load(['items', 'conceptos', 'etiquetas', 'cliente', 'categoria', 'listaPrecio', 'vendedor', 'deposito']);
         $categoriasVenta = Categoria::venta()->activas()->orderBy('nombre')->get();
         $listasPrecio = ListaPrecio::where('activo', true)->orderBy('nombre')->get();
-        $vendedores = Vendedor::orderBy('nombre')->get();
+        $vendedores = Vendedor::activos()->orderBy('nombre')->get();
+        if ($venta->vendedor && ! $venta->vendedor->activo && ! $vendedores->contains('id', $venta->vendedor->id)) {
+            $vendedores->push($venta->vendedor);
+        }
         $depositos = Deposito::activos()->orderBy('nombre')->get();
         $categorias = Categoria::venta()->orderBy('nombre')->get();
         $condicionesIva = CondicionIva::orderBy('nombre')->get();

@@ -37,7 +37,7 @@ class MercadoLibreConfiguracionController extends Controller
         $depositos = Deposito::activos()->orderBy('nombre')->get();
         $categoriasVenta = Categoria::venta()->activas()->orderBy('nombre')->get();
         $listasPrecio = ListaPrecio::where('activo', true)->orderBy('nombre')->get();
-        $vendedores = Vendedor::orderBy('nombre')->get();
+        $vendedores = Vendedor::activos()->orderBy('nombre')->get();
 
         // Se nombran ambos para que la pantalla pueda decir de qué depósito sale
         // el stock publicado, en vez de un genérico "por defecto del CRM". Versión

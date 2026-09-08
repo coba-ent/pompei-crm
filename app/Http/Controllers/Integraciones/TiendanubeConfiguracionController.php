@@ -33,7 +33,7 @@ class TiendanubeConfiguracionController extends Controller
         $depositoPorDefecto = Deposito::porDefecto();
         $depositoEfectivo = TiendanubeConexionRest::actual()->depositoEfectivoONulo();
         $listasPrecio = ListaPrecio::where('activo', true)->orderBy('nombre')->get();
-        $vendedores = Vendedor::orderBy('nombre')->get();
+        $vendedores = Vendedor::activos()->orderBy('nombre')->get();
 
         return view('configuracion.tiendanube.index', compact(
             'CurrentPage', 'depositos', 'categoriasVenta', 'cuentasTesoreria', 'depositoPorDefecto', 'depositoEfectivo', 'listasPrecio', 'vendedores'

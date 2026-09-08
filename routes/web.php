@@ -490,8 +490,11 @@ Route::middleware('auth')->group(function () {
     Route::post('categorias-venta', [CategoriaController::class, 'storeVenta'])->name('categorias.venta.store');
 
     // Vendedores (spec 020) — ABM inline único, usado desde Venta, Presupuesto y config. Tiendanube/MercadoLibre.
+    // Spec 101 agrega activar/desactivar (data/estado), gestionado desde el tab propio en Configuración & Ajustes.
+    Route::get('vendedores/data', [VendedorController::class, 'data'])->name('vendedores.data');
     Route::post('vendedores', [VendedorController::class, 'store'])->name('vendedores.store');
     Route::patch('vendedores/{vendedor}', [VendedorController::class, 'update'])->name('vendedores.update');
+    Route::patch('vendedores/{vendedor}/estado', [VendedorController::class, 'estado'])->name('vendedores.estado');
     Route::delete('vendedores/{vendedor}', [VendedorController::class, 'destroy'])->name('vendedores.destroy');
 
     // Remitos (spec 064) — documento imprimible global (Ventas y Compras comparten el mismo id) y
