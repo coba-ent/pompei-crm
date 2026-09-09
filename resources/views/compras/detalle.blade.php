@@ -203,7 +203,7 @@
                                     <td>{{ $item->descripcion }}</td>
                                     <td>{{ (float) $item->cantidad }}</td>
                                     <td>$ {{ number_format((float) $item->precio_unitario, 2, ',', '.') }}</td>
-                                    <td>{{ $item->descuento_pct ? $item->descuento_pct.'%' : '-' }}</td>
+                                    <td>{{ $item->bonifEfectivaEtiqueta() }}</td>
                                     <td>$ {{ number_format((float) $item->subtotal, 2, ',', '.') }}</td>
                                     <td>{{ $item->iva_pct ? \App\Models\Producto::etiquetaIva($item->iva_pct) : 'Elegir' }}</td>
                                     <td>$ {{ number_format((float) ($item->subtotal_con_iva ?? $item->subtotal), 2, ',', '.') }}</td>
