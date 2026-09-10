@@ -122,11 +122,30 @@ class ClienteTiendanubeRest
             $duracionMs = $this->duracionMs($inicio);
             $codigo = $respuestaHttp->status();
 
-            if ($codigo === 401 || $codigo === 404) {
+            // SÓLO el 401 es credencial rechazada. El 404 NO: Tiendanube lo usa para "no hay
+            // resultados" —`GET /orders` con un `created_at_min` sin órdenes en el rango responde
+            // 404 con `{"description":"Last page is 0"}`—, y tratarlo como credencial inválida
+            // tumbaba la integración entera cada vez que el cron buscaba órdenes y no había
+            // ninguna nueva.
+            //
+            // El círculo era: cron busca órdenes → 404 → conexión "caída" → precios y stock
+            // bloqueados → a los minutos el cron vuelve a intentar → 404 otra vez. Verificado en
+            // producción el 10/09/2026: 7 caídas en un día, y 85 variantes con el precio pendiente
+            // desde el 27/08 sin que nadie entendiera por qué. Se disparaba justo cuando NO había
+            // ventas nuevas.
+            if ($codigo === 401) {
                 $mensaje = 'La credencial fue rechazada por Tiendanube. Volvé a conectar.';
                 $conexion->update(['estado' => EstadoConexion::Caida, 'ultimo_error' => $mensaje]);
 
                 return $this->registrarError($metodo, $recurso, $sentido, $codigo, $mensaje, $duracionMs);
+            }
+
+            if ($codigo === 404) {
+                return $this->registrarError(
+                    $metodo, $recurso, $sentido, $codigo,
+                    'Tiendanube no encontró lo que se pidió (puede ser que no haya resultados en ese rango).',
+                    $duracionMs
+                );
             }
 
             if ($codigo === 429 || $codigo >= 500) {

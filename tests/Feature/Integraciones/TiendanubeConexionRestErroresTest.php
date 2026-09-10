@@ -5,6 +5,7 @@ namespace Tests\Feature\Integraciones;
 use App\Enums\Tiendanube\EstadoConexion;
 use App\Models\Integraciones\TiendanubeConexionRest;
 use App\Models\Rol;
+use App\Services\Tiendanube\ClienteTiendanubeRest;
 use App\Services\Tiendanube\VerificadorConexionRest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -56,13 +57,49 @@ class TiendanubeConexionRestErroresTest extends TestCase
         $this->assertSame(1, \DB::table('tn_rest_operaciones_log')->where('operacion', 'verificar')->where('resultado', 'error')->count());
     }
 
-    public function test_404_recibe_el_mismo_tratamiento_que_401(): void
+    /**
+     * En `/store` un 404 SÍ es credencial/tienda inválida: se está pidiendo la tienda misma.
+     * Distinto del 404 sobre un listado, que sólo significa "no hay resultados" (ver el test de
+     * abajo).
+     */
+    public function test_404_al_verificar_la_tienda_marca_caida_igual_que_401(): void
     {
         Http::fake(['api.tiendanube.com/v1/*/store' => Http::response(['message' => 'not_found'], 404)]);
 
         $this->getJson(route('configuracion.tiendanube.estadoRest'))->assertOk();
 
         $this->assertSame(EstadoConexion::Caida, TiendanubeConexionRest::actual()->estado);
+    }
+
+    /**
+     * EL BUG DEL 10/09/2026. Tiendanube responde 404 a `GET /orders` cuando no hay órdenes en el
+     * rango pedido, con `{"code":404,"message":"Not Found","description":"Last page is 0"}`. El
+     * cliente lo traducía a "credencial rechazada" y marcaba la conexión como caída.
+     *
+     * El círculo era: el cron busca órdenes → no hay ninguna nueva → 404 → conexión "caída" →
+     * precios y stock bloqueados → a los minutos el cron vuelve a intentar. Medido en producción:
+     * 7 caídas en un día, y 85 variantes con el precio pendiente desde el 27/08. Se disparaba
+     * justamente cuando NO había ventas nuevas.
+     */
+    public function test_un_404_de_listado_no_tumba_la_conexion(): void
+    {
+        Http::fake(['api.tiendanube.com/v1/*/orders*' => Http::response([
+            'code' => 404, 'message' => 'Not Found', 'description' => 'Last page is 0',
+        ], 404)]);
+
+        $conexion = TiendanubeConexionRest::actual();
+        $conexion->update(['estado' => EstadoConexion::Conectada, 'ultimo_error' => null]);
+
+        $respuesta = app(ClienteTiendanubeRest::class)
+            ->leer('orders', ['created_at_min' => now()->subDay()->toIso8601String()]);
+
+        $this->assertTrue($respuesta->fallo(), 'Sigue siendo un fallo para quien llama...');
+        $this->assertSame(404, $respuesta->codigoHttp);
+        $this->assertSame(
+            EstadoConexion::Conectada,
+            TiendanubeConexionRest::actual()->estado,
+            '...pero NO tumba la conexión: un día sin ventas no puede bloquear precios y stock.'
+        );
     }
 
     // ---- T030 ----

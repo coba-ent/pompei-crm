@@ -36,8 +36,7 @@ class SincronizadorOrdenes
         private readonly EvaluadorConvertibilidad $evaluador,
         private readonly ConversorOrdenAVenta $conversor,
         private readonly ResolutorCliente $resolutorCliente,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array{ok: bool, mensaje: string, nuevas?: int, actualizadas?: int}
@@ -150,6 +149,14 @@ class SincronizadorOrdenes
                 'page' => $pagina,
                 'per_page' => self::PAGE_SIZE,
             ]);
+
+            // Un 404 acá NO es un error: Tiendanube responde así cuando no hay órdenes en el rango
+            // pedido (`{"description":"Last page is 0"}`). Es el caso normal de un día sin ventas
+            // nuevas, y también el fin del paginado. Se corta el bucle y se sigue con lo que ya se
+            // haya traído, en vez de abortar la corrida entera.
+            if ($respuesta->codigoHttp === 404) {
+                break;
+            }
 
             if ($respuesta->fallo()) {
                 throw new SincronizacionFallidaException($respuesta->mensajeError ?? 'No se pudo sincronizar con Tiendanube.');
