@@ -253,6 +253,7 @@ class TiendanubeConexionRestController extends Controller
             'stock_ultima_sync_en' => optional($conexion->stock_ultima_sync_en)->toIso8601String(),
             'stock_ultima_sync_resultado' => $conexion->stock_ultima_sync_resultado,
             'lista_precio_id' => $conexion->lista_precio_id,
+            'lista_precio_promocional_id' => $conexion->lista_precio_promocional_id,
             'vendedor_id' => $conexion->vendedor_id,
         ];
     }

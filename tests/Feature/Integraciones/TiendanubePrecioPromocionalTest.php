@@ -282,4 +282,23 @@ class TiendanubePrecioPromocionalTest extends TestCase
                 && ($request->data()['promotional_price'] ?? null) === '10000';
         });
     }
+
+    /**
+     * Regresión (10/09/2026): después de guardar, la pantalla vuelve a pedir el
+     * estado por `estadoRest` para repintar los selectores — ese endpoint tiene
+     * su propio serializador (`TiendanubeConexionRestController::datosConexion()`),
+     * separado del de `guardarVentas()`. Si no incluye
+     * `lista_precio_promocional_id`, el select se repinta vacío aunque el
+     * guardado haya sido exitoso: el usuario ve "guardado" y al toque la lista
+     * vuelve a "sin lista configurada".
+     */
+    public function test_estado_rest_incluye_la_lista_promocional_configurada(): void
+    {
+        TiendanubeConexionRest::actual()->update(['lista_precio_promocional_id' => $this->listaPromocional->id]);
+
+        $respuesta = $this->getJson(route('configuracion.tiendanube.estadoRest'));
+
+        $respuesta->assertOk();
+        $respuesta->assertJsonPath('conexion.lista_precio_promocional_id', $this->listaPromocional->id);
+    }
 }
