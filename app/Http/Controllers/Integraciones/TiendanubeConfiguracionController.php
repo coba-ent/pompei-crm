@@ -46,6 +46,7 @@ class TiendanubeConfiguracionController extends Controller
         $conexion = TiendanubeConexionRest::actual();
         $datos = $request->validated();
         $listaPrecioIdAnterior = $conexion->lista_precio_id;
+        $listaPrecioPromocionalIdAnterior = $conexion->lista_precio_promocional_id;
 
         $conexion->update($datos);
 
@@ -57,6 +58,14 @@ class TiendanubeConfiguracionController extends Controller
 
         if ($listaPrecioIdNueva !== null && (int) $listaPrecioIdNueva !== (int) $listaPrecioIdAnterior) {
             app(\App\Services\Tiendanube\SincronizadorPrecios::class)->sincronizarListaCompleta((int) $listaPrecioIdNueva);
+        }
+
+        // FR-009a: mismo mecanismo para la lista promocional — cambiarla empuja
+        // de inmediato los precios de la lista nueva.
+        $listaPrecioPromocionalIdNueva = $datos['lista_precio_promocional_id'] ?? null;
+
+        if ($listaPrecioPromocionalIdNueva !== null && (int) $listaPrecioPromocionalIdNueva !== (int) $listaPrecioPromocionalIdAnterior) {
+            app(\App\Services\Tiendanube\SincronizadorPrecios::class)->sincronizarListaCompleta((int) $listaPrecioPromocionalIdNueva);
         }
 
         return response()->json([

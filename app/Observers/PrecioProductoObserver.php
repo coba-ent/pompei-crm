@@ -176,20 +176,34 @@ class PrecioProductoObserver
         }
     }
 
-    /** Rama Tiendanube (spec 018 ampliación, FR-024/FR-026/FR-027). */
+    /**
+     * Rama Tiendanube (spec 018 ampliación, FR-024/FR-026/FR-027; spec 102
+     * FR-007 amplía a la lista promocional).
+     *
+     * A diferencia de Mercado Libre, acá las dos listas (normal y
+     * promocional) son **complementarias**, no excluyentes: ambas aplican a
+     * la misma variante y viajan juntas en el mismo PUT. Por eso no hace
+     * falta un resolverListaPrecio() por vínculo — alcanza con disparar el
+     * envío completo del vínculo cuando cambió CUALQUIERA de las dos listas
+     * configuradas; el importe que sale de cada campo (`price` /
+     * `promotional_price`) lo decide SincronizadorPrecios::resolverPrecios()
+     * leyendo directamente las listas configuradas, no el precio que originó
+     * el evento (FR-009b).
+     */
     private function ramaTiendanube(PrecioProducto $precio): void
     {
-        $listaConfigurada = TiendanubeConexionRest::actual()->lista_precio_id;
+        $conexion = TiendanubeConexionRest::actual();
+        $listas = array_filter([$conexion->lista_precio_id, $conexion->lista_precio_promocional_id]);
 
-        if (! $listaConfigurada || (int) $precio->lista_precio_id !== (int) $listaConfigurada) {
+        if (! in_array((int) $precio->lista_precio_id, array_map('intval', $listas), true)) {
             return;
         }
 
         $vinculos = TiendanubeVarianteProducto::where('producto_id', $precio->producto_id)->get();
 
         foreach ($vinculos as $vinculo) {
-            DB::afterCommit(function () use ($vinculo, $precio) {
-                app(SincronizadorPreciosTiendanube::class)->enviarUno($vinculo, (float) $precio->precio);
+            DB::afterCommit(function () use ($vinculo) {
+                app(SincronizadorPreciosTiendanube::class)->enviarUno($vinculo);
             });
         }
     }

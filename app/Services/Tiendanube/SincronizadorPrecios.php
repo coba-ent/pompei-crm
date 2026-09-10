@@ -33,8 +33,15 @@ class SincronizadorPrecios
      * PrecioProductoObserver (un único vínculo) y, en bucle, por ejecutar() y
      * sincronizarListaCompleta() (que ya verificaron los cortes una sola vez
      * antes de iterar — ver verificarCortes()).
+     *
+     * El importe **no** entra por parámetro (spec 102, plan.md §2): lo resuelve
+     * resolverPrecios() leyendo las dos listas configuradas (normal y
+     * promocional) directamente del vínculo. Antes se pasaba desde el registro
+     * de precio recién editado — funcionaba con una sola lista, pero con dos
+     * hubiera publicado el promocional como precio de venta al editar esa
+     * lista (FR-009b).
      */
-    public function enviarUno(TiendanubeVarianteProducto $vinculo, float $precio): bool
+    public function enviarUno(TiendanubeVarianteProducto $vinculo): bool
     {
         // Se marca pendiente ANTES de evaluar cortes o de intentar el envío: así
         // un intento bloqueado (función desactivada, sólo lectura, conexión
@@ -58,10 +65,53 @@ class SincronizadorPrecios
             return false;
         }
 
+        [$precio, $promocional] = $this->resolverPrecios($vinculo);
+
+        if ($precio === null) {
+            $vinculo->update([
+                'precio_error' => 'El producto no tiene precio en la Lista de Precios configurada.',
+                'precio_error_en' => now(),
+            ]);
+
+            return false;
+        }
+
+        $cuerpo = ['price' => $precio];
+
+        // FR-004: Tiendanube no valida nada — acepta un promocional más caro o
+        // igual al precio de lista y lo publica igual (HTTP 200, verificado
+        // contra la cuenta real). Esta comparación es la única red que hay.
+        if ($promocional !== null && $promocional >= $precio) {
+            $vinculo->update([
+                'precio_error' => sprintf(
+                    'El precio promocional ($%s) no puede ser mayor o igual al precio de lista ($%s).',
+                    number_format($promocional, 2, ',', '.'),
+                    number_format($precio, 2, ',', '.'),
+                ),
+                'precio_error_en' => now(),
+            ]);
+
+            // FR-005: el rechazo es sólo del promocional. El precio de lista se
+            // envía igual — un promocional mal cargado no puede bloquear la
+            // actualización del precio que efectivamente cobra la tienda.
+            $promocional = null;
+            $huboRechazo = true;
+        } else {
+            $huboRechazo = false;
+        }
+
+        // FR-002/FR-003: sin promocional el campo NO viaja (ni siquiera como
+        // null). Omitirlo es lo que hace que Tiendanube conserve la promoción
+        // que ya tenga cargada — verificado contra la cuenta real: mandar
+        // `null` o `""` la borra, omitir la clave la deja intacta.
+        if ($promocional !== null) {
+            $cuerpo['promotional_price'] = (string) $promocional;
+        }
+
         $respuesta = $this->cliente->escribir(
             'PUT',
             "products/{$vinculo->tn_product_id}/variants/{$vinculo->variant_id}",
-            ['price' => $precio]
+            $cuerpo
         );
 
         if ($respuesta->fallo()) {
@@ -73,6 +123,13 @@ class SincronizadorPrecios
             return false;
         }
 
+        if ($huboRechazo) {
+            // El PUT salió bien (precio de lista actualizado), pero el error del
+            // promocional rechazado tiene que quedar visible en el vínculo
+            // (FR-004/FR-006): no se limpia como en el camino exitoso.
+            return false;
+        }
+
         $vinculo->update([
             'precio_pendiente' => false,
             'precio_sincronizado_en' => now(),
@@ -81,6 +138,39 @@ class SincronizadorPrecios
         ]);
 
         return true;
+    }
+
+    /**
+     * Punto único que resuelve los dos precios de un vínculo leyendo las
+     * listas configuradas (spec 102, plan.md §5) — lo usan enviarUno(),
+     * ejecutar() (indirectamente) y sincronizarListaCompleta(), para que no
+     * haya tres lugares resolviendo lo mismo por su cuenta (el origen del bug
+     * de NC/ND de la spec 099).
+     *
+     * @return array{0: ?float, 1: ?float} [precio de lista, precio promocional]
+     */
+    public function resolverPrecios(TiendanubeVarianteProducto $vinculo): array
+    {
+        $conexion = TiendanubeConexionRest::actual();
+        $producto = $vinculo->producto;
+
+        if (! $producto || ! $conexion->lista_precio_id) {
+            return [null, null];
+        }
+
+        $precio = $producto->precios()->where('lista_precio_id', $conexion->lista_precio_id)->value('precio');
+
+        $promocional = null;
+
+        if ($conexion->lista_precio_promocional_id) {
+            $promocional = $producto->precios()->where('lista_precio_id', $conexion->lista_precio_promocional_id)->value('precio');
+        }
+
+        return [
+            $precio !== null ? (float) $precio : null,
+            // Cero se trata como ausente (FR-002/T007): no hay oferta de $0.
+            ($promocional !== null && (float) $promocional > 0) ? (float) $promocional : null,
+        ];
     }
 
     /**
@@ -117,9 +207,12 @@ class SincronizadorPrecios
     }
 
     /**
-     * Al cambiar cuál es la Lista de Precios configurada (US9, FR-028):
-     * empuja de inmediato el precio vigente de la nueva lista a todos los
-     * vínculos que tengan precio cargado ahí.
+     * Al cambiar cuál es la Lista de Precios configurada — normal (US9,
+     * FR-028) o promocional (FR-009a) —: empuja de inmediato los precios
+     * vigentes a todos los vínculos que tengan precio cargado en la lista que
+     * cambió. `$listaPrecioId` sólo decide **a quién** tocar; el importe que
+     * viaja siempre sale de resolverPrecios(), leyendo las dos listas
+     * configuradas (FR-009b) — no necesariamente la que disparó el llamado.
      *
      * @return array{ok: bool, tipo?: string, mensaje: string, actualizados?: int, con_error?: int}
      */
@@ -139,9 +232,9 @@ class SincronizadorPrecios
                 continue;
             }
 
-            $precio = $vinculo->producto->precios()->where('lista_precio_id', $listaPrecioId)->value('precio');
+            $tienePrecio = $vinculo->producto->precios()->where('lista_precio_id', $listaPrecioId)->exists();
 
-            if ($precio === null) {
+            if (! $tienePrecio) {
                 continue;
             }
 
@@ -151,7 +244,7 @@ class SincronizadorPrecios
                 continue;
             }
 
-            if ($this->enviarUno($vinculo, (float) $precio)) {
+            if ($this->enviarUno($vinculo)) {
                 $actualizados++;
             } else {
                 $conError++;
@@ -182,13 +275,13 @@ class SincronizadorPrecios
                 continue;
             }
 
-            $precio = $vinculo->producto->precios()->where('lista_precio_id', $listaPrecioId)->value('precio');
+            $tienePrecio = $vinculo->producto->precios()->where('lista_precio_id', $listaPrecioId)->exists();
 
-            if ($precio === null) {
+            if (! $tienePrecio) {
                 continue;
             }
 
-            if ($this->enviarUno($vinculo, (float) $precio)) {
+            if ($this->enviarUno($vinculo)) {
                 $actualizados++;
             } else {
                 $conError++;

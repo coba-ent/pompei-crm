@@ -1443,6 +1443,27 @@ las **variantes vinculadas** — mismo rol que `ml_configuracion.lista_precio_id
 - **Visibilidad**: mismo criterio que stock — la pantalla de Vinculación de variantes muestra el estado
   de sincronización de precio (sincronizado/pendiente/error) en una columna separada de la de stock.
 
+**Precio promocional (spec 102, 10/09/2026)**: además de la lista normal, se puede elegir opcionalmente
+una segunda Lista de Precios promocional (`tn_conexion_rest.lista_precio_promocional_id`), selector al
+lado del de la lista normal en Configuración → Tiendanube. A diferencia de las dos listas de Mercado
+Libre (Clásica/Premium, que son **excluyentes**), acá las dos listas son **complementarias**: ambas
+aplican a la misma variante y viajan juntas en el mismo `PUT /products/{id}/variants/{id}`, la normal
+como `price` y la promocional como `promotional_price` (Tiendanube la muestra tachada al lado de
+`price` en la tienda).
+
+- **Nace sin configurar**: sin lista promocional elegida, el CRM no manda nunca el campo — comportamiento
+  idéntico al de antes de esta spec.
+- **Sin precio en la lista promocional (o en $0)**: el campo se omite del PUT — nunca se manda `null` ni
+  `""`. Esa omisión es lo que hace que el CRM **nunca borre** una promoción cargada a mano en Tiendanube.
+- **Validación que Tiendanube no hace**: un promocional mayor o igual al precio de lista se rechaza y no
+  se envía (Tiendanube no valida esto — lo acepta y publicaría un "descuento" más caro). El precio de
+  lista del mismo PUT se envía igual; el error queda en el vínculo con los dos importes.
+- **Disparadores**: editar cualquiera de las dos listas (normal o promocional) dispara el envío completo
+  del vínculo — el importe de cada campo sale siempre de la lista configurada correspondiente, nunca del
+  precio que originó el evento (evita publicar el precio de oferta como precio de venta al editar sólo la
+  promocional). Cambiar cuál es la lista promocional configurada empuja de inmediato los precios de la
+  lista nueva, igual que ya hace el cambio de la lista normal.
+
 > 📋 **Sincronización forzada y eliminación masiva (spec 035)**: mismas dos acciones adicionales que en
 > Mercado Libre (§3.2.ter), en la pantalla de Vinculación de variantes:
 >   - **"Sincronización forzada"**: recorre TODOS los vínculos (no sólo pendientes) y reenvía stock y

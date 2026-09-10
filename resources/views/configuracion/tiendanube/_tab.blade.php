@@ -110,6 +110,19 @@
                         lo envía de inmediato a la variante de Tiendanube correspondiente.
                     </div>
                 </div>
+                <div class="col-md-6">
+                    <label class="form-label">Lista de Precios Promoción Tiendanube</label>
+                    <select class="form-select" id="tn-lista-precio-promocional-id" style="width:100%">
+                        <option value="">Sin promoción (no se publica precio de oferta)</option>
+                        @foreach ($listasPrecio as $lista)
+                            <option value="{{ $lista->id }}">{{ $lista->nombre }}</option>
+                        @endforeach
+                    </select>
+                    <div class="form-text">
+                        Opcional: se publica como precio de oferta (tachado) en Tiendanube, junto al
+                        precio de lista de arriba. No puede ser la misma lista que la de arriba.
+                    </div>
+                </div>
                 <div class="col-12">
                     <div class="text-muted small" id="tn-ultima-sync-info"></div>
                     <div class="text-muted small" id="tn-stock-ultima-sync-info"></div>

@@ -58,7 +58,7 @@
 
         const hasSelect2 = !!($.fn && $.fn.select2);
         if (hasSelect2) {
-            $('#tn-deposito-id, #tn-cuenta-tesoreria-id, #tn-lista-precio-id').select2({ width: '100%', theme: 'default', allowClear: true });
+            $('#tn-deposito-id, #tn-cuenta-tesoreria-id, #tn-lista-precio-id, #tn-lista-precio-promocional-id').select2({ width: '100%', theme: 'default', allowClear: true });
         }
 
         // ---- Vendedor por defecto (catálogo con Select2 + crear/renombrar/eliminar, spec 020) ----
@@ -319,6 +319,7 @@
                 cuenta_tesoreria_id: $('#tn-cuenta-tesoreria-id').val() || null,
                 dias_primera_sync: $('#tn-dias-primera-sync').val(),
                 lista_precio_id: $('#tn-lista-precio-id').val() || null,
+                lista_precio_promocional_id: $('#tn-lista-precio-promocional-id').val() || null,
                 vendedor_id: $('#tn-vendedor-id').val() || null,
             };
 
@@ -459,6 +460,9 @@
             }
             if ($('#tn-lista-precio-id').val() !== undefined) {
                 $('#tn-lista-precio-id').val(conexion.lista_precio_id || '').trigger('change.select2');
+            }
+            if ($('#tn-lista-precio-promocional-id').val() !== undefined) {
+                $('#tn-lista-precio-promocional-id').val(conexion.lista_precio_promocional_id || '').trigger('change.select2');
             }
             if ($('#tn-vendedor-id').val() !== undefined) {
                 $('#tn-vendedor-id').val(conexion.vendedor_id || '').trigger('change.select2');

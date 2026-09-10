@@ -1458,6 +1458,13 @@ resultado persistir acá.
 automáticamente por sincronización de Tiendanube, independiente del de Mercado Libre. Detalle
 completo en `specs/020-vendedores/data-model.md`.
 
+**Columna nueva (spec 102, 10/09/2026)**: `lista_precio_promocional_id` (FK → `listas_precio`, nullable,
+`nullOnDelete()`, `after('lista_precio_id')`) — Lista de Precios que se publica como `promotional_price`
+en el mismo PUT que ya manda `price` (precio de oferta tachado en la tienda). A diferencia de
+`ml_configuracion.lista_precio_id_premium` (excluyente: Clásica **o** Premium), acá las dos listas son
+**complementarias** — ambas aplican a la misma variante. Opcional y nace en `null`: sin configurar, el
+CRM no envía nunca el campo, comportamiento idéntico al de antes de esta spec.
+
 > ⚠️ **Retirado por spec 024 (Historia 1)**: el alta manual con selector (fuente: `tn_orden_items`) y el
 > mecanismo de importación masiva por Excel descrito abajo se **reemplazan por completo** por
 > `VinculadorAutomatico` (catálogo REST en vivo, SKU directo contra `sku` de cada variante — ver §13). Se

@@ -39,7 +39,16 @@ class GuardarConfiguracionVentasTiendanubeRequest extends FormRequest
             'cuenta_tesoreria_id' => ['nullable', 'exists:cuentas_tesoreria,id'],
             'dias_primera_sync' => ['required', 'integer', 'min:1', 'max:365'],
             'lista_precio_id' => ['nullable', 'exists:listas_precio,id'],
+            'lista_precio_promocional_id' => ['nullable', 'exists:listas_precio,id', 'different:lista_precio_id'],
             'vendedor_id' => ['nullable', 'integer', 'exists:vendedores,id'],
+        ];
+    }
+
+    /** FR-000b: publicar el mismo importe como precio y como oferta no tiene sentido. */
+    public function messages(): array
+    {
+        return [
+            'lista_precio_promocional_id.different' => 'La Lista de Precios promocional no puede ser la misma que la Lista de Precios general.',
         ];
     }
 }

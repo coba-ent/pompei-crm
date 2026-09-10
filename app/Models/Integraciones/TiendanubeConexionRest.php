@@ -31,7 +31,7 @@ class TiendanubeConexionRest extends Model
         'modo_solo_lectura', 'creacion_automatica', 'frecuencia_sync_minutos', 'deposito_id',
         'categoria_venta_id', 'cuenta_tesoreria_id', 'dias_primera_sync', 'ultima_sync_en',
         'ultima_sync_resultado', 'stock_ultima_sync_en', 'stock_ultima_sync_resultado',
-        'lista_precio_id', 'vendedor_id',
+        'lista_precio_id', 'lista_precio_promocional_id', 'vendedor_id',
     ];
 
     protected $hidden = ['access_token'];
@@ -93,6 +93,11 @@ class TiendanubeConexionRest extends Model
     public function listaPrecio(): BelongsTo
     {
         return $this->belongsTo(ListaPrecio::class, 'lista_precio_id');
+    }
+
+    public function listaPrecioPromocional(): BelongsTo
+    {
+        return $this->belongsTo(ListaPrecio::class, 'lista_precio_promocional_id');
     }
 
     /**
