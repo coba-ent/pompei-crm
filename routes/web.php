@@ -79,6 +79,13 @@ Route::middleware('auth')->group(function () {
 
     Route::redirect('/', '/dashboard');
 
+    // Refresco de token CSRF (ver resources/js/csrf-refresh.js): Laravel rota el token de sesión
+    // periódicamente sin cerrar la sesión de auth, y el JS lo lee una sola vez al cargar la
+    // página — una pantalla abierta mucho tiempo termina mandando un token viejo y el submit
+    // falla con 419 "CSRF token mismatch" aunque el usuario siga logueado. GET no requiere token
+    // CSRF, así que esta ruta sirve para refrescarlo sin más efecto que leer la sesión.
+    Route::get('csrf-token', fn () => response()->json(['token' => csrf_token()]))->name('csrf.token');
+
     // Inicio (spec 010) — dashboard de aterrizaje, sin middleware `permiso:` (visible para
     // cualquier usuario autenticado, igual criterio que antes tenía la ruta raíz `home`).
     Route::prefix('dashboard')->name('dashboard.')->group(function () {

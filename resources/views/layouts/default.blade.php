@@ -111,6 +111,13 @@
 
 @include('elements.page-js', ['CurrentPage' => $CurrentPage])
 
+{{-- Reintento automático ante 419 "CSRF token mismatch" (ver resources/js/csrf-refresh.js):
+     Laravel rota el token de sesión aunque el usuario siga logueado, y cada bundle de pantalla
+     lo lee una sola vez al cargar. Va PRIMERO de todo, antes de que cualquier otro bundle llame
+     `$.ajaxSetup` o `$.ajax` — envuelve `$.ajax` globalmente, así que tiene que estar activo
+     antes de la primera petición de la página. --}}
+@vite(['resources/js/csrf-refresh.js'])
+
 {{-- Utilidad global de inputs de fecha en dd/mm/aaaa (`AppFecha`). Va acá, y no vista por vista,
      porque hay campos de fecha en casi todos los módulos y porque se auto-inicializa sobre
      cualquier `[data-fecha-ar]` del documento y de los modales. Tiene que cargar ANTES de los
