@@ -163,8 +163,18 @@ costo/precio de cada producto, sumado). Equivalen al ícono "Ver Totales" de Con
 **Columnas del listado (dinámicas para las listas de precio):** Id, Nombre, Código/SKU, Tipo, Tipo de
 Producto, Costo, Precio venta, **una columna por cada lista de precios activa** (si se crea o borra
 una lista desde "Opciones Avanzadas" del modal, el listado y el export CSV la reflejan sin tocar
-código — no es una columna fija "Lista 1"), IVA Ventas, IVA Compras, Stock total, **Descripción
-(SI/NO)**, Imagen (SI/NO), Estado, Acciones.
+código — no es una columna fija "Lista 1"), IVA Ventas, IVA Compras, Stock total (+ una columna por
+depósito activo), **Punto de Reposición**, **Descripción (SI/NO)**, Imagen (SI/NO), Estado, Acciones.
+
+> **Punto de Reposición en el listado — divergencia deliberada con Contagram real (spec 103,
+> 10/09/2026)**: Contagram real **no** tiene esta columna en su listado de Productos; es un control
+> interno propio de este CRM (`productos.punto_reposicion`, spec 073) sin equivalente relevado. Se
+> agregó a pedido explícito del negocio, junto a las columnas de Stock, para no tener que abrir el
+> modal de cada producto para ver si tiene control configurado. `0` (o Tipo = Servicio, que nunca
+> controla stock) se muestra como "Sin control", nunca como un `0` desnudo — mismo criterio que ya usa
+> el placeholder del modal de alta/edición. Mismo patrón de excepción documentada que el buscador de
+> productos de spec 071: la divergencia es intencional y queda registrada acá, no es un vacío del
+> relevamiento.
 
 **Acciones por fila** (dropdown): Ver · Editar · Eliminar · Crear Copia · Inactivar/Reactivar ·
 Movimientos · Aumentar Stock · Disminuir Stock.

@@ -93,4 +93,63 @@ class ProductoListadoTest extends TestCase
         $servicios = $this->getJson(route('productos.data').'?draw=1&start=0&length=10&estado=todos&tipo=servicio');
         $servicios->assertOk()->assertJsonPath('recordsFiltered', 1);
     }
+
+    /** Spec 103, T002: un producto con punto_reposicion > 0 lo devuelve como entero. */
+    public function test_data_devuelve_punto_reposicion_con_valor(): void
+    {
+        Producto::create(['nombre' => 'Con control', 'tipo' => 'producto', 'punto_reposicion' => 5]);
+
+        $response = $this->getJson(route('productos.data').'?draw=1&start=0&length=10');
+
+        $response->assertOk();
+        $this->assertSame(5, $response->json('data')[0]['punto_reposicion']);
+    }
+
+    /** Spec 103, T003: un Servicio nunca controla stock — punto_reposicion viaja en null, no 0. */
+    public function test_data_devuelve_punto_reposicion_null_para_servicio(): void
+    {
+        Producto::create(['nombre' => 'Un servicio', 'tipo' => 'servicio', 'punto_reposicion' => 5]);
+
+        $response = $this->getJson(route('productos.data').'?draw=1&start=0&length=10');
+
+        $response->assertOk();
+        $this->assertNull($response->json('data')[0]['punto_reposicion']);
+    }
+
+    /**
+     * Spec 103, T004: un Producto sin control configurado devuelve 0 (el valor crudo),
+     * no null — la distinción es la que usa el frontend para diferenciar "Producto sin
+     * configurar" (podría configurarse) de "Servicio" (nunca aplica).
+     */
+    public function test_data_devuelve_punto_reposicion_cero_para_producto_sin_control(): void
+    {
+        Producto::create(['nombre' => 'Sin control', 'tipo' => 'producto']);
+
+        $response = $this->getJson(route('productos.data').'?draw=1&start=0&length=10');
+
+        $response->assertOk();
+        $this->assertSame(0, $response->json('data')[0]['punto_reposicion']);
+    }
+
+    /** Spec 103, T008: la columna es ordenable server-side. */
+    public function test_data_ordena_por_punto_reposicion(): void
+    {
+        Producto::create(['nombre' => 'Alto', 'tipo' => 'producto', 'punto_reposicion' => 20]);
+        Producto::create(['nombre' => 'Bajo', 'tipo' => 'producto', 'punto_reposicion' => 3]);
+        Producto::create(['nombre' => 'Medio', 'tipo' => 'producto', 'punto_reposicion' => 10]);
+
+        $columns = [
+            0 => ['data' => 'punto_reposicion', 'name' => 'punto_reposicion', 'searchable' => 'true', 'orderable' => 'true', 'search' => ['value' => '', 'regex' => 'false']],
+        ];
+
+        $response = $this->getJson(route('productos.data').'?'.http_build_query([
+            'draw' => 1, 'start' => 0, 'length' => 10, 'columns' => $columns,
+            'order' => [['column' => 0, 'dir' => 'asc']],
+            'search' => ['value' => '', 'regex' => 'false'],
+        ]));
+
+        $response->assertOk();
+        $nombres = array_column($response->json('data'), 'nombre');
+        $this->assertSame(['Bajo', 'Medio', 'Alto'], $nombres);
+    }
 }

@@ -213,6 +213,9 @@
                                 @foreach ($depositosColumnas as $deposito)
                                     <th title="Unidades en el depósito {{ $deposito->nombre }}">{{ $deposito->nombre }}</th>
                                 @endforeach
+                                {{-- Punto de Reposición (spec 103): divergencia deliberada respecto al
+                                     listado real de Contagram — ver documentacion_principal_crm.md §2.2. --}}
+                                <th>Punto de Reposición</th>
                                 <th>Costo</th>
                                 <th>Precio venta</th>
                                 @foreach ($listasPrecio as $lista)

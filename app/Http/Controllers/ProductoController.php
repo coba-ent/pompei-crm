@@ -258,6 +258,7 @@ class ProductoController extends Controller
             ->addColumn('descripcion_si', fn (Producto $p) => filled($p->descripcion) ? 'SI' : 'NO')
             ->editColumn('costo', fn (Producto $p) => (float) $p->costo)
             ->editColumn('stock_total', fn (Producto $p) => $p->esServicio() ? null : (float) ($p->stock_total ?? 0))
+            ->editColumn('punto_reposicion', fn (Producto $p) => $p->esServicio() ? null : (int) $p->punto_reposicion)
             ->filterColumn('nombre', function ($query, $keyword) {
                 // Búsqueda global sobre nombre y código/SKU (FR-025).
                 $this->aplicarBusquedaFlexible($query, $keyword);

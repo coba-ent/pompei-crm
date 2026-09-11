@@ -188,6 +188,18 @@
                     };
                 }),
                 {
+                    // Punto de Reposición (spec 103): a diferencia de stock_total/stock_deposito_*
+                    // (sumas calculadas, no ordenables), esta es una columna directa de `productos`,
+                    // sí se puede ordenar server-side.
+                    data: 'punto_reposicion', name: 'punto_reposicion', className: 'text-end',
+                    render: function (val) {
+                        if (val === null || val === undefined || val === 0) {
+                            return '<span class="text-muted">Sin control</span>';
+                        }
+                        return new Intl.NumberFormat('es-AR').format(val);
+                    },
+                },
+                {
                     data: 'costo', name: 'costo', className: 'text-end',
                     render: function (val) { return new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2 }).format(val || 0); },
                 },
