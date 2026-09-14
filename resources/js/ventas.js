@@ -667,9 +667,10 @@
         if (data.servicioDesde) { AppFecha.set($('#f-servicio-desde'), data.servicioDesde); }
         if (data.servicioHasta) { AppFecha.set($('#f-servicio-hasta'), data.servicioHasta); }
         // Casi todas las ventas son del día, así que Servicio Desde/Hasta arrancan en la Emisión y
-        // la siguen mientras el vendedor no los toque. Sólo en un alta desde cero: en edición y en
-        // la conversión desde Presupuesto manda lo que el comprobante ya trae, incluso si es vacío.
-        if (!data.venta && !data.presupuestoId) {
+        // la siguen mientras el vendedor no los toque. Sólo en edición manda la fecha que la venta
+        // ya trae — la conversión desde Presupuesto se comporta igual que un alta nueva: la fecha
+        // del presupuesto no se arrastra, porque la venta se genera ahora, no cuando se presupuestó.
+        if (!data.venta) {
             AppFecha.seguir($('#f-fecha-emision'), [$('#f-servicio-desde'), $('#f-servicio-hasta')]);
         }
         refreshSelect2($('#f-lista-precio'));

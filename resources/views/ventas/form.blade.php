@@ -213,28 +213,16 @@
         depositoId: @json($venta?->deposito_id),
         {{-- En edición hay que devolver la fecha que la venta YA tiene: el input arranca en hoy
              (es lo correcto para un alta), así que sin esto el submit la pisaba con la de hoy.
-             Al convertir un Presupuesto se arrastra su Emisión: la venta documenta lo que se
-             presupuestó, no el día en que se pasó a venta. --}}
-        fechaEmision: @json(optional($venta?->fecha_emision ?? $presupuestoOrigen?->fecha_emision)->format('Y-m-d')),
-        {{-- El Presupuesto no tiene "Vto. del Cobro" sino `fecha_validez` (antes se leía
-             `fecha_vto_cobro`, que en presupuestos no existe y siempre daba null). Y si viene
-             vacío, cae en la Emisión, igual que Servicio Desde/Hasta: sin esto los tres campos
-             quedaban en blanco al convertir. --}}
-        fechaVtoCobro: @json(optional(
-            $venta?->fecha_vto_cobro
-            ?? $presupuestoOrigen?->fecha_validez
-            ?? $presupuestoOrigen?->fecha_emision
-        )->format('Y-m-d')),
-        servicioDesde: @json(optional(
-            $venta?->servicio_desde
-            ?? $presupuestoOrigen?->servicio_desde
-            ?? $presupuestoOrigen?->fecha_emision
-        )->format('Y-m-d')),
-        servicioHasta: @json(optional(
-            $venta?->servicio_hasta
-            ?? $presupuestoOrigen?->servicio_hasta
-            ?? $presupuestoOrigen?->fecha_emision
-        )->format('Y-m-d')),
+             Al convertir un Presupuesto, en cambio, NO se arrastran sus fechas: la venta se está
+             generando ahora, aunque el presupuesto se haya hecho días atrás — mismo criterio que
+             un alta nueva. El JS pone hoy en Emisión y hace que Servicio Desde/Hasta la sigan
+             mientras no se toquen a mano (`AppFecha.seguir()`); Vto. del Cobro usa el default de
+             `ConfiguracionVentas.dias_vto_cobro` (ver `$defaults` en VentaController@create), que
+             ahora también se calcula en la conversión, no sólo en el alta desde cero. --}}
+        fechaEmision: @json(optional($venta?->fecha_emision)->format('Y-m-d')),
+        fechaVtoCobro: @json(optional($venta?->fecha_vto_cobro)->format('Y-m-d')),
+        servicioDesde: @json(optional($venta?->servicio_desde)->format('Y-m-d')),
+        servicioHasta: @json(optional($venta?->servicio_hasta)->format('Y-m-d')),
         notaCliente: @json($venta?->nota_cliente ?? $presupuestoOrigen?->nota_cliente),
         notaInterna: @json($venta?->nota_interna ?? $presupuestoOrigen?->nota_interna),
         formasPago: @json($venta?->formas_pago ?? $presupuestoOrigen?->formas_pago),

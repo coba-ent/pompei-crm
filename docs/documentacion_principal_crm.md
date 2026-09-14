@@ -666,8 +666,14 @@ Otros Ingresos y Abonos son independientes.
 ### 3.2 Ventas (`/sales`)
 
 - **Flujo Presupuesto → Venta**: "Crear Venta" navega a `/sales/new?budget=ID` pre-cargado (cliente,
-  categoría, productos, notas, descuento). Se suman: Tipo de Comprobante (**A/B/C/E**), N° de
-  Comprobante (autogenerado), Vto. del Cobro. El botón "Guardar y Enviar" se reemplaza por **Cobrar**.
+  categoría, vendedor, lista de precios, depósito, productos, notas, descuento). Se suman: Tipo de
+  Comprobante (**A/B/C/E**), N° de Comprobante (autogenerado), Vto. del Cobro. El botón "Guardar y
+  Enviar" se reemplaza por **Cobrar**.
+  **Las fechas NO se heredan del presupuesto (corregido 14/09/2026)**: Emisión, Vto. del Cobro y
+  Servicio Desde/Hasta arrancan igual que en un alta nueva (Emisión en hoy, Vto. del Cobro con el
+  default de `configuracion_ventas.dias_vto_cobro`, Servicio Desde/Hasta siguiendo la Emisión) — un
+  presupuesto hecho días atrás no debe hacer que la venta quede fechada en el pasado, porque la
+  venta se genera en el momento de la conversión, no cuando se presupuestó.
 - **Modal de Cobranza**: al Cobrar, la venta se guarda y se abre el modal con Total Venta/A Cobrar,
   campo "Cobrar" editable (permite cobro parcial) y una grilla de **medios de cobro** — idéntica a las
   cuentas configuradas en Tesorería (Caja del Local, Caja General, Banco Galicia, Banco Santander Río,

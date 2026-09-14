@@ -385,36 +385,40 @@ class VentaController extends Controller
         }
 
         // Defaults de Configuración & Ajustes → Ventas (spec 043, FR-010/FR-012/FR-013): sólo
-        // aplican en alta nueva (no edición, no conversión desde Presupuesto), y sólo si el
-        // registro referenciado sigue existiendo y activo en su catálogo.
+        // aplican en alta nueva (no edición), y sólo si el registro referenciado sigue existiendo
+        // y activo en su catálogo. La conversión desde Presupuesto SÍ hereda categoría/vendedor/
+        // lista de precio/depósito/tipo de comprobante del presupuesto (más abajo, fuera de este
+        // bloque) — pero no sus fechas, así que 'fechaVtoCobro' se calcula igual que en un alta
+        // nueva tanto acá como en conversión, para que el Vto. del Cobro no quede pisado por la
+        // fecha vieja del presupuesto ni vacío.
         $defaults = null;
-        if (! $presupuesto) {
-            $configuracionVentas = ConfiguracionVentas::first();
-            if ($configuracionVentas) {
-                $categoriaDefault = $configuracionVentas->categoria_id
-                    ? Categoria::venta()->activas()->find($configuracionVentas->categoria_id)
-                    : null;
-                $vendedorDefault = $configuracionVentas->vendedor_id
-                    ? Vendedor::activos()->find($configuracionVentas->vendedor_id)
-                    : null;
-                $listaPrecioDefault = $configuracionVentas->lista_precio_id
-                    ? ListaPrecio::where('activo', true)->find($configuracionVentas->lista_precio_id)
-                    : null;
-                $depositoDefault = $configuracionVentas->deposito_id
-                    ? Deposito::activos()->find($configuracionVentas->deposito_id)
-                    : null;
+        $configuracionVentas = ConfiguracionVentas::first();
+        if (! $presupuesto && $configuracionVentas) {
+            $categoriaDefault = $configuracionVentas->categoria_id
+                ? Categoria::venta()->activas()->find($configuracionVentas->categoria_id)
+                : null;
+            $vendedorDefault = $configuracionVentas->vendedor_id
+                ? Vendedor::activos()->find($configuracionVentas->vendedor_id)
+                : null;
+            $listaPrecioDefault = $configuracionVentas->lista_precio_id
+                ? ListaPrecio::where('activo', true)->find($configuracionVentas->lista_precio_id)
+                : null;
+            $depositoDefault = $configuracionVentas->deposito_id
+                ? Deposito::activos()->find($configuracionVentas->deposito_id)
+                : null;
 
-                $defaults = [
-                    'categoriaId' => $categoriaDefault?->id,
-                    'vendedorId' => $vendedorDefault?->id,
-                    'listaPrecioId' => $listaPrecioDefault?->id,
-                    'depositoId' => $depositoDefault?->id,
-                    'tipoComprobante' => $configuracionVentas->tipo_comprobante,
-                    'fechaVtoCobro' => $configuracionVentas->dias_vto_cobro !== null
-                        ? now()->addDays($configuracionVentas->dias_vto_cobro)->format('Y-m-d')
-                        : null,
-                ];
-            }
+            $defaults = [
+                'categoriaId' => $categoriaDefault?->id,
+                'vendedorId' => $vendedorDefault?->id,
+                'listaPrecioId' => $listaPrecioDefault?->id,
+                'depositoId' => $depositoDefault?->id,
+                'tipoComprobante' => $configuracionVentas->tipo_comprobante,
+                'fechaVtoCobro' => $configuracionVentas->dias_vto_cobro !== null
+                    ? now()->addDays($configuracionVentas->dias_vto_cobro)->format('Y-m-d')
+                    : null,
+            ];
+        } elseif ($presupuesto && $configuracionVentas?->dias_vto_cobro !== null) {
+            $defaults = ['fechaVtoCobro' => now()->addDays($configuracionVentas->dias_vto_cobro)->format('Y-m-d')];
         }
 
         return view('ventas.form', [
