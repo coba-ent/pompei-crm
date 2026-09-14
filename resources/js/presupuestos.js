@@ -643,7 +643,10 @@
                 const $tr = $('<tr>');
                 if (item.producto_id) {
                     $tr.append(
-                        $('<td>').append(
+                        // title: la columna trunca con ellipsis (contagram-custom.css, #tabla-items)
+                        // cuando el nombre es largo — el nombre completo queda accesible al pasar el
+                        // mouse, en vez de perderse.
+                        $('<td>').attr('title', '(' + item.producto_id + ') ' + item.descripcion).append(
                             $('<div class="dropdown d-inline-block me-1">').append(
                                 $('<button type="button" class="btn btn-sm btn-link p-0 text-body" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false">').html('<i class="fas fa-caret-down"></i>'),
                                 $('<ul class="dropdown-menu">').append(
@@ -655,7 +658,7 @@
                         )
                     );
                 } else {
-                    $tr.append($('<td>').text(item.descripcion));
+                    $tr.append($('<td>').attr('title', item.descripcion).text(item.descripcion));
                 }
                 $tr.append($('<td style="width:90px">').append(
                     $('<input type="text" inputmode="decimal" class="form-control form-control-sm js-item-cant">').attr('data-idx', idx).attr('data-field', 'cantidad').val(item.cantidad === undefined ? cant : item.cantidad).on('input', function () {

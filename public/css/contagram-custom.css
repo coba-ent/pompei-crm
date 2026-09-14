@@ -1300,3 +1300,35 @@ tr.cuenta-orden-placeholder {
     line-height: 1.35;
     overflow-wrap: anywhere;
 }
+
+/* --------------------------------------------------------------------------
+ * Tabla de ítems de Venta/Compra/Presupuesto (#tabla-items): con `table-layout`
+ * automático (default del navegador), un nombre de producto largo en la columna
+ * "Producto" —sin límite de ancho— hace que el navegador reparta el espacio
+ * disponible entre TODAS las columnas, y los `width` en px que resources/js/
+ * ventas.js|compras.js|presupuestos.js ponen inline en las celdas de Cant./
+ * Costo/Desc. %/IVA quedan sólo como sugerencia mínima, no como ancho fijo real
+ * — el input de Costo se veía comprimido y el número no entraba completo.
+ * `table-layout: fixed` hace que esos anchos SÍ se respeten; a cambio, la
+ * columna Producto (sin ancho declarado) necesita su propio límite con
+ * ellipsis para no desbordar — el nombre completo sigue disponible al pasar el
+ * mouse (`title`, ya lo arma el navegador desde el texto del <td>).
+ * ------------------------------------------------------------------------ */
+#tabla-items {
+    table-layout: fixed;
+    /* Sin esto, en pantallas angostas el navegador encoge la tabla entera al
+       ancho del contenedor `.table-responsive` en vez de dejarla desbordar
+       (que es lo que habilita el scroll horizontal) — y con table-layout:fixed
+       "encoger" significa comprimir TODAS las columnas por igual, Costo
+       incluido, volviendo a producir el mismo problema que esta regla
+       arregla en desktop. min-width obliga a que la tabla completa exista
+       primero (respetando los anchos fijos de las columnas de input) y recién
+       ahí el `.table-responsive` decida si hace scroll. */
+    min-width: 720px;
+}
+#tabla-items td:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 0; /* fuerza a que la celda respete el espacio que le sobra a las demás, no el que pide el texto */
+}
