@@ -1302,33 +1302,33 @@ tr.cuenta-orden-placeholder {
 }
 
 /* --------------------------------------------------------------------------
- * Tabla de ítems de Venta/Compra/Presupuesto (#tabla-items): con `table-layout`
- * automático (default del navegador), un nombre de producto largo en la columna
- * "Producto" —sin límite de ancho— hace que el navegador reparta el espacio
- * disponible entre TODAS las columnas, y los `width` en px que resources/js/
- * ventas.js|compras.js|presupuestos.js ponen inline en las celdas de Cant./
- * Costo/Desc. %/IVA quedan sólo como sugerencia mínima, no como ancho fijo real
- * — el input de Costo se veía comprimido y el número no entraba completo.
- * `table-layout: fixed` hace que esos anchos SÍ se respeten; a cambio, la
- * columna Producto (sin ancho declarado) necesita su propio límite con
- * ellipsis para no desbordar — el nombre completo sigue disponible al pasar el
- * mouse (`title`, ya lo arma el navegador desde el texto del <td>).
+ * Tabla de ítems de Venta/Compra/Presupuesto (#tabla-items): un nombre de
+ * producto largo en la columna "Producto" (sin límite de ancho, a propósito:
+ * el usuario prefiere ver la descripción completa antes que recortada) hacía
+ * que el navegador comprimiera las demás columnas por debajo de lo necesario
+ * — el `width` en px que resources/js/ventas.js|compras.js|presupuestos.js
+ * pone inline en las celdas de Cant./Costo/Desc. %/IVA es sólo una sugerencia
+ * para `table-layout: auto` (el default), no un mínimo real, así que el
+ * input de Costo se veía comprimido y el número no entraba completo.
+ *
+ * La solución NO es acotar ni truncar la columna Producto (dos variantes ya
+ * probadas y descartadas — ver historial de este bloque): es ponerle
+ * `min-width` de verdad a las columnas angostas, que el navegador sí
+ * respeta aunque el layout siga siendo automático, y dejar que la columna
+ * Producto envuelva su texto (`white-space: normal`, no es el default de
+ * una celda con `<span>` corto) — si la descripción es larga, la FILA crece
+ * verticalmente en vez de truncar o forzar scroll horizontal. La descripción
+ * completa siempre se ve.
  * ------------------------------------------------------------------------ */
-#tabla-items {
-    table-layout: fixed;
-    /* Sin esto, en pantallas angostas el navegador encoge la tabla entera al
-       ancho del contenedor `.table-responsive` en vez de dejarla desbordar
-       (que es lo que habilita el scroll horizontal) — y con table-layout:fixed
-       "encoger" significa comprimir TODAS las columnas por igual, Costo
-       incluido, volviendo a producir el mismo problema que esta regla
-       arregla en desktop. min-width obliga a que la tabla completa exista
-       primero (respetando los anchos fijos de las columnas de input) y recién
-       ahí el `.table-responsive` decida si hace scroll. */
-    min-width: 720px;
-}
 #tabla-items td:first-child {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 0; /* fuerza a que la celda respete el espacio que le sobra a las demás, no el que pide el texto */
+    white-space: normal;
+    word-break: break-word;
+}
+#tabla-items td:nth-child(2),  /* Cant. */
+#tabla-items td:nth-child(4) { /* Desc. % */
+    min-width: 90px;
+}
+#tabla-items td:nth-child(3),  /* Costo/Precio */
+#tabla-items td:nth-child(6) { /* IVA */
+    min-width: 110px;
 }
