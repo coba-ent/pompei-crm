@@ -174,4 +174,54 @@ class PivotExportTest extends TestCase
         // Fila 2 (última, resaltada): la única fila de datos, con el total general al final.
         $this->assertSame(['Totales', 1000.0, 500.0, 1500.0], $legible[2]);
     }
+
+    /**
+     * Regresión: el botón "Exportar Excel" manda un `<form>` POST, no JSON — y mandaba la matriz
+     * envuelta en un único campo `payload` con el JSON adentro, así que la validación (que espera
+     * `titulo`, `filas`, `totales_columna`… de primer nivel) fallaba con 422. Como el form abría
+     * en otra pestaña, el usuario veía "se abre una pestaña y no descarga nada".
+     *
+     * Los tests de arriba usan `postJson` y por eso nunca lo detectaron: acá se postea como form,
+     * con todo en strings, que es lo que realmente manda el navegador.
+     */
+    public function test_el_endpoint_acepta_el_form_tal_como_lo_manda_el_navegador(): void
+    {
+        Excel::fake();
+
+        $this->post(route('informes.ventas.pivot.exportar'), [
+            'titulo' => 'Ranking de Clientes',
+            'encabezados_fila' => ['Clientes'],
+            'encabezados_columna' => ['2026 › Ago', '2026 › Sep'],
+            'filas' => [
+                ['etiqueta' => ['Juan Pérez'], 'valores' => ['1.000,50', '200,00'], 'total' => '1.200,50'],
+            ],
+            'totales_columna' => ['1.300,50', '200,00'],
+            'total_general' => '1.500,50',
+        ])->assertOk();
+
+        Excel::assertDownloaded('Ranking de Clientes '.now()->format('d-m-Y Hi').' Hs.xlsx');
+    }
+
+    /**
+     * El caso del ranking que reportó el cliente: sin dimensión de Filas, `filas` y
+     * `encabezados_fila` quedan vacíos y por eso NO viajan (un form no puede expresar un array
+     * vacío: mandar `filas[]` vacío le llega a PHP como `['']`, un elemento fantasma que rompe la
+     * validación por elemento). El endpoint tiene que aceptar su ausencia.
+     */
+    public function test_el_endpoint_acepta_el_form_de_un_cruce_sin_filas(): void
+    {
+        Excel::fake();
+
+        $this->post(route('informes.ventas.pivot.exportar'), [
+            'titulo' => 'Ranking de Productos',
+            'encabezados_columna' => ['A › X'],
+            'niveles_columna' => [
+                ['etiqueta' => 'categorías', 'valores' => ['A']],
+            ],
+            'totales_columna' => ['1.000,00'],
+            'total_general' => '1.000,00',
+        ])->assertOk();
+
+        Excel::assertDownloaded('Ranking de Productos '.now()->format('d-m-Y Hi').' Hs.xlsx');
+    }
 }

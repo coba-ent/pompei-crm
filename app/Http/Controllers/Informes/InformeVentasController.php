@@ -108,27 +108,33 @@ class InformeVentasController extends Controller
      */
     public function pivotExportar(Request $request)
     {
+        // Los arrays van con `sometimes`, no con `present`: el botón manda un `<form>` POST, y un
+        // form no tiene forma de expresar "array vacío" — cuando el cruce no tiene dimensión de
+        // Filas, `filas` simplemente no viaja. Se completan con `[]` más abajo.
         $datos = $request->validate([
             'titulo' => ['required', 'string', 'max:120'],
-            'encabezados_fila' => ['present', 'array'],
-            'encabezados_columna' => ['present', 'array'],
+            'encabezados_fila' => ['sometimes', 'array'],
+            'encabezados_columna' => ['sometimes', 'array'],
             'niveles_columna' => ['sometimes', 'array'],
             'niveles_columna.*.etiqueta' => ['present'],
             'niveles_columna.*.valores' => ['present', 'array'],
-            // Sin dimensión de Filas (sólo Columnas) `filas` viene vacío a propósito — la única
-            // fila de datos es la de totales (`totales_columna`), ver PivotExport::hojaLegibleSinFilas().
-            'filas' => ['present', 'array', 'max:50000'],
+            'filas' => ['sometimes', 'array', 'max:50000'],
             'filas.*.etiqueta' => ['present', 'array'],
             'filas.*.valores' => ['present', 'array'],
-            'totales_columna' => ['present', 'array'],
-            'total_general' => ['present'],
+            'totales_columna' => ['sometimes', 'array'],
+            'total_general' => ['sometimes'],
         ]);
+
+        $datos['encabezados_fila'] ??= [];
+        $datos['encabezados_columna'] ??= [];
+        $datos['niveles_columna'] ??= [];
+        $datos['filas'] ??= [];
+        $datos['totales_columna'] ??= [];
+        $datos['total_general'] ??= null;
 
         if ($datos['filas'] === [] && $datos['totales_columna'] === []) {
             return response()->json(['message' => 'No hay nada para exportar.'], 422);
         }
-
-        $datos['niveles_columna'] ??= [];
 
         return \Maatwebsite\Excel\Facades\Excel::download(
             new \App\Exports\Informes\PivotExport($datos),

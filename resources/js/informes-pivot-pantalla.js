@@ -344,6 +344,36 @@
                 });
         }
 
+        /**
+         * Aplana la matriz a pares `[name, value]` con la notación de arrays de PHP, para mandarla
+         * como campos de un form (`filas[0][valores][1]`).
+         *
+         * Un array vacío simplemente NO se emite: un form no tiene forma de expresar "array vacío"
+         * (mandar `filas[]` con valor vacío le llega a PHP como `['']`, un elemento fantasma que
+         * después rompe la validación por elemento). El controlador lo contempla con `sometimes` y
+         * lo completa con `[]` — ver InformeVentasController::pivotExportar().
+         */
+        function camposDeFormulario(valor, prefijo, acumulado) {
+            const campos = acumulado || [];
+
+            if (Array.isArray(valor) || (valor !== null && typeof valor === 'object')) {
+                const claves = Array.isArray(valor) ? valor.map((_, i) => i) : Object.keys(valor);
+
+                claves.forEach((clave) => {
+                    const nombre = prefijo ? prefijo + '[' + clave + ']' : clave;
+                    camposDeFormulario(valor[clave], nombre, campos);
+                });
+
+                return campos;
+            }
+
+            // `null` viaja como string vacío: es lo que PHP recibe de un input vacío, y el export ya
+            // trata la celda vacía como "sin dato" (ver PivotExportTest).
+            campos.push([prefijo, valor === null || valor === undefined ? '' : valor]);
+
+            return campos;
+        }
+
         $(document).on('click', '#btn-pivot-exportar', function () {
             const matriz = window.InformesPivot.matrizVisible($('#pivot-contenedor'), tituloVigente || 'Informe');
 
@@ -357,9 +387,16 @@
 
             // Se manda por POST y se descarga con un form, porque el cuerpo es la matriz entera y
             // no entra en una query string.
-            const $form = $('<form method="POST" target="_blank">').attr('action', rutas.pivotExportar);
+            //
+            // Los campos van PLANOS (`filas[0][valores][1]`), no envueltos en un `payload` con el
+            // JSON adentro: el controlador valida `titulo`, `filas`, `totales_columna`… de primer
+            // nivel. Mandando `payload` la validación fallaba con 422 y, como el form abría en otra
+            // pestaña, el usuario veía "se abre una pestaña y no descarga nada" en vez del Excel.
+            const $form = $('<form method="POST">').attr('action', rutas.pivotExportar);
             $form.append($('<input type="hidden" name="_token">').val($('meta[name="csrf-token"]').attr('content')));
-            $form.append($('<input type="hidden" name="payload">').val(JSON.stringify(matriz)));
+            camposDeFormulario(matriz).forEach(([nombre, valor]) => {
+                $form.append($('<input type="hidden">').attr('name', nombre).val(valor));
+            });
             $('body').append($form);
             $form[0].submit();
             $form.remove();
