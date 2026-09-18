@@ -203,6 +203,48 @@ class PivotExportTest extends TestCase
     }
 
     /**
+     * Regresión: la matriz se lee del DOM con `.text()`, así que los importes llegan formateados
+     * en es-AR (`"30.505.482,68"`). Escritos tal cual, el Excel los guardaba como TEXTO: Excel los
+     * marcaba con el triangulito verde y la columna Total mostraba **0** en vez del importe. Con
+     * cantidades no se notaba (`"23"` es numérico en cualquier locale), por eso el problema
+     * aparecía sólo en los rankings en dinero.
+     */
+    public function test_los_importes_formateados_se_escriben_como_numeros(): void
+    {
+        [$legible] = $this->hojas([
+            'titulo' => 'Ranking de Productos',
+            'encabezados_fila' => ['Productos'],
+            'encabezados_columna' => ['2026 › 07 · Jul', '2026 › 08 · Ago'],
+            'filas' => [
+                ['etiqueta' => ['Botiquin'], 'valores' => ['20.930.282,24', '9.575.200,44'], 'total' => '30.505.482,68'],
+            ],
+            'totales_columna' => ['97.210.016,31', '70.573.589,01'],
+            'total_general' => '167.783.605,32',
+        ]);
+
+        // La etiqueta sigue siendo texto; los importes, números de verdad (sumables en Excel).
+        $this->assertSame(['Botiquin', 20930282.24, 9575200.44, 30505482.68], $legible[1]);
+        $this->assertSame(['Total', 97210016.31, 70573589.01, 167783605.32], $legible[2]);
+    }
+
+    /** Las celdas sin dato y las etiquetas no se tocan al convertir los importes. */
+    public function test_la_conversion_respeta_celdas_vacias_y_etiquetas(): void
+    {
+        [$legible] = $this->hojas([
+            'titulo' => 'Ranking de Productos',
+            'encabezados_fila' => ['Productos'],
+            'encabezados_columna' => ['Jul', 'Ago'],
+            'filas' => [
+                ['etiqueta' => ['Sin dato en Ago'], 'valores' => ['1.000,50', ''], 'total' => '1.000,50'],
+            ],
+            'totales_columna' => ['1.000,50', ''],
+            'total_general' => '1.000,50',
+        ]);
+
+        $this->assertSame(['Sin dato en Ago', 1000.5, '', 1000.5], $legible[1]);
+    }
+
+    /**
      * El caso del ranking que reportó el cliente: sin dimensión de Filas, `filas` y
      * `encabezados_fila` quedan vacíos y por eso NO viajan (un form no puede expresar un array
      * vacío: mandar `filas[]` vacío le llega a PHP como `['']`, un elemento fantasma que rompe la

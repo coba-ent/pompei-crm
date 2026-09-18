@@ -27,6 +27,60 @@ class PivotExport implements WithMultipleSheets
     public function __construct(private array $datos)
     {
         $this->datos['niveles_columna'] ??= [];
+
+        $this->normalizarNumeros();
+    }
+
+    /**
+     * Convierte a número real los importes que llegan formateados en es-AR.
+     *
+     * La matriz se lee del DOM con `.text()` (ver `matrizVisible()` en informes-pivot.js), así que
+     * cada celda viaja como el string que ve el usuario: `"30.505.482,68"`. Escrito tal cual, el
+     * Excel lo guarda como TEXTO — Excel lo marca con el triangulito verde y, según la
+     * configuración regional de quien abra el archivo, la columna Total puede llegar a mostrar 0
+     * en vez del importe. Con cantidades no se notaba (`"23"` es numérico en cualquier locale),
+     * por eso el problema aparecía sólo en los rankings en dinero.
+     *
+     * El formato es siempre el mismo (`thousandsSep: '.'`, `decimalSep: ','`, fijado en
+     * informes-pivot.js para todos los agregadores), así que la conversión es determinista. Lo que
+     * no sea un número con ese formato —una etiqueta, una celda vacía— se deja intacto.
+     */
+    private function normalizarNumeros(): void
+    {
+        foreach ($this->datos['filas'] as $i => $fila) {
+            $this->datos['filas'][$i]['valores'] = array_map(
+                fn ($v) => self::aNumero($v),
+                $fila['valores'],
+            );
+
+            if (array_key_exists('total', $fila)) {
+                $this->datos['filas'][$i]['total'] = self::aNumero($fila['total']);
+            }
+        }
+
+        $this->datos['totales_columna'] = array_map(
+            fn ($v) => self::aNumero($v),
+            $this->datos['totales_columna'],
+        );
+
+        $this->datos['total_general'] = self::aNumero($this->datos['total_general']);
+    }
+
+    /**
+     * `"30.505.482,68"` → `30505482.68`. Devuelve el valor original si no es un número en es-AR
+     * (una etiqueta, `null`, una celda vacía o un porcentaje con sufijo).
+     */
+    private static function aNumero(mixed $valor): mixed
+    {
+        if (! is_string($valor) || $valor === '') {
+            return $valor;
+        }
+
+        if (! preg_match('/^-?\d{1,3}(\.\d{3})*(,\d+)?$|^-?\d+(,\d+)?$/', $valor)) {
+            return $valor;
+        }
+
+        return (float) str_replace(',', '.', str_replace('.', '', $valor));
     }
 
     public function sheets(): array
