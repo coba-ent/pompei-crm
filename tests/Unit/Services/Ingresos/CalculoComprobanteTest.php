@@ -7,7 +7,14 @@ use PHPUnit\Framework\TestCase;
 
 class CalculoComprobanteTest extends TestCase
 {
-    /** Caso real: Venta 0001-00016359 — 3 ítems al 21%, descuento general 15% (research.md §1). */
+    /**
+     * Caso real: Venta 0001-00016359 — 3 ítems al 21%, descuento general 15% (research.md §1).
+     *
+     * El total esperado pasó de $307.569,76 a **$307.569,77** con la spec 104, y el centavo es el
+     * arreglo, no una regresión: sobre un neto declarado de $254.189,89, ARCA calcula un IVA de
+     * $53.379,88, y el valor viejo declaraba $53.379,87. El total nuevo es el único que cierra
+     * contra el recálculo de ARCA.
+     */
     public function test_descuento_general_se_aplica_proporcionalmente_a_neto_e_iva(): void
     {
         $resultado = (new CalculoComprobante)->calcular([
@@ -18,7 +25,7 @@ class CalculoComprobanteTest extends TestCase
 
         $this->assertEqualsWithDelta(299046.92, $resultado['subtotal_sin_descuento'], 0.01);
         $this->assertEqualsWithDelta(254189.89, $resultado['subtotal_con_descuento'], 0.01);
-        $this->assertEqualsWithDelta(307569.76, $resultado['total'], 0.01);
+        $this->assertEqualsWithDelta(307569.77, $resultado['total'], 0.01);
 
         // El IVA implícito del total queda proporcional al neto YA descontado (21% de subtotal_con_descuento),
         // no del neto sin descontar — condición que rompía spec 042 (ValidadorDatosFiscales).
@@ -124,5 +131,125 @@ class CalculoComprobanteTest extends TestCase
         $this->assertEqualsWithDelta(1000.0, $resultado['descuento'], 0.01);
         $this->assertEqualsWithDelta(0.0, $resultado['subtotal_con_descuento'], 0.01);
         $this->assertEqualsWithDelta(0.0, $resultado['total'], 0.01);
+    }
+
+    /**
+     * Caso real: Venta 25191 (FLORDANA S R L, Factura A, 18/09/2026) — 4 ítems al 21% con
+     * descuento general del 15%. ARCA la rechazó con "El IVA calculado no coincide con la suma por
+     * alícuota".
+     *
+     * El IVA que ARCA recalcula es `round(neto × alícuota, 2)` **por línea**, sobre el neto que se
+     * le declara. Este test exige esa igualdad **exacta** (sin delta): con un delta de 0,02 —como
+     * usan los tests de arriba— el bug pasaba desapercibido, porque el desvío era de un centavo por
+     * línea.
+     */
+    public function test_venta_25191_el_iva_por_linea_cierra_exacto_contra_el_neto(): void
+    {
+        $resultado = (new CalculoComprobante)->calcular([
+            ['descripcion' => 'Item 1', 'cantidad' => 1, 'precio_unitario' => 465170.0, 'iva_pct' => '21'],
+            ['descripcion' => 'Item 2', 'cantidad' => 1, 'precio_unitario' => 247812.52, 'iva_pct' => '21'],
+            ['descripcion' => 'Item 3', 'cantidad' => 4, 'precio_unitario' => 221817.26, 'iva_pct' => '21'],
+            ['descripcion' => 'Item 4', 'cantidad' => 1, 'precio_unitario' => 392243.99, 'iva_pct' => '21'],
+        ], 'porcentaje', 15);
+
+        foreach ($resultado['items'] as $i => $item) {
+            $ivaGuardado = round($item['subtotal_con_iva'] - $item['subtotal'], 2);
+            $ivaSegunArca = round($item['subtotal'] * 21 / 100, 2);
+
+            $this->assertSame(
+                $ivaSegunArca,
+                $ivaGuardado,
+                "El ítem {$i} declara un IVA que ARCA no reconoce: neto {$item['subtotal']}, ".
+                "guardado {$ivaGuardado}, esperado {$ivaSegunArca}."
+            );
+        }
+    }
+
+    /**
+     * El IVA por línea cierra exacto en todas las alícuotas del catálogo, no sólo al 21%.
+     *
+     * Son las de `Producto::OPCIONES_IVA`, que es lo que el CRM puede cargar. ARCA admite además
+     * 2,5% —`MapeadorComprobante::ALICUOTAS_IVA` la mapea— pero ningún producto puede tenerla:
+     * `porcentajeIva()` devuelve 0 para cualquier clave fuera del catálogo.
+     */
+    public function test_el_iva_por_linea_cierra_exacto_en_todas_las_alicuotas(): void
+    {
+        foreach (['5', '10.5', '21', '27'] as $alicuota) {
+            $resultado = (new CalculoComprobante)->calcular([
+                ['descripcion' => "A {$alicuota}", 'cantidad' => 3, 'precio_unitario' => 333407.39, 'iva_pct' => $alicuota],
+                ['descripcion' => "B {$alicuota}", 'cantidad' => 1, 'precio_unitario' => 210640.64, 'iva_pct' => $alicuota],
+            ], 'porcentaje', 15);
+
+            foreach ($resultado['items'] as $item) {
+                $this->assertSame(
+                    round($item['subtotal'] * (float) $alicuota / 100, 2),
+                    round($item['subtotal_con_iva'] - $item['subtotal'], 2),
+                    "Alícuota {$alicuota}% no cierra sobre un neto de {$item['subtotal']}."
+                );
+            }
+        }
+    }
+
+    /** Descuento por línea + general combinados: el IVA sale del neto final, ya con los dos aplicados. */
+    public function test_descuento_por_linea_y_general_combinados_cierran_exacto(): void
+    {
+        $resultado = (new CalculoComprobante)->calcular([
+            ['descripcion' => 'Con desc. línea', 'cantidad' => 2, 'precio_unitario' => 158377.53, 'descuento_pct' => 12, 'iva_pct' => '21'],
+            ['descripcion' => 'Sin desc. línea', 'cantidad' => 1, 'precio_unitario' => 70015.56, 'iva_pct' => '10.5'],
+        ], 'porcentaje', 15);
+
+        $this->assertSame(
+            round($resultado['items'][0]['subtotal'] * 0.21, 2),
+            round($resultado['items'][0]['subtotal_con_iva'] - $resultado['items'][0]['subtotal'], 2)
+        );
+        $this->assertSame(
+            round($resultado['items'][1]['subtotal'] * 0.105, 2),
+            round($resultado['items'][1]['subtotal_con_iva'] - $resultado['items'][1]['subtotal'], 2)
+        );
+    }
+
+    /** Descuento general en MONTO: mismo criterio, el monto se convierte a % antes de aplicarse. */
+    public function test_descuento_general_en_monto_tambien_cierra_exacto(): void
+    {
+        $resultado = (new CalculoComprobante)->calcular([
+            ['descripcion' => 'Item 1', 'cantidad' => 1, 'precio_unitario' => 392243.99, 'iva_pct' => '21'],
+            ['descripcion' => 'Item 2', 'cantidad' => 4, 'precio_unitario' => 221817.26, 'iva_pct' => '21'],
+        ], 'monto', 190000);
+
+        foreach ($resultado['items'] as $item) {
+            $this->assertSame(
+                round($item['subtotal'] * 0.21, 2),
+                round($item['subtotal_con_iva'] - $item['subtotal'], 2)
+            );
+        }
+    }
+
+    /** Una línea negativa (devolución dentro del comprobante) conserva el signo y sigue cerrando. */
+    public function test_linea_negativa_conserva_signo_y_cierra_exacto(): void
+    {
+        $resultado = (new CalculoComprobante)->calcular([
+            ['descripcion' => 'Positiva', 'cantidad' => 1, 'precio_unitario' => 333407.39, 'iva_pct' => '21'],
+            ['descripcion' => 'Negativa', 'cantidad' => -1, 'precio_unitario' => 70015.56, 'iva_pct' => '21'],
+        ], 'porcentaje', 15);
+
+        $this->assertLessThan(0, $resultado['items'][1]['subtotal']);
+
+        foreach ($resultado['items'] as $item) {
+            $this->assertSame(
+                round($item['subtotal'] * 0.21, 2),
+                round($item['subtotal_con_iva'] - $item['subtotal'], 2)
+            );
+        }
+    }
+
+    /** Alícuota 0% (exento): el con-IVA queda igual al neto, sin centavo de más. */
+    public function test_alicuota_cero_no_agrega_iva(): void
+    {
+        $resultado = (new CalculoComprobante)->calcular([
+            ['descripcion' => 'Exento', 'cantidad' => 3, 'precio_unitario' => 333407.39, 'iva_pct' => '0'],
+        ], 'porcentaje', 15);
+
+        $item = $resultado['items'][0];
+        $this->assertSame($item['subtotal'], $item['subtotal_con_iva']);
     }
 }

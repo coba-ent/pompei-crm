@@ -494,6 +494,24 @@ producto asociado), descripcion (string, del producto o libre), cantidad (decima
 (decimal), descuento_pct (decimal, nullable), iva_pct (string(12), igual codificación que
 `productos.iva_venta_pct`), subtotal (decimal), subtotal_con_iva (decimal).
 
+> **Regla de cálculo del IVA por línea (spec 104).** En todos los comprobantes que pasan por
+> `CalculoComprobante` —Venta, Compra, Presupuesto y las ventas que nacen de Mercado Libre y
+> Tiendanube— `subtotal_con_iva` se **deriva del `subtotal` ya guardado**:
+> `round(subtotal + subtotal × alícuota / 100, 2)`.
+>
+> Es decir: el IVA implícito de una línea (`subtotal_con_iva − subtotal`) siempre es igual a
+> `round(subtotal × alícuota / 100, 2)`. **Esa igualdad no es cosmética: es lo que ARCA recalcula
+> para validar el comprobante.**
+>
+> Antes de la spec 104 el neto y el neto-con-IVA se redondeaban por caminos separados y recién
+> después se les aplicaba el factor de descuento general. Dos redondeos independientes no vuelven a
+> encontrarse: el IVA quedaba un centavo por encima y ARCA rechazaba la factura con *"El IVA
+> calculado no coincide con la suma por alícuota"*. Si se vuelve a tocar este cálculo, la igualdad
+> de arriba es la invariante que hay que preservar.
+>
+> Las **Notas de Crédito/Débito quedan fuera**: `nota_credito_debito_items` no tiene la columna
+> `subtotal_con_iva` — guarda `precio` e `iva_pct` y deriva el IVA al consultarse.
+
 ### `presupuesto_conceptos` (Percepciones / Impuestos Internos / Intereses)
 id, presupuesto_id (FK, cascade), tipo (enum `percepcion`,`impuesto_interno`,`interes`), concepto
 (string, del selector "Seleccionar"), monto (decimal). Múltiples filas por tipo permitidas ("+

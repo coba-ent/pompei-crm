@@ -53,6 +53,22 @@ class ClienteWsfev1
         ]);
     }
 
+    /**
+     * Tabla de Condiciones de IVA del receptor admitidas por ARCA (spec 104).
+     *
+     * Es el método que el propio mensaje de error 10243 manda a consultar cuando rechaza un
+     * `CondicionIVAReceptorId`. Devuelve, por cada condición, su id, su descripción y **para qué
+     * clase de comprobante (A/B/C) es válida** — que es el dato que el rechazo dice que no cumple.
+     *
+     * @param  array{token: string, sign: string}  $ticketAcceso
+     */
+    public function consultarCondicionesIvaReceptor(array $ticketAcceso): object
+    {
+        return $this->llamar('FEParamGetCondicionIvaReceptor', [
+            'Auth' => $this->auth($ticketAcceso),
+        ]);
+    }
+
     private function auth(array $ticketAcceso): array
     {
         return [

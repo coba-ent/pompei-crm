@@ -68,10 +68,22 @@ class CalculoComprobante
 
             $bruto = $cantidad * $precioUnitario;
             $subtotalLinea = round($bruto - ($bruto * $descuentoPct / 100), 2);
-            $subtotalConIvaLinea = round($subtotalLinea + ($subtotalLinea * $ivaPct / 100), 2);
 
             $subtotalFinal = round($subtotalLinea * $factor, 2);
-            $subtotalConIvaFinal = round($subtotalConIvaLinea * $factor, 2);
+
+            // El IVA se deriva del neto que REALMENTE se guarda en la línea, no de un con-IVA
+            // redondeado por su cuenta (spec 104).
+            //
+            // Antes esto eran dos caminos separados: se redondeaba `subtotalLinea * 1.21` por un
+            // lado y `subtotalLinea` por otro, y recién después se le aplicaba `$factor` a cada
+            // uno. Dos redondeos independientes no vuelven a encontrarse: el IVA implícito
+            // (`subtotal_con_iva − subtotal`) quedaba un centavo por encima de `neto × alícuota`.
+            //
+            // Eso es exactamente lo que ARCA recalcula para validar, así que rechazaba la factura
+            // ("El IVA calculado no coincide con la suma por alícuota" — Venta 25191, 3 de sus 4
+            // líneas con +$0,01). Derivándolo del neto final, la cuenta del CRM y la de ARCA son la
+            // misma cuenta, para cualquier alícuota y con o sin descuento general.
+            $subtotalConIvaFinal = round($subtotalFinal + ($subtotalFinal * $ivaPct / 100), 2);
 
             $itemsCalculados[] = [
                 'producto_id' => $item['producto_id'] ?? null,
