@@ -84,7 +84,19 @@ final class FuenteFilasImportacion
                     $celdas[$columna - 1] = self::valorDeCelda($hoja, $columna, $numeroFila);
                 }
 
-                fwrite($handle, self::codificar($celdas)."\n");
+                // Fila sin ningún dato real: se vuelca como `null` en vez de como array de celdas,
+                // para que `leerRango()` la saltee. Excel guarda una fila en el XML en cuanto se le
+                // dejó un **formato** (una celda que se editó y después se borró), y esa fila sube
+                // el `getHighestDataRow()` sin tener contenido. Entraba a validación como un
+                // registro sin nombre y frenaba la importación entera con "Falta completar Nombre."
+                // en una fila que en pantalla está vacía (incidente del 18/09/2026).
+                //
+                // Nunca se saltea el encabezado, y la línea `null` OCUPA el lugar de la fila para
+                // no correr los índices: el número de fila que se le muestra al usuario, y el
+                // `numero_fila` de los snapshots de deshacer, siguen siendo los del archivo.
+                $vacia = $numeroFila > 1 && self::filaSinDatos($celdas);
+
+                fwrite($handle, ($vacia ? 'null' : self::codificar($celdas))."\n");
             }
         } finally {
             fclose($handle);
@@ -238,8 +250,17 @@ final class FuenteFilasImportacion
                 continue;
             }
 
-            yield $indice => self::decodificar($linea);
+            // Fila marcada como vacía en el volcado: no se emite, pero su índice ya se consumió
+            // (ver `volcar()`). No cuenta para el `$limite` de la tanda: el offset de la tanda
+            // siguiente lo maneja el llamador sobre los índices, no sobre las filas devueltas.
+            if (trim($linea) !== 'null') {
+                yield $indice => self::decodificar($linea);
+            }
 
+            // El corte de la tanda cuenta ÍNDICES consumidos, no filas emitidas: las vacías
+            // salteadas gastan su lugar igual, porque el llamador avanza el offset por lote fijo
+            // (`$offset + FILAS_POR_LOTE`). Contando sólo las emitidas, una tanda con filas vacías
+            // se pasaría de largo y la siguiente reprocesaría lo mismo.
             $devueltas++;
             if ($limite !== null && $devueltas >= $limite) {
                 return;
@@ -272,6 +293,30 @@ final class FuenteFilasImportacion
         $json = json_encode($celdas, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
 
         return $json === false ? '[]' : $json;
+    }
+
+    /**
+     * ¿La fila no tiene ningún dato? Vale para celdas nulas, cadenas vacías y cadenas de sólo
+     * espacios (o espacios duros, que es lo que suele quedar al limpiar una celda a mano). Un `0`
+     * o un `false` SÍ son datos y no se descartan.
+     *
+     * @param  array<int, mixed>  $celdas
+     */
+    private static function filaSinDatos(array $celdas): bool
+    {
+        foreach ($celdas as $celda) {
+            if ($celda === null) {
+                continue;
+            }
+
+            if (is_string($celda) && trim($celda, " \t\n\r\0\x0B\u{00A0}") === '') {
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
     }
 
     private static function normalizarCelda(mixed $celda): mixed

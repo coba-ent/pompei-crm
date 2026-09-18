@@ -228,16 +228,19 @@ class PrevalidacionImportacionTest extends TestCase
     /** SC-002: con filas inválidas no se escribe NI UNA fila, aunque se llame al endpoint directo. */
     public function test_con_filas_invalidas_la_confirmacion_se_rechaza_y_no_escribe_nada(): void
     {
+        // La fila inválida lleva un dato en OTRA columna: una fila del todo vacía se saltea
+        // (ver `test_las_filas_sin_ningun_dato_no_cuentan_como_error`), y acá lo que se prueba es
+        // el bloqueo por fila con contenido pero sin el campo obligatorio.
         $this->subir('clientes', [
-            ['Nombre'],
-            ['Cliente Bueno'],
-            [''],
+            ['Nombre', 'Email'],
+            ['Cliente Bueno', 'bueno@test.com'],
+            ['', 'sinnombre@test.com'],
         ]);
 
-        $informe = $this->prevalidar('clientes', [0 => 'nombre']);
+        $informe = $this->prevalidar('clientes', [0 => 'nombre', 1 => 'email']);
         $this->assertTrue($informe['hay_errores']);
 
-        $this->confirmar('clientes', [0 => 'nombre'])->assertStatus(422);
+        $this->confirmar('clientes', [0 => 'nombre', 1 => 'email'])->assertStatus(422);
 
         $this->assertSame(0, Cliente::count());
     }
@@ -287,17 +290,66 @@ class PrevalidacionImportacionTest extends TestCase
         $this->assertSame(0, $informe['total']);
     }
 
+    /**
+     * Incidente del 18/09/2026: una planilla de dos productos se rechazaba entera con "Falta
+     * completar Nombre." en la fila 4 — una fila que en Excel se ve vacía.
+     *
+     * Excel deja la fila registrada en el XML en cuanto tuvo **formato**, aunque no tenga ningún
+     * valor: alcanza con haber escrito en una celda y después borrarla. Esa fila subía el
+     * `getHighestDataRow()`, entraba a validación como un registro sin nombre y bloqueaba la
+     * importación. Una fila sin ningún dato no es un error: no es nada.
+     */
+    public function test_las_filas_sin_ningun_dato_no_cuentan_como_error(): void
+    {
+        $this->subir('clientes', [
+            ['Nombre'],
+            ['Cliente Uno'],
+            [null],
+            ['   '],
+            ['Cliente Dos'],
+        ]);
+
+        $informe = $this->prevalidar('clientes', [0 => 'nombre']);
+
+        $this->assertSame(2, $informe['altas']);
+        $this->assertSame(0, $informe['cantidad_errores']);
+        $this->assertFalse($informe['hay_errores']);
+
+        $this->confirmar('clientes', [0 => 'nombre'])->assertOk();
+        $this->assertSame(2, Cliente::count());
+    }
+
+    /**
+     * Saltear una fila vacía NO puede correr la numeración: el número que se le muestra al usuario
+     * tiene que seguir siendo el de su fila en Excel, o el error lo manda a corregir la fila
+     * equivocada.
+     */
+    public function test_saltear_una_fila_vacia_no_corre_el_numero_de_fila_de_los_errores(): void
+    {
+        $this->subir('clientes', [
+            ['Nombre', 'Email'],
+            ['Cliente Uno', 'uno@test.com'],
+            [null, null],
+            ['', 'sinnombre@test.com'],
+        ]);
+
+        $informe = $this->prevalidar('clientes', [0 => 'nombre', 1 => 'email']);
+
+        $this->assertSame(1, $informe['cantidad_errores']);
+        $this->assertSame(4, $informe['errores'][0]['fila']);
+    }
+
     /** Edge case: si ninguna fila sirve, se listan TODAS y la confirmación queda bloqueada. */
     public function test_archivo_sin_ninguna_fila_valida_lista_todos_los_errores(): void
     {
         $this->subir('clientes', [
-            ['Nombre'],
-            [''],
-            [''],
-            [''],
+            ['Nombre', 'Email'],
+            ['', 'a@test.com'],
+            ['', 'b@test.com'],
+            ['', 'c@test.com'],
         ]);
 
-        $informe = $this->prevalidar('clientes', [0 => 'nombre']);
+        $informe = $this->prevalidar('clientes', [0 => 'nombre', 1 => 'email']);
 
         $this->assertSame(3, $informe['cantidad_errores']);
         $this->assertCount(3, $informe['errores']);
@@ -308,17 +360,17 @@ class PrevalidacionImportacionTest extends TestCase
     public function test_proveedores_prevalida_y_bloquea_igual_que_las_otras_solapas(): void
     {
         $this->subir('proveedores', [
-            ['Nombre'],
-            ['Proveedor Bueno'],
-            [''],
+            ['Nombre', 'Email'],
+            ['Proveedor Bueno', 'bueno@test.com'],
+            ['', 'sinnombre@test.com'],
         ]);
 
-        $informe = $this->prevalidar('proveedores', [0 => 'nombre']);
+        $informe = $this->prevalidar('proveedores', [0 => 'nombre', 1 => 'email']);
 
         $this->assertSame(1, $informe['altas']);
         $this->assertTrue($informe['hay_errores']);
 
-        $this->confirmar('proveedores', [0 => 'nombre'])->assertStatus(422);
+        $this->confirmar('proveedores', [0 => 'nombre', 1 => 'email'])->assertStatus(422);
         $this->assertSame(0, Proveedor::count());
     }
 
