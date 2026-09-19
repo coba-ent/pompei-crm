@@ -11,7 +11,7 @@ class DatosEmpresa extends Model
 
     protected $fillable = [
         'razon_social', 'cuit', 'domicilio_fiscal', 'condicion_iva', 'ingresos_brutos', 'ruta_logo',
-        'mail_contador',
+        'mail_contador', 'telefono', 'sitio_web',
     ];
 
     public static function instancia(): ?self

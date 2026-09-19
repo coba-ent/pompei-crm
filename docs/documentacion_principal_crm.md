@@ -1641,7 +1641,9 @@ documento imprimible ("Ver Detalle" en la sección de NC/ND del Detalle de Venta
 vencimiento de CAE, QR fiscal y una referencia visible al comprobante de Venta que ajustan (tipo,
 número y fecha) — cierra el pendiente que había quedado abierto en spec 034 (T027). Ese PDF y el de
 Venta muestran además el encabezado del emisor con los datos de "Mi Perfil" (ver §5) cuando están
-cargados; si no lo están, el encabezado se omite sin bloquear la generación del comprobante.
+cargados; si no lo están, el encabezado se omite sin bloquear la generación del comprobante. (Ese
+encabezado es un partial compartido por **cinco** comprobantes —Venta, Presupuesto, NC/ND, Remito y
+Recibo— e incluye los datos de contacto agregados por spec 105; ver §5.)
 
 **Actualización (spec 097, 03/09/2026 — corrige para NC/ND el mismo defecto que spec 040 corrigió para
 Venta, y agrega IVA real por línea):** hasta esta spec, crear una Nota de Crédito/Débito sobre una
@@ -2099,9 +2101,28 @@ numeración local (`tipo_comprobante`/`nro_comprobante`) sin validez fiscal, igu
 > Contagram para esta pantalla — se construyó siguiendo el patrón visual ya usado en el resto de
 > Configuración & Ajustes, pendiente de contrastar contra capturas reales si se relevan más
 > adelante. "Mi Plan" sigue sin implementar (no aplica a este CRM single-tenant, sin costo por
-> plan). "Funciones Avanzadas" **sí** está implementada (spec 011, ver §5.1). "Importar
+> plan). Ver la actualización de spec 105 más abajo para los datos de contacto y el alcance real del
+> encabezado. "Funciones Avanzadas" **sí** está implementada (spec 011, ver §5.1). "Importar
 > Datos" ya está implementado, pero como pantalla propia de Base de Datos (§2.4, spec 006) —
 > Contagram real la expone también desde Configuración & Ajustes, alcance no replicado en este CRM.
+
+> **Actualización (spec 105, 18/09/2026 — datos de contacto en los comprobantes impresos):** a pedido
+> del negocio, la pantalla **Empresa** suma dos campos opcionales de texto libre: **Teléfono** y
+> **Página web**. Ambos se imprimen en el encabezado del emisor, debajo de la Condición de IVA, y
+> **sólo si están cargados** (un campo vacío no imprime ni su etiqueta ni un renglón en blanco).
+>
+> Dos precisiones que este documento tenía mal y quedan corregidas:
+>
+> - El encabezado del emisor **no** lo consumen dos PDFs sino **cinco**: Venta, Presupuesto, Nota de
+>   Crédito/Débito, Remito y Recibo. Es un único partial compartido
+>   (`resources/views/pdf/partials/encabezado-emisor.blade.php`), así que los cinco muestran siempre
+>   lo mismo por construcción.
+> - La pantalla también tiene el campo **Mail del Contador** desde el 27/08/2026, que no figuraba acá.
+>
+> La "dirección" que pidió el cliente **ya se imprimía**: es el Domicilio Fiscal. No se agregó un
+> domicilio comercial separado; si el negocio llegara a necesitar mostrar la dirección de un local
+> distinta de la fiscal, es una feature aparte. Estos datos son de presentación y no tocan el circuito
+> fiscal: ningún importe, numeración, CAE ni QR cambia. Ver `specs/105-telefono-web-pdf/`.
 
 *Fuente(s): [Configuración & Ajustes](https://help.contagram.com/es/collections/83659-configuracion-ajustes)*
 

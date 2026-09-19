@@ -34,6 +34,11 @@ class MiPerfilController extends Controller
             'condicion_iva' => ['nullable', 'string', 'max:255'],
             'ingresos_brutos' => ['nullable', 'string', 'max:255'],
             'mail_contador' => ['nullable', 'string', 'max:255'],
+            // Spec 105: texto libre a propósito. El teléfono admite varios números y aclaraciones
+            // ("11 5555-5555 / WhatsApp 11 4444-4444") y la web se acepta con o sin protocolo —
+            // los dos sólo se imprimen en el encabezado de los comprobantes, no se discan ni se navegan.
+            'telefono' => ['nullable', 'string', 'max:255'],
+            'sitio_web' => ['nullable', 'string', 'max:255'],
             'logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ]);
 

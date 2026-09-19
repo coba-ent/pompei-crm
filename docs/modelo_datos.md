@@ -1661,16 +1661,29 @@ Fila única (mismo patrón single-row que `ml_configuracion` §8 y `ml_bot_confi
 | `condicion_iva` | string, nullable | texto libre poblado desde el mismo catálogo `condiciones_iva` (§2) que usan Cliente/Proveedor, sin FK — Mi Perfil no es un Cliente/Proveedor |
 | `ingresos_brutos` | string, nullable | opcional |
 | `ruta_logo` | string, nullable | ruta relativa en disco `public` (`storage/app/public/empresa/`), validada como imagen (jpg/png/webp, máx. 2MB) antes de persistir |
+| `mail_contador` | string, nullable | destinatario que se precarga al enviarle información por correo desde el informe del contador |
+| `telefono` | string, nullable | texto libre: admite más de un número y aclaraciones (`11 5555-5555 / WhatsApp 11 4444-4444`). Se imprime tal cual, sin validar formato |
+| `sitio_web` | string, nullable | texto libre: se imprime tal cual, con o sin `www` y con o sin protocolo. No se convierte en link |
 
 Consumida por el partial `resources/views/pdf/partials/encabezado-emisor.blade.php`, incluido en los
-PDFs de Venta (§5) y de Notas de Crédito/Débito (§5) — se omite sin bloquear la generación del PDF si
-`DatosEmpresa::instancia()` devuelve `null`.
+**cinco** comprobantes imprimibles: Venta (§5), Presupuesto (§5), Notas de Crédito/Débito (§5), Remito
+(§5) y Recibo (§5) — se omite sin bloquear la generación del PDF si `DatosEmpresa::instancia()`
+devuelve `null`. Es metadata de **presentación**: no participa del circuito WSAA/WSFEv1 ni de la
+obtención del CAE.
 
 > **Actualización (spec 043, 04/08/2026)**: la pantalla "Mi Perfil" se renombra a "Empresa" y pasa a
 > incluir también la tabla de usuarios (antes en la pantalla separada "Usuarios y Permisos", eliminada).
 > Sin cambios de esquema en `datos_empresa` ni en `usuarios`/`roles`/`rol_usuario` — sólo cambia qué
 > vista consume esos datos. El acceso a "Empresa" y a todo Configuración & Ajustes pasa a depender del
 > rol `Admin` (`usuarios.roles` con `nombre='Admin'`, ya existente), no de permisos granulares.
+
+> **Actualización (spec 105, 18/09/2026)**: se agregan `telefono` y `sitio_web` (ambos string
+> nullable) a pedido del negocio, para que los comprobantes impresos lleven datos de contacto además
+> de los fiscales. Los dos son opcionales y el partial no imprime nada si están vacíos. La "dirección"
+> que pedía el cliente ya existía: es `domicilio_fiscal`, que el encabezado ya imprimía — **no** se
+> agregó un domicilio comercial separado. En el mismo cambio se corrigieron dos desactualizaciones de
+> esta sección: faltaba `mail_contador` (migración del 27/08/2026) y decía que el encabezado lo
+> consumían dos PDFs cuando son cinco. Ver `specs/105-telefono-web-pdf/`.
 
 ## 17. Configuración & Ajustes → Ventas: valores por defecto de "Crear Venta" (spec 043)
 

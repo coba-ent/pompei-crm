@@ -58,4 +58,58 @@ class MiPerfilTest extends TestCase
         $response->assertStatus(422);
         $this->assertNull(DatosEmpresa::instancia());
     }
+
+    /** Spec 105 — los datos de contacto que se imprimen en el encabezado de los comprobantes. */
+    public function test_guarda_telefono_y_sitio_web(): void
+    {
+        $this->post(route('configuracion.mi-perfil.guardar'), [
+            'razon_social' => 'Pompei Sanitarios',
+            'telefono' => '11 5555-5555 / WhatsApp 11 4444-4444',
+            'sitio_web' => 'www.pompeisanitarios.com.ar',
+        ])->assertOk()->assertJsonPath('ok', true);
+
+        $datosEmpresa = DatosEmpresa::instancia();
+        $this->assertSame('11 5555-5555 / WhatsApp 11 4444-4444', $datosEmpresa->telefono);
+        $this->assertSame('www.pompeisanitarios.com.ar', $datosEmpresa->sitio_web);
+    }
+
+    /** FR-002: son opcionales — guardar sin ellos no puede fallar. */
+    public function test_guarda_sin_telefono_ni_sitio_web(): void
+    {
+        $this->post(route('configuracion.mi-perfil.guardar'), [
+            'razon_social' => 'Pompei Sanitarios',
+        ])->assertOk()->assertJsonPath('ok', true);
+
+        $datosEmpresa = DatosEmpresa::instancia();
+        $this->assertNull($datosEmpresa->telefono);
+        $this->assertNull($datosEmpresa->sitio_web);
+    }
+
+    /**
+     * FR-010 / US2 escenario 4: agregar un campo nuevo no puede pisar lo que ya estaba cargado.
+     *
+     * Es el riesgo real de esta pantalla: guarda la ficha entera de una, así que un campo que no
+     * viaja bien en el form se persiste vacío y el negocio pierde un dato sin enterarse.
+     */
+    public function test_cargar_el_telefono_no_pisa_los_datos_previos(): void
+    {
+        DatosEmpresa::create([
+            'razon_social' => 'Pompei Sanitarios',
+            'cuit' => '20111111112',
+            'domicilio_fiscal' => 'Av. Siempre Viva 123',
+        ]);
+
+        $this->post(route('configuracion.mi-perfil.guardar'), [
+            'razon_social' => 'Pompei Sanitarios',
+            'cuit' => '20111111112',
+            'domicilio_fiscal' => 'Av. Siempre Viva 123',
+            'telefono' => '11 5555-5555',
+        ])->assertOk();
+
+        $datosEmpresa = DatosEmpresa::instancia();
+        $this->assertSame('11 5555-5555', $datosEmpresa->telefono);
+        $this->assertSame('20111111112', $datosEmpresa->cuit);
+        $this->assertSame('Av. Siempre Viva 123', $datosEmpresa->domicilio_fiscal);
+        $this->assertSame(1, DatosEmpresa::count(), 'La ficha de empresa es única: no se duplicó.');
+    }
 }

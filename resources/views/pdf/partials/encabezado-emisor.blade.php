@@ -19,6 +19,14 @@
             @if ($datosEmpresa->condicion_iva)
                 <div>Condición de IVA: {{ $datosEmpresa->condicion_iva }}</div>
             @endif
+            {{-- Spec 105: datos de contacto, después de los fiscales (FR-011). Cada uno con su @if:
+                 un campo vacío no imprime ni su etiqueta ni un renglón en blanco (FR-005). --}}
+            @if ($datosEmpresa->telefono)
+                <div>Tel: {{ $datosEmpresa->telefono }}</div>
+            @endif
+            @if ($datosEmpresa->sitio_web)
+                <div>{{ $datosEmpresa->sitio_web }}</div>
+            @endif
         </div>
     </div>
 @endif

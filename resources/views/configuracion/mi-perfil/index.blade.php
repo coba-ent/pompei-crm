@@ -43,6 +43,8 @@
                                 <div class="col-md-4"><label class="form-label text-muted mb-1">Condición de IVA</label><div class="fw-bold">{{ $datosEmpresa->condicion_iva ?: '-' }}</div></div>
                                 <div class="col-md-4"><label class="form-label text-muted mb-1">Ingresos Brutos</label><div class="fw-bold">{{ $datosEmpresa->ingresos_brutos ?: '-' }}</div></div>
                                 <div class="col-md-4"><label class="form-label text-muted mb-1">Mail del Contador</label><div class="fw-bold">{{ $datosEmpresa->mail_contador ?: '-' }}</div></div>
+                                <div class="col-md-4"><label class="form-label text-muted mb-1">Teléfono</label><div class="fw-bold">{{ $datosEmpresa->telefono ?: '-' }}</div></div>
+                                <div class="col-md-4"><label class="form-label text-muted mb-1">Página Web</label><div class="fw-bold">{{ $datosEmpresa->sitio_web ?: '-' }}</div></div>
                             </div>
                         </div>
                     </div>
@@ -162,6 +164,16 @@
                         <label class="form-label">Mail del Contador</label>
                         <input type="email" class="form-control" name="mail_contador" placeholder="contador@estudio.com.ar" value="{{ $datosEmpresa->mail_contador ?? '' }}">
                         <div class="form-text">Precarga el destinatario al enviarle información por correo desde el informe del contador.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Teléfono</label>
+                        <input type="text" class="form-control" name="telefono" placeholder="11 5555-5555 / WhatsApp 11 4444-4444" value="{{ $datosEmpresa->telefono ?? '' }}">
+                        <div class="form-text">Se imprime tal cual en el encabezado de los comprobantes. Podés cargar más de un número.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Página Web</label>
+                        <input type="text" class="form-control" name="sitio_web" placeholder="www.miempresa.com.ar" value="{{ $datosEmpresa->sitio_web ?? '' }}">
+                        <div class="form-text">Se imprime tal cual en el encabezado de los comprobantes.</div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Logo</label>
