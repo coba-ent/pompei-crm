@@ -217,6 +217,8 @@ class ProductoController extends Controller
      * es la única forma de encontrarlos por número). Como último recurso, si una
      * palabra de 4+ letras no matchea por LIKE, se prueba por fonética (SOUNDEX)
      * contra el nombre para tolerar errores de tipeo (ej. "tornllo" -> "tornillo").
+     * Ese fallback fonético exige que la palabra sea de PURAS letras: sobre un
+     * código alfanumérico ("0103/B6.14.0-D-CR") devolvía medio catálogo.
      */
     private function aplicarBusquedaFlexible(Builder $query, string $texto): void
     {
@@ -231,11 +233,13 @@ class ProductoController extends Controller
                     $q->orWhere('productos.id', (int) $palabra);
                 }
 
-                // SOUNDEX() de una cadena SIN letras (números, códigos con barras/guiones
-                // como "0109/16") devuelve '' en MySQL, y "columna LIKE CONCAT('', '%')"
-                // se reduce a "LIKE '%'", que matchea cualquier fila — por eso el fallback
-                // fonético exige al menos una letra en la palabra, no sólo "no es numérica".
-                if (preg_match('/\p{L}/u', $palabra) === 1 && mb_strlen($palabra) >= 4 && $q->getConnection()->getDriverName() === 'mysql') {
+                // El fallback fonético sólo se aplica a palabras de puras letras: sirve
+                // para errores de tipeo ("tornllo" -> "tornillo"), no para códigos.
+                // SOUNDEX() descarta todo lo que no sea letra, así que de un código como
+                // "0103/B6.14.0-D-CR" sólo sobreviven "BDCR" y el LIKE por prefijo termina
+                // trayendo medio catálogo (todos los "BIDE..."). Con una cadena sin letras
+                // es peor todavía: SOUNDEX('') = '' y "LIKE CONCAT('', '%')" matchea TODO.
+                if (preg_match('/^\p{L}+$/u', $palabra) === 1 && mb_strlen($palabra) >= 4 && $q->getConnection()->getDriverName() === 'mysql') {
                     $q->orWhereRaw('SOUNDEX(nombre) LIKE CONCAT(SOUNDEX(?), "%")', [$palabra]);
                 }
             });
