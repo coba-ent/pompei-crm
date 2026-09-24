@@ -22,25 +22,70 @@ class Cobranzas
     {
     }
 
-    /** Registra un cobro de Venta y su movimiento de tesorería (SC-002). */
-    public function registrarCobro(Venta $venta, float $monto, CuentaTesoreria $cuenta, Carbon $fecha, ?string $nota = null): Cobro
-    {
-        return DB::transaction(function () use ($venta, $monto, $cuenta, $fecha, $nota) {
+    /**
+     * Registra un cobro de Venta y su movimiento de tesorería (SC-002).
+     *
+     * **`$monto` es el importe RECIBIDO del cliente** (spec 110). Si hubo vuelto, a la venta se le
+     * imputa el **neto** (`recibido − vuelto`) y se registran DOS movimientos: el ingreso por lo
+     * recibido y el egreso por el vuelto. Los dos comparten el vínculo polimórfico al cobro y se
+     * distinguen por su `tipo` — por eso `Cobro::movimientoTesoreria()` filtra por `tipo='cobro'`.
+     */
+    public function registrarCobro(
+        Venta $venta,
+        float $monto,
+        CuentaTesoreria $cuenta,
+        Carbon $fecha,
+        ?string $nota = null,
+        float $vuelto = 0.0,
+        ?CuentaTesoreria $cuentaVuelto = null,
+    ): Cobro {
+        return DB::transaction(function () use ($venta, $monto, $cuenta, $fecha, $nota, $vuelto, $cuentaVuelto) {
+            $hayVuelto = $vuelto > 0 && $cuentaVuelto !== null;
+            // Lo que salda la venta es el neto; el recibido vive en el movimiento de tesorería.
+            $neto = $hayVuelto ? round($monto - $vuelto, 2) : $monto;
+
             $cobro = $venta->cobros()->create([
                 'fecha' => $fecha,
                 'cuenta_tesoreria_id' => $cuenta->id,
-                'monto' => $monto,
+                'monto' => $neto,
                 'nota' => $nota,
+                'vuelto' => $hayVuelto ? $vuelto : null,
+                'cuenta_vuelto_id' => $hayVuelto ? $cuentaVuelto->id : null,
             ]);
 
+            // El ingreso entra por el importe REAL que recibió la caja, no por el neto.
             $this->tesoreria->registrarMovimiento(
                 $cuenta, $monto, 'cobro', $cobro, $fecha,
                 detalle: $venta->cliente?->nombre,
                 nroComprobante: $venta->nro_comprobante,
             );
 
+            if ($hayVuelto) {
+                $this->registrarMovimientoVuelto($cobro, $venta, $vuelto, $cuentaVuelto, $fecha);
+            }
+
             return $cobro;
         });
+    }
+
+    /**
+     * Egreso por el vuelto entregado al cliente (spec 110).
+     *
+     * Monto **negativo**, como `pago` y `gasto`: el saldo de una cuenta se calcula sumando montos
+     * con signo, así que un vuelto positivo inflaría la caja en lugar de reducirla.
+     */
+    private function registrarMovimientoVuelto(
+        Cobro $cobro,
+        Venta $venta,
+        float $vuelto,
+        CuentaTesoreria $cuentaVuelto,
+        Carbon $fecha,
+    ): void {
+        $this->tesoreria->registrarMovimiento(
+            $cuentaVuelto, -$vuelto, 'vuelto', $cobro, $fecha,
+            detalle: $venta->cliente?->nombre,
+            nroComprobante: $venta->nro_comprobante,
+        );
     }
 
     /**
@@ -48,9 +93,16 @@ class Cobranzas
      * MovimientoTesoreria asociado en vez de anular+recrear (research.md §1). No editable si el
      * cobro está anulado (soft-deleted) o si no tiene movimiento asociado (FR-006, FR-006a).
      */
-    public function actualizarCobro(Cobro $cobro, float $monto, CuentaTesoreria $cuenta, Carbon $fecha, ?string $nota = null): Cobro
-    {
-        return DB::transaction(function () use ($cobro, $monto, $cuenta, $fecha, $nota) {
+    public function actualizarCobro(
+        Cobro $cobro,
+        float $monto,
+        CuentaTesoreria $cuenta,
+        Carbon $fecha,
+        ?string $nota = null,
+        float $vuelto = 0.0,
+        ?CuentaTesoreria $cuentaVuelto = null,
+    ): Cobro {
+        return DB::transaction(function () use ($cobro, $monto, $cuenta, $fecha, $nota, $vuelto, $cuentaVuelto) {
             if ($cobro->trashed()) {
                 throw new \RuntimeException('La cobranza está anulada y no puede editarse.');
             }
@@ -71,21 +123,64 @@ class Cobranzas
                 ])->save();
             }
 
+            $hayVuelto = $vuelto > 0 && $cuentaVuelto !== null;
+            $neto = $hayVuelto ? round($monto - $vuelto, 2) : $monto;
+
             $cobro->update([
                 'fecha' => $fecha,
                 'cuenta_tesoreria_id' => $cuenta->id,
-                'monto' => $monto,
+                'monto' => $neto,
                 'nota' => $nota,
+                'vuelto' => $hayVuelto ? $vuelto : null,
+                'cuenta_vuelto_id' => $hayVuelto ? $cuentaVuelto->id : null,
             ]);
 
+            // El ingreso se mueve por el importe recibido, no por el neto.
             $movimiento->update([
                 'monto' => $monto,
                 'cuenta_tesoreria_id' => $cuenta->id,
                 'fecha' => $fecha,
             ]);
 
-            return $cobro;
+            $this->sincronizarMovimientoVuelto($cobro, $hayVuelto, $vuelto, $cuentaVuelto, $fecha);
+
+            return $cobro->fresh();
         });
+    }
+
+    /**
+     * Deja el movimiento de vuelto en línea con lo que quedó el cobro (spec 110, FR-012).
+     *
+     * Tres casos: ya tenía vuelto y sigue teniendo (se actualiza in-place, igual que el de
+     * ingreso), no tenía y ahora sí (se crea), o tenía y ahora no (se soft-deletea). Sin el último
+     * caso, quitar el vuelto de una cobranza dejaría el egreso vivo en la cuenta.
+     */
+    private function sincronizarMovimientoVuelto(
+        Cobro $cobro,
+        bool $hayVuelto,
+        float $vuelto,
+        ?CuentaTesoreria $cuentaVuelto,
+        Carbon $fecha,
+    ): void {
+        $movimientoVuelto = $cobro->movimientoVuelto()->first();
+
+        if (! $hayVuelto) {
+            $movimientoVuelto?->delete();
+
+            return;
+        }
+
+        if ($movimientoVuelto) {
+            $movimientoVuelto->update([
+                'monto' => -$vuelto,
+                'cuenta_tesoreria_id' => $cuentaVuelto->id,
+                'fecha' => $fecha,
+            ]);
+
+            return;
+        }
+
+        $this->registrarMovimientoVuelto($cobro, $cobro->venta, $vuelto, $cuentaVuelto, $fecha);
     }
 
     /**
@@ -98,10 +193,15 @@ class Cobranzas
     public function anularCobro(Cobro $cobro): void
     {
         DB::transaction(function () use ($cobro) {
+            // El apareo del huérfano usa el monto del cobro, que con vuelto es el NETO; el
+            // movimiento importado histórico nunca tiene vuelto, así que sigue apareando bien.
             $movimiento = $cobro->movimientoTesoreria
                 ?? $this->tesoreria->movimientoHuerfanoDe('cobro', (int) $cobro->cuenta_tesoreria_id, $cobro->fecha, (float) $cobro->monto);
 
             $movimiento?->delete();
+            // Spec 110: el egreso del vuelto también se revierte. Sin esto queda vivo en la cuenta
+            // y el saldo de la caja queda con un egreso sin contrapartida (FR-013).
+            $cobro->movimientoVuelto()->first()?->delete();
             $cobro->delete();
         });
     }

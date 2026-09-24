@@ -37,8 +37,12 @@
                                     <option value="saldo_inicial">Saldo Inicial</option>
                                     <option value="movimiento_entre_cuentas">Movimiento entre Cuenta</option>
                                     <option value="cobro">Cobro</option>
+                                    {{-- `ingreso` faltaba desde que se agregó el tipo (spec 055):
+                                         los Otros Ingresos no eran filtrables acá. --}}
+                                    <option value="ingreso">Ingreso</option>
                                     <option value="pago">Pago</option>
                                     <option value="gasto">Gasto</option>
+                                    <option value="vuelto">Vuelto</option>{{-- spec 110 --}}
                                 </select>
                             </div>
                             <div class="col-md-3">

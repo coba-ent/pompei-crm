@@ -19,6 +19,8 @@ class ConfiguracionVentasController extends Controller
             'deposito_id' => ['nullable', 'integer', 'exists:depositos,id'],
             'tipo_comprobante' => ['nullable', 'in:A,B,C,E'],
             'dias_vto_cobro' => ['nullable', 'integer', 'min:0'],
+            // Spec 110: cuenta por defecto para los vueltos de cobranza (sólo preselecciona).
+            'cuenta_vuelto_id' => ['nullable', 'integer', 'exists:cuentas_tesoreria,id'],
             'dias_validez_presupuesto' => ['nullable', 'integer', 'min:0'],
             'categoria_compra_id' => ['nullable', 'integer', 'exists:categorias,id'],
             'deposito_compra_id' => ['nullable', 'integer', 'exists:depositos,id'],

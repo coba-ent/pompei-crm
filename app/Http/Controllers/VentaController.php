@@ -620,7 +620,7 @@ class VentaController extends Controller
     public function show(Venta $venta)
     {
         $CurrentPage = 'ventas';
-        $venta->load(['items', 'conceptos', 'cliente.condicionIva', 'categoria', 'listaPrecio', 'vendedor', 'etiquetas', 'cobros.cuentaTesoreria', 'comprobanteFiscal', 'notasCreditoDebito.comprobanteFiscal', 'notasCreditoDebito.notaAjustada.comprobanteFiscal', 'remitos.transportista', 'remitos.items', 'mlOrden.items', 'movimientosStock.deposito', 'creditosRecibidos.origen', 'creditosRecibidos.notaCreditoDebito', 'creditosCedidos.destino']);
+        $venta->load(['items', 'conceptos', 'cliente.condicionIva', 'categoria', 'listaPrecio', 'vendedor', 'etiquetas', 'cobros.cuentaTesoreria', 'cobros.cuentaVuelto', 'comprobanteFiscal', 'notasCreditoDebito.comprobanteFiscal', 'notasCreditoDebito.notaAjustada.comprobanteFiscal', 'remitos.transportista', 'remitos.items', 'mlOrden.items', 'movimientosStock.deposito', 'creditosRecibidos.origen', 'creditosRecibidos.notaCreditoDebito', 'creditosCedidos.destino']);
         $cuentas = CuentaTesoreria::visibles()->paraCobrar()->ordenadas()->get();
         $depositos = Deposito::activos()->orderBy('nombre')->get();
 
@@ -729,6 +729,9 @@ class VentaController extends Controller
             'total' => (float) $venta->total,
             'aCobrar' => $venta->aCobrar(),
             'cuentas' => CuentaTesoreria::visibles()->paraCobrar()->ordenadas()->get(['id', 'nombre']),
+            // Spec 110: sólo PRESELECCIONA la cuenta de vuelto en el modal; el operador puede
+            // elegir otra sin que eso toque la configuración global (FR-010).
+            'cuentaVueltoDefault' => ConfiguracionVentas::first()?->cuenta_vuelto_id,
         ]);
     }
 
@@ -742,12 +745,24 @@ class VentaController extends Controller
         $datos = $request->validated();
         $cuenta = CuentaTesoreria::findOrFail($datos['cuenta_tesoreria_id']);
 
-        $cobro = $this->cobranzas->registrarCobro($venta, (float) $datos['monto'], $cuenta, Carbon::parse($datos['fecha']), $datos['nota'] ?? null);
+        // Spec 110: `monto` es lo RECIBIDO; si hay vuelto, el service imputa el neto a la venta.
+        $vuelto = (float) ($datos['vuelto'] ?? 0);
+        $cuentaVuelto = $vuelto > 0 && ! empty($datos['cuenta_vuelto_id'])
+            ? CuentaTesoreria::findOrFail($datos['cuenta_vuelto_id'])
+            : null;
+
+        $cobro = $this->cobranzas->registrarCobro(
+            $venta, (float) $datos['monto'], $cuenta, Carbon::parse($datos['fecha']), $datos['nota'] ?? null,
+            $vuelto, $cuentaVuelto,
+        );
 
         return response()->json([
             'ok' => true,
             'mensaje' => 'Venta '.$venta->nro_comprobante.' actualizada con éxito.',
             'cobro' => $cobro,
+            'recibido' => $cobro->recibido(),
+            'vuelto' => $cobro->vuelto !== null ? (float) $cobro->vuelto : null,
+            'cuenta_vuelto' => $cuentaVuelto?->nombre,
             'cobrado' => $venta->cobrado(),
             'a_cobrar' => $venta->aCobrar(),
             'estado_cobro' => $venta->estadoCobro(),
@@ -824,7 +839,7 @@ class VentaController extends Controller
             abort(404, 'La cobranza no pertenece a esta Venta.');
         }
 
-        $cobro->load('cuentaTesoreria');
+        $cobro->load('cuentaTesoreria', 'cuentaVuelto');
         $venta->load('cliente');
         $datosEmpresa = DatosEmpresa::instancia();
 
@@ -836,6 +851,11 @@ class VentaController extends Controller
             'medio' => optional($cobro->cuentaTesoreria)->nombre,
             'nota' => $cobro->nota,
             'monto' => $cobro->monto,
+            // Spec 110 (FR-016): con vuelto, el recibo muestra recibido/vuelto/imputado. `monto` es
+            // el neto, así que sin esto el papel diría menos de lo que el cliente entregó.
+            'vuelto' => $cobro->tieneVuelto() ? (float) $cobro->vuelto : null,
+            'recibido' => $cobro->recibido(),
+            'medioVuelto' => optional($cobro->cuentaVuelto)->nombre,
             'datosEmpresa' => $datosEmpresa,
         ]);
 
@@ -852,13 +872,21 @@ class VentaController extends Controller
         $datos = $request->validated();
         $cuenta = CuentaTesoreria::findOrFail($datos['cuenta_tesoreria_id']);
 
+        $vuelto = (float) ($datos['vuelto'] ?? 0);
+        $cuentaVuelto = $vuelto > 0 && ! empty($datos['cuenta_vuelto_id'])
+            ? CuentaTesoreria::findOrFail($datos['cuenta_vuelto_id'])
+            : null;
+
         try {
-            $cobro = $this->cobranzas->actualizarCobro($cobro, (float) $datos['monto'], $cuenta, Carbon::parse($datos['fecha']), $datos['nota'] ?? null);
+            $cobro = $this->cobranzas->actualizarCobro(
+                $cobro, (float) $datos['monto'], $cuenta, Carbon::parse($datos['fecha']), $datos['nota'] ?? null,
+                $vuelto, $cuentaVuelto,
+            );
         } catch (\RuntimeException $e) {
             return response()->json(['ok' => false, 'errors' => ['monto' => [$e->getMessage()]]], 422);
         }
 
-        $cobro->load('cuentaTesoreria');
+        $cobro->load('cuentaTesoreria', 'cuentaVuelto');
 
         return response()->json([
             'ok' => true,

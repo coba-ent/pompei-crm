@@ -202,7 +202,10 @@ class Tesoreria
         };
 
         $cobros = $desglose(['cobro', 'ingreso'], absoluto: false);
-        $pagos = $desglose(['pago', 'gasto'], absoluto: true);
+        // `vuelto` (spec 110) va acá y no en otro lado: es plata que SALE de la caja, igual que un
+        // pago o un gasto. Dejarlo afuera repetiría el incidente de `ingreso`, que por no estar en
+        // esta lista dejó $34.570.442,27 invisibles en el flujo de caja.
+        $pagos = $desglose(['pago', 'gasto', 'vuelto'], absoluto: true);
 
         $filtrar = fn (array $filas) => $cuentasActivas === null
             ? $filas

@@ -411,6 +411,7 @@
                             total: resp.total,
                             aCobrar: resp.aCobrar,
                             cuentas: resp.cuentas,
+                            cuentaVueltoDefault: resp.cuentaVueltoDefault,
                             rutas: ModalCobranza.rutasDe(id),
                         },
                         () => { tabla.ajax.reload(null, false); }
@@ -1232,18 +1233,88 @@
                 .fail((xhr) => toast('error', xhr.responseJSON?.errors?.monto?.[0] || xhr.responseJSON?.mensaje || 'No se pudo aplicar el saldo a favor.'));
         }
 
+        /**
+         * Carga el select de cuenta de vuelto (spec 110) con las mismas cuentas del medio de cobro
+         * y preselecciona `seleccionada` — el default global de Configuración → Ventas, o la cuenta
+         * que ya tenía el cobro si se está editando.
+         *
+         * Select2 con `dropdownParent` al modal: sin eso el desplegable queda detrás del backdrop.
+         */
+        function prepararCuentaVuelto(seleccionada) {
+            const $sel = $('#cobranza-vuelto-cuenta');
+
+            if ($sel.data('select2')) {
+                $sel.select2('destroy');
+            }
+            $sel.empty().append('<option value="">Elegí una cuenta…</option>');
+
+            (ctx.cuentas || []).forEach((cuenta) => {
+                $sel.append($('<option>').val(cuenta.id).text(cuenta.nombre));
+            });
+
+            if (seleccionada) {
+                $sel.val(String(seleccionada));
+            }
+
+            $sel.select2({
+                width: '100%',
+                dropdownParent: $(el()),
+                placeholder: 'Elegí una cuenta…',
+            }).trigger('change.select2');
+        }
+
+        /** Vuelto cargado en el modal (spec 110). 0 = sin vuelto. */
+        function vueltoActual() {
+            return Number($('#cobranza-vuelto').val()) || 0;
+        }
+
+        /**
+         * Muestra el desglose recibido/vuelto/neto y la cuenta de vuelto sólo cuando hay vuelto.
+         * El neto es lo que se imputa a la venta, así que conviene que el operador lo vea antes de
+         * elegir el medio de cobro (ese clic guarda directo).
+         */
+        function refrescarVuelto() {
+            const vuelto = vueltoActual();
+            const recibido = Number($('#cobranza-monto').val()) || 0;
+
+            $('#cobranza-vuelto-cuenta-wrap').toggle(vuelto > 0);
+            $('#cobranza-neto-aviso').toggle(vuelto > 0);
+
+            if (vuelto > 0) {
+                $('#cobranza-neto-recibido').text(money(recibido));
+                $('#cobranza-neto-vuelto').text(money(vuelto));
+                $('#cobranza-neto-valor').text(money(Math.round((recibido - vuelto) * 100) / 100));
+            }
+        }
+
+        /** Primer error de validación del backend, mirando también los campos del vuelto. */
+        function primerError(xhr) {
+            const errores = xhr.responseJSON?.errors || {};
+            return errores.monto?.[0] || errores.vuelto?.[0] || errores.cuenta_vuelto_id?.[0]
+                || xhr.responseJSON?.message || xhr.responseJSON?.mensaje;
+        }
+
         function cobrar(cuentaId) {
-            $.post(ctx.rutas.cobranzaStore, {
+            const vuelto = vueltoActual();
+            const payload = {
                 cuenta_tesoreria_id: cuentaId,
                 monto: $('#cobranza-monto').val(),
                 fecha: AppFecha.get($('#cobranza-fecha')),
-            })
+                nota: $('#cobranza-nota').val(),
+            };
+
+            if (vuelto > 0) {
+                payload.vuelto = vuelto;
+                payload.cuenta_vuelto_id = $('#cobranza-vuelto-cuenta').val();
+            }
+
+            $.post(ctx.rutas.cobranzaStore, payload)
                 .done((resp) => {
                     toast('success', resp.mensaje || 'Venta actualizada con éxito.');
                     bootstrap.Modal.getInstance(el())?.hide();
                     onHecho();
                 })
-                .fail((xhr) => toast('error', xhr.responseJSON?.message || xhr.responseJSON?.errors?.monto?.[0] || 'No se pudo registrar la cobranza.'));
+                .fail((xhr) => toast('error', primerError(xhr) || 'No se pudo registrar la cobranza.'));
         }
 
         function abrir(contexto, alTerminar) {
@@ -1252,6 +1323,8 @@
 
             if (!listo) {
                 $('#btn-usar-saldo-favor').on('click', aplicarSaldoAFavor);
+                // Spec 110: el desglose se recalcula con cualquiera de los dos importes.
+                $('#cobranza-vuelto, #cobranza-monto').on('input', refrescarVuelto);
                 listo = true;
             }
 
@@ -1268,6 +1341,16 @@
             AppFecha.set($('#cobranza-fecha'), editando ? cobro.fecha : AppFecha.hoy());
             $('#cobranza-nota').val(editando ? (cobro.nota || '') : '');
             cuentaSeleccionadaEdicion = editando ? cobro.cuentaId : null;
+
+            // Spec 110: en edición el monto que se muestra es lo RECIBIDO (monto + vuelto), no el
+            // neto guardado, para que el operador vea y corrija lo que realmente pasó por la caja.
+            const vueltoCobro = editando ? (Number(cobro.vuelto) || 0) : 0;
+            if (editando && vueltoCobro > 0) {
+                $('#cobranza-monto').val(Math.round((Number(cobro.monto) + vueltoCobro) * 100) / 100);
+            }
+            $('#cobranza-vuelto').val(vueltoCobro > 0 ? vueltoCobro : '');
+            prepararCuentaVuelto(editando ? cobro.cuentaVueltoId : ctx.cuentaVueltoDefault);
+            refrescarVuelto();
 
             const $cuentas = $('#cobranza-cuentas').empty();
             (ctx.cuentas || []).forEach((cuenta) => {
@@ -1327,9 +1410,28 @@
                 total: data.total,
                 aCobrar: data.aCobrar,
                 cuentas: data.cuentas,
+                cuentaVueltoDefault: data.cuentaVueltoDefault,
                 cobro: cobro || null,
                 rutas: rutas,
             }, recargarSinAutoAbrirCobranza);
+        }
+
+        /** Payload de edición, con los campos de vuelto si corresponde (spec 110). */
+        function payloadEdicion(cuentaId) {
+            const vuelto = Number($('#cobranza-vuelto').val()) || 0;
+            const payload = {
+                cuenta_tesoreria_id: cuentaId,
+                monto: $('#cobranza-monto').val(),
+                fecha: AppFecha.get($('#cobranza-fecha')),
+                nota: $('#cobranza-nota').val(),
+            };
+
+            if (vuelto > 0) {
+                payload.vuelto = vuelto;
+                payload.cuenta_vuelto_id = $('#cobranza-vuelto-cuenta').val();
+            }
+
+            return payload;
         }
 
         function guardarEdicionCobranza() {
@@ -1341,16 +1443,20 @@
             $.ajax({
                 url: rutas.cobranzaUpdateBase + '/' + id,
                 method: 'PUT',
-                data: {
-                    cuenta_tesoreria_id: cuentaId,
-                    monto: $('#cobranza-monto').val(),
-                    fecha: AppFecha.get($('#cobranza-fecha')),
-                    nota: $('#cobranza-nota').val(),
-                },
+                data: payloadEdicion(cuentaId),
             })
                 .done((resp) => {
                     toast('success', resp.mensaje || 'Cobranza actualizada.');
                     bootstrap.Modal.getInstance(document.getElementById('modal-cobranza'))?.hide();
+
+                    // Spec 110: si hay vuelto (antes o después de la edición) la fila cambia de
+                    // estructura —suma la línea "Recibido … · vuelto …"—, así que refrescar sólo
+                    // las celdas dejaría el detalle desactualizado. Se recarga.
+                    if (resp.cobro.vuelto || $('tr[data-cobro-id="' + id + '"]').data('cobro-vuelto')) {
+                        window.location.reload();
+
+                        return;
+                    }
 
                     const fechaIso = String(resp.cobro.fecha).slice(0, 10);
                     const $fila = $('tr[data-cobro-id="' + id + '"]');
@@ -1397,6 +1503,8 @@
                 fecha: $fila.data('cobro-fecha'),
                 cuentaId: $fila.data('cobro-cuenta-id'),
                 nota: $fila.data('cobro-nota'),
+                vuelto: $fila.data('cobro-vuelto'),
+                cuentaVueltoId: $fila.data('cobro-cuenta-vuelto-id'),
             });
         });
 

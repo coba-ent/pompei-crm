@@ -16,7 +16,7 @@ class ConfiguracionVentas extends Model
 
     protected $fillable = [
         'categoria_id', 'vendedor_id', 'lista_precio_id', 'tipo_comprobante', 'dias_vto_cobro',
-        'dias_validez_presupuesto', 'deposito_id',
+        'dias_validez_presupuesto', 'deposito_id', 'cuenta_vuelto_id',
         'categoria_compra_id', 'tipo_comprobante_compra', 'dias_vto_pago_compra', 'deposito_compra_id',
     ];
 
@@ -48,5 +48,16 @@ class ConfiguracionVentas extends Model
     public function depositoCompra(): BelongsTo
     {
         return $this->belongsTo(Deposito::class, 'deposito_compra_id');
+    }
+
+    /**
+     * Cuenta de tesorería por defecto para los vueltos de cobranza (spec 110).
+     *
+     * Sólo **preselecciona** el campo en el modal: elegir otra cuenta en una cobranza puntual no
+     * modifica este valor (FR-010).
+     */
+    public function cuentaVuelto(): BelongsTo
+    {
+        return $this->belongsTo(CuentaTesoreria::class, 'cuenta_vuelto_id');
     }
 }

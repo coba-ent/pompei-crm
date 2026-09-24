@@ -70,6 +70,21 @@
                            value="{{ $configuracionVentas?->dias_vto_cobro }}" placeholder="Sin valor por defecto">
                     <div class="form-text">Se suma a la fecha de Emisión. 0 significa la misma fecha que la Emisión.</div>
                 </div>
+                {{-- Spec 110: caja de la que sale el vuelto cuando el cliente paga con un medio que
+                     el CRM no registra tal cual (dólares). Sólo PRESELECCIONA el campo del modal de
+                     cobranza: el operador puede elegir otra cuenta sin que esto cambie. --}}
+                <div class="col-md-6">
+                    <label class="form-label">Cuenta por defecto para vueltos</label>
+                    <select class="form-select" id="cv-cuenta-vuelto-id" name="cuenta_vuelto_id" style="width:100%">
+                        <option value="">Sin valor por defecto (se elige en cada cobranza)</option>
+                        @foreach ($cuentasTesoreria as $cuenta)
+                            <option value="{{ $cuenta->id }}" @selected($configuracionVentas?->cuenta_vuelto_id == $cuenta->id)>
+                                {{ $cuenta->nombre }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <div class="form-text">Caja de la que sale el vuelto al cobrar. Se puede cambiar en cada cobranza.</div>
+                </div>
                 <div class="col-md-6">
                     <label class="form-label">Depósito por defecto</label>
                     <select class="form-select" id="cv-deposito-id" name="deposito_id" style="width:100%">

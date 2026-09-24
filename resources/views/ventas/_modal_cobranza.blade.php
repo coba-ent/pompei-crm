@@ -26,6 +26,34 @@
                     {{-- dd/mm/aaaa: ver `resources/js/fecha-ar.js`. Viaja ISO al backend. --}}
                     <input type="text" class="form-control" id="cobranza-fecha" data-fecha-ar>
                 </div>
+                {{-- Vuelto (spec 110). Para el pago con un medio que el CRM no registra tal cual
+                     —el caso son dólares—: se cobra el importe convertido y se devuelve la
+                     diferencia en el acto. Va SIEMPRE visible y vacío: un campo que apareciera sólo
+                     al superar el saldo obligaría a cargar mal el monto primero para verlo.
+                     El importe de arriba pasa a ser lo RECIBIDO; a la venta se le imputa el neto. --}}
+                <div class="mb-3">
+                    <label class="form-label">
+                        Vuelto
+                        <span class="text-muted small">(opcional — si le devolvés cambio al cliente)</span>
+                    </label>
+                    <input type="number" step="0.01" min="0" class="form-control" id="cobranza-vuelto" placeholder="0,00">
+                </div>
+                <div class="mb-3" id="cobranza-vuelto-cuenta-wrap" style="display:none;">
+                    <label class="form-label">¿De qué cuenta sale el vuelto?</label>
+                    <select class="form-select" id="cobranza-vuelto-cuenta"></select>
+                </div>
+                <div class="alert alert-info py-2 px-3 mb-3" id="cobranza-neto-aviso" style="display:none;">
+                    <div class="d-flex justify-content-between small">
+                        <span>Recibís</span><strong id="cobranza-neto-recibido">$ 0,00</strong>
+                    </div>
+                    <div class="d-flex justify-content-between small">
+                        <span>Devolvés</span><strong id="cobranza-neto-vuelto">$ 0,00</strong>
+                    </div>
+                    <div class="d-flex justify-content-between border-top mt-1 pt-1">
+                        <span>Se imputa a la venta</span><strong id="cobranza-neto-valor">$ 0,00</strong>
+                    </div>
+                </div>
+
                 <div class="mb-3">
                     <label class="form-label">Nota</label>
                     <input type="text" class="form-control" id="cobranza-nota">

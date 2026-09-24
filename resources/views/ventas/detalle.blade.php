@@ -210,13 +210,29 @@
                                     data-cobro-monto="{{ $cobro->monto }}"
                                     data-cobro-fecha="{{ $cobro->fecha->format('Y-m-d') }}"
                                     data-cobro-cuenta-id="{{ $cobro->cuenta_tesoreria_id }}"
+                                    data-cobro-vuelto="{{ $cobro->vuelto }}"
+                                    data-cobro-cuenta-vuelto-id="{{ $cobro->cuenta_vuelto_id }}"
                                     data-cobro-nota="{{ $cobro->nota }}">
                                     <td>@include('ventas._row_actions_cobranza', ['venta' => $venta, 'cobro' => $cobro])</td>
                                     <td>{{ $cobro->id }}</td>
                                     <td>{{ $cobro->fecha->format('d/m/Y') }}</td>
                                     <td>{{ optional($cobro->cuentaTesoreria)->nombre }}</td>
                                     <td>{{ $cobro->nota }}</td>
-                                    <td>$ {{ number_format((float) $cobro->monto, 2, ',', '.') }}</td>
+                                    <td>
+                                        $ {{ number_format((float) $cobro->monto, 2, ',', '.') }}
+                                        {{-- Spec 110 (FR-015): sin esto, un tercero ve imputados
+                                             $140.000 sobre un cobro donde entraron $155.000 y no
+                                             tiene cómo entender la diferencia. --}}
+                                        @if ($cobro->tieneVuelto())
+                                            <div class="small text-muted">
+                                                Recibido $ {{ number_format($cobro->recibido(), 2, ',', '.') }}
+                                                · vuelto $ {{ number_format((float) $cobro->vuelto, 2, ',', '.') }}
+                                                @if ($cobro->cuentaVuelto)
+                                                    ({{ $cobro->cuentaVuelto->nombre }})
+                                                @endif
+                                            </div>
+                                        @endif
+                                    </td>
                                     <td>{{ $venta->nro_comprobante }}</td>
                                 </tr>
                             @empty
@@ -533,6 +549,8 @@
         items: @json($datosItemsVenta),
         notas: @json($datosNotas),
         autoAbrirCobranza: {{ request()->boolean('cobrar') ? 'true' : 'false' }},
+        {{-- Spec 110: preselecciona la cuenta de vuelto en el modal de cobranza. --}}
+        cuentaVueltoDefault: @json(\App\Models\ConfiguracionVentas::first()?->cuenta_vuelto_id),
     };
     window.VentasConfig = window.VentasConfig || {};
     window.VentasConfig.rutas = Object.assign(window.VentasConfig.rutas || {}, {

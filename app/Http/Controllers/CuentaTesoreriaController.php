@@ -188,6 +188,8 @@ class CuentaTesoreriaController extends Controller
         'ingreso' => 'Ingreso',
         'pago' => 'Pago',
         'gasto' => 'Gasto',
+        // Spec 110: sin esta entrada la columna "Operación" del ledger se muestra vacía.
+        'vuelto' => 'Vuelto',
     ];
 
     /** Export del ledger de la cuenta a CSV (FR-025). */

@@ -24,7 +24,15 @@
     <table>
         <tr><td>Medio</td><td>{{ $medio ?: '-' }}</td></tr>
         <tr><td>Nota</td><td>{{ $nota ?: '-' }}</td></tr>
-        <tr><td><strong>Monto</strong></td><td class="text-end"><strong>$ {{ number_format((float) $monto, 2, ',', '.') }}</strong></td></tr>
+        {{-- Vuelto (spec 110): el recibo es el papel que se le da al cliente, así que tiene que
+             decir lo que realmente entregó. Sin este desglose, alguien que pagó $155.000 se lleva
+             un comprobante que dice $140.000. `$vuelto` sólo llega desde las cobranzas de Venta;
+             en Pagos a proveedores la vista se renderiza igual que siempre. --}}
+        @if (!empty($vuelto ?? null))
+            <tr><td>Recibido</td><td class="text-end">$ {{ number_format((float) ($recibido ?? 0), 2, ',', '.') }}</td></tr>
+            <tr><td>Vuelto{{ ($medioVuelto ?? null) ? ' ('.$medioVuelto.')' : '' }}</td><td class="text-end">− $ {{ number_format((float) $vuelto, 2, ',', '.') }}</td></tr>
+        @endif
+        <tr><td><strong>{{ !empty($vuelto ?? null) ? 'Imputado a la venta' : 'Monto' }}</strong></td><td class="text-end"><strong>$ {{ number_format((float) $monto, 2, ',', '.') }}</strong></td></tr>
     </table>
 </body>
 </html>
