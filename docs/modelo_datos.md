@@ -539,7 +539,25 @@ Etiquetas/Notas/Formas de Pago/Métodos de Envío/Vendedor), con estos agregados
 
 ### `cobros` ("Cobranzas")
 id, venta_id (FK → ventas, cascade), fecha (date), cuenta_tesoreria_id (FK → `cuentas_tesoreria` —
-**tabla dependiente, ver nota abajo**), monto (decimal(14,2)), nota (text, nullable).
+**tabla dependiente, ver nota abajo**), monto (decimal(14,2)), nota (text, nullable),
+**vuelto** (decimal(14,2), nullable — spec 110), **cuenta_vuelto_id** (FK → `cuentas_tesoreria`,
+nullable — spec 110).
+
+> **⚠️ `cobros.monto` guarda el NETO imputado, no el importe recibido (spec 110).** Cuando hay
+> vuelto, el importe que el cliente entregó es `monto + vuelto`. Se eligió así deliberadamente para
+> que la fórmula de saldo (`total + ND − NC − cobrado`) siga siendo correcta **sin tocar ninguna de
+> sus 5 réplicas SQL** (filtros del listado, KPIs, aging, informe de cuenta corriente, movimientos
+> de clientes) — ver el incidente documentado en `App\Services\Ingresos\SqlCredito`, donde
+> desalinear la fórmula de su réplica dejó 457 ventas por $43,3M mal clasificadas.
+>
+> **El vuelto** (spec 110) es la plata que se devuelve al cliente **en el acto** cuando paga con un
+> medio que el CRM no registra tal cual (caso relevado: dólares). Nace y muere en la misma cobranza:
+> **no** genera saldo a favor ni deja nada pendiente. El neto debe saldar **exactamente** el saldo de
+> la venta, y `vuelto < monto recibido`. Genera un segundo movimiento de tesorería `tipo='vuelto'`
+> con monto negativo. Si `vuelto > 0`, `cuenta_vuelto_id` es obligatoria.
+>
+> No confundir con el **saldo a favor** (spec 072), que sí queda pendiente y se imputa a otro
+> comprobante vía `aplicaciones_credito`.
 
 ### `aplicaciones_credito` (spec 072 — **divergencia deliberada respecto de Contagram**)
 Imputa el saldo a favor de un comprobante (el que tiene la Nota de Crédito) a otro comprobante del
@@ -745,7 +763,7 @@ Ledger. Una fila = un asiento en una cuenta. El signo de `monto` da ingreso/egre
 | id | bigint PK | |
 | cuenta_tesoreria_id | FK → cuentas_tesoreria, cascade | |
 | fecha | date | |
-| tipo | enum(`saldo_inicial`,`movimiento_entre_cuentas`,`cobro`,`pago`,`gasto`) | "Operación" del ledger |
+| tipo | enum(`saldo_inicial`,`movimiento_entre_cuentas`,`cobro`,`pago`,`gasto`,`ingreso`,`vuelto`) | "Operación" del ledger. `vuelto` = spec 110 |
 | monto | decimal(14,2) | con signo: positivo = ingreso, negativo = egreso |
 | detalle | string, nullable | contraparte de la transferencia / cliente / proveedor / subcategoría |
 | nro_comprobante | string, nullable | "N° Factura"; sólo dato, sin validez fiscal |
@@ -1700,6 +1718,7 @@ global del negocio, no un registro con historial fiscal.
 | `tipo_comprobante` | enum(`A`,`B`,`C`,`E`), nullable | Tipo de Comprobante por defecto (si `null`, sigue el fallback actual "B") |
 | `dias_vto_cobro` | unsigned smallint, nullable | Días a sumar a la fecha de Emisión para precalcular "Vto. del Cobro" en altas nuevas (si `null`, el campo se deja vacío) |
 | `dias_validez_presupuesto` | unsigned smallint, nullable | **(spec 044)** Días a sumar a la fecha de Emisión para precalcular "Vto. de Validez" en "Crear Presupuesto" — reutiliza Categoría/Vendedor/Lista de Precios de la sección Ventas de arriba |
+| `cuenta_vuelto_id` | bigint, nullable, FK → `cuentas_tesoreria.id` `nullOnDelete` | **(spec 110)** Cuenta de tesorería por defecto para los **vueltos** de cobranza (el negocio usa su caja local). Sólo **preselecciona** el campo en el modal de cobranza: el operador puede elegir otra cuenta en la operación puntual sin que eso modifique este valor. Si es `null`, el operador debe elegir la cuenta cada vez que cargue un vuelto |
 | `categoria_compra_id` | bigint, nullable, FK → `categorias.id` (`tipo=compra`) `nullOnDelete` | **(spec 044)** Categoría de Compra preseleccionada por defecto en "Crear Compra" |
 | `tipo_comprobante_compra` | enum(`A`,`B`,`C`), nullable | **(spec 044)** Tipo de Comprobante por defecto de Compra (si `null`, sigue el fallback "B") |
 | `dias_vto_pago_compra` | unsigned smallint, nullable | **(spec 044)** Días a sumar a la fecha de Emisión para precalcular "Vto. de Pago" en "Crear Compra" |
@@ -1804,7 +1823,28 @@ la clave mal construida.
 reclamos traen el número viejo, así que el filtro por Id de Ventas busca por el id del CRM **y** por
 `legacy_id`, y el listado lo muestra junto al id.
 
-### `movimientos_tesoreria.tipo` — valor de enum nuevo
+### `movimientos_tesoreria.tipo` — valor de enum nuevo: `vuelto` (spec 110, 2026-09-24)
+
+Se agregó **`vuelto`** al enum. Es el egreso por la plata devuelta al cliente cuando paga con un
+medio que el CRM no registra tal cual (caso relevado: dólares) y se le da el vuelto en el acto.
+
+- **Signo: negativo**, como `pago` y `gasto`. Verificado contra los datos reales: los 3.342 pagos y
+  los 9.442 gastos son 100% negativos; los 25.253 cobros, 100% positivos.
+- **Vínculo**: comparte `origen_type`/`origen_id` con el movimiento de ingreso de su cobro; los dos
+  se distinguen **por `tipo`**. Por eso `Cobro::movimientoTesoreria()` **debe** filtrar por
+  `tipo='cobro'`: un `morphOne` sin filtrar devuelve cualquiera de los dos y anular el cobro puede
+  dejar el ingreso vivo en la cuenta (saldo fantasma).
+- **Por qué un tipo propio y no `gasto`**: mapearlo a `gasto` contaminaría el informe de Gastos con
+  plata que no se gastó, que es justamente el problema que la spec 110 vino a eliminar.
+
+> **⚠️ Lección del precedente de `ingreso` (ver abajo): agregar un valor al enum no alcanza.** Hay
+> que revisar **todo** lo que filtra por `tipo`, porque una consulta con una lista fija de tipos
+> deja el valor nuevo invisible sin fallar. Cuando se agregó `ingreso`, el informe de flujo de caja
+> seguía sumando `tipo IN ('cobro')` y dejó $34.570.442,27 invisibles. Para `vuelto` hay que revisar
+> como mínimo: `Tesoreria::flujo()`, las secciones de movimientos, los mapas de etiquetas
+> (`CuentaTesoreriaController::LABELS`), el filtro de tipo de operación del ledger y los exports.
+
+### `movimientos_tesoreria.tipo` — valor de enum previo: `ingreso`
 
 Se agregó **`ingreso`** a `('saldo_inicial','movimiento_entre_cuentas','cobro','pago','gasto')`.
 Corresponde a los "Otros Ingresos" (aportes de socios, préstamos financieros). Mapearlos a `cobro`

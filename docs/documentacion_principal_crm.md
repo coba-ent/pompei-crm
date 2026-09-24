@@ -679,6 +679,28 @@ Otros Ingresos y Abonos son independientes.
   cuentas configuradas en Tesorería (Caja del Local, Caja General, Banco Galicia, Banco Santander Río,
   Mercado Pago, AMEX, VISA, Cheque de Terceros). Al elegir un medio, la venta queda **Cobrada** de
   inmediato y el formulario vuelve a "Nueva Venta" en blanco.
+- **Vuelto en la Cobranza** *(extensión propia de este CRM, spec 110, 24/09/2026 — no relevada en
+  Contagram real)*: el modal de cobranza suma un campo **Vuelto** opcional, con su cuenta de
+  tesorería. Resuelve el pago con un medio que el CRM no registra tal cual —el caso relevado son
+  **dólares**: el cliente paga US$100 que al cambio son $155.000 por una venta menor y se le
+  devuelve la diferencia en efectivo en el acto—. El sistema registra **dos movimientos de tesorería
+  reales**: el ingreso por lo recibido (`tipo='cobro'`, positivo) y el egreso del vuelto
+  (`tipo='vuelto'`, negativo), e imputa a la venta sólo el **neto**.
+
+  Reemplaza un circuito manual que ensuciaba tres informes: registrar el vuelto como **Gasto falso**
+  (contaminaba el informe de Gastos), emitir una **Nota de Débito** para cuadrar la venta (un
+  documento comercial usado como parche, que enviado a ARCA declararía una operación inexistente) e
+  inflar el total de la venta (distorsionaba ranking, ticket promedio y CMV).
+
+  Reglas: el neto (`recibido − vuelto`) debe saldar **exactamente** el saldo de la venta — no se
+  admite que deje saldo pendiente ni que lo supere; `vuelto < recibido`; si hay vuelto, la cuenta es
+  obligatoria. El default de esa cuenta se configura en Configuración & Ajustes → Ventas
+  (`configuracion_ventas.cuenta_vuelto_id`) y es editable en cada operación.
+
+  **El vuelto NO es saldo a favor**: se entrega en el momento y no deja nada pendiente. Cuando el
+  cliente sí deja plata a cuenta, el circuito es la Nota de Crédito + `aplicaciones_credito`
+  (spec 072). Esta spec **tampoco habilita sobrepagos**: una cobranza sin vuelto sigue topeada por
+  el saldo.
 - Listado: **19 columnas** — igual que Presupuestos más "Creada Desde" (Presupuesto/Venta directa), A
   Cobrar, Cobrado, Medio de Cobro (con link a la cuenta de Tesorería); columnas ocultas opcionales:
   Envío de Mail, CUIT, Servicio Desde/Hasta.
