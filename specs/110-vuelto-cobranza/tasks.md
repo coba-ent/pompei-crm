@@ -108,10 +108,10 @@ verificar que no queda ninguno vivo.
 
 ## Phase 7: Validación final
 
-- [ ] T034 Correr la suite completa (`php artisan test`) y dejarla en verde
-- [ ] T035 Ejecutar el recorrido completo de [quickstart.md](quickstart.md) §3 en el navegador contra **MySQL local** — obligatorio: la suite en SQLite no valida el ENUM ni el comportamiento real. Cubre SC-001 (una sola operación), SC-004 (los saldos coinciden peso por peso con el movimiento físico) y SC-005 (el total de la venta no se infla)
+- [x] T034 Correr la suite completa (`php artisan test`) y dejarla en verde
+- [x] T035 Ejecutar el recorrido completo de [quickstart.md](quickstart.md) §3 en el navegador contra **MySQL local** — obligatorio: la suite en SQLite no valida el ENUM ni el comportamiento real. Cubre SC-001 (una sola operación), SC-004 (los saldos coinciden peso por peso con el movimiento físico) y SC-005 (el total de la venta no se infla)
 - [x] T036 Verificar que la suma total de `movimientos_tesoreria` coincide con la línea de base de T001 antes de cargar datos de prueba (SC-006: la migración no mueve ni un peso)
-- [ ] T037 Verificar en el navegador que una cobranza **sin** vuelto sigue comportándose igual que antes (FR-014) y que el recibo sin vuelto no cambió
+- [x] T037 Verificar en el navegador que una cobranza **sin** vuelto sigue comportándose igual que antes (FR-014) y que el recibo sin vuelto no cambió
 
 ---
 
@@ -159,3 +159,37 @@ un importe que no es el que pagó.
 | 7. Validación | T034–T037 | Suite + navegador contra MySQL |
 
 **Total: 37 tareas.**
+
+---
+
+## Resultado de la validación (24/09/2026)
+
+**Tests**: 20 nuevos de la spec, todos verdes, más los 10 preexistentes de
+`ActualizarCobroTest` que siguen pasando sin tocarlos.
+
+**Navegador, contra MySQL real** (base `contagram_vps_clon`, venta 24672):
+
+| Verificación | Resultado |
+|---|---|
+| ENUM `tipo` con `'vuelto'` en MySQL | ✅ |
+| Cuenta por defecto preseleccionada en el modal | ✅ "Caja del Local" |
+| Desglose en vivo recibido/vuelto/neto | ✅ 30.000 − 1.141,29 = 28.858,71 |
+| Dos movimientos: `cobro` +30.000 / `vuelto` −1.141,29 | ✅ |
+| Venta saldada | ✅ $0 |
+| Vuelto visible en la ficha (FR-015) | ✅ |
+| Recibo con recibido/vuelto/imputado (FR-016) | ✅ |
+| Cobranza **sin** vuelto: un solo movimiento (FR-014) | ✅ |
+| Anular deja 0 movimientos vivos (FR-013) | ✅ **sin saldo fantasma** |
+| Saldos totales vs línea de base (SC-006) | ✅ $36.964.804,48 / 49.080, idéntico |
+
+**Dos bugs encontrados validando en el navegador** (no los detectaban los tests):
+
+1. El payload AJAX de Configuración → Ventas se arma campo por campo, así que
+   `cuenta_vuelto_id` no viajaba: el default **nunca se guardaba**, y el toast decía
+   "guardado" igual. Arreglado en `resources/js/configuracion-ventas.js`.
+2. Al select nuevo le faltaba Select2, a diferencia del resto de esa pantalla.
+
+**Fallas preexistentes de la suite** (NO introducidas por esta spec): `AbonosServiceTest`
+falla por `App\Models\Abono` que no existe en el repo desde el commit inicial, y
+3 tests de configuración fallan por fechas hardcodeadas. Verificado corriendo los
+mismos tests en `main`: fallan idénticamente sin estos cambios.
