@@ -36,6 +36,7 @@
         initSelect2($('#cv-deposito-id'));
         initSelect2($('#cv-categoria-compra-id'));
         initSelect2($('#cv-deposito-compra-id'));
+        initSelect2($('#cv-cuenta-vuelto-id')); // spec 110
 
         function initSelect2($el) {
             if (!$.fn.select2 || !$el.length) {
@@ -54,6 +55,9 @@
                 deposito_id: $('#cv-deposito-id').val() || null,
                 tipo_comprobante: $('#cv-tipo-comprobante').val() || null,
                 dias_vto_cobro: $('#cv-dias-vto-cobro').val() !== '' ? $('#cv-dias-vto-cobro').val() : null,
+                // Spec 110: el payload se arma campo por campo, así que un campo nuevo que no se
+                // agregue acá simplemente no se guarda, sin ningún error visible.
+                cuenta_vuelto_id: $('#cv-cuenta-vuelto-id').val() || null,
                 dias_validez_presupuesto: $('#cv-dias-validez-presupuesto').val() !== '' ? $('#cv-dias-validez-presupuesto').val() : null,
                 categoria_compra_id: $('#cv-categoria-compra-id').val() || null,
                 deposito_compra_id: $('#cv-deposito-compra-id').val() || null,
