@@ -1848,6 +1848,29 @@ Tipo de Operación, selector de columnas, rango de fechas (default último mes) 
 fila (Editar/Eliminar) sólo gestiona íntegramente los movimientos nativos de Tesorería (Saldo Inicial,
 Movimiento entre Cuenta); eliminar una transferencia revierte ambas patas.
 
+- **La caja de un movimiento nativo es editable (spec 111, 25/09/2026)**: el modal "Editar
+  Movimiento" —que antes sólo tenía Fecha, Monto y Observación— permite **reimputar el movimiento a
+  otra caja**, sin tener que borrarlo y rehacerlo (lo que perdía la trazabilidad del asiento).
+  - **Movimiento suelto**: un selector de caja con la actual preseleccionada. Son el 99,4% de los
+    editables (10.536 de 10.602, heredados de la importación de Contagram).
+  - **Transferencia** (las que tienen contraparte, 66 casos): **dos** selectores, "Sale de" y
+    "Entra a", editables por separado. Origen y destino son datos distintos y el sistema rechaza
+    que queden apuntando a la misma caja. Cuál pata es origen y cuál destino se deduce del **signo
+    del monto** (negativo = sale), igual que los accessors `ingreso`/`egreso`; verificado contra
+    producción: las 33 transferencias vivas tienen exactamente 2 patas de signos opuestos.
+  - Reimputar **no altera la suma total de tesorería**: lo que baja de una caja sube en la otra.
+  - NO se toca `cuentas_tesoreria.saldo_inicial` al reimputar un movimiento de ese tipo. Esa columna
+    y su movimiento **ya están desincronizados** en producción (ej. Mercado Pago: −$1.000.000 en el
+    movimiento y $0 en la columna); resolverlo exige decidir cuál de los dos valores manda y quedó
+    fuera de alcance.
+
+- **Orden de las cajas en los modales de medio de pago (spec 111)**: los modales de cobranza de
+  Venta y pago de Compra listan las cajas en **orden alfabético**, no con el orden manual de las
+  cards de Tesorería. Ese orden manual lo configura el cliente para la pantalla de cards (tener
+  arriba lo que más mira) y **se conserva ahí**, pero en un modal de 23 botones volvía imposible
+  encontrar una caja. Gastos y Otros Ingresos ya listaban alfabéticamente. Los botones de medio de
+  pago son **rellenos** (antes outline) y el elegido se distingue por un tono más oscuro y un tilde.
+
 **Pestaña Movimientos** (`/tesoreria/movimientos`, informe de flujo de caja): banner explicativo,
 selector de rango, resumen Total Cobros/Total Pagos/Resultado, secciones expandibles Cobros/Pagos con
 desglose por cuenta y checkbox "Activo" (recalcula el total en vivo), Exportar y **Exportar a PDF**
