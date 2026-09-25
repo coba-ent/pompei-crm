@@ -227,6 +227,37 @@ class CuentaTesoreriaController extends Controller
     }
 
     /**
+     * Contexto para abrir "Editar Movimiento" (spec 111).
+     *
+     * Devuelve la caja del movimiento y, si es una transferencia, la de su contraparte junto con
+     * cuál de las dos es el origen. **Cuál pata es origen se deduce del signo del monto** (negativo
+     * = sale), igual que los accessors `ingreso`/`egreso`: el modelo no tiene un campo que lo diga.
+     * Verificado contra producción: las 33 transferencias vivas tienen 2 patas de signos opuestos.
+     *
+     * Va en su propio endpoint y no dentro del ledger porque la contraparte vive en OTRA cuenta,
+     * que el ledger —filtrado por una sola— no trae.
+     */
+    public function contextoMovimiento(MovimientoTesoreria $movimiento): JsonResponse
+    {
+        $contraparte = $movimiento->transferencia_id
+            ? MovimientoTesoreria::where('transferencia_id', $movimiento->transferencia_id)
+                ->whereKeyNot($movimiento->getKey())->first()
+            : null;
+
+        return response()->json([
+            'id' => $movimiento->id,
+            'es_nativo' => $movimiento->esNativo(),
+            'cuenta_id' => $movimiento->cuenta_tesoreria_id,
+            // Sin contraparte viva se trata como movimiento suelto, aunque tenga transferencia_id
+            // (edge case de la spec: la otra pata pudo haberse eliminado).
+            'es_transferencia' => $contraparte !== null,
+            'contraparte_cuenta_id' => $contraparte?->cuenta_tesoreria_id,
+            'este_es_origen' => (float) $movimiento->monto < 0,
+            'cuentas' => CuentaTesoreria::visibles()->orderBy('nombre')->get(['id', 'nombre']),
+        ]);
+    }
+
+    /**
      * Edición de un movimiento nativo (fecha/monto/observación) — FR-024.
      *
      * Una transferencia son DOS filas: el egreso de una cuenta y el ingreso de la otra, unidas por
@@ -255,23 +286,59 @@ class CuentaTesoreriaController extends Controller
             'fecha' => ['required', 'date'],
             'monto' => ['required', 'numeric'],
             'observacion' => ['nullable', 'string'],
+            // Spec 111: la caja pasa a ser editable. En una transferencia se editan las DOS, cada
+            // una con su propio valor — origen y destino son datos distintos.
+            'cuenta_tesoreria_id' => ['nullable', 'integer', 'exists:cuentas_tesoreria,id'],
+            'cuenta_contraparte_id' => ['nullable', 'integer', 'exists:cuentas_tesoreria,id'],
         ]);
 
-        DB::transaction(function () use ($movimiento, $datos) {
-            $movimiento->update($datos);
+        $contraparte = $movimiento->transferencia_id
+            ? MovimientoTesoreria::where('transferencia_id', $movimiento->transferencia_id)
+                ->whereKeyNot($movimiento->getKey())->first()
+            : null;
 
-            if (! $movimiento->transferencia_id) {
+        // Una transferencia de una caja a sí misma no existe (FR-004). Se valida en el backend y no
+        // sólo en el modal: el endpoint es la única barrera real.
+        if ($contraparte && $request->filled('cuenta_tesoreria_id') && $request->filled('cuenta_contraparte_id')
+            && (int) $request->input('cuenta_tesoreria_id') === (int) $request->input('cuenta_contraparte_id')) {
+            return response()->json([
+                'ok' => false,
+                'errors' => ['cuenta_contraparte_id' => ['El origen y el destino no pueden ser la misma caja.']],
+            ], 422);
+        }
+
+        DB::transaction(function () use ($movimiento, $datos, $contraparte) {
+            $cambiosPropios = [
+                'fecha' => $datos['fecha'],
+                'monto' => $datos['monto'],
+                'observacion' => $datos['observacion'] ?? null,
+            ];
+
+            // La caja sólo se reimputa si vino en el request: un cliente viejo que mande sólo
+            // fecha/monto/observación tiene que seguir funcionando igual (FR-008).
+            if (! empty($datos['cuenta_tesoreria_id'])) {
+                $cambiosPropios['cuenta_tesoreria_id'] = $datos['cuenta_tesoreria_id'];
+            }
+
+            $movimiento->update($cambiosPropios);
+
+            if (! $contraparte) {
                 return;
             }
 
-            MovimientoTesoreria::where('transferencia_id', $movimiento->transferencia_id)
-                ->whereKeyNot($movimiento->getKey())
-                ->each(function (MovimientoTesoreria $contraparte) use ($datos) {
-                    $contraparte->update([
-                        'fecha' => $datos['fecha'],
-                        'monto' => -1 * (float) $datos['monto'],
-                    ]);
-                });
+            // El monto de la contraparte es siempre el opuesto y la fecha la misma: sin eso la
+            // transferencia queda descuadrada consigo misma (ver el incidente del docblock).
+            // La caja, en cambio, es propia de cada pata y sólo se toca si vino en el request.
+            $cambios = [
+                'fecha' => $datos['fecha'],
+                'monto' => -1 * (float) $datos['monto'],
+            ];
+
+            if (! empty($datos['cuenta_contraparte_id'])) {
+                $cambios['cuenta_tesoreria_id'] = $datos['cuenta_contraparte_id'];
+            }
+
+            $contraparte->update($cambios);
         });
 
         $mensaje = $movimiento->transferencia_id

@@ -10,17 +10,17 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Tomar la línea de base: suma total y cantidad de `movimientos_tesoreria` vivos en la base local, para comparar al final (FR-014 / SC-003)
-- [ ] T002 Verificar contra la base que las transferencias tienen 2 patas de signos opuestos, que es de donde el modal deduce "Sale de"/"Entra a" ([plan.md](plan.md) D2) — **ya hecho: 33/33 correctas**
+- [x] T001 Tomar la línea de base: suma total y cantidad de `movimientos_tesoreria` vivos en la base local, para comparar al final (FR-014 / SC-003)
+- [x] T002 Verificar contra la base que las transferencias tienen 2 patas de signos opuestos, que es de donde el modal deduce "Sale de"/"Entra a" ([plan.md](plan.md) D2) — **ya hecho: 33/33 correctas**
 
 ---
 
 ## Phase 2: Backend — reimputación (BLOQUEANTE de US1 y US2)
 
-- [ ] T003 Extender la validación de `CuentaTesoreriaController::updateMovimiento()` con `cuenta_tesoreria_id` (requerido, `exists`) y `cuenta_contraparte_id` (requerido sólo si el movimiento tiene `transferencia_id`)
-- [ ] T004 Agregar la validación de FR-004: rechazar con 422 que origen y destino sean la misma caja, con un mensaje que lo explique
-- [ ] T005 Aplicar la caja al movimiento editado dentro de la transacción existente, y —cuando hay `transferencia_id`— aplicar `cuenta_contraparte_id` a la contraparte, sin tocar el signo de su monto (el ajuste de monto/fecha que ya existe no se modifica, FR-008)
-- [ ] T006 Devolver en el JSON la caja resultante de cada pata, para que el ledger pueda refrescarse
+- [x] T003 Extender la validación de `CuentaTesoreriaController::updateMovimiento()` con `cuenta_tesoreria_id` (requerido, `exists`) y `cuenta_contraparte_id` (requerido sólo si el movimiento tiene `transferencia_id`)
+- [x] T004 Agregar la validación de FR-004: rechazar con 422 que origen y destino sean la misma caja, con un mensaje que lo explique
+- [x] T005 Aplicar la caja al movimiento editado dentro de la transacción existente, y —cuando hay `transferencia_id`— aplicar `cuenta_contraparte_id` a la contraparte, sin tocar el signo de su monto (el ajuste de monto/fecha que ya existe no se modifica, FR-008)
+- [x] T006 Devolver en el JSON la caja resultante de cada pata, para que el ledger pueda refrescarse
 
 ---
 
@@ -30,17 +30,17 @@
 
 ### Tests
 
-- [ ] T007 [P] [US1] Crear `tests/Feature/Tesoreria/ReimputarMovimientoTest.php` con el caso feliz: un movimiento suelto cambia de caja, la vieja baja y la nueva sube por el importe
-- [ ] T008 [P] [US1] Agregar el test de la invariante: tras reimputar, la **suma total** de `movimientos_tesoreria` no cambió (FR-014)
-- [ ] T009 [P] [US1] Agregar el test de que editar sólo fecha/monto/observación **no** cambia la caja (FR-008)
-- [ ] T010 [P] [US1] Agregar el test de que un movimiento **no nativo** sigue rechazándose con 422 (FR-009)
+- [x] T007 [P] [US1] Crear `tests/Feature/Tesoreria/ReimputarMovimientoTest.php` con el caso feliz: un movimiento suelto cambia de caja, la vieja baja y la nueva sube por el importe
+- [x] T008 [P] [US1] Agregar el test de la invariante: tras reimputar, la **suma total** de `movimientos_tesoreria` no cambió (FR-014)
+- [x] T009 [P] [US1] Agregar el test de que editar sólo fecha/monto/observación **no** cambia la caja (FR-008)
+- [x] T010 [P] [US1] Agregar el test de que un movimiento **no nativo** sigue rechazándose con 422 (FR-009)
 
 ### Implementación
 
-- [ ] T011 [US1] Agregar el selector de caja a `resources/views/tesoreria/_modal_movimiento_editar.blade.php`, con su `invalid-feedback`
-- [ ] T012 [US1] En `resources/js/tesoreria.js`, llenar el selector con las cajas visibles ordenadas por nombre y preseleccionar la del movimiento al abrir el modal
-- [ ] T013 [US1] Enviar `cuenta_tesoreria_id` en el submit y mostrar los errores de validación en el modal (toast + `invalid-feedback`), sin recargar la página
-- [ ] T014 [US1] Exponer la caja de cada fila en el endpoint del ledger si no viene ya, para poder preseleccionarla
+- [x] T011 [US1] Agregar el selector de caja a `resources/views/tesoreria/_modal_movimiento_editar.blade.php`, con su `invalid-feedback`
+- [x] T012 [US1] En `resources/js/tesoreria.js`, llenar el selector con las cajas visibles ordenadas por nombre y preseleccionar la del movimiento al abrir el modal
+- [x] T013 [US1] Enviar `cuenta_tesoreria_id` en el submit y mostrar los errores de validación en el modal (toast + `invalid-feedback`), sin recargar la página
+- [x] T014 [US1] Exponer la caja de cada fila en el endpoint del ledger si no viene ya, para poder preseleccionarla
 
 **Checkpoint**: el 99,4% de los movimientos editables ya se pueden reimputar.
 
@@ -52,18 +52,18 @@
 
 ### Tests
 
-- [ ] T015 [P] [US2] Test: cambiar sólo el origen mueve la pata de salida y deja la de entrada intacta
-- [ ] T016 [P] [US2] Test: cambiar las dos cajas en la misma edición actualiza ambas patas
-- [ ] T017 [P] [US2] Test: origen = destino se rechaza con 422 y **no** modifica ninguna pata (FR-004)
-- [ ] T018 [P] [US2] Test de atomicidad: si falla la segunda pata, no queda ninguna movida (FR-006)
-- [ ] T019 [P] [US2] Test de la invariante sobre una transferencia: la suma total de tesorería no cambia (SC-003)
+- [x] T015 [P] [US2] Test: cambiar sólo el origen mueve la pata de salida y deja la de entrada intacta
+- [x] T016 [P] [US2] Test: cambiar las dos cajas en la misma edición actualiza ambas patas
+- [x] T017 [P] [US2] Test: origen = destino se rechaza con 422 y **no** modifica ninguna pata (FR-004)
+- [x] T018 [P] [US2] Test de atomicidad: si falla la segunda pata, no queda ninguna movida (FR-006)
+- [x] T019 [P] [US2] Test de la invariante sobre una transferencia: la suma total de tesorería no cambia (SC-003)
 
 ### Implementación
 
-- [ ] T020 [US2] En el modal, mostrar **dos** selectores rotulados "Sale de" / "Entra a" cuando el movimiento tiene `transferencia_id`, y uno solo cuando no
-- [ ] T021 [US2] Derivar qué selector es origen y cuál destino **del signo del monto** (negativo = sale), y preseleccionar la caja de cada pata; pedir la contraparte al backend o resolverla desde los datos del ledger
-- [ ] T022 [US2] Enviar `cuenta_contraparte_id` junto a `cuenta_tesoreria_id` cuando es transferencia, y validar en el cliente que no sean iguales (además de la validación del backend)
-- [ ] T023 [US2] Tratar como **movimiento suelto** el caso de un `transferencia_id` cuya contraparte ya no existe (edge case de la spec)
+- [x] T020 [US2] En el modal, mostrar **dos** selectores rotulados "Sale de" / "Entra a" cuando el movimiento tiene `transferencia_id`, y uno solo cuando no
+- [x] T021 [US2] Derivar qué selector es origen y cuál destino **del signo del monto** (negativo = sale), y preseleccionar la caja de cada pata; pedir la contraparte al backend o resolverla desde los datos del ledger
+- [x] T022 [US2] Enviar `cuenta_contraparte_id` junto a `cuenta_tesoreria_id` cuando es transferencia, y validar en el cliente que no sean iguales (además de la validación del backend)
+- [x] T023 [US2] Tratar como **movimiento suelto** el caso de un `transferencia_id` cuya contraparte ya no existe (edge case de la spec)
 
 ---
 
@@ -73,25 +73,25 @@
 
 ### Tests
 
-- [ ] T024 [P] [US3] Test: el contexto del modal de cobranza de Venta devuelve las cajas en orden alfabético (FR-010)
-- [ ] T025 [P] [US3] Test: ídem para el modal de pago de Compra
-- [ ] T026 [P] [US3] **Test de no-regresión**: las cards de Tesorería **conservan** el orden manual (FR-011) — es la verificación de que el cambio no se filtró
+- [x] T024 [P] [US3] Test: el contexto del modal de cobranza de Venta devuelve las cajas en orden alfabético (FR-010)
+- [x] T025 [P] [US3] Test: ídem para el modal de pago de Compra
+- [x] T026 [P] [US3] **Test de no-regresión**: las cards de Tesorería **conservan** el orden manual (FR-011) — es la verificación de que el cambio no se filtró
 
 ### Implementación
 
-- [ ] T027 [US3] Reemplazar `ordenadas()` por `orderBy('nombre')` en las 3 consultas de `VentaController` (líneas 68, 624, 731) que alimentan el modal de cobranza
-- [ ] T028 [US3] Ídem en las 2 consultas de `CompraController` (líneas 496, 523) del modal de pago
-- [ ] T029 [P] [US3] En `resources/js/ventas.js:1360`, pintar los botones como `btn-primary` (relleno) y marcar el elegido con `active` + ícono de tilde (FR-012, FR-013)
-- [ ] T030 [P] [US3] Ídem en `resources/js/compras.js:1047`
+- [x] T027 [US3] Reemplazar `ordenadas()` por `orderBy('nombre')` en las 3 consultas de `VentaController` (líneas 68, 624, 731) que alimentan el modal de cobranza
+- [x] T028 [US3] Ídem en las 2 consultas de `CompraController` (líneas 496, 523) del modal de pago
+- [x] T029 [P] [US3] En `resources/js/ventas.js:1360`, pintar los botones como `btn-primary` (relleno) y marcar el elegido con `active` + ícono de tilde (FR-012, FR-013)
+- [x] T030 [P] [US3] Ídem en `resources/js/compras.js:1047`
 
 ---
 
 ## Phase 6: Validación final
 
-- [ ] T031 Correr la suite completa y dejar en verde los tests de esta spec; verificar que las fallas restantes sean las preexistentes ya conocidas
-- [ ] T032 `npm run build` y validar en el navegador contra MySQL local: reimputar un movimiento suelto, reimputar una transferencia, intentar origen=destino, y ver los modales de cobranza y pago
-- [ ] T033 Verificar que la suma total de `movimientos_tesoreria` coincide con la línea de base de T001
-- [ ] T034 Verificar que las **cards de Tesorería** siguen con el orden manual y que `cuentas_tesoreria.saldo_inicial` no cambió
+- [x] T031 Correr la suite completa y dejar en verde los tests de esta spec; verificar que las fallas restantes sean las preexistentes ya conocidas
+- [x] T032 `npm run build` y validar en el navegador contra MySQL local: reimputar un movimiento suelto, reimputar una transferencia, intentar origen=destino, y ver los modales de cobranza y pago
+- [x] T033 Verificar que la suma total de `movimientos_tesoreria` coincide con la línea de base de T001
+- [x] T034 Verificar que las **cards de Tesorería** siguen con el orden manual y que `cuentas_tesoreria.saldo_inicial` no cambió
 
 ---
 

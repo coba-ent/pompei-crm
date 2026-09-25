@@ -359,6 +359,9 @@ Route::middleware('auth')->group(function () {
         Route::put('cuentas/{cuenta}', [CuentaTesoreriaController::class, 'update'])->name('cuentas.update');
         Route::delete('cuentas/{cuenta}', [CuentaTesoreriaController::class, 'destroy'])->name('cuentas.destroy');
 
+        // Spec 111: contexto para el modal de edición (caja propia + la de la contraparte si es
+        // transferencia). Va antes del PUT para no chocar con el binding de {movimiento}.
+        Route::get('movimientos/{movimiento}/contexto', [CuentaTesoreriaController::class, 'contextoMovimiento'])->name('movimientos.contexto');
         Route::put('movimientos/{movimiento}', [CuentaTesoreriaController::class, 'updateMovimiento'])->name('movimientos.update');
         Route::delete('movimientos/{movimiento}', [CuentaTesoreriaController::class, 'destroyMovimiento'])->name('movimientos.destroy');
     });

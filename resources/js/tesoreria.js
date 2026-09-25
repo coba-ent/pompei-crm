@@ -741,6 +741,59 @@
             // reparenta el .dropdown-menu a <body> al abrirse, así que al
             // momento del click el botón ya no es descendiente de la tabla
             // ni de su <tr> — se busca la fila por id en vez de con closest('tr').
+            /** Llena un <select> de cajas y preselecciona una (spec 111). */
+            function llenarCajas($sel, cuentas, seleccionada) {
+                $sel.empty();
+                (cuentas || []).forEach(function (c) {
+                    $sel.append($('<option>').val(c.id).text(c.nombre));
+                });
+                if (seleccionada) { $sel.val(String(seleccionada)); }
+            }
+
+            /**
+             * Muestra un selector (movimiento suelto) o dos (transferencia).
+             *
+             * Cuál pata es origen sale del signo del monto: `este_es_origen` lo resuelve el
+             * backend. Si el movimiento abierto es la salida, su caja va en "Sale de" y la de la
+             * contraparte en "Entra a"; si es la entrada, al revés.
+             */
+            function prepararCajas(ctx) {
+                $('#movimiento-editar-caja-simple').toggle(!ctx.es_transferencia);
+                $('#movimiento-editar-caja-transferencia').toggle(!!ctx.es_transferencia);
+
+                if (!ctx.es_transferencia) {
+                    llenarCajas($('#movimiento-editar-cuenta'), ctx.cuentas, ctx.cuenta_id);
+                    return;
+                }
+
+                var idOrigen = ctx.este_es_origen ? ctx.cuenta_id : ctx.contraparte_cuenta_id;
+                var idDestino = ctx.este_es_origen ? ctx.contraparte_cuenta_id : ctx.cuenta_id;
+
+                llenarCajas($('#movimiento-editar-cuenta-origen'), ctx.cuentas, idOrigen);
+                llenarCajas($('#movimiento-editar-cuenta-destino'), ctx.cuentas, idDestino);
+                $('#movimiento-editar-caja-transferencia').data('este-es-origen', !!ctx.este_es_origen);
+            }
+
+            /**
+             * Cajas a enviar. En una transferencia, `cuenta_tesoreria_id` es siempre la del
+             * movimiento que se abrió y `cuenta_contraparte_id` la de la otra pata — por eso hay
+             * que mapear origen/destino según cuál de las dos se está editando.
+             */
+            function cajasDelForm() {
+                if (!$('#movimiento-editar-caja-transferencia').is(':visible')) {
+                    return { cuenta_tesoreria_id: $('#movimiento-editar-cuenta').val() };
+                }
+
+                var esOrigen = !!$('#movimiento-editar-caja-transferencia').data('este-es-origen');
+                var origen = $('#movimiento-editar-cuenta-origen').val();
+                var destino = $('#movimiento-editar-cuenta-destino').val();
+
+                return {
+                    cuenta_tesoreria_id: esOrigen ? origen : destino,
+                    cuenta_contraparte_id: esOrigen ? destino : origen,
+                };
+            }
+
             $(document).on('click', '.js-movimiento-editar', function (e) {
                 e.preventDefault();
                 const id = $(this).data('id');
@@ -756,17 +809,32 @@
                 AppFecha.set($('#movimiento-editar-fecha'), fila.fecha);
                 $('#movimiento-editar-monto').val(fila.monto);
                 $('#movimiento-editar-observacion').val(fila.observacion);
-                modalMovEditar ? modalMovEditar.show() : $modalMovEditar.show();
+
+                // Spec 111: el contexto trae la caja del movimiento y —si es transferencia— la de
+                // su contraparte, que vive en OTRA cuenta y por eso el ledger no la tiene.
+                $.getJSON(rutas.movimientosBase + '/' + fila.id + '/contexto')
+                    .done(function (ctx) {
+                        prepararCajas(ctx);
+                        modalMovEditar ? modalMovEditar.show() : $modalMovEditar.show();
+                    })
+                    .fail(function () { toast('error', 'No se pudo abrir la edición de este movimiento.'); });
             });
 
             $formMovEditar.on('submit', function (e) {
                 e.preventDefault();
                 const id = $('#movimiento-editar-id').val();
-                const datos = {
+                const datos = Object.assign({
                     fecha: AppFecha.get($('#movimiento-editar-fecha')),
                     monto: $('#movimiento-editar-monto').val(),
                     observacion: $('#movimiento-editar-observacion').val(),
-                };
+                }, cajasDelForm()); // spec 111
+
+                // Validación de cortesía: el backend la repite, que es la barrera real (FR-004).
+                if (datos.cuenta_contraparte_id && datos.cuenta_tesoreria_id === datos.cuenta_contraparte_id) {
+                    toast('error', 'El origen y el destino no pueden ser la misma caja.');
+
+                    return;
+                }
                 $.ajax({ url: rutas.movimientosBase + '/' + id, method: 'POST', dataType: 'json', data: Object.assign({ _method: 'PUT' }, datos) })
                     .done(function (resp) {
                         toast('success', resp.mensaje);

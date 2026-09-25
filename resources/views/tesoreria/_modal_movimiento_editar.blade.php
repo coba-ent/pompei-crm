@@ -9,6 +9,29 @@
                 </div>
                 <div class="modal-body">
                     <input type="hidden" id="movimiento-editar-id" name="id">
+
+                    {{-- Caja (spec 111). En un movimiento suelto va un solo selector; en una
+                         transferencia van dos —"Sale de" y "Entra a"—, porque origen y destino son
+                         datos distintos y nunca pueden terminar siendo la misma caja. El JS muestra
+                         el bloque que corresponda según el movimiento que se abrió. --}}
+                    <div class="mb-3" id="movimiento-editar-caja-simple">
+                        <label class="form-label">Caja</label>
+                        <select class="form-select" id="movimiento-editar-cuenta" name="cuenta_tesoreria_id"></select>
+                        <div class="invalid-feedback" data-error="cuenta_tesoreria_id"></div>
+                    </div>
+
+                    <div id="movimiento-editar-caja-transferencia" style="display:none;">
+                        <div class="mb-3">
+                            <label class="form-label">Sale de</label>
+                            <select class="form-select" id="movimiento-editar-cuenta-origen"></select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Entra a</label>
+                            <select class="form-select" id="movimiento-editar-cuenta-destino"></select>
+                            <div class="invalid-feedback d-block" data-error="cuenta_contraparte_id"></div>
+                        </div>
+                    </div>
+
                     <div class="mb-3">
                         <label class="form-label">Fecha</label>
                         <input type="text" class="form-control" id="movimiento-editar-fecha" name="fecha" required data-fecha-ar>
