@@ -287,12 +287,26 @@ class ComprasInformeQuery
         }
 
         if ($request->filled('facturado')) {
-            $facturado = $request->input('facturado');
-            $existe = fn (Builder $q) => $q->from('comprobantes_fiscales')
-                ->whereColumn('comprobantes_fiscales.comprobantable_id', 'compras.id')
-                ->where('comprobantes_fiscales.comprobantable_type', Compra::class);
+            // En Compra la factura la emite el PROVEEDOR y se registra en la compra misma
+            // (`tipo_comprobante` + `nro_comprobante`); `comprobantes_fiscales` guarda lo que
+            // emitimos nosotros por ARCA, que en Compras no existe (0 filas sobre 1.460 compras
+            // facturadas). Este filtro consultaba esa relación y por eso "Sí" devolvía siempre
+            // vacío — el mismo bug que ya se había corregido en el listado de Compras.
+            // "Sin factura" es `tipo_comprobante` en [NULL, '', 'S'], igual criterio que
+            // CompraController::queryFiltrada() e IvaDigitalPaquete::generarLadoCompras().
+            $valores = array_map('strval', (array) $request->input('facturado'));
 
-            $facturado === 'si' ? $query->whereExists($existe) : $query->whereNotExists($existe);
+            $query->where(function (Builder $q) use ($valores) {
+                foreach ($valores as $valor) {
+                    // Se aceptan '1'/'0' (listado) y 'si'/'no' (informe): los dos frontends
+                    // mandan valores distintos para el mismo filtro.
+                    $esSi = in_array($valor, ['1', 'si'], true);
+
+                    $q->orWhere(fn (Builder $qq) => $esSi
+                        ? $qq->whereNotNull('compras.tipo_comprobante')->whereNotIn('compras.tipo_comprobante', ['', 'S'])
+                        : $qq->whereNull('compras.tipo_comprobante')->orWhereIn('compras.tipo_comprobante', ['', 'S']));
+                }
+            });
         }
 
         if ($request->filled('estado_pago')) {
