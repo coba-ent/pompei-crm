@@ -1039,23 +1039,39 @@
             $('#pago-nota').val(editando ? (pago.nota || '') : '');
             cuentaSeleccionadaEdicion = editando ? pago.cuentaId : null;
 
+            /**
+             * Pinta un botón de medio de pago (spec 111). Elegido = `active` (más oscuro) + tilde.
+             * Mismo criterio que el modal de cobranza en `ventas.js`.
+             */
+            const pintarCuenta = ($btn, elegida) => {
+                $btn.toggleClass('active', !!elegida).empty();
+
+                if (elegida) {
+                    $btn.append($('<i class="fas fa-check me-1">'));
+                }
+
+                $btn.append(document.createTextNode($btn.data('nombre')));
+            };
+
             const $cuentas = $('#pago-cuentas').empty();
             (ctx.cuentas || []).forEach((cuenta) => {
                 const $col = $('<div class="col-6">');
                 const activa = editando && Number(cuenta.id) === Number(cuentaSeleccionadaEdicion);
-                const $btn = $('<button type="button" class="btn w-100">')
-                    .addClass(activa ? 'btn-primary' : 'btn-outline-primary')
-                    .text(cuenta.nombre)
+                // Spec 111: rellenos, no outline.
+                const $btn = $('<button type="button" class="btn btn-primary w-100">')
                     .on('click', function () {
                         // En alta el clic paga directo; editando solo selecciona y guarda el boton.
                         if (editando) {
                             cuentaSeleccionadaEdicion = cuenta.id;
-                            $cuentas.find('button').removeClass('btn-primary').addClass('btn-outline-primary');
-                            $(this).removeClass('btn-outline-primary').addClass('btn-primary');
+                            $cuentas.find('button').each(function () { pintarCuenta($(this), false); });
+                            pintarCuenta($(this), true);
                         } else {
                             pagar(cuenta.id);
                         }
                     });
+
+                $btn.data('nombre', cuenta.nombre);
+                pintarCuenta($btn, activa);
                 $col.append($btn);
                 $cuentas.append($col);
             });

@@ -493,7 +493,10 @@ class CompraController extends Controller
     {
         $CurrentPage = 'compras';
         $compra->load(['items', 'conceptos', 'proveedor.condicionIva', 'categoria', 'pagos.cuentaTesoreria', 'pagos.retenciones', 'comprobanteFiscal', 'notasCreditoDebito.comprobanteFiscal', 'notasCreditoDebito.notaAjustada.comprobanteFiscal', 'remitos.transportista', 'remitos.items', 'creditosRecibidos.origen', 'creditosRecibidos.notaCreditoDebito']);
-        $cuentas = CuentaTesoreria::visibles()->ordenadas()->get();
+        // orderBy('nombre') y NO ordenadas() (spec 111): ver la nota en VentaController. El scope
+        // `ordenadas()` es el orden manual de las cards de Tesorería, que en un modal de 23
+        // botones vuelve imposible encontrar una caja.
+        $cuentas = CuentaTesoreria::visibles()->orderBy('nombre')->get();
         $depositos = Deposito::where('activo', true)->orderBy('nombre')->get();
 
         return view('compras.detalle', compact('CurrentPage', 'compra', 'cuentas', 'depositos'));
@@ -520,7 +523,7 @@ class CompraController extends Controller
             'nroComprobante' => $compra->nro_comprobante,
             'total' => (float) $compra->total,
             'aPagar' => $compra->aPagar(),
-            'cuentas' => CuentaTesoreria::visibles()->ordenadas()->get(['id', 'nombre']),
+            'cuentas' => CuentaTesoreria::visibles()->orderBy('nombre')->get(['id', 'nombre']), // spec 111: alfabético
         ]);
     }
 

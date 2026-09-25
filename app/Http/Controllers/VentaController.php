@@ -65,7 +65,11 @@ class VentaController extends Controller
             'vendedores' => Vendedor::activos()->orderBy('nombre')->get(['id', 'nombre']),
             'etiquetas' => Etiqueta::orderBy('nombre')->get(['id', 'nombre']),
             // paraCobrar(): en una cobranza sólo tienen sentido las cuentas donde entra plata.
-            'cuentasTesoreria' => CuentaTesoreria::visibles()->paraCobrar()->ordenadas()->get(['id', 'nombre']),
+            // orderBy('nombre') y NO ordenadas() (spec 111): ese scope ordena por la columna
+            // `orden`, que es el orden manual de las **cards de Tesorería** —configurado por el
+            // cliente para tener arriba lo que más mira— y en un modal de 23 botones volvía
+            // imposible encontrar una caja. Las cards conservan su orden.
+            'cuentasTesoreria' => CuentaTesoreria::visibles()->paraCobrar()->orderBy('nombre')->get(['id', 'nombre']),
             'depositos' => Deposito::activos()->orderBy('nombre')->get(['id', 'nombre']),
             'usuarios' => User::orderBy('name')->get(['id', 'name']),
         ]);
@@ -621,7 +625,7 @@ class VentaController extends Controller
     {
         $CurrentPage = 'ventas';
         $venta->load(['items', 'conceptos', 'cliente.condicionIva', 'categoria', 'listaPrecio', 'vendedor', 'etiquetas', 'cobros.cuentaTesoreria', 'cobros.cuentaVuelto', 'comprobanteFiscal', 'notasCreditoDebito.comprobanteFiscal', 'notasCreditoDebito.notaAjustada.comprobanteFiscal', 'remitos.transportista', 'remitos.items', 'mlOrden.items', 'movimientosStock.deposito', 'creditosRecibidos.origen', 'creditosRecibidos.notaCreditoDebito', 'creditosCedidos.destino']);
-        $cuentas = CuentaTesoreria::visibles()->paraCobrar()->ordenadas()->get();
+        $cuentas = CuentaTesoreria::visibles()->paraCobrar()->orderBy('nombre')->get();
         $depositos = Deposito::activos()->orderBy('nombre')->get();
 
         // Depósitos de los que salió el stock de esta Venta (normalmente uno solo).
@@ -728,7 +732,7 @@ class VentaController extends Controller
             'comprobante' => $venta->nro_comprobante,
             'total' => (float) $venta->total,
             'aCobrar' => $venta->aCobrar(),
-            'cuentas' => CuentaTesoreria::visibles()->paraCobrar()->ordenadas()->get(['id', 'nombre']),
+            'cuentas' => CuentaTesoreria::visibles()->paraCobrar()->orderBy('nombre')->get(['id', 'nombre']),
             // Spec 110: sólo PRESELECCIONA la cuenta de vuelto en el modal; el operador puede
             // elegir otra sin que eso toque la configuración global (FR-010).
             'cuentaVueltoDefault' => ConfiguracionVentas::first()?->cuenta_vuelto_id,
