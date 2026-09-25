@@ -301,6 +301,10 @@ return [
 				'js/custom.js',
 			],
 		],
+		// Los filtros de rango Emisión/Vencimiento necesitan daterangepicker + moment, igual que
+		// el listado de Ventas. Faltaban acá: los inputs se dibujaban pero `compras.js` engancha
+		// el picker dentro de un `if ($.fn.daterangepicker)`, así que al hacerles clic no abría
+		// nada y el rango de fechas no se podía filtrar.
 		'compras' => [
 			'title' => 'Compras',
 			'css' => [
@@ -308,6 +312,7 @@ return [
 				'vendor/datatables/css/buttons.dataTables.min.css',
 				'vendor/toastr/css/toastr.min.css',
 				'vendor/select2/css/select2.min.css',
+				'vendor/bootstrap-daterangepicker/daterangepicker.css',
 			],
 			'js' => [
 				'vendor/datatables/js/jquery.dataTables.min.js',
@@ -315,6 +320,8 @@ return [
 				'vendor/datatables/js/buttons.colVis.min.js',
 				'vendor/toastr/js/toastr.min.js',
 				'vendor/select2/js/select2.full.min.js',
+				'vendor/moment/moment.min.js',
+				'vendor/bootstrap-daterangepicker/daterangepicker.js',
 				'js/custom.js',
 			],
 		],
