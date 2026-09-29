@@ -195,7 +195,8 @@ class TiendanubeMovimientoStockObserverTest extends TestCase
         return $resultado['venta'];
     }
 
-    public function test_convertir_orden_de_tiendanube_no_marca_pendiente_el_vinculo(): void
+    /** spec 109: la variante vendida también queda pendiente. Ver MovimientoStockObserver. */
+    public function test_convertir_orden_de_tiendanube_marca_pendiente_el_vinculo(): void
     {
         Deposito::create(['nombre' => 'Principal', 'activo' => true]);
         $producto = Producto::factory()->create(['tipo' => 'producto', 'iva_venta_pct' => '21', 'activo' => true]);
@@ -203,10 +204,10 @@ class TiendanubeMovimientoStockObserverTest extends TestCase
         $this->convertirOrdenTiendanube($producto, 2);
 
         $vinculo = TiendanubeVarianteProducto::where('producto_id', $producto->id)->firstOrFail();
-        $this->assertFalse($vinculo->stock_pendiente);
+        $this->assertTrue($vinculo->stock_pendiente, 'La variante vendida también se empuja (spec 109).');
     }
 
-    public function test_venta_manual_sobre_mismo_producto_si_marca_pendiente_tras_una_orden_tn(): void
+    public function test_venta_manual_sobre_mismo_producto_marca_pendiente_tras_una_orden_tn(): void
     {
         Deposito::create(['nombre' => 'Principal', 'activo' => true]);
         $producto = Producto::factory()->create(['tipo' => 'producto', 'iva_venta_pct' => '21', 'activo' => true]);
@@ -214,7 +215,10 @@ class TiendanubeMovimientoStockObserverTest extends TestCase
         $this->convertirOrdenTiendanube($producto, 2);
 
         $vinculo = TiendanubeVarianteProducto::where('producto_id', $producto->id)->firstOrFail();
-        $this->assertFalse($vinculo->fresh()->stock_pendiente, 'La orden de Tiendanube no debe marcar pendiente.');
+        $this->assertTrue($vinculo->fresh()->stock_pendiente, 'La orden de Tiendanube marca pendiente (spec 109).');
+
+        // Se limpia como lo haría el sincronizador, para verificar que la venta manual vuelve a marcar.
+        $vinculo->update(['stock_pendiente' => false]);
 
         $this->crearVentaConProducto($producto, 1);
 

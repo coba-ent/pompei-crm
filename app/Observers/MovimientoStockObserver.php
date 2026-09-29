@@ -3,13 +3,10 @@
 namespace App\Observers;
 
 use App\Models\Integraciones\MercadoLibreConfiguracion;
-use App\Models\Integraciones\MercadoLibreOrden;
 use App\Models\Integraciones\MercadoLibrePublicacionProducto;
 use App\Models\Integraciones\TiendanubeConexionRest;
-use App\Models\Integraciones\TiendanubeOrden;
 use App\Models\Integraciones\TiendanubeVarianteProducto;
 use App\Models\MovimientoStock;
-use App\Models\Venta;
 
 /**
  * Detecta cambios de stock elegibles para empujar hacia Mercado Libre (spec 013,
@@ -36,14 +33,28 @@ class MovimientoStockObserver
             return;
         }
 
-        // Mercado Libre descuenta el stock **sólo de la publicación por la que se vendió**. Si el
-        // producto tiene varias publicaciones (72 de 177 las tienen), las demás siguen ofreciendo
-        // el stock viejo, así que hay que empujarles el cambio igual: saltear todas dejaba esas
-        // publicaciones desfasadas para siempre, porque nadie las volvía a marcar.
-        $yaDescontadas = $this->publicacionesDeLaOrdenMl($movimiento);
-
+        // Se marcan TODAS las publicaciones del producto, **incluida la que vendió** (spec 109).
+        //
+        // Antes se la excluía, porque Mercado Libre ya descuenta el stock de la publicación por la
+        // que se vendió y volver a empujárselo parecía redundante. Pero el stock que el CRM empuja
+        // puede estar viejo: las órdenes se importan cada 5 minutos, así que entre una pasada y la
+        // siguiente el CRM todavía no sabe de ventas que allá ya ocurrieron. Si en esa ventana el
+        // cron le manda un número desactualizado y después la publicación queda excluida, **nadie
+        // vuelve a corregirla**.
+        //
+        // Pasó el 28/09/2026 con MLA1808325052: el CRM le empujó 22 a las 18:19 (aún no había
+        // importado dos ventas), ML restó 1 por su propia venta y quedó en 21 mientras el CRM tenía
+        // 20. Sin error, sin pendiente, sin marca: sólo lo detectó el chequeo de rutina.
+        //
+        // Empujar de más es inofensivo: SincronizadorStock::procesarVinculos() lee el stock al
+        // momento del envío, no al marcar, así que un PUT redundante siempre lleva el valor real.
+        // Es el mismo criterio que la spec 013 ya fijó en FR-003 para los movimientos que se
+        // cancelan entre sí: enviar de más es más seguro que arriesgar una divergencia silenciosa.
+        //
+        // No hay riesgo de bucle —el motivo por el que la exclusión nació en la spec 013, FR-002—:
+        // publicar stock no crea ningún MovimientoStock, sólo escribe columnas de control del
+        // vínculo, así que este observer no se vuelve a disparar.
         MercadoLibrePublicacionProducto::where('producto_id', $movimiento->producto_id)
-            ->when($yaDescontadas !== [], fn ($q) => $q->whereNotIn('ml_item_id', $yaDescontadas))
             ->update(['stock_pendiente' => true]);
     }
 
@@ -56,60 +67,10 @@ class MovimientoStockObserver
             return;
         }
 
-        $yaDescontadas = $this->variantesDeLaOrdenTn($movimiento);
-
+        // Mismo criterio que la rama de Mercado Libre (spec 109): se marcan todas las variantes,
+        // incluida la que vendió. Ver el comentario extenso allá arriba.
         TiendanubeVarianteProducto::where('producto_id', $movimiento->producto_id)
-            ->when($yaDescontadas !== [], fn ($q) => $q->whereNotIn('variant_id', $yaDescontadas))
             ->update(['stock_pendiente' => true]);
     }
 
-    /**
-     * R2 — publicaciones que NO hay que volver a empujar: las que la propia orden ya descontó
-     * del lado de Mercado Libre. Antes se salteaba el producto entero, y ahí estaba el problema
-     * (ver arriba). Devuelve `[]` cuando el movimiento no vino de una orden de ML, o cuando no
-     * se puede resolver qué publicación fue: en ese caso se marcan todas, que a lo sumo cuesta
-     * un PUT redundante con el valor correcto — nunca un dato mal.
-     *
-     * @return array<string>
-     */
-    private function publicacionesDeLaOrdenMl(MovimientoStock $movimiento): array
-    {
-        $venta = $this->ventaDeOrigen($movimiento, 'mercadolibre');
-
-        if ($venta === null || ! $venta->ml_order_id) {
-            return [];
-        }
-
-        return MercadoLibreOrden::where('ml_order_id', $venta->ml_order_id)
-            ->first()?->items()->pluck('ml_item_id')->all() ?? [];
-    }
-
-    /**
-     * Equivalente de Tiendanube: las variantes que la orden ya descontó allá.
-     *
-     * @return array<string>
-     */
-    private function variantesDeLaOrdenTn(MovimientoStock $movimiento): array
-    {
-        $venta = $this->ventaDeOrigen($movimiento, 'tiendanube');
-
-        if ($venta === null || ! $venta->tn_order_id) {
-            return [];
-        }
-
-        return TiendanubeOrden::where('tn_order_id', $venta->tn_order_id)
-            ->first()?->items()->pluck('variant_id')->all() ?? [];
-    }
-
-    /** La Venta que originó el movimiento, sólo si vino de la integración indicada. */
-    private function ventaDeOrigen(MovimientoStock $movimiento, string $origen): ?Venta
-    {
-        if ($movimiento->origen_type !== Venta::class) {
-            return null;
-        }
-
-        $venta = Venta::find($movimiento->origen_id);
-
-        return $venta?->origen === $origen ? $venta : null;
-    }
 }

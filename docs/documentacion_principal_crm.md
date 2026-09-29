@@ -1029,9 +1029,15 @@ nuevas** — extiende las ya construidas por la spec 012.
   Mercado Libre** (`ml_configuracion.deposito_id`, o el depósito por defecto), marca el vínculo como
   "con cambios pendientes de sincronizar". Es indiferente al módulo que lo originó (Venta manual,
   ajuste, transferencia); se detecta en un único punto, el observer sobre `movimientos_stock`.
-- **Anti-rebote**: los movimientos originados en la **conversión de una orden de Mercado Libre** quedan
-  excluidos — Mercado Libre ya descontó esa unidad de su propio stock al generar la orden, y empujarla
-  de vuelta sería redundante o directamente inconsistente si llegara desfasada.
+- **Sin anti-rebote (spec 109, 29/09/2026)**: se marcan **todas** las publicaciones del producto,
+  **incluida aquella por la que se vendió**. Hasta esta spec la vendida quedaba excluida —Mercado
+  Libre ya había descontado esa unidad de su lado—, pero el stock que el CRM empuja **puede estar
+  viejo**: las órdenes se importan cada 5 minutos, y en esa ventana el cron puede mandar un número
+  anterior a ventas que allá ya ocurrieron. Excluir después a esa publicación significaba que ese
+  número desactualizado **no se corrigiera nunca**. Pasó el 28/09/2026 con `MLA1808325052`: quedó
+  ofreciendo 21 con el CRM en 20, sin error ni marca, y sólo lo detectó el chequeo de rutina.
+  Empujar de más es inofensivo porque `SincronizadorStock::procesarVinculos()` lee el stock **al
+  enviar**, no al marcar. No hay riesgo de bucle: publicar stock no crea ningún `MovimientoStock`.
 - **Consolidación**: no se llama a la API por movimiento. Cada corrida envía **un único valor final por
   producto** (el stock actual en el depósito configurado), sin importar cuántos movimientos hubo desde
   el último envío. Evita agotar el límite de solicitudes ante ráfagas (varias Ventas seguidas, una
@@ -1430,9 +1436,9 @@ de Productos (botón de precios).
   cambios pendientes de sincronizar". Es indiferente al módulo que lo originó (Venta manual, ajuste,
   transferencia); se detecta en el mismo observer sobre `movimientos_stock` que ya usa Mercado Libre
   (spec 013), con una rama propia para Tiendanube.
-- **Anti-rebote**: los movimientos originados en la **conversión de una orden de Tiendanube** quedan
-  excluidos — Tiendanube ya descontó esa unidad de su propio stock al generar la orden, y empujarla de
-  vuelta sería redundante o directamente inconsistente si llegara desfasada.
+- **Sin anti-rebote (spec 109, 29/09/2026)**: se marcan **todas** las variantes del producto,
+  **incluida la que vendió**, por el mismo motivo que en Mercado Libre (ver §3.2.ter): el stock que
+  se empuja puede estar desactualizado, y excluir a la que vendió dejaba ese número sin corregir.
 - **Consolidación**: no se llama a la API por movimiento. Cada corrida envía **un único valor final por
   producto** (el stock actual en el depósito configurado), sin importar cuántos movimientos hubo desde el
   último envío. Los vínculos pendientes se agrupan en lotes de hasta 50 por llamada a la tool de

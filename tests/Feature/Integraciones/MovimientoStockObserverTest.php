@@ -186,7 +186,15 @@ class MovimientoStockObserverTest extends TestCase
         return $resultado['venta'];
     }
 
-    public function test_convertir_orden_de_mercadolibre_no_marca_pendiente_el_vinculo(): void
+    /**
+     * spec 109: la publicación que vendió TAMBIÉN queda pendiente.
+     *
+     * Antes se la excluía (spec 013, FR-002) porque Mercado Libre ya descontó esa unidad de su
+     * lado. Pero el stock que el CRM empuja puede estar viejo —las órdenes se importan cada 5
+     * minutos—, y si en esa ventana le mandamos un número desactualizado, excluirla después
+     * significa que nadie lo corrige nunca. Caso real: MLA1808325052 el 28/09/2026.
+     */
+    public function test_convertir_orden_de_mercadolibre_marca_pendiente_el_vinculo(): void
     {
         Deposito::create(['nombre' => 'Principal', 'activo' => true]);
         $producto = Producto::factory()->create(['tipo' => 'producto', 'iva_venta_pct' => '21', 'activo' => true]);
@@ -194,15 +202,19 @@ class MovimientoStockObserverTest extends TestCase
         $this->convertirOrdenMercadoLibre($producto, 2);
 
         $vinculo = MercadoLibrePublicacionProducto::where('producto_id', $producto->id)->firstOrFail();
-        $this->assertFalse($vinculo->stock_pendiente);
+        $this->assertTrue(
+            $vinculo->stock_pendiente,
+            'La publicación vendida debe quedar pendiente: el PUT lleva el stock del CRM leído al enviar.'
+        );
     }
 
     /**
-     * Mercado Libre descuenta el stock sólo de la publicación vendida. Si el producto tiene
-     * otras publicaciones, siguen ofreciendo el stock viejo y hay que empujarles el cambio:
-     * saltear el producto entero las dejaba desfasadas para siempre.
+     * spec 109: una orden de Mercado Libre deja pendientes TODAS las publicaciones del producto.
+     *
+     * La que vendió, porque el stock que se le empujó pudo haber sido viejo (ver arriba); las
+     * otras, porque Mercado Libre no las tocó y siguen ofreciendo el stock anterior.
      */
-    public function test_orden_de_ml_marca_pendientes_las_otras_publicaciones_del_producto(): void
+    public function test_orden_de_ml_marca_pendientes_todas_las_publicaciones_del_producto(): void
     {
         Deposito::create(['nombre' => 'Principal', 'activo' => true]);
         $producto = Producto::factory()->create(['tipo' => 'producto', 'iva_venta_pct' => '21', 'activo' => true]);
@@ -215,11 +227,11 @@ class MovimientoStockObserverTest extends TestCase
         $this->convertirOrdenMercadoLibre($producto, 2);
 
         $vendida = MercadoLibrePublicacionProducto::where('ml_item_id', 'MLA1')->firstOrFail();
-        $this->assertFalse($vendida->fresh()->stock_pendiente, 'La publicación vendida ya la descontó ML.');
+        $this->assertTrue($vendida->fresh()->stock_pendiente, 'La publicación vendida también se empuja (spec 109).');
         $this->assertTrue($otra->fresh()->stock_pendiente, 'La otra publicación quedó con el stock viejo.');
     }
 
-    public function test_venta_manual_sobre_mismo_producto_si_marca_pendiente_tras_una_orden_ml(): void
+    public function test_venta_manual_sobre_mismo_producto_marca_pendiente_tras_una_orden_ml(): void
     {
         Deposito::create(['nombre' => 'Principal', 'activo' => true]);
         $producto = Producto::factory()->create(['tipo' => 'producto', 'iva_venta_pct' => '21', 'activo' => true]);
@@ -227,10 +239,61 @@ class MovimientoStockObserverTest extends TestCase
         $this->convertirOrdenMercadoLibre($producto, 2);
 
         $vinculo = MercadoLibrePublicacionProducto::where('producto_id', $producto->id)->firstOrFail();
-        $this->assertFalse($vinculo->fresh()->stock_pendiente, 'La orden de Mercado Libre no debe marcar pendiente.');
+        $this->assertTrue($vinculo->fresh()->stock_pendiente, 'La orden de Mercado Libre marca pendiente (spec 109).');
+
+        // Se limpia como lo haría el sincronizador, para verificar que la venta manual vuelve a marcar.
+        $vinculo->update(['stock_pendiente' => false]);
 
         $this->crearVentaConProducto($producto, 1);
 
         $this->assertTrue($vinculo->fresh()->stock_pendiente, 'La Venta manual sí debe marcar pendiente.');
+    }
+
+    /**
+     * spec 109, SC-003 — EL CASO REAL DEL 28/09/2026.
+     *
+     * Producto con dos publicaciones (MLA1808325052 y MLA818901919). Entra una venta de Mercado
+     * Libre por una de ellas. Antes de esta spec, la publicación que vendía quedaba excluida y su
+     * stock desactualizado no se corregía nunca: quedó ofreciendo 21 con el CRM en 20.
+     *
+     * Ahora las dos quedan pendientes, así que la corrida siguiente les publica el stock real.
+     */
+    public function test_venta_de_ml_deja_pendientes_las_dos_publicaciones_del_producto(): void
+    {
+        Deposito::create(['nombre' => 'Principal', 'activo' => true]);
+        $producto = Producto::factory()->create(['tipo' => 'producto', 'iva_venta_pct' => '21', 'activo' => true]);
+
+        $otra = MercadoLibrePublicacionProducto::create([
+            'ml_item_id' => 'MLA-SEGUNDA-PUBLICACION',
+            'producto_id' => $producto->id,
+        ]);
+
+        $this->convertirOrdenMercadoLibre($producto, 1);
+
+        $vendida = MercadoLibrePublicacionProducto::where('ml_item_id', 'MLA1')->firstOrFail();
+
+        $this->assertTrue($vendida->fresh()->stock_pendiente, 'La que vendió: sin esto queda desfasada (caso 28/09).');
+        $this->assertTrue($otra->fresh()->stock_pendiente, 'La otra: Mercado Libre no la tocó.');
+    }
+
+    /**
+     * spec 109, SC-004 — NO-REGRESIÓN del camino que hoy ya funciona.
+     *
+     * Ventas manuales, compras y ajustes son la mayoría de los movimientos del sistema. Para ellos
+     * la exclusión ya devolvía `[]` y no filtraba nada, así que su comportamiento tiene que quedar
+     * EXACTAMENTE igual que antes de esta spec.
+     */
+    public function test_venta_manual_y_ajuste_siguen_marcando_todas_las_publicaciones(): void
+    {
+        Deposito::create(['nombre' => 'Principal', 'activo' => true]);
+        $producto = Producto::factory()->create(['tipo' => 'producto', 'iva_venta_pct' => '21', 'activo' => true]);
+
+        $uno = MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA-UNO', 'producto_id' => $producto->id]);
+        $dos = MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA-DOS', 'producto_id' => $producto->id]);
+
+        $this->crearVentaConProducto($producto, 1);
+
+        $this->assertTrue($uno->fresh()->stock_pendiente);
+        $this->assertTrue($dos->fresh()->stock_pendiente);
     }
 }
