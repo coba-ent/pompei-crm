@@ -1,4 +1,4 @@
-# Checklist de calidad — spec 109
+# Checklist de calidad — spec 112
 
 **Feature**: [spec.md](../spec.md) | **Fecha**: 2026-09-29
 

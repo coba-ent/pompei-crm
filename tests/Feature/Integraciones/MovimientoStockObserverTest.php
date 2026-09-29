@@ -187,7 +187,7 @@ class MovimientoStockObserverTest extends TestCase
     }
 
     /**
-     * spec 109: la publicación que vendió TAMBIÉN queda pendiente.
+     * spec 112: la publicación que vendió TAMBIÉN queda pendiente.
      *
      * Antes se la excluía (spec 013, FR-002) porque Mercado Libre ya descontó esa unidad de su
      * lado. Pero el stock que el CRM empuja puede estar viejo —las órdenes se importan cada 5
@@ -209,7 +209,7 @@ class MovimientoStockObserverTest extends TestCase
     }
 
     /**
-     * spec 109: una orden de Mercado Libre deja pendientes TODAS las publicaciones del producto.
+     * spec 112: una orden de Mercado Libre deja pendientes TODAS las publicaciones del producto.
      *
      * La que vendió, porque el stock que se le empujó pudo haber sido viejo (ver arriba); las
      * otras, porque Mercado Libre no las tocó y siguen ofreciendo el stock anterior.
@@ -227,7 +227,7 @@ class MovimientoStockObserverTest extends TestCase
         $this->convertirOrdenMercadoLibre($producto, 2);
 
         $vendida = MercadoLibrePublicacionProducto::where('ml_item_id', 'MLA1')->firstOrFail();
-        $this->assertTrue($vendida->fresh()->stock_pendiente, 'La publicación vendida también se empuja (spec 109).');
+        $this->assertTrue($vendida->fresh()->stock_pendiente, 'La publicación vendida también se empuja (spec 112).');
         $this->assertTrue($otra->fresh()->stock_pendiente, 'La otra publicación quedó con el stock viejo.');
     }
 
@@ -239,7 +239,7 @@ class MovimientoStockObserverTest extends TestCase
         $this->convertirOrdenMercadoLibre($producto, 2);
 
         $vinculo = MercadoLibrePublicacionProducto::where('producto_id', $producto->id)->firstOrFail();
-        $this->assertTrue($vinculo->fresh()->stock_pendiente, 'La orden de Mercado Libre marca pendiente (spec 109).');
+        $this->assertTrue($vinculo->fresh()->stock_pendiente, 'La orden de Mercado Libre marca pendiente (spec 112).');
 
         // Se limpia como lo haría el sincronizador, para verificar que la venta manual vuelve a marcar.
         $vinculo->update(['stock_pendiente' => false]);
@@ -250,7 +250,7 @@ class MovimientoStockObserverTest extends TestCase
     }
 
     /**
-     * spec 109, SC-003 — EL CASO REAL DEL 28/09/2026.
+     * spec 112, SC-003 — EL CASO REAL DEL 28/09/2026.
      *
      * Producto con dos publicaciones (MLA1808325052 y MLA818901919). Entra una venta de Mercado
      * Libre por una de ellas. Antes de esta spec, la publicación que vendía quedaba excluida y su
@@ -277,7 +277,7 @@ class MovimientoStockObserverTest extends TestCase
     }
 
     /**
-     * spec 109, SC-004 — NO-REGRESIÓN del camino que hoy ya funciona.
+     * spec 112, SC-004 — NO-REGRESIÓN del camino que hoy ya funciona.
      *
      * Ventas manuales, compras y ajustes son la mayoría de los movimientos del sistema. Para ellos
      * la exclusión ya devolvía `[]` y no filtraba nada, así que su comportamiento tiene que quedar

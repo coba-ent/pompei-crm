@@ -1,6 +1,6 @@
 # La publicación que vendió también recibe el stock del CRM
 
-**Spec**: 109 | **Fecha**: 2026-09-29 | **Estado**: listo para planificar
+**Spec**: 112 | **Fecha**: 2026-09-29 | **Estado**: listo para planificar
 
 ## El problema
 

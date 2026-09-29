@@ -1,4 +1,4 @@
-# Tasks — spec 109
+# Tasks — spec 112
 
 `[P]` = paralelizable dentro del bloque.
 

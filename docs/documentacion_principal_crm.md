@@ -1029,7 +1029,7 @@ nuevas** — extiende las ya construidas por la spec 012.
   Mercado Libre** (`ml_configuracion.deposito_id`, o el depósito por defecto), marca el vínculo como
   "con cambios pendientes de sincronizar". Es indiferente al módulo que lo originó (Venta manual,
   ajuste, transferencia); se detecta en un único punto, el observer sobre `movimientos_stock`.
-- **Sin anti-rebote (spec 109, 29/09/2026)**: se marcan **todas** las publicaciones del producto,
+- **Sin anti-rebote (spec 112, 29/09/2026)**: se marcan **todas** las publicaciones del producto,
   **incluida aquella por la que se vendió**. Hasta esta spec la vendida quedaba excluida —Mercado
   Libre ya había descontado esa unidad de su lado—, pero el stock que el CRM empuja **puede estar
   viejo**: las órdenes se importan cada 5 minutos, y en esa ventana el cron puede mandar un número
@@ -1436,7 +1436,7 @@ de Productos (botón de precios).
   cambios pendientes de sincronizar". Es indiferente al módulo que lo originó (Venta manual, ajuste,
   transferencia); se detecta en el mismo observer sobre `movimientos_stock` que ya usa Mercado Libre
   (spec 013), con una rama propia para Tiendanube.
-- **Sin anti-rebote (spec 109, 29/09/2026)**: se marcan **todas** las variantes del producto,
+- **Sin anti-rebote (spec 112, 29/09/2026)**: se marcan **todas** las variantes del producto,
   **incluida la que vendió**, por el mismo motivo que en Mercado Libre (ver §3.2.ter): el stock que
   se empuja puede estar desactualizado, y excluir a la que vendió dejaba ese número sin corregir.
 - **Consolidación**: no se llama a la API por movimiento. Cada corrida envía **un único valor final por

@@ -90,7 +90,7 @@ class MovimientoStockObserverTiendanubeTest extends TestCase
     }
 
     /**
-     * spec 109: la variante que vendió TAMBIÉN queda pendiente, igual que en Mercado Libre.
+     * spec 112: la variante que vendió TAMBIÉN queda pendiente, igual que en Mercado Libre.
      *
      * El stock que el CRM empuja puede estar viejo (las órdenes se importan cada 5 minutos), y
      * excluir a la que vendió significaba que ese número desactualizado no se corrigiera nunca.
@@ -102,10 +102,10 @@ class MovimientoStockObserverTiendanubeTest extends TestCase
         $this->convertirOrdenTiendanube($producto);
 
         $vendida = TiendanubeVarianteProducto::where('variant_id', self::VARIANTE_VENDIDA)->firstOrFail();
-        $this->assertTrue($vendida->fresh()->stock_pendiente, 'La variante vendida también se empuja (spec 109).');
+        $this->assertTrue($vendida->fresh()->stock_pendiente, 'La variante vendida también se empuja (spec 112).');
     }
 
-    /** spec 109: una orden de Tiendanube deja pendientes TODAS las variantes del producto. */
+    /** spec 112: una orden de Tiendanube deja pendientes TODAS las variantes del producto. */
     public function test_orden_de_tiendanube_marca_pendientes_todas_las_variantes_del_producto(): void
     {
         $producto = $this->productoVinculado();
@@ -117,7 +117,7 @@ class MovimientoStockObserverTiendanubeTest extends TestCase
         $this->convertirOrdenTiendanube($producto);
 
         $vendida = TiendanubeVarianteProducto::where('variant_id', self::VARIANTE_VENDIDA)->firstOrFail();
-        $this->assertTrue($vendida->fresh()->stock_pendiente, 'La variante vendida también se empuja (spec 109).');
+        $this->assertTrue($vendida->fresh()->stock_pendiente, 'La variante vendida también se empuja (spec 112).');
         $this->assertTrue($otra->fresh()->stock_pendiente, 'La otra variante quedó con el stock viejo.');
     }
 }

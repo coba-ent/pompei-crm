@@ -99,7 +99,7 @@ migración no mueve inventario a propósito— y 83 son de Mercado Libre anterio
 **Publicación desfasada SIN `[BLOQUEADA]`**: es una **congelada** — el caso peligroso, porque no da
 error. Se destraba marcándola pendiente (ver correcciones).
 
-> **Desde la spec 109 (29/09/2026) la causa más común de esto ya no existe.** Antes, la publicación
+> **Desde la spec 112 (29/09/2026) la causa más común de esto ya no existe.** Antes, la publicación
 > **por la que se vendía** quedaba excluida de marcarse pendiente, así que si el cron le había
 > empujado un stock viejo —las órdenes se importan cada 5 minutos— nadie se lo corregía. Caso real:
 > `MLA1808325052` el 28/09/2026, ofreciendo 21 con el CRM en 20. Ahora se marcan todas, incluida la
@@ -230,7 +230,8 @@ Actualizar al terminar cada uno. El corte es `movimientos_stock.id`.
 
 | Fecha | Corte | Resultado |
 |---|---|---|
-| 29/09/2026 | 35308 | 137 ventas, 184 líneas, 0 problemas en el primer pase. Los 11 productos que el segundo pase marcó son ajustes de kits, notas de crédito, y **4 falsos positivos del método**: los o'rings 24285/24101/24102 y el botiquín 27286 tienen movimientos de ventas *anteriores* a la ventana (24209 del 01/08, 25227 del 17/09) que se editaron dentro. 273/276 alineadas con ML. Apareció **una congelada real**: `MLA1808325052` ofrecía 21 con el CRM en 20 — el cron le empujó 22 a las 18:19 (aún no había importado dos ventas), ML restó 1 por su propia venta, y quedó excluida de volver a marcarse. Corregida a mano y **arreglada de raíz con la spec 109**. |
+| 29/09/2026 (19:30) | 35440 | **Primera validación del fix de la spec 112 con tráfico real.** 20 ventas, 24 líneas, 0 problemas; el único producto del segundo pase (28147) es el falso positivo de siempre — una venta anterior a la ventana. 9 ventas de Mercado Libre desde el deploy, **67 escrituras de stock y 0 errores**. Verificado vínculo por vínculo que **la publicación que vendió ahora sí se sincroniza después de su venta**: MLA1808325052 vendió 17:51:03 y sincronizó 17:51:05. 274/276 alineadas, **ninguna congelada**. Las 2 desfasadas son las `under_review` de siempre. |
+| 29/09/2026 | 35308 | 137 ventas, 184 líneas, 0 problemas en el primer pase. Los 11 productos que el segundo pase marcó son ajustes de kits, notas de crédito, y **4 falsos positivos del método**: los o'rings 24285/24101/24102 y el botiquín 27286 tienen movimientos de ventas *anteriores* a la ventana (24209 del 01/08, 25227 del 17/09) que se editaron dentro. 273/276 alineadas con ML. Apareció **una congelada real**: `MLA1808325052` ofrecía 21 con el CRM en 20 — el cron le empujó 22 a las 18:19 (aún no había importado dos ventas), ML restó 1 por su propia venta, y quedó excluida de volver a marcarse. Corregida a mano y **arreglada de raíz con la spec 112**. |
 | 27/08/2026 | 1024 | 100 líneas, 0 problemas. 268/270 alineadas con ML y **267/270 en precio**. Las mismas 3 `under_review` en las dos cosas: es moderación de ML, no del CRM. Los 10 ajustes manuales sin descripción de Pompei1 son **armado de kits** (−5/−6 de la grifería 24613 y del mixer 36317 contra +5/+6 del Kit Arizona 43005 y del combo 12700): correcto, sólo sin documentar. Los netos que no cierran en 27198 y 43005 son eso mismo más las ediciones de la venta 22416 (el trabajo abierto de JPD). |
 | 24/08/2026 | 792 | 28 ventas, 35 líneas, 0 problemas; el neto por producto cierra en los 31 del período. 268/270 alineadas con ML. Movida fuerte de compras: +147 unidades en 27 entradas. |
 | 21/08/2026 | 597 | 25 ventas, 36 líneas, 0 problemas. 268/270 alineadas con ML. La venta 24594 se anuló entera con la NC 854 y repuso en Local, el depósito correcto: el fix `3e3bc49` funcionando con un caso real. Panel `/monitoreo` en producción. |

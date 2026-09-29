@@ -33,7 +33,7 @@ class MovimientoStockObserver
             return;
         }
 
-        // Se marcan TODAS las publicaciones del producto, **incluida la que vendió** (spec 109).
+        // Se marcan TODAS las publicaciones del producto, **incluida la que vendió** (spec 112).
         //
         // Antes se la excluía, porque Mercado Libre ya descuenta el stock de la publicación por la
         // que se vendió y volver a empujárselo parecía redundante. Pero el stock que el CRM empuja
@@ -67,7 +67,7 @@ class MovimientoStockObserver
             return;
         }
 
-        // Mismo criterio que la rama de Mercado Libre (spec 109): se marcan todas las variantes,
+        // Mismo criterio que la rama de Mercado Libre (spec 112): se marcan todas las variantes,
         // incluida la que vendió. Ver el comentario extenso allá arriba.
         TiendanubeVarianteProducto::where('producto_id', $movimiento->producto_id)
             ->update(['stock_pendiente' => true]);
