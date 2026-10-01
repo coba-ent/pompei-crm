@@ -329,10 +329,14 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div><strong>Cliente:</strong> {{ optional($venta->cliente)->nombre }}</div>
-                            <div><strong>Nombre:</strong> {{ optional($venta->cliente)->nombre_pila ?: '-' }}</div>
-                            <div><strong>Apellido:</strong> {{ optional($venta->cliente)->apellido ?: '-' }}</div>
-                            <div><strong>Teléfono:</strong> {{ optional($venta->cliente)->telefono ?: '-' }}</div>
-                            <div><strong>Domicilio:</strong> {{ optional($venta->cliente)->domicilio ?: '-' }}</div>
+                            @if (filled(optional($venta->cliente)->nombre_pila))
+                                <div><strong>Nombre:</strong> {{ optional($venta->cliente)->nombre_pila }}</div>
+                            @endif
+                            @if (filled(optional($venta->cliente)->apellido))
+                                <div><strong>Apellido:</strong> {{ optional($venta->cliente)->apellido }}</div>
+                            @endif
+                            <div><strong>Teléfono:</strong> {{ optional($venta->cliente)->telefonoParaComprobante() ?: '-' }}</div>
+                            <div><strong>Domicilio:</strong> {{ optional($venta->cliente)->domicilioParaComprobante() ?: '-' }}</div>
                         </div>
                         <div class="col-md-6">
                             <div><strong>CUIT:</strong> {{ optional($venta->cliente)->cuit ?: '-' }}</div>

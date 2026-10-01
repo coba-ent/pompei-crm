@@ -48,15 +48,14 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div><strong>Cliente:</strong> {{ optional($presupuesto->cliente)->nombre }}</div>
-                            @php($cliente = $presupuesto->cliente)
-                            @if (filled(optional($cliente)->nombre_pila))
-                                <div><strong>Nombre:</strong> {{ $cliente->nombre_pila }}</div>
+                            @if (filled(optional($presupuesto->cliente)->nombre_pila))
+                                <div><strong>Nombre:</strong> {{ optional($presupuesto->cliente)->nombre_pila }}</div>
                             @endif
-                            @if (filled(optional($cliente)->apellido))
-                                <div><strong>Apellido:</strong> {{ $cliente->apellido }}</div>
+                            @if (filled(optional($presupuesto->cliente)->apellido))
+                                <div><strong>Apellido:</strong> {{ optional($presupuesto->cliente)->apellido }}</div>
                             @endif
-                            <div><strong>Teléfono:</strong> {{ optional($cliente)->telefonoParaComprobante() ?: '-' }}</div>
-                            <div><strong>Domicilio:</strong> {{ optional($cliente)->domicilioParaComprobante() ?: '-' }}</div>
+                            <div><strong>Teléfono:</strong> {{ optional($presupuesto->cliente)->telefonoParaComprobante() ?: '-' }}</div>
+                            <div><strong>Domicilio:</strong> {{ optional($presupuesto->cliente)->domicilioParaComprobante() ?: '-' }}</div>
                         </div>
                         <div class="col-md-6">
                             <div><strong>CUIT:</strong> {{ optional($presupuesto->cliente)->cuit ?: '-' }}</div>
