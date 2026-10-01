@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\DatosParaComprobante;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Proveedor extends Model
 {
     use HasFactory;
+    use DatosParaComprobante;
 
     /**
      * Proveedor FICTICIO usado como ajuste de conciliación contra Contagram

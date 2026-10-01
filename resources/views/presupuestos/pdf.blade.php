@@ -34,10 +34,15 @@
     <div class="cliente-box">
         <div class="col">
             <div><strong>Cliente:</strong> {{ optional($presupuesto->cliente)->nombre }}</div>
-            <div><strong>Nombre:</strong> {{ optional($presupuesto->cliente)->nombre_pila ?: '-' }}</div>
-            <div><strong>Apellido:</strong> {{ optional($presupuesto->cliente)->apellido ?: '-' }}</div>
-            <div><strong>Teléfono:</strong> {{ optional($presupuesto->cliente)->telefono ?: '-' }}</div>
-            <div><strong>Domicilio:</strong> {{ optional($presupuesto->cliente)->domicilio ?: '-' }}</div>
+            @php($cliente = $presupuesto->cliente)
+            @if (filled(optional($cliente)->nombre_pila))
+                <div><strong>Nombre:</strong> {{ $cliente->nombre_pila }}</div>
+            @endif
+            @if (filled(optional($cliente)->apellido))
+                <div><strong>Apellido:</strong> {{ $cliente->apellido }}</div>
+            @endif
+            <div><strong>Teléfono:</strong> {{ optional($cliente)->telefonoParaComprobante() ?: '-' }}</div>
+            <div><strong>Domicilio:</strong> {{ optional($cliente)->domicilioParaComprobante() ?: '-' }}</div>
         </div>
         <div class="col">
             <div><strong>CUIT:</strong> {{ optional($presupuesto->cliente)->cuit ?: '-' }}</div>

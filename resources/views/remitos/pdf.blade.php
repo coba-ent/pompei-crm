@@ -44,7 +44,7 @@
     <div class="cliente-box">
         <div class="col">
             <div><strong>Apellido y Nombre/Razón Social:</strong> {{ $tercero?->nombre ?: '-' }}</div>
-            <div><strong>Teléfono:</strong> {{ $tercero?->telefono ?: '-' }}</div>
+            <div><strong>Teléfono:</strong> {{ $tercero?->telefonoParaComprobante() ?: '-' }}</div>
             <div><strong>Persona Contacto:</strong> {{ $contacto ? trim(($contacto->nombre ?? '').' '.($contacto->apellido ?? '')) : ($tercero?->nombre ?: '-') }}</div>
         </div>
         <div class="col">
