@@ -704,7 +704,9 @@
 
         // Autocompletado de Categoría/Descuento al elegir Cliente (FR-003). Lista de Precios
         // NO se autocompleta — el informe sólo confirma Categoría y Descuento General. Tipo de
-        // Comprobante sí se autocompleta desde el default del cliente (clientes.tipo_comprobante_defecto).
+        // Comprobante sí se autocompleta: el backend manda el tipo que corresponde por
+        // condición de IVA —A para Responsable Inscripto— y no el default guardado, que
+        // estaba vacío en la mayoría de los RI y dejaba el formulario en la B del HTML.
         function aplicarAutocompletadoCliente(cliente) {
             if (!cliente) { return; }
             if (cliente.categoria_id) { $('#f-categoria').val(cliente.categoria_id).trigger('change'); }
@@ -713,7 +715,7 @@
                 $('#f-descuento-general').val(cliente.descuento_general_pct);
                 recalcular();
             }
-            if (cliente.tipo_comprobante_defecto) { $('#f-tipo-comprobante').val(cliente.tipo_comprobante_defecto); }
+            if (cliente.tipo_comprobante_defecto) { $('#f-tipo-comprobante').val(cliente.tipo_comprobante_defecto).trigger('change'); }
         }
 
         $('#f-cliente').on('select2:select', function (e) {

@@ -78,7 +78,8 @@ class ClienteController extends Controller
             })
             ->orderBy('nombre')
             ->limit(50)
-            ->get(['id', 'nombre', 'categoria_id', 'lista_precio_id', 'descuento_general_pct', 'tipo_comprobante_defecto']);
+            ->with('condicionIva:id,codigo_afip')
+            ->get(['id', 'nombre', 'categoria_id', 'lista_precio_id', 'descuento_general_pct', 'tipo_comprobante_defecto', 'condicion_iva_id']);
 
         // Saldo de cuenta corriente junto al nombre (spec 072, FR-014): el vendedor se entera de
         // que el cliente tiene saldo a favor en la pantalla donde carga la venta, sin ir a
@@ -94,7 +95,7 @@ class ClienteController extends Controller
                 'categoria_id' => $c->categoria_id,
                 'lista_precio_id' => $c->lista_precio_id,
                 'descuento_general_pct' => $c->descuento_general_pct !== null ? (float) $c->descuento_general_pct : null,
-                'tipo_comprobante_defecto' => $c->tipo_comprobante_defecto,
+                'tipo_comprobante_defecto' => $c->tipoComprobanteQueCorresponde(),
                 // Negativo = saldo a favor del cliente; positivo = deuda.
                 'saldo' => round($saldos[$c->id] ?? 0.0, 2),
             ]);

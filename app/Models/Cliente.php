@@ -107,6 +107,33 @@ class Cliente extends Model
      * Si la condición de IVA del cliente exige CUIT para poder facturar
      * (Responsable Inscripto, Monotributista). Principio III.
      */
+    /**
+     * Tipo de comprobante que corresponde emitirle a este cliente.
+     *
+     * Un Responsable Inscripto siempre recibe A: es lo que ARCA espera y lo que
+     * el cliente venía corrigiendo a mano en cada venta, porque el formulario
+     * arrancaba en B y el default del cliente estaba vacío en 1.873 de ellos.
+     * La condición de IVA manda sobre el default guardado —un RI con "B" quedó
+     * mal cargado, no es una excepción válida—, y para el resto de las
+     * condiciones se respeta el default si lo tiene y si no se usa B.
+     *
+     * Regla derivada, no persistida: sigue el criterio de
+     * esAptoParaFacturar() y refleja siempre la condición de IVA vigente.
+     */
+    public function tipoComprobanteQueCorresponde(): string
+    {
+        if ($this->esResponsableInscripto()) {
+            return 'A';
+        }
+
+        return $this->tipo_comprobante_defecto ?: 'B';
+    }
+
+    public function esResponsableInscripto(): bool
+    {
+        return (string) optional($this->condicionIva)->codigo_afip === '1';
+    }
+
     public function requiereCuitParaFacturar(): bool
     {
         return (bool) optional($this->condicionIva)->requiere_cuit;
