@@ -115,10 +115,16 @@ class InformeGastosExport implements WithMultipleSheets
             (float) $f->total,
         ], $filas);
 
+        // El autofiltro va acá y no en la hoja jerárquica: ésta es una fila por gasto, sin
+        // encabezados de categoría ni subtotales intercalados, así que filtrar deja un recorte
+        // legible y la columna Total suma sólo gastos. En la jerárquica, en cambio, filtrar
+        // dejaría las cabeceras de grupo sueltas sin sus gastos, y su columna Total mezcla los
+        // importes con los subtotales —medido: 257 millones contra los 64 reales—.
         return new HojaInforme(
             'Detalle plano',
             ['Id', 'Fecha', 'Categoría', 'Subcategoría', 'Descripción', 'Medio de pago', 'Total'],
             $datos,
+            conAutofiltro: true,
         );
     }
 

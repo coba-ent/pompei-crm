@@ -2,7 +2,7 @@
 
 **Feature Branch**: `114-informes-totales-filtrables`
 **Created**: 2026-10-02
-**Status**: En curso — Tandas 1 y 2 implementadas
+**Status**: En curso — Tandas 1, 2 y 3 implementadas
 **Input**: Continuación de la spec 113. Resuelto el Ranking, aplicar el mismo criterio al resto de los exports del módulo Informes, módulo por módulo, verificando en cada uno dónde es viable y dónde generaría un número incorrecto.
 
 ## Contexto
@@ -181,11 +181,36 @@ Además se generalizó el autofiltro de `HojaInforme`: antes recortaba una sola 
 recorta todas las filas destacadas finales más la separadora en blanco —el Informe de Ventas cierra
 con once KPIs y una fila vacía—.
 
+### Tanda 3 — Informe de Gastos y Reporte Final *(implementada, con alcance acotado)*
+
+Los dos resultaron **estructuralmente distintos** de los anteriores: su hoja principal no es un
+listado plano sino un árbol —categorías, subcategorías y subtotales intercalados entre las filas de
+datos—. Eso cambia la respuesta en los dos frentes:
+
+**No se les puede poner un total con fórmula.** En Gastos la columna Total mezcla los importes de
+cada gasto con los subtotales de grupo: sumarla entera da **257.236.250,04** contra los
+**64.309.062,51** reales, porque cuenta 322 gastos más 54 subtotales. El Reporte Final tiene el
+mismo problema, agravado por los tres niveles de anidación.
+
+**Tampoco les corresponde autofiltro en esa hoja.** Al filtrar, las cabeceras de categoría quedarían
+sueltas sin sus gastos y los subtotales dejarían de corresponderse con lo visible: el recorte sería
+ilegible en vez de útil.
+
+Lo que sí se hizo: **autofiltro en la hoja plana de cada uno** —"Detalle plano" en Gastos y
+"Detalle" en el Reporte Final—, que son una fila por registro sin subtotales intercalados. Ahí
+filtrar por categoría o por bloque deja un recorte que se entiende solo.
+
+Al Reporte Final no se le agrega fila de totales ni siquiera en la hoja plana: mezcla las dos vistas
+del informe (Ventas vs. Compras y Caja), y sumar sus montos juntos no significa nada.
+
+**Conclusión que ordena las tandas siguientes**: antes de convertir totales hay que mirar si la hoja
+es plana o jerárquica. En una hoja jerárquica el trabajo se limita al autofiltro de su hoja plana, si
+la tiene.
+
 ### Tandas siguientes *(pendientes de análisis)*
 
 Cada una repite el método: medir, clasificar, convertir sólo lo sumable, rotular el resto.
 
-- **Informe de Gastos** y **Reporte Final**.
 - **Cuenta Corriente** de clientes y de proveedores.
 - **Movimientos de Clientes / Proveedores**.
 - **Libro IVA**: requiere una decisión de negocio previa. Sus totales forman parte de una

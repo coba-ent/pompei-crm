@@ -154,10 +154,15 @@ class ReporteFinalExport implements WithMultipleSheets
             }
         }
 
+        // Esta hoja sí lleva autofiltro: es plana —una fila por combinación, sin subtotales
+        // intercalados— así que filtrar por Bloque o Categoría deja un recorte que se entiende
+        // solo. No se le agrega una fila de totales: la hoja mezcla las dos vistas del informe
+        // (Ventas vs. Compras y Caja), y sumar sus montos juntos no significa nada.
         return new HojaInforme(
             'Detalle',
             ['Vista', 'Bloque', 'Naturaleza', 'Categoría', 'Subcategoría', 'Cuenta de Tesorería', 'Monto'],
             $filas,
+            conAutofiltro: true,
         );
     }
 
