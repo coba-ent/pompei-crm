@@ -121,6 +121,9 @@ class InformeVentasController extends Controller
             'filas' => ['sometimes', 'array', 'max:50000'],
             'filas.*.etiqueta' => ['present', 'array'],
             'filas.*.valores' => ['present', 'array'],
+            // La marca de la fila de totales: sin declararla, `validate()` la descarta y el
+            // export vuelve a agregar su propia fila al pie, dejando dos.
+            'filas.*.es_total' => ['sometimes', 'boolean'],
             'totales_columna' => ['sometimes', 'array'],
             'total_general' => ['sometimes'],
         ]);

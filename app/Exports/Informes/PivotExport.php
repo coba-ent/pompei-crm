@@ -87,7 +87,7 @@ class PivotExport implements WithMultipleSheets
     {
         return [
             $this->hojaLegible(),
-            new HojaInforme('Plana', ['Fila', 'Columna', 'Valor'], $this->filasPlanas()),
+            new HojaInforme('Plana', ['Fila', 'Columna', 'Valor'], $this->filasPlanas(), conAutofiltro: true),
         ];
     }
 
@@ -101,12 +101,17 @@ class PivotExport implements WithMultipleSheets
             return $this->hojaLegibleSinFilas();
         }
 
+        $filas = $this->filasLegible();
+
         return new HojaInforme(
             'Informe',
             $this->encabezadosLegible(),
-            $this->filasLegible(),
-            // La fila de totales se resalta: es la última.
-            [count($this->datos['filas']) + 1],
+            $filas,
+            // La fila de totales se resalta: es la última, venga de la matriz o la agregue
+            // `filasLegible()`. Se cuenta sobre las filas ya armadas y no sobre las de la matriz,
+            // que puede traerla o no.
+            [count($filas)],
+            conAutofiltro: true,
         );
     }
 
@@ -132,7 +137,7 @@ class PivotExport implements WithMultipleSheets
         }
         $filas[] = array_merge(['Totales'], $totales, [$this->datos['total_general']]);
 
-        return new HojaInforme('Informe', $encabezados, $filas, [count($filas)]);
+        return new HojaInforme('Informe', $encabezados, $filas, [count($filas)], conAutofiltro: true);
     }
 
     /** @return list<string> */
@@ -145,12 +150,20 @@ class PivotExport implements WithMultipleSheets
         );
     }
 
+
     /** @return list<list<mixed>> */
     private function filasLegible(): array
     {
         $filas = [];
 
         foreach ($this->datos['filas'] as $fila) {
+            // La fila de totales que trae la matriz se omite acá y se arma más abajo: su etiqueta
+            // ocupa una sola celda mientras que las de datos ocupan una por dimensión, así que
+            // copiarla tal cual correría sus valores una columna a la izquierda.
+            if (! empty($fila['es_total'])) {
+                continue;
+            }
+
             $filas[] = array_merge(
                 $fila['etiqueta'],
                 $fila['valores'],
@@ -158,10 +171,17 @@ class PivotExport implements WithMultipleSheets
             );
         }
 
-        // Fila de totales al pie, alineada con las columnas del cruce.
+        // Fila de totales al pie, alineada con las columnas del cruce. Se arma siempre acá —y no
+        // se copia la de la matriz— para que las etiquetas de las dimensiones de filas queden
+        // rellenadas con nulos y los valores caigan bajo su columna.
+        // El relleno va con `array_fill(0, ...)`: arrancándolo en 1 las claves no son una lista y
+        // `array_merge` descartaba una celda, con lo que los totales caían una columna corrida
+        // respecto de su mes.
+        $relleno = max(count($this->datos['encabezados_fila']) - 1, 0);
+
         $filas[] = array_merge(
             ['Total'],
-            array_fill(1, max(count($this->datos['encabezados_fila']) - 1, 0), null),
+            $relleno > 0 ? array_fill(0, $relleno, null) : [],
             $this->datos['totales_columna'],
             [$this->datos['total_general']],
         );

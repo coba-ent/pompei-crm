@@ -33,6 +33,7 @@ class HojaInforme implements FromArray, WithStrictNullComparison, WithStyles, Wi
         private array $encabezados,
         private array $filas,
         private array $filasDestacadas = [],
+        private bool $conAutofiltro = false,
     ) {}
 
     public function title(): string
@@ -65,6 +66,26 @@ class HojaInforme implements FromArray, WithStrictNullComparison, WithStyles, Wi
 
         foreach (range('A', $ultima) as $columna) {
             $sheet->getColumnDimension($columna)->setAutoSize(true);
+        }
+
+        // Filtro ya activado sobre el encabezado y las filas de datos, sin incluir la de totales:
+        // el usuario filtra por proveedor apenas abre el archivo, que es como venía trabajando con
+        // los exports de Contagram. La fila de totales queda afuera del rango para que no se
+        // mezcle entre los valores del desplegable ni desaparezca al filtrar.
+        if ($this->conAutofiltro && $this->filas !== []) {
+            $ultimaFila = count($this->filas) + 1;
+
+            foreach ($this->filasDestacadas as $indice) {
+                if ($indice + 1 === $ultimaFila) {
+                    $ultimaFila--;
+
+                    break;
+                }
+            }
+
+            if ($ultimaFila > 1) {
+                $sheet->setAutoFilter("A1:{$ultima}{$ultimaFila}");
+            }
         }
 
         return [];

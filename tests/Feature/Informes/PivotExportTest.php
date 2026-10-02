@@ -69,6 +69,85 @@ class PivotExportTest extends TestCase
         $this->assertContains(1500.5, $ultima, 'el total general tiene que estar en la fila de cierre');
     }
 
+
+    /**
+     * La fila de totales del cruce llegaba desde el navegador sin sus valores: `matrizVisible()`
+     * buscaba `td.pvtVal`, y en esa fila las celdas son `td.pvtTotal.colTotal`. El Excel salía con
+     * el rótulo "Total" y todas las celdas vacías, que es justo la fila sobre la que la
+     * administrativa apoya sus propias fórmulas.
+     */
+    public function test_la_fila_de_totales_trae_sus_valores_bajo_cada_columna(): void
+    {
+        [$legible] = $this->hojas($this->matriz());
+        $ultima = end($legible);
+
+        // Rótulo, un total por columna del cruce y el total general al final.
+        $this->assertSame(['Total', 1300.5, 200.0, 1500.5], $ultima);
+    }
+
+    /**
+     * Con dos dimensiones en filas la fila de totales se rellena con nulos hasta donde empiezan
+     * las columnas de datos: si no, los totales caen una columna corrida respecto de su mes.
+     */
+    public function test_con_dos_dimensiones_los_totales_caen_bajo_su_columna(): void
+    {
+        $matriz = $this->matriz();
+        $matriz['encabezados_fila'] = ['Productos', 'Proveedores'];
+        $matriz['filas'] = [
+            ['etiqueta' => ['Botiquín', 'JPD'], 'valores' => [118.0, 63.0], 'total' => 181.0],
+        ];
+        $matriz['totales_columna'] = [118.0, 63.0];
+        $matriz['total_general'] = 181.0;
+
+        [$legible] = $this->hojas($matriz);
+        $ultima = end($legible);
+
+        $this->assertSame(['Productos', 'Proveedores', '2026 › Ago', '2026 › Sep', 'Total'], $legible[0]);
+        // La celda de "Proveedores" queda vacía y los totales arrancan en la 3ª posición, la misma
+        // en la que el encabezado tiene el primer mes.
+        $this->assertSame(['Total', null, 118.0, 63.0, 181.0], $ultima);
+    }
+
+    /**
+     * La matriz que manda el navegador ya incluye la fila de totales, marcada con `es_total`. El
+     * export no debe copiarla tal cual —su etiqueta ocupa una sola celda— ni agregar una segunda.
+     */
+    public function test_la_fila_de_totales_de_la_matriz_no_se_duplica(): void
+    {
+        $matriz = $this->matriz();
+        $matriz['filas'][] = [
+            'etiqueta' => ['Totals'],
+            'valores' => [1300.5, 200.0],
+            'total' => 1500.5,
+            'es_total' => true,
+        ];
+
+        [$legible] = $this->hojas($matriz);
+
+        $filasDeTotales = array_filter($legible, fn ($f) => in_array($f[0], ['Total', 'Totals'], true));
+
+        $this->assertCount(1, $filasDeTotales, 'tiene que quedar una sola fila de totales');
+        $this->assertSame(['Total', 1300.5, 200.0, 1500.5], end($legible));
+    }
+
+    /**
+     * El archivo se abre listo para filtrar por proveedor, que es como la administrativa venía
+     * trabajando con los exports de Contagram. El rango excluye la fila de totales para que no se
+     * mezcle entre los valores del desplegable.
+     */
+    public function test_el_archivo_trae_el_autofiltro_sobre_las_filas_de_datos(): void
+    {
+        $export = new PivotExport($this->matriz());
+        [$legible] = $export->sheets();
+
+        $hoja = (new \PhpOffice\PhpSpreadsheet\Spreadsheet())->getActiveSheet();
+        $hoja->fromArray($legible->array(), null, 'A1', true);
+        $legible->styles($hoja);
+
+        // 1 encabezado + 2 filas de datos; la 4ª es la de totales y queda fuera del rango.
+        $this->assertSame('A1:D3', $hoja->getAutoFilter()->getRange());
+    }
+
     public function test_la_hoja_plana_tiene_una_fila_por_combinacion_con_valor(): void
     {
         [, $plana] = $this->hojas($this->matriz());

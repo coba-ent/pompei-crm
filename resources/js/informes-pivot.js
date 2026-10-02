@@ -402,10 +402,33 @@
         $tabla.find('tbody tr').each(function () {
             const $fila = $(this);
             const etiqueta = $fila.find('th.pvtRowLabel').map(function () { return $(this).text(); }).get();
-            if (!etiqueta.length) { return; }
+
+            // La fila de totales al pie no lleva `th.pvtRowLabel` sino `th.pvtColTotalLabel`, y
+            // sus celdas son `td.pvtTotal.colTotal` en vez de `td.pvtVal`. Saltearla dejaba el
+            // Excel con el rótulo "Total" y todas las celdas vacías, justo la fila sobre la que
+            // el usuario apoya sus propias fórmulas.
+            if (!etiqueta.length) {
+                const $rotuloTotal = $fila.find('th.pvtColTotalLabel');
+                if (!$rotuloTotal.length) { return; }
+
+                filas.push({
+                    etiqueta: [$rotuloTotal.text()],
+                    valores: $fila.find('td.pvtTotal.colTotal').map(function () { return $(this).text(); }).get(),
+                    total: $fila.find('td.pvtGrandTotal').first().text(),
+                    // Marca explícita para el export: así no vuelve a agregar su propia fila de
+                    // totales al pie y la deja duplicada.
+                    es_total: true,
+                });
+
+                return;
+            }
 
             filas.push({
                 etiqueta: etiqueta,
+                // `td.pvtVal` son las celdas del cruce y `td.pvtTotal` el total de la fila. Se
+                // leen juntas y en orden del DOM: con una sola columna de datos PivotTable.js
+                // marca esa celda como `pvtTotal` y no como `pvtVal`, así que separarlas por
+                // clase perdía el valor de la última fila.
                 valores: $fila.find('td.pvtVal').map(function () { return $(this).text(); }).get(),
                 total: $fila.find('td.pvtTotal').first().text(),
             });
