@@ -104,4 +104,36 @@ class InformeVentasFidelidadTest extends TestCase
         $this->assertSame('FCB', $filaPlana[4]);
         $this->assertSame('FCB', $filaDetallado[8]);
     }
+
+    /**
+     * Los totales que son suma de una columna del detalle van como SUBTOTAL(109): es la unica
+     * funcion de Excel que ignora las filas ocultas por un autofiltro, asi que al filtrar dentro
+     * del archivo pasan a ser los de lo filtrado. Los de comprobante no pueden convertirse —ese
+     * importe se repite en cada linea de la misma venta— y quedan con el valor del informe
+     * completo, rotulados para que no se confundan.
+     */
+    public function test_el_resumen_totaliza_con_subtotal_solo_lo_que_es_sumable(): void
+    {
+        $this->venta([['cantidad' => 2, 'precio' => 100, 'iva_pct' => '21']]);
+
+        $request = $this->request(['fecha_desde' => '2026-08-01', 'fecha_hasta' => '2026-08-31']);
+        $filas = (new InformeVentasExport(app(VentasInformeQuery::class), $request))->sheets()[0]->array();
+
+        $porRotulo = [];
+        foreach ($filas as $f) {
+            if (isset($f[0]) && is_string($f[0])) {
+                $porRotulo[$f[0]] = $f[1] ?? null;
+            }
+        }
+
+        foreach (['Cantidad Prod./Serv.', 'Costo Actual', 'Precio Neto', 'Costo Mercadería Vendida', 'Resultado'] as $rotulo) {
+            $this->assertArrayHasKey($rotulo, $porRotulo, $rotulo);
+            $this->assertStringStartsWith('=SUBTOTAL(109,', (string) $porRotulo[$rotulo], $rotulo);
+        }
+
+        foreach (['Total Ventas (informe completo)', 'Cantidad Ventas Creadas (informe completo)'] as $rotulo) {
+            $this->assertArrayHasKey($rotulo, $porRotulo, $rotulo);
+            $this->assertIsNotString($porRotulo[$rotulo], $rotulo);
+        }
+    }
 }

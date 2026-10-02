@@ -2,7 +2,7 @@
 
 **Feature Branch**: `114-informes-totales-filtrables`
 **Created**: 2026-10-02
-**Status**: En curso — Tanda 1 (Ventas Detallado) implementada
+**Status**: En curso — Tandas 1 y 2 implementadas
 **Input**: Continuación de la spec 113. Resuelto el Ranking, aplicar el mismo criterio al resto de los exports del módulo Informes, módulo por módulo, verificando en cada uno dónde es viable y dónde generaría un número incorrecto.
 
 ## Contexto
@@ -151,11 +151,40 @@ Débito, Total Nota de Crédito, Total Ventas, Cantidad Ventas Creadas y Venta P
 
 Autofiltro desde la fila 10 (el encabezado del detalle) hasta la última fila de datos.
 
+### Tanda 2 — Informe de Ventas (resumen) e Informe de Compras *(implementada)*
+
+Comparten estructura: el detalle arriba y los KPIs al pie en formato rótulo-valor.
+
+Medición contra la base (01/07–31/08/2026):
+
+| Informe | Columna | Suma por fila | KPI del informe | Sumable |
+|---|---|---|---|---|
+| Ventas | Cantidad | 1.922,00 | 1.922,00 | sí |
+| Ventas | Costo Total Actual | 70.637.960,80 | 70.637.960,80 | sí |
+| Ventas | CMV Total | 42.462.605,15 | 42.462.605,15 | sí |
+| Ventas | Precio de Venta | 138.901.074,94 | 138.901.074,94 | sí |
+| Ventas | **Total Venta** | 167.783.605,32 | 168.345.358,78 | **no** |
+| Compras | Cantidad | 2.646,00 | 2.646,00 | sí |
+| Compras | **Total Comprobante** | **1.004.793.039,19** | 102.815.462,11 | **no** |
+
+El caso de Compras es el que mejor justifica la regla de medir antes de convertir: sumar "Total
+Comprobante" por fila da casi **diez veces** el importe real, porque el total de la compra se repite
+en cada uno de sus ítems.
+
+**Ventas (resumen)** convierte a fórmula: Cantidad Prod./Serv., Costo Actual, Precio Neto, Costo
+Mercadería Vendida y Resultado. **Compras** convierte sólo Cantidad Prod./Serv., la única columna
+totalizable de su hoja formateada.
+
+El resto queda con el valor del informe y el rótulo "(informe completo)".
+
+Además se generalizó el autofiltro de `HojaInforme`: antes recortaba una sola fila del pie y ahora
+recorta todas las filas destacadas finales más la separadora en blanco —el Informe de Ventas cierra
+con once KPIs y una fila vacía—.
+
 ### Tandas siguientes *(pendientes de análisis)*
 
 Cada una repite el método: medir, clasificar, convertir sólo lo sumable, rotular el resto.
 
-- **Informe de Ventas (resumen)** y **Informe de Compras**: mismos 11 KPIs, misma estructura.
 - **Informe de Gastos** y **Reporte Final**.
 - **Cuenta Corriente** de clientes y de proveedores.
 - **Movimientos de Clientes / Proveedores**.

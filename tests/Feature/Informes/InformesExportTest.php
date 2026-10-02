@@ -38,6 +38,9 @@ class InformesExportTest extends TestCase
         parent::tearDown();
     }
 
+    /** `datosDePrueba()` crea todo en agosto de 2026; sin rango el informe usa el mes en curso. */
+    private const RANGO = ['fecha_desde' => '2026-08-01', 'fecha_hasta' => '2026-08-31'];
+
     private function datosDePrueba(): void
     {
         $proveedor = Proveedor::factory()->create(['nombre' => 'Distribuidora SRL']);
@@ -100,6 +103,31 @@ class InformesExportTest extends TestCase
         }
     }
 
+
+
+    /**
+     * En Compras la unica columna totalizable de la hoja formateada es Cantidad: "Total
+     * Comprobante" se repite en cada item de la misma compra y sumarlo por fila da casi diez veces
+     * el importe real.
+     */
+    public function test_compras_solo_totaliza_cantidad_con_subtotal(): void
+    {
+        $this->datosDePrueba();
+
+        $hojas = (new \App\Exports\Informes\InformeComprasExport(
+            app(\App\Services\Informes\ComprasInformeQuery::class),
+            $this->request(self::RANGO),
+        ))->sheets();
+
+        $porRotulo = [];
+        foreach ($hojas[0]->array() as $f) {
+            if (isset($f[0]) && is_string($f[0])) { $porRotulo[$f[0]] = $f[1] ?? null; }
+        }
+
+        $this->assertStringStartsWith('=SUBTOTAL(109,F', (string) $porRotulo['Cantidad Prod./Serv.']);
+        $this->assertIsNotString($porRotulo['Total Compras (informe completo)']);
+    }
+
     private function nombreDeArchivo(string $ruta): string
     {
         $nombre = match ($ruta) {
@@ -137,8 +165,10 @@ class InformesExportTest extends TestCase
         $kpis = app(ComprasInformeQuery::class)->kpis($this->request());
         $formateada = (new InformeComprasExport(app(ComprasInformeQuery::class), $this->request()))->sheets()[0]->array();
 
+        // El rótulo lleva "(informe completo)": ese total no puede recalcularse al filtrar en
+        // Excel porque el importe de la compra se repite en cada uno de sus ítems.
         $totales = collect($formateada)
-            ->filter(fn ($fila) => ($fila[0] ?? null) === 'Total Compras')
+            ->filter(fn ($fila) => ($fila[0] ?? null) === 'Total Compras (informe completo)')
             ->first();
 
         $this->assertNotNull($totales, 'La hoja formateada tiene que traer la fila de Total Compras.');

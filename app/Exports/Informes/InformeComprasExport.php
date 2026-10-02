@@ -69,17 +69,29 @@ class InformeComprasExport implements WithMultipleSheets
             $this->num($f->total_comprobante),
         ], $filas);
 
-        // La fila de totales usa los KPIs, **no** la suma de la columna "Total Comprobante": ese
-        // importe se repite en cada ítem de la misma compra y sumarlo por fila la contaría de más.
+        // "Cantidad" es la única columna de esta hoja que se puede totalizar sumando sus filas,
+        // así que va como SUBTOTAL(109) y sigue al filtro de Excel. Verificado contra la base: su
+        // suma por fila da 2.646, igual que el KPI.
+        //
+        // "Total Comprobante" NO: ese importe se repite en cada ítem de la misma compra y sumarlo
+        // por fila la contaría de más —medido, da 1.004 millones contra los 102 millones reales—.
+        // Ese y los demás totales de comprobante quedan con el valor del informe completo, con el
+        // rótulo aclarándolo para que nadie lea un número filtrado como si fuera el del filtro.
+        $ultimaFilaDetalle = count($datos) + 1;   // +1 por la fila de encabezados
+
+        $cantidad = $ultimaFilaDetalle >= 2
+            ? "=SUBTOTAL(109,F2:F{$ultimaFilaDetalle})"
+            : 0;
+
         $datos[] = [];
-        $datos[] = ['Total Compras Creadas', $kpis['total_compras_creadas']];
-        $datos[] = ['Total Nota de Débito', $kpis['total_nota_debito']];
-        $datos[] = ['Total Nota de Crédito', $kpis['total_nota_credito']];
-        $datos[] = ['Total Compras', $kpis['total_compras']];
-        $datos[] = ['Cantidad Prod./Serv.', $kpis['cantidad_prod_serv']];
-        $datos[] = ['Cantidad Compras Creadas', $kpis['cantidad_compras_creadas']];
-        $datos[] = ['Compra Promedio', $kpis['compra_promedio']];
-        $datos[] = ['Costo Actual', $kpis['costo_actual']];
+        $datos[] = ['Total Compras Creadas (informe completo)', $kpis['total_compras_creadas']];
+        $datos[] = ['Total Nota de Débito (informe completo)', $kpis['total_nota_debito']];
+        $datos[] = ['Total Nota de Crédito (informe completo)', $kpis['total_nota_credito']];
+        $datos[] = ['Total Compras (informe completo)', $kpis['total_compras']];
+        $datos[] = ['Cantidad Prod./Serv.', $cantidad];
+        $datos[] = ['Cantidad Compras Creadas (informe completo)', $kpis['cantidad_compras_creadas']];
+        $datos[] = ['Compra Promedio (informe completo)', $kpis['compra_promedio']];
+        $datos[] = ['Costo Actual (informe completo)', $kpis['costo_actual']];
 
         $totalFilas = count($datos);
         $destacadas = range($totalFilas - 7, $totalFilas);
@@ -89,6 +101,7 @@ class InformeComprasExport implements WithMultipleSheets
             ['Id', 'Fecha', 'Comprobante', 'Proveedor', 'Producto/Servicio', 'Cant.', 'Precio', 'Total Comprobante'],
             $datos,
             $destacadas,
+            conAutofiltro: true,
         );
     }
 

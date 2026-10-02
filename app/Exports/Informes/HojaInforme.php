@@ -46,6 +46,22 @@ class HojaInforme implements FromArray, WithStrictNullComparison, WithStyles, Wi
         return array_merge([$this->encabezados], $this->filas);
     }
 
+    /** Una fila sin ningún valor: la separadora entre el detalle y los totales. */
+    private function esFilaVacia(?array $fila): bool
+    {
+        if ($fila === null) {
+            return false;
+        }
+
+        foreach ($fila as $valor) {
+            if ($valor !== null && $valor !== '') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public function styles(Worksheet $sheet)
     {
         $ultima = $sheet->getHighestColumn();
@@ -75,12 +91,20 @@ class HojaInforme implements FromArray, WithStrictNullComparison, WithStyles, Wi
         if ($this->conAutofiltro && $this->filas !== []) {
             $ultimaFila = count($this->filas) + 1;
 
-            foreach ($this->filasDestacadas as $indice) {
-                if ($indice + 1 === $ultimaFila) {
-                    $ultimaFila--;
+            // Se recortan todas las filas destacadas que estén al pie, no sólo la última: el
+            // Informe de Ventas cierra con once filas de KPIs más una en blanco, y dejarlas
+            // dentro del rango metería sus rótulos entre los valores del desplegable.
+            $destacadas = $this->filasDestacadas;
+            sort($destacadas);
 
-                    break;
-                }
+            while ($destacadas !== [] && end($destacadas) + 1 === $ultimaFila) {
+                array_pop($destacadas);
+                $ultimaFila--;
+            }
+
+            // La fila en blanco que separa el detalle de los totales tampoco entra.
+            while ($ultimaFila > 1 && $this->esFilaVacia($this->filas[$ultimaFila - 2] ?? null)) {
+                $ultimaFila--;
             }
 
             if ($ultimaFila > 1) {

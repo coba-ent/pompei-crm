@@ -78,21 +78,32 @@ class InformeVentasExport implements WithMultipleSheets
             $this->num($f->total_venta),
         ], $filas);
 
-        // Los totales salen de los KPIs, **no** de sumar columnas del detalle: "Total
-        // Comprobante" se repite en cada ítem de la misma venta y sumarla por fila la contaría
-        // de más (data-model §Invariantes, punto 3).
+        // Los que son suma de una columna del detalle van como fórmula SUBTOTAL(109): es la
+        // única función de Excel que ignora las filas ocultas por un autofiltro, así que al
+        // filtrar dentro del archivo el total pasa a ser el de lo filtrado. Se verificó contra la
+        // base cuáles lo son comparando la suma por fila con el KPI del informe.
+        //
+        // "Total Ventas" y los demás totales de comprobante NO: ese importe se repite en cada
+        // ítem de la misma venta y sumarlo por fila lo contaría de más (data-model §Invariantes,
+        // punto 3). Quedan con el valor del informe completo y el rótulo lo aclara.
+        $ultimaFilaDetalle = count($datos) + 1;   // +1 por la fila de encabezados
+
+        $suma = fn (string $columna) => $ultimaFilaDetalle >= 2
+            ? "=SUBTOTAL(109,{$columna}2:{$columna}{$ultimaFilaDetalle})"
+            : 0;
+
         $datos[] = [];
-        $datos[] = ['Total Ventas Creadas', $kpis['total_ventas_creadas']];
-        $datos[] = ['Total Nota de Débito', $kpis['total_nota_debito']];
-        $datos[] = ['Total Nota de Crédito', $kpis['total_nota_credito']];
-        $datos[] = ['Total Ventas', $kpis['total_ventas']];
-        $datos[] = ['Cantidad Prod./Serv.', $kpis['cantidad_prod_serv']];
-        $datos[] = ['Cantidad Ventas Creadas', $kpis['cantidad_ventas_creadas']];
-        $datos[] = ['Venta Promedio', $kpis['venta_promedio']];
-        $datos[] = ['Costo Actual', $kpis['costo_actual']];
-        $datos[] = ['Precio Neto', $kpis['precio_neto']];
-        $datos[] = ['Costo Mercadería Vendida', $kpis['cmv']];
-        $datos[] = ['Resultado', $kpis['resultado']];
+        $datos[] = ['Total Ventas Creadas (informe completo)', $kpis['total_ventas_creadas']];
+        $datos[] = ['Total Nota de Débito (informe completo)', $kpis['total_nota_debito']];
+        $datos[] = ['Total Nota de Crédito (informe completo)', $kpis['total_nota_credito']];
+        $datos[] = ['Total Ventas (informe completo)', $kpis['total_ventas']];
+        $datos[] = ['Cantidad Prod./Serv.', $suma('F')];
+        $datos[] = ['Cantidad Ventas Creadas (informe completo)', $kpis['cantidad_ventas_creadas']];
+        $datos[] = ['Venta Promedio (informe completo)', $kpis['venta_promedio']];
+        $datos[] = ['Costo Actual', $suma('H')];
+        $datos[] = ['Precio Neto', $suma('J')];
+        $datos[] = ['Costo Mercadería Vendida', $suma('I')];
+        $datos[] = ['Resultado', $suma('K')];
 
         $total = count($datos);
 
@@ -105,6 +116,7 @@ class InformeVentasExport implements WithMultipleSheets
             ],
             $datos,
             range($total - 10, $total),
+            conAutofiltro: true,
         );
     }
 
