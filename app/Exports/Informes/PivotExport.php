@@ -164,10 +164,20 @@ class PivotExport implements WithMultipleSheets
                 continue;
             }
 
+            // El total de la fila llega como cadena vacía cuando el DOM no lo trae (`.text()` de
+            // un selector sin coincidencias devuelve `''`, no `null`), así que no alcanza con el
+            // `??`: sin este chequeo esa fila queda con los meses cargados y la celda de Total en
+            // blanco, y el usuario pierde la suma justo de ese producto.
+            $total = $fila['total'] ?? null;
+
+            if ($total === null || $total === '') {
+                $total = array_sum(array_filter($fila['valores'], 'is_numeric'));
+            }
+
             $filas[] = array_merge(
                 $fila['etiqueta'],
                 $fila['valores'],
-                [$fila['total'] ?? array_sum(array_filter($fila['valores'], 'is_numeric'))],
+                [$total],
             );
         }
 

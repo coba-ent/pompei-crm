@@ -148,6 +148,28 @@ class PivotExportTest extends TestCase
         $this->assertSame('A1:D3', $hoja->getAutoFilter()->getRange());
     }
 
+
+    /**
+     * `.text()` de un selector sin coincidencias devuelve cadena vacía, no `null`, así que el
+     * total de una fila podía llegar como `''` y el `??` no lo atrapaba: el producto quedaba con
+     * sus meses cargados y la celda de Total en blanco. Caso real del archivo del 02/10/2026,
+     * fila 167: Jul=1, Ago=2, Sep=3 y Total vacío.
+     */
+    public function test_una_fila_sin_total_lo_calcula_en_vez_de_dejarlo_vacio(): void
+    {
+        $matriz = $this->matriz();
+        $matriz['encabezados_columna'] = ['Jul', 'Ago', 'Sep'];
+        $matriz['filas'] = [
+            ['etiqueta' => ['Espejo de pie'], 'valores' => [1.0, 2.0, 3.0], 'total' => ''],
+            ['etiqueta' => ['Con huecos'], 'valores' => [1.0, null, 3.0], 'total' => ''],
+        ];
+
+        [$legible] = $this->hojas($matriz);
+
+        $this->assertSame(['Espejo de pie', 1.0, 2.0, 3.0, 6.0], $legible[1]);
+        $this->assertSame(['Con huecos', 1.0, null, 3.0, 4.0], $legible[2]);
+    }
+
     public function test_la_hoja_plana_tiene_una_fila_por_combinacion_con_valor(): void
     {
         [, $plana] = $this->hojas($this->matriz());
