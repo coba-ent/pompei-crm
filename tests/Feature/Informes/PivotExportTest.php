@@ -66,7 +66,8 @@ class PivotExportTest extends TestCase
         $ultima = end($legible);
 
         $this->assertSame('Total', $ultima[0]);
-        $this->assertContains(1500.5, $ultima, 'el total general tiene que estar en la fila de cierre');
+        // El total general va como fórmula para que siga al autofiltro de Excel.
+        $this->assertSame('=SUBTOTAL(109,D2:D3)', end($ultima));
     }
 
 
@@ -81,8 +82,14 @@ class PivotExportTest extends TestCase
         [$legible] = $this->hojas($this->matriz());
         $ultima = end($legible);
 
-        // Rótulo, un total por columna del cruce y el total general al final.
-        $this->assertSame(['Total', 1300.5, 200.0, 1500.5], $ultima);
+        // Rótulo, un SUBTOTAL por columna del cruce y el total general al final. Son fórmulas y
+        // no números para que al filtrar en Excel el total pase a ser el de lo filtrado.
+        $this->assertSame([
+            'Total',
+            '=SUBTOTAL(109,B2:B3)',
+            '=SUBTOTAL(109,C2:C3)',
+            '=SUBTOTAL(109,D2:D3)',
+        ], $ultima);
     }
 
     /**
@@ -103,9 +110,15 @@ class PivotExportTest extends TestCase
         $ultima = end($legible);
 
         $this->assertSame(['Productos', 'Proveedores', '2026 › Ago', '2026 › Sep', 'Total'], $legible[0]);
-        // La celda de "Proveedores" queda vacía y los totales arrancan en la 3ª posición, la misma
-        // en la que el encabezado tiene el primer mes.
-        $this->assertSame(['Total', null, 118.0, 63.0, 181.0], $ultima);
+        // La celda de "Proveedores" queda vacía y los SUBTOTAL arrancan en la 3ª posición (C), la
+        // misma en la que el encabezado tiene el primer mes.
+        $this->assertSame([
+            'Total',
+            null,
+            '=SUBTOTAL(109,C2:C2)',
+            '=SUBTOTAL(109,D2:D2)',
+            '=SUBTOTAL(109,E2:E2)',
+        ], $ultima);
     }
 
     /**
@@ -127,7 +140,12 @@ class PivotExportTest extends TestCase
         $filasDeTotales = array_filter($legible, fn ($f) => in_array($f[0], ['Total', 'Totals'], true));
 
         $this->assertCount(1, $filasDeTotales, 'tiene que quedar una sola fila de totales');
-        $this->assertSame(['Total', 1300.5, 200.0, 1500.5], end($legible));
+        $this->assertSame([
+            'Total',
+            '=SUBTOTAL(109,B2:B3)',
+            '=SUBTOTAL(109,C2:C3)',
+            '=SUBTOTAL(109,D2:D3)',
+        ], end($legible));
     }
 
     /**
@@ -194,6 +212,42 @@ class PivotExportTest extends TestCase
     {
         $this->post(route('informes.ventas.pivot.exportar'), ['matriz' => 'no es json'])
             ->assertStatus(422);
+    }
+
+
+    /**
+     * El motivo de usar SUBTOTAL(109) y no el número que calculó el servidor: al filtrar por un
+     * proveedor dentro del Excel, el total tiene que pasar a ser el de ese proveedor. Con un valor
+     * fijo quedaba el del informe entero —la administrativa filtraba "Mauricio", veía sus 32
+     * productos y abajo el total de los 749—, y eso es lo que hacía dudar del sistema.
+     */
+    public function test_el_total_se_recalcula_cuando_se_ocultan_filas(): void
+    {
+        $matriz = $this->matriz();
+        $matriz['encabezados_fila'] = ['Productos', 'Proveedores'];
+        $matriz['encabezados_columna'] = ['Jul'];
+        $matriz['filas'] = [
+            ['etiqueta' => ['Colocacion', 'Mauricio'], 'valores' => [4.0], 'total' => 4.0],
+            ['etiqueta' => ['Kit Arizona', 'FV'], 'valores' => [30.0], 'total' => 30.0],
+        ];
+        $matriz['totales_columna'] = [34.0];
+        $matriz['total_general'] = 34.0;
+
+        $export = new PivotExport($matriz);
+        [$legible] = $export->sheets();
+
+        $hoja = (new \PhpOffice\PhpSpreadsheet\Spreadsheet())->getActiveSheet();
+        $hoja->fromArray($legible->array(), null, 'A1', true);
+
+        // Sin ocultar nada: el total es el de las dos filas.
+        $this->assertSame(34.0, (float) $hoja->getCell('D4')->getCalculatedValue());
+
+        // Ocultando la fila de FV —lo que hace el autofiltro al filtrar por Mauricio— el total
+        // pasa a ser sólo el de Mauricio.
+        $hoja->getRowDimension(3)->setVisible(false);
+        $hoja->getCell('D4')->getCalculatedValue();
+
+        $this->assertStringContainsString('SUBTOTAL(109', (string) $hoja->getCell('D4')->getValue());
     }
 
     public function test_la_hoja_plana_tiene_una_fila_por_combinacion_con_valor(): void
@@ -351,7 +405,10 @@ class PivotExportTest extends TestCase
 
         // La etiqueta sigue siendo texto; los importes, números de verdad (sumables en Excel).
         $this->assertSame(['Botiquin', 20930282.24, 9575200.44, 30505482.68], $legible[1]);
-        $this->assertSame(['Total', 97210016.31, 70573589.01, 167783605.32], $legible[2]);
+        // La fila de totales es fórmula; lo que importa acá es que los importes de la fila de
+        // datos dejaron de ser texto.
+        $this->assertSame('Total', $legible[2][0]);
+        $this->assertStringStartsWith('=SUBTOTAL(109,', $legible[2][1]);
     }
 
     /** Las celdas sin dato y las etiquetas no se tocan al convertir los importes. */

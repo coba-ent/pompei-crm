@@ -3,6 +3,7 @@
 namespace App\Exports\Informes;
 
 use Maatwebsite\Excel\Concerns\Exportable;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 
 /**
@@ -189,11 +190,28 @@ class PivotExport implements WithMultipleSheets
         // respecto de su mes.
         $relleno = max(count($this->datos['encabezados_fila']) - 1, 0);
 
+        // Los totales van como fórmula SUBTOTALES(109) y no como el número que calculó el
+        // servidor: es la única función de Excel que ignora las filas ocultas por un autofiltro,
+        // así que al filtrar por un proveedor el total pasa a ser el de ese proveedor. Con un
+        // número fijo quedaba el del informe entero, que es lo que hacía dudar del sistema.
+        $columnas = count($this->datos['totales_columna']) + 1;
+        $primeraFilaDatos = 2;                       // 1 es el encabezado
+        $ultimaFilaDatos = count($filas) + 1;        // las filas de datos ya cargadas
+
+        $totales = [];
+
+        for ($i = 0; $i < $columnas; $i++) {
+            $letra = Coordinate::stringFromColumnIndex($relleno + 2 + $i);
+
+            $totales[] = $ultimaFilaDatos >= $primeraFilaDatos
+                ? "=SUBTOTAL(109,{$letra}{$primeraFilaDatos}:{$letra}{$ultimaFilaDatos})"
+                : 0;
+        }
+
         $filas[] = array_merge(
             ['Total'],
             $relleno > 0 ? array_fill(0, $relleno, null) : [],
-            $this->datos['totales_columna'],
-            [$this->datos['total_general']],
+            $totales,
         );
 
         return $filas;
