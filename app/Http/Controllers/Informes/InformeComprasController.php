@@ -95,6 +95,20 @@ class InformeComprasController extends Controller
         // Los arrays van con `sometimes`, no con `present`: el botón manda un `<form>` POST, y un
         // form no tiene forma de expresar "array vacío" — cuando el cruce no tiene dimensión de
         // Filas, `filas` simplemente no viaja. Se completan con `[]` más abajo.
+        // La pantalla manda la matriz entera como un JSON en el campo `matriz`: un cruce
+        // grande son miles de campos y PHP descarta en silencio lo que pase de `max_input_vars`,
+        // perdiendo las últimas filas y los totales. Se acepta además el formato plano de antes
+        // para no romper un cliente viejo.
+        if ($request->filled('matriz')) {
+            $matriz = json_decode((string) $request->input('matriz'), true);
+
+            if (! is_array($matriz)) {
+                return response()->json(['message' => 'No se pudo leer el cruce para exportar.'], 422);
+            }
+
+            $request->merge($matriz);
+        }
+
         $datos = $request->validate([
             'titulo' => ['required', 'string', 'max:120'],
             'encabezados_fila' => ['sometimes', 'array'],

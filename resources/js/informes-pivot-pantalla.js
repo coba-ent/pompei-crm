@@ -392,11 +392,14 @@
             // JSON adentro: el controlador valida `titulo`, `filas`, `totales_columna`… de primer
             // nivel. Mandando `payload` la validación fallaba con 422 y, como el form abría en otra
             // pestaña, el usuario veía "se abre una pestaña y no descarga nada" en vez del Excel.
+            // La matriz va en UN solo campo con el JSON adentro, no en un campo por celda. Un
+            // cruce de 573 productos × 3 meses son casi 3.000 campos, y PHP descarta en silencio
+            // todo lo que pase de `max_input_vars` (1.000 por defecto): se perdían las últimas
+            // filas y, sobre todo, `totales_columna` y `total_general`, que van al final — por eso
+            // la fila "Total" del Excel salía vacía.
             const $form = $('<form method="POST">').attr('action', rutas.pivotExportar);
             $form.append($('<input type="hidden" name="_token">').val($('meta[name="csrf-token"]').attr('content')));
-            camposDeFormulario(matriz).forEach(([nombre, valor]) => {
-                $form.append($('<input type="hidden">').attr('name', nombre).val(valor));
-            });
+            $form.append($('<input type="hidden" name="matriz">').val(JSON.stringify(matriz)));
             $('body').append($form);
             $form[0].submit();
             $form.remove();

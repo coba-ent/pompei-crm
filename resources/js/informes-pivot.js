@@ -416,8 +416,11 @@
                     valores: $fila.find('td.pvtTotal.colTotal').map(function () { return $(this).text(); }).get(),
                     total: $fila.find('td.pvtGrandTotal').first().text(),
                     // Marca explícita para el export: así no vuelve a agregar su propia fila de
-                    // totales al pie y la deja duplicada.
-                    es_total: true,
+                    // totales al pie y la deja duplicada. Va como 1 y no como `true` porque la
+                    // matriz viaja en un form y un `true` llega al servidor como el string
+                    // "true", que la regla `boolean` de Laravel rechaza — el export respondía 422
+                    // y el navegador se quedaba con el archivo anterior.
+                    es_total: 1,
                 });
 
                 return;

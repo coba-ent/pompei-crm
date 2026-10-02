@@ -170,6 +170,32 @@ class PivotExportTest extends TestCase
         $this->assertSame(['Con huecos', 1.0, null, 3.0, 4.0], $legible[2]);
     }
 
+
+    /**
+     * Un cruce grande (573 productos x 3 meses) son casi 3.000 campos de formulario, y PHP
+     * descarta en silencio todo lo que pase de `max_input_vars` (1.000 por defecto). Se perdian
+     * las ultimas filas y, sobre todo, `totales_columna` y `total_general`, que van al final del
+     * form: por eso la fila "Total" del Excel salia vacia. La matriz viaja ahora en un solo campo.
+     */
+    public function test_el_endpoint_acepta_la_matriz_como_un_unico_campo_json(): void
+    {
+        $respuesta = $this->post(route('informes.ventas.pivot.exportar'), [
+            'matriz' => json_encode($this->matriz()),
+        ]);
+
+        $respuesta->assertOk();
+        $this->assertStringContainsString(
+            'spreadsheetml',
+            (string) $respuesta->headers->get('content-type')
+        );
+    }
+
+    public function test_un_json_ilegible_en_el_campo_matriz_se_rechaza_con_422(): void
+    {
+        $this->post(route('informes.ventas.pivot.exportar'), ['matriz' => 'no es json'])
+            ->assertStatus(422);
+    }
+
     public function test_la_hoja_plana_tiene_una_fila_por_combinacion_con_valor(): void
     {
         [, $plana] = $this->hojas($this->matriz());
