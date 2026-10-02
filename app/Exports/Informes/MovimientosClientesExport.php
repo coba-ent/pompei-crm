@@ -78,6 +78,12 @@ class MovimientosClientesExport implements WithMultipleSheets
             $m['a_cobrar'],
         ])->values()->all();
 
-        return new HojaInforme('Movimientos de Clientes', self::ENCABEZADOS, $datos);
+        // Autofiltro y nada más: la hoja es una fila por movimiento y el usuario filtra por
+        // cliente u operación, pero NO se le agrega fila de totales. Las filas mezclan ventas,
+        // cobros y notas —734 cobros contra 631 ventas en un mes típico—, así que sumar una
+        // columna sin filtrar antes no tiene significado contable; y la pantalla del informe
+        // tampoco muestra totales, con lo que inventarlos acá sería agregar un dato que el
+        // sistema no da en ningún otro lado.
+        return new HojaInforme('Movimientos de Clientes', self::ENCABEZADOS, $datos, conAutofiltro: true);
     }
 }

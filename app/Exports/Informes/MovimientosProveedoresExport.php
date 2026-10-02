@@ -75,6 +75,8 @@ class MovimientosProveedoresExport implements WithMultipleSheets
             $m['a_pagar'],
         ])->values()->all();
 
-        return new HojaInforme('Movimientos de Proveedores', self::ENCABEZADOS, $datos);
+        // Mismo criterio que la hoja de clientes: autofiltro sí, fila de totales no. Las filas
+        // mezclan compras, pagos y notas, y la pantalla del informe no totaliza.
+        return new HojaInforme('Movimientos de Proveedores', self::ENCABEZADOS, $datos, conAutofiltro: true);
     }
 }

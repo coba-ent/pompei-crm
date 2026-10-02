@@ -2,7 +2,7 @@
 
 **Feature Branch**: `114-informes-totales-filtrables`
 **Created**: 2026-10-02
-**Status**: En curso — Tandas 1 a 4 implementadas
+**Status**: En curso — Tandas 1 a 5 implementadas; falta decidir Libro IVA
 **Input**: Continuación de la spec 113. Resuelto el Ranking, aplicar el mismo criterio al resto de los exports del módulo Informes, módulo por módulo, verificando en cada uno dónde es viable y dónde generaría un número incorrecto.
 
 ## Contexto
@@ -220,11 +220,25 @@ sobre Excel reales con datos controlados: clientes da 300 / 50 / 25 / 375 y prov
 Autofiltro en las hojas de saldos —con la fila de totales y la separadora fuera del rango— y también
 en la hoja **Movimientos** de proveedores, que es plana.
 
+### Tanda 5 — Movimientos de Clientes y de Proveedores *(implementada, sólo autofiltro)*
+
+Las dos hojas son planas —una fila por movimiento, 34 columnas— así que el autofiltro va sin
+reparos: el usuario filtra por cliente, proveedor u operación y el recorte se entiende solo.
+
+**No se les agrega fila de totales**, y es deliberado por dos razones:
+
+1. Las filas mezclan operaciones de naturaleza distinta. En un mes típico hay 734 cobros, 631 ventas
+   y 16 notas en la misma hoja; la columna "Cobrado" suma 184 millones contra los 89 de "Total
+   Venta". Sumar una columna sin filtrar antes por operación no tiene significado contable.
+2. La pantalla del informe tampoco muestra totales. Agregarlos en el Excel sería inventar un KPI que
+   el sistema no da en ningún otro lado, y que nadie podría contrastar contra el CRM.
+
+Verificado: autofiltro `A1:AH1382` sobre las 34 columnas, sin filas que excluir.
+
 ### Tandas siguientes *(pendientes de análisis)*
 
 Cada una repite el método: medir, clasificar, convertir sólo lo sumable, rotular el resto.
 
-- **Movimientos de Clientes / Proveedores**.
 - **Libro IVA**: requiere una decisión de negocio previa. Sus totales forman parte de una
   presentación fiscal, y un total que cambia al filtrar puede llevar a presentar un número parcial
   como si fuera el total del período. Puede corresponder dejarlo fijo a propósito.
