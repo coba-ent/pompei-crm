@@ -2,7 +2,7 @@
 
 **Feature Branch**: `114-informes-totales-filtrables`
 **Created**: 2026-10-02
-**Status**: En curso — Tandas 1, 2 y 3 implementadas
+**Status**: En curso — Tandas 1 a 4 implementadas
 **Input**: Continuación de la spec 113. Resuelto el Ranking, aplicar el mismo criterio al resto de los exports del módulo Informes, módulo por módulo, verificando en cada uno dónde es viable y dónde generaría un número incorrecto.
 
 ## Contexto
@@ -207,11 +207,23 @@ del informe (Ventas vs. Compras y Caja), y sumar sus montos juntos no significa 
 es plana o jerárquica. En una hoja jerárquica el trabajo se limita al autofiltro de su hoja plana, si
 la tiene.
 
+### Tanda 4 — Cuenta Corriente de clientes y de proveedores *(implementada)*
+
+El caso más limpio de todos: las dos hojas de saldos son **una fila por cliente / por proveedor**,
+sin subtotales intercalados, y el total que ya se escribía era exactamente la suma de esas mismas
+columnas. No hace falta clasificar columna por columna: **todas** son convertibles.
+
+Convertidas a fórmula en las dos: A Vencer, Vencido 0-30, 31-60, 61-90, >90 y Total. Verificado
+sobre Excel reales con datos controlados: clientes da 300 / 50 / 25 / 375 y proveedores
+1.000 / 500 / 250 / 100 / 0 / 1.850, idénticos a los totales que escribía antes.
+
+Autofiltro en las hojas de saldos —con la fila de totales y la separadora fuera del rango— y también
+en la hoja **Movimientos** de proveedores, que es plana.
+
 ### Tandas siguientes *(pendientes de análisis)*
 
 Cada una repite el método: medir, clasificar, convertir sólo lo sumable, rotular el resto.
 
-- **Cuenta Corriente** de clientes y de proveedores.
 - **Movimientos de Clientes / Proveedores**.
 - **Libro IVA**: requiere una decisión de negocio previa. Sus totales forman parte de una
   presentación fiscal, y un total que cambia al filtrar puede llevar a presentar un número parcial

@@ -4,6 +4,7 @@ namespace App\Exports\Informes;
 
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 
 /**
@@ -31,10 +32,23 @@ class CuentaCorrienteProveedorExport implements WithMultipleSheets
             array_map(fn (string $c) => (float) $f[$c], $columnas),
         ))->values()->all();
 
+        // Los totales van como SUBTOTAL(109) —la única función de Excel que ignora las filas
+        // ocultas por un autofiltro— así que al filtrar por un proveedor el total pasa a ser el de
+        // ese proveedor. Es seguro para todas las columnas: la hoja es una fila por proveedor, sin
+        // subtotales intercalados, y el total que se venía escribiendo era exactamente la suma de
+        // esas mismas columnas.
+        $ultimaFilaDatos = count($datos) + 1;   // +1 por la fila de encabezados
+
         $datos[] = [];
         $datos[] = array_merge(
             ['Total'],
-            array_map(fn (string $c) => round((float) $this->saldos->sum($c), 2), $columnas),
+            array_map(
+                fn (int $i) => $ultimaFilaDatos >= 2
+                    ? '=SUBTOTAL(109,'.Coordinate::stringFromColumnIndex($i + 2).'2:'
+                        .Coordinate::stringFromColumnIndex($i + 2).$ultimaFilaDatos.')'
+                    : 0,
+                array_keys($columnas),
+            ),
         );
 
         return new HojaInforme(
@@ -42,6 +56,7 @@ class CuentaCorrienteProveedorExport implements WithMultipleSheets
             ['Proveedor', 'A Vencer', 'Vencido 0 y 30', 'Vencido 31 y 60', 'Vencido 61 y 90', 'Vencido >90', 'Total'],
             $datos,
             [count($datos)],
+            conAutofiltro: true,
         );
     }
 
@@ -85,6 +100,7 @@ class CuentaCorrienteProveedorExport implements WithMultipleSheets
             ['Id', 'Emisión', 'Proveedor', 'Operación', 'Categoría', 'Total Compra', 'Pagado',
                 'A Pagar', 'N° de Comprobante', 'Medio de Pago', 'Descripción'],
             $datos,
+            conAutofiltro: true,
         );
     }
 }
