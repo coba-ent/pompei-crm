@@ -30,6 +30,17 @@ class InformeVentasDetalladoExport implements FromArray, WithStrictNullCompariso
     /** Fila (base 1) donde arranca el encabezado de las 44 columnas. */
     private const FILA_ENCABEZADO = 10;
 
+    /**
+     * Columnas del detalle cuyo total es la suma de la propia columna, verificado contra la base:
+     * su suma por fila coincide exactamente con el KPI del informe. Son las unicas que pueden ir
+     * como SUBTOTAL y seguir al filtro de Excel sin dar un numero inflado.
+     */
+    private const COL_CANTIDAD = 'Q';
+    private const COL_COSTO_ACTUAL = 'S';
+    private const COL_CMV = 'T';
+    private const COL_PRECIO_NETO = 'V';
+    private const COL_RESULTADO = 'W';
+
     private const RÓTULOS = [
         'Id', 'Emisión', 'Vencimiento', 'Categoría', 'Cliente', 'CUIT / DNI', 'ARCA', 'Tipo',
         'Tipo de Comprobante', 'Punto de Venta', 'N° Factura', 'Vendedor', 'Producto/Servicio',
@@ -42,6 +53,9 @@ class InformeVentasDetalladoExport implements FromArray, WithStrictNullCompariso
         'Afecta Stock',
     ];
 
+    /** Cuántas filas de detalle tiene el archivo; fija el rango de las fórmulas del encabezado. */
+    private int $filasDeDetalle = 0;
+
     public function __construct(private VentasInformeQuery $informe, private Request $request) {}
 
     public function title(): string
@@ -53,34 +67,51 @@ class InformeVentasDetalladoExport implements FromArray, WithStrictNullCompariso
     {
         $kpis = $this->informe->kpis($this->request);
 
+        // El detalle se arma PRIMERO: las fórmulas del encabezado necesitan saber hasta qué fila
+        // llega el rango, y eso recién se sabe después de recorrerlo.
+        $detalle = [];
+
+        $this->informe->detalle($this->request)
+            ->orderBy('detalle.fecha')
+            ->orderBy('detalle.id')
+            ->chunk(self::CHUNK, function ($chunk) use (&$detalle) {
+                foreach ($chunk as $fila) {
+                    $detalle[] = $this->fila($fila);
+                }
+            });
+
+        $this->filasDeDetalle = count($detalle);
+
         // Cada bloque: una fila de RÓTULOS y, debajo, la fila de VALORES en las mismas columnas
         // (no rótulo-valor intercalados en la misma fila — así lo tiene el archivo real de
         // Contagram). La fila en blanco entre bloques va como `[null]` y NO `[]`: un array vacío
         // lo descarta el `flatMap` de Maatwebsite al aplanar filas, así que no aparece como fila
         // en blanco en el Excel sino que directamente desaparece, corriendo todo lo de abajo.
+        //
+        // Los KPIs que son suma de una columna del detalle van como fórmula SUBTOTAL(109), la
+        // única que ignora las filas ocultas por un autofiltro: al filtrar por un proveedor
+        // dentro del Excel pasan a ser los de ese proveedor. Se verificó contra la base cuáles lo
+        // son —su suma por fila coincide exactamente con el KPI— y cuáles no:
+        //
+        //   Cantidad, Costo Actual, CMV, Precio Neto y Resultado -> coinciden, van como fórmula.
+        //   Total Ventas, Cantidad de Ventas y Venta Promedio    -> NO: el total de la venta se
+        //       repite en cada una de sus líneas (1.805 filas para 1.297 comprobantes), así que
+        //       sumarlo por fila lo infla. Quedan con el valor del informe completo y el rótulo lo
+        //       dice, para que nadie lea un número filtrado como si fuera el del filtro.
         $filas = [
-            ['Total Ventas Creadas', 'Total Nota de Débito', 'Total Nota de Crédito', 'Total Ventas'],
+            ['Total Ventas Creadas (informe completo)', 'Total Nota de Débito (informe completo)', 'Total Nota de Crédito (informe completo)', 'Total Ventas (informe completo)'],
             [$kpis['total_ventas_creadas'], $kpis['total_nota_debito'], $kpis['total_nota_credito'], $kpis['total_ventas']],
             [null],
-            ['Cantidad de Productos/Servicios', 'Cantidad Ventas Creadas', 'Venta Promedio', 'Costo Actual'],
-            [$kpis['cantidad_prod_serv'], $kpis['cantidad_ventas_creadas'], $kpis['venta_promedio'], $kpis['costo_actual']],
+            ['Cantidad de Productos/Servicios', 'Cantidad Ventas Creadas (informe completo)', 'Venta Promedio (informe completo)', 'Costo Actual'],
+            [$this->subtotal(self::COL_CANTIDAD), $kpis['cantidad_ventas_creadas'], $kpis['venta_promedio'], $this->subtotal(self::COL_COSTO_ACTUAL)],
             [null],
             ['Precio Neto', 'Costo Mercadería Vendida', 'Resultado'],
-            [$kpis['precio_neto'], $kpis['cmv'], $kpis['resultado']],
+            [$this->subtotal(self::COL_PRECIO_NETO), $this->subtotal(self::COL_CMV), $this->subtotal(self::COL_RESULTADO)],
             [null],
             self::RÓTULOS,
         ];
 
-        $this->informe->detalle($this->request)
-            ->orderBy('detalle.fecha')
-            ->orderBy('detalle.id')
-            ->chunk(self::CHUNK, function ($chunk) use (&$filas) {
-                foreach ($chunk as $fila) {
-                    $filas[] = $this->fila($fila);
-                }
-            });
-
-        return $filas;
+        return array_merge($filas, $detalle);
     }
 
     /** @return list<mixed> */
@@ -143,6 +174,31 @@ class InformeVentasDetalladoExport implements FromArray, WithStrictNullCompariso
      * explícitamente con `Date::PHPToExcel()`; el número de formato (`dd/mm/yyyy`) que hace que
      * Excel lo MUESTRE como fecha se aplica aparte, en `styles()`.
      */
+    /**
+     * Fórmula de total para una columna del detalle.
+     *
+     * SUBTOTAL(109) suma sólo las filas visibles, así que el total sigue al autofiltro: filtrando
+     * por un proveedor el KPI pasa a ser el de ese proveedor. El rango arranca en la primera fila
+     * de datos y llega hasta la última; se calcula al vuelo porque el detalle se pagina por chunks
+     * y recién al final se sabe cuántas filas hay.
+     *
+     * El total puede diferir del KPI en centavos: el KPI suma en SQL sin redondear y la fórmula
+     * suma las celdas ya redondeadas a 2 decimales. Es el redondeo acumulado de cientos de filas
+     * (8 centavos sobre 10 millones en el peor caso medido) y es el comportamiento correcto para
+     * un total que vive en la planilla: suma exactamente lo que el usuario ve.
+     */
+    private function subtotal(string $columna): string
+    {
+        $primera = self::FILA_ENCABEZADO + 1;
+        $ultima = self::FILA_ENCABEZADO + $this->filasDeDetalle;
+
+        if ($this->filasDeDetalle < 1) {
+            return '0';
+        }
+
+        return "=SUBTOTAL(109,{$columna}{$primera}:{$columna}{$ultima})";
+    }
+
     private function fechaExcel(mixed $valor): ?float
     {
         return $valor ? \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel(new \DateTimeImmutable((string) $valor)) : null;
@@ -177,6 +233,12 @@ class InformeVentasDetalladoExport implements FromArray, WithStrictNullCompariso
             // Columnas B (Emisión) y C (Vencimiento): formato de fecha, no texto (I8).
             $sheet->getStyle("B{$primeraFilaDatos}:C{$ultimaFila}")
                 ->getNumberFormat()->setFormatCode('dd/mm/yyyy');
+
+            // Filtro ya activado sobre el encabezado del detalle y sus filas: el usuario filtra
+            // por proveedor apenas abre el archivo, sin seleccionar el rango a mano —que es donde
+            // se equivocaba y dejaba filas afuera—. Los bloques de KPIs de arriba quedan fuera del
+            // rango para que sus textos no aparezcan entre los valores del desplegable.
+            $sheet->setAutoFilter("A{$filaEncabezado}:{$ultima}{$ultimaFila}");
         }
 
         return [];

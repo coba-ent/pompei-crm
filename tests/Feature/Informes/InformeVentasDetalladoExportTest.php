@@ -19,6 +19,9 @@ class InformeVentasDetalladoExportTest extends TestCase
 {
     use ArmaVentas, ConPermisoInformes, RefreshDatabase;
 
+    /** `ArmaVentas` crea las ventas en agosto de 2026; sin rango explícito el informe usa el mes en curso. */
+    private const RANGO = ['fecha_desde' => '2026-08-01', 'fecha_hasta' => '2026-08-31'];
+
     private const RÓTULOS = [
         'Id', 'Emisión', 'Vencimiento', 'Categoría', 'Cliente', 'CUIT / DNI', 'ARCA', 'Tipo',
         'Tipo de Comprobante', 'Punto de Venta', 'N° Factura', 'Vendedor', 'Producto/Servicio',
@@ -51,13 +54,74 @@ class InformeVentasDetalladoExportTest extends TestCase
         $filas = $hoja->array();
 
         // Rótulos en una fila, valores en la de abajo (como el archivo real de Contagram) — no
-        // rótulo-valor intercalados en la misma fila.
-        $this->assertSame(['Total Ventas Creadas', 'Total Nota de Débito', 'Total Nota de Crédito', 'Total Ventas'], $filas[0]);
+        // rótulo-valor intercalados en la misma fila. Los cuatro de este bloque llevan "(informe
+        // completo)": su valor no puede recalcularse al filtrar en Excel porque el total de una
+        // venta se repite en cada una de sus líneas, así que el rótulo lo aclara.
+        $this->assertSame([
+            'Total Ventas Creadas (informe completo)',
+            'Total Nota de Débito (informe completo)',
+            'Total Nota de Crédito (informe completo)',
+            'Total Ventas (informe completo)',
+        ], $filas[0]);
         $this->assertIsFloat($filas[1][0]);
         $this->assertIsFloat($filas[1][3]);
         // La fila en blanco entre bloques tiene que EXISTIR (índice 2 real), no desaparecer.
         $this->assertSame([], array_values(array_filter($filas[2], fn ($v) => $v !== null && $v !== '')));
         $this->assertSame(self::RÓTULOS, $filas[9]);
+    }
+
+
+    /**
+     * Los KPIs que son suma de una columna del detalle van como SUBTOTAL(109): es la unica
+     * funcion de Excel que ignora las filas ocultas por un autofiltro, asi que al filtrar por un
+     * proveedor dentro del archivo pasan a ser los de ese proveedor.
+     */
+    public function test_los_kpis_sumables_van_como_formula_subtotal(): void
+    {
+        $this->venta([['cantidad' => 1, 'precio' => 100, 'iva_pct' => '21']]);
+
+        $filas = $this->export(self::RANGO)->array();
+
+        // Bloque 2: Cantidad (A5) y Costo Actual (D5).
+        $this->assertStringStartsWith('=SUBTOTAL(109,Q', (string) $filas[4][0]);
+        $this->assertStringStartsWith('=SUBTOTAL(109,S', (string) $filas[4][3]);
+
+        // Bloque 3: Precio Neto, CMV y Resultado.
+        $this->assertStringStartsWith('=SUBTOTAL(109,V', (string) $filas[7][0]);
+        $this->assertStringStartsWith('=SUBTOTAL(109,T', (string) $filas[7][1]);
+        $this->assertStringStartsWith('=SUBTOTAL(109,W', (string) $filas[7][2]);
+    }
+
+    /**
+     * Los totales de comprobante NO pueden ir como SUBTOTAL: el total de una venta se repite en
+     * cada una de sus lineas, asi que sumarlo por fila lo infla. Se quedan con el valor del
+     * informe completo y el rotulo lo dice.
+     */
+    public function test_los_totales_de_comprobante_siguen_siendo_numeros_del_informe(): void
+    {
+        $this->venta([['cantidad' => 1, 'precio' => 100, 'iva_pct' => '21']]);
+
+        $filas = $this->export(self::RANGO)->array();
+
+        $this->assertIsFloat($filas[1][0]);   // Total Ventas Creadas
+        $this->assertIsFloat($filas[1][3]);   // Total Ventas
+        $this->assertStringContainsString('(informe completo)', $filas[3][1]); // Cantidad Ventas
+        $this->assertStringContainsString('(informe completo)', $filas[3][2]); // Venta Promedio
+    }
+
+    /** El archivo se abre listo para filtrar por proveedor, sin seleccionar el rango a mano. */
+    public function test_el_archivo_trae_el_autofiltro_desde_la_fila_del_encabezado(): void
+    {
+        $this->venta([['cantidad' => 1, 'precio' => 100, 'iva_pct' => '21']]);
+
+        $export = $this->export(self::RANGO);
+        $hoja = (new \PhpOffice\PhpSpreadsheet\Spreadsheet())->getActiveSheet();
+        $hoja->fromArray($export->array(), null, 'A1', true);
+        $export->styles($hoja);
+
+        // Arranca en la fila 10 (el encabezado del detalle), no en la 1: los bloques de KPIs de
+        // arriba quedan fuera para que sus textos no entren en el desplegable del filtro.
+        $this->assertStringStartsWith('A10:', $hoja->getAutoFilter()->getRange());
     }
 
     /** Las 44 columnas, rótulo y orden exactos, incluida la duplicación deliberada de "Tipo". */
@@ -210,7 +274,7 @@ class InformeVentasDetalladoExportTest extends TestCase
     /** @return list<list<mixed>> */
     private function filasDeVenta(int $ventaId, array $params = []): array
     {
-        $todas = array_slice($this->export($params)->array(), 10);
+        $todas = array_slice($this->export($params ?: self::RANGO)->array(), 10);
 
         return array_values(array_filter($todas, fn ($f) => (int) $f[0] === $ventaId));
     }
