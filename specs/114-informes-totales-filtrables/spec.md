@@ -2,7 +2,7 @@
 
 **Feature Branch**: `114-informes-totales-filtrables`
 **Created**: 2026-10-02
-**Status**: En curso — Tandas 1 a 5 implementadas; falta decidir Libro IVA
+**Status**: Cerrada — 6 tandas analizadas, 5 implementadas y Libro IVA excluido por decisión del cliente
 **Input**: Continuación de la spec 113. Resuelto el Ranking, aplicar el mismo criterio al resto de los exports del módulo Informes, módulo por módulo, verificando en cada uno dónde es viable y dónde generaría un número incorrecto.
 
 ## Contexto
@@ -235,13 +235,52 @@ reparos: el usuario filtra por cliente, proveedor u operación y el recorte se e
 
 Verificado: autofiltro `A1:AH1382` sobre las 34 columnas, sin filas que excluir.
 
-### Tandas siguientes *(pendientes de análisis)*
+### Tanda 6 — Libro IVA *(se decide NO aplicar)*
 
-Cada una repite el método: medir, clasificar, convertir sólo lo sumable, rotular el resto.
+Único informe de la serie que queda **sin cambios**, por decisión del cliente (02/10/2026), y no por
+una limitación técnica: sus totales son tan convertibles como los de Cuenta Corriente.
 
-- **Libro IVA**: requiere una decisión de negocio previa. Sus totales forman parte de una
-  presentación fiscal, y un total que cambia al filtrar puede llevar a presentar un número parcial
-  como si fuera el total del período. Puede corresponder dejarlo fijo a propósito.
+El motivo es de riesgo, no de implementación. Los totales del Libro IVA forman parte de una
+presentación fiscal. Si siguieran al filtro, alguien podría filtrar por un cliente o por un tipo de
+comprobante, imprimir y presentar ese parcial creyendo que es el total del período. El número fijo
+protege de ese error, y esa protección vale más que la comodidad de filtrar.
+
+Tampoco se le agrega autofiltro: habilitar el filtro sin que los totales acompañen es precisamente
+la combinación que produce esa confusión —filas recortadas con un total que sigue siendo el de todo—
+y es el mismo síntoma que originó toda esta spec.
+
+Si en el futuro se quisiera revisar, la alternativa intermedia sería autofiltro con los totales
+fijos y rotulados "(período completo)".
+
+## Resultado de la spec
+
+| Informe | Autofiltro | Totales con fórmula |
+|---|---|---|
+| Rankings / Arma tu Informe (spec 113) | sí | todos |
+| Ventas Detallado | sí (desde la fila 10) | 5 de 11 |
+| Ventas (resumen) | sí | 5 de 11 |
+| Compras | sí | 1 de 8 |
+| Gastos — hoja jerárquica | no | no |
+| Gastos — hoja plana | sí | no |
+| Reporte Final — hoja jerárquica | no | no |
+| Reporte Final — hoja plana | sí | no |
+| Cuenta Corriente clientes | sí | todos |
+| Cuenta Corriente proveedores (saldos y movimientos) | sí | todos los de saldos |
+| Movimientos de Clientes / Proveedores | sí | no |
+| **Libro IVA** | **no** | **no** |
+
+Lo que el recorrido dejó como criterio reutilizable, por orden de aplicación:
+
+1. **¿La hoja es plana o jerárquica?** Con subtotales intercalados entre los datos, el filtro rompe
+   la lectura y la columna de importes mezcla datos con subtotales. Ahí el trabajo se limita a la
+   hoja plana, si existe.
+2. **¿El total es la suma de su columna?** Se mide contra la base antes de convertir. Un importe que
+   se repite entre las líneas de un mismo comprobante no se puede sumar por fila: en Compras daba
+   diez veces el valor real.
+3. **¿La pantalla muestra ese total?** Si no lo muestra, agregarlo al Excel es inventar un KPI que
+   nadie puede contrastar contra el CRM.
+4. **¿El número se usa para algo donde un parcial sería peligroso?** Es la pregunta del Libro IVA, y
+   la única que no se responde midiendo.
 
 ## Assumptions
 
