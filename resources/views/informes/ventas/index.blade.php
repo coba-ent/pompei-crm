@@ -375,7 +375,7 @@
             pivotVistas: @json(route('informes.ventas.pivot.vistas.index')),
             pivotVistaBase: @json(url('informes/ventas/pivot/vistas')),
             clientesOpciones: @json(route('clientes.opciones')),
-            productosOpciones: @json(route('productos.opciones')),
+            productosOpciones: @json(route('productos.opciones', ['incluir_inactivos' => 1])),
             proveedoresOpciones: @json(route('proveedores.opciones')),
         },
     };

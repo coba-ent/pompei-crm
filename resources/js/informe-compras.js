@@ -72,7 +72,7 @@
                 url: rutas.productosOpciones, delay: 250,
                 data: (params) => ({ q: params.term }),
                 processResults: (data) => ({
-                    results: (data.data || []).map((p) => ({ id: p.id, text: p.codigo ? p.codigo + ' — ' + p.nombre : p.nombre })),
+                    results: (data.data || []).map((p) => ({ id: p.id, text: (p.codigo ? p.codigo + ' — ' + p.nombre : p.nombre) + (p.activo === false ? ' (inactivo)' : '') })),
                 }),
             },
         });

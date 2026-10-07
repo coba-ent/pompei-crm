@@ -72,8 +72,11 @@ class ProductoController extends Controller
     {
         $listaPrecioId = $request->input('lista_precio_id');
 
+        // Los buscadores de carga (Venta/Compra/Presupuesto) nunca ofrecen inactivos; los
+        // filtros de informes sí (`incluir_inactivos`), porque un producto dado de baja
+        // conserva sus movimientos históricos y hay que poder consultarlos.
         $query = Producto::query()
-            ->where('activo', true)
+            ->when(! $request->boolean('incluir_inactivos'), fn ($q) => $q->where('activo', true))
             ->when(! $request->boolean('incluir_servicios'), fn ($q) => $q->where('tipo', 'producto'))
             ->when($request->filled('ids'), function ($q) use ($request) {
                 $q->whereIn('id', (array) $request->input('ids'));
@@ -93,11 +96,12 @@ class ProductoController extends Controller
             ]);
         }
 
-        $opciones = $query->get(['id', 'nombre', 'codigo', 'precio_venta', 'iva_venta_pct', 'costo', 'iva_compra_pct'])
+        $opciones = $query->get(['id', 'nombre', 'codigo', 'activo', 'precio_venta', 'iva_venta_pct', 'costo', 'iva_compra_pct'])
             ->map(fn (Producto $p) => [
                 'id' => $p->id,
                 'nombre' => $p->nombre,
                 'codigo' => $p->codigo,
+                'activo' => (bool) $p->activo,
                 'precio' => (float) ($p->precio_lista ?? $p->precio_venta),
                 'iva_venta_pct' => $p->iva_venta_pct,
                 'costo' => (float) $p->costo,

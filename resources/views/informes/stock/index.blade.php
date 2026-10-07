@@ -170,7 +170,7 @@
         rutas: {
             data: "{{ route('informes.stock.data') }}",
             stats: "{{ route('informes.stock.stats') }}",
-            opciones: "{{ route('productos.opciones') }}",
+            opciones: "{{ route('productos.opciones', ['incluir_inactivos' => 1]) }}",
         },
         productoId: {{ $productoId ? (int) $productoId : 'null' }},
     };

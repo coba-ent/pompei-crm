@@ -89,7 +89,7 @@
 
         select2Remoto('#filtro-cliente', rutas.clientesOpciones, (c) => ({ id: c.id, text: c.nombre }));
         select2Remoto('#filtro-producto', rutas.productosOpciones,
-            (p) => ({ id: p.id, text: p.codigo ? p.codigo + ' — ' + p.nombre : p.nombre }));
+            (p) => ({ id: p.id, text: (p.codigo ? p.codigo + ' — ' + p.nombre : p.nombre) + (p.activo === false ? ' (inactivo)' : '') }));
         select2Remoto('#filtro-proveedor', rutas.proveedoresOpciones, (p) => ({ id: p.id, text: p.nombre }));
 
         // --- Rango de Emisión: arranca en el mes calendario actual completo (FR-003) ---

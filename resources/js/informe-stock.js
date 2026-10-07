@@ -51,7 +51,8 @@
         }
 
         function etiquetaProducto(p) {
-            return p.codigo ? (p.nombre + ' (' + p.codigo + ')') : p.nombre;
+            const texto = p.codigo ? (p.nombre + ' (' + p.codigo + ')') : p.nombre;
+            return p.activo === false ? texto + ' (inactivo)' : texto;
         }
 
         // --- Selects dinámicos con Select2 (Usuario, Operación, Proveedor, Tipo de Producto, Estado) ---
