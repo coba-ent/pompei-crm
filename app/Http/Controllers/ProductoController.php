@@ -304,15 +304,10 @@ class ProductoController extends Controller
     public function export(Request $request): \Symfony\Component\HttpFoundation\BinaryFileResponse
     {
         $listas = $this->listasActivas();
+        // `buscar` ya lo resuelve queryFiltrada() con la búsqueda flexible (palabra
+        // por palabra), igual que el listado. No sumarle un LIKE con la frase entera:
+        // "andina largo bl" no matchea "Inodoro largo Andina..." y el XLSX salía vacío.
         $query = $this->queryFiltrada($request, $listas);
-
-        if ($request->filled('buscar')) {
-            $keyword = $request->input('buscar');
-            $query->where(function ($q) use ($keyword) {
-                $q->where('nombre', 'like', "%{$keyword}%")
-                    ->orWhere('codigo', 'like', "%{$keyword}%");
-            });
-        }
 
         $nombreArchivo = 'productos_'.now()->format('Ymd_His').'.xlsx';
         $depositos = $this->depositosActivos();
