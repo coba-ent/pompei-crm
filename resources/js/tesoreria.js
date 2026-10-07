@@ -710,6 +710,7 @@
                 // Selector de columnas nativo de DataTables (extensión Buttons) +
                 // stateSave: persiste qué columnas quedaron ocultas en localStorage.
                 stateSave: true,
+                colReorder: { fixedColumnsLeft: 1 }, // Arrastrar encabezados reordena (se guarda con stateSave); Acciones queda fija.
                 buttons: [
                     {
                         extend: 'colvis',

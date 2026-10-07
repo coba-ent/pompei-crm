@@ -110,6 +110,7 @@
                 },
             ],
             stateSave: true,
+            colReorder: true, // Arrastrar encabezados reordena las columnas (se guarda con stateSave).
             buttons: [
                 {
                     extend: 'colvis',

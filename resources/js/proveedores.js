@@ -69,6 +69,7 @@
             processing: true,
             serverSide: true,
             stateSave: true,
+            colReorder: { fixedColumnsLeft: 1 }, // Arrastrar encabezados reordena (se guarda con stateSave); Acciones queda fija.
             stateDuration: 0, // 0 = indefinido (localStorage), persiste entre sesiones.
             dom:
                 "<'row mb-2 align-items-center'<'col-sm-6'l>>" +

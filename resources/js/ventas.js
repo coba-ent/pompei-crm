@@ -333,6 +333,7 @@
             ],
             order: [[3, 'desc']],
             stateSave: true,
+            colReorder: { fixedColumnsLeft: 1 }, // Arrastrar encabezados reordena (se guarda con stateSave); Acciones queda fija.
             // El badge de aviso (cancelación/reembolso/mediación posterior) lleva su explicación
             // en un tooltip: las filas se redibujan por AJAX, así que hay que instanciarlos en
             // cada draw y descartar los de la tanda anterior, o quedan colgados en el DOM.

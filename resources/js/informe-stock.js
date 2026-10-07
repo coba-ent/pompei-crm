@@ -204,6 +204,7 @@
             // (la 0 pasó a ser el ID del documento).
             order: [[1, 'desc']],
             stateSave: true,
+            colReorder: true, // Arrastrar encabezados reordena las columnas (se guarda con stateSave).
             // El estado guardado (columnas visibles, orden) se descarta si es de una versión con
             // otra cantidad de columnas: al agregarse la columna "ID" (28/08/2026) los estados
             // viejos tenían 8 entradas para 9 columnas, y DataTables restauraba el colvis y el

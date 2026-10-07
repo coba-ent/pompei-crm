@@ -255,6 +255,11 @@
             // stateSave: persiste qué columnas quedaron ocultas en localStorage
             // (clave por URL) y las restaura solo al recargar la página.
             stateSave: true,
+            // Reordenar columnas arrastrando el encabezado (extensión ColReorder). El
+            // orden elegido entra en el mismo estado de stateSave que las columnas
+            // ocultas, así que también sobrevive al refresco. Checkbox y caret de
+            // acciones quedan fijos a la izquierda.
+            colReorder: { fixedColumnsLeft: 2 },
             buttons: [
                 {
                     extend: 'colvis',

@@ -305,6 +305,7 @@
             ],
             order: [[10, 'desc']], // índice 10 = "Creado" (created_at), mismo criterio que Ventas/Gastos: la única columna con hora, evita empates de mismo día en desorden.
             stateSave: true,
+            colReorder: { fixedColumnsLeft: 1 }, // Arrastrar encabezados reordena (se guarda con stateSave); Acciones queda fija.
             // El estado guardado (orden, visibilidad, búsqueda) se persiste por ÍNDICE de columna,
             // así que al reordenar las columnas el estado viejo del navegador aplicaría cada
             // ajuste a la columna equivocada. `stateLoadParams` descarta cualquier estado

@@ -179,6 +179,7 @@
             columns: columnas,
             order: [[1, 'desc']],
             stateSave: true,
+            colReorder: true, // Arrastrar encabezados reordena las columnas (se guarda con stateSave).
             buttons: [
                 {
                     extend: 'colvis',

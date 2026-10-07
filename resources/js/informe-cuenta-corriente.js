@@ -214,11 +214,13 @@
             ],
             order: [[1, 'desc']],
             stateSave: true,
+            colReorder: true, // Arrastrar encabezados reordena las columnas (se guarda con stateSave).
             // La columna 2 era "cliente_id", técnica y oculta; ahora es el nombre del
             // cliente y va visible (como en Contagram). Sin esto, un estado guardado de
             // antes la seguiría escondiendo para siempre.
             stateLoadParams: function (settings, state) {
-                if (state.columns && state.columns[2]) { state.columns[2].visible = true; }
+                // Sólo estados de antes de colReorder: con columnas reordenadas el índice 2 ya no es el cliente.
+                if (!state.ColReorder && state.columns && state.columns[2]) { state.columns[2].visible = true; }
             },
             buttons: [
                 {

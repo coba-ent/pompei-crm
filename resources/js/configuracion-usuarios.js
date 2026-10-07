@@ -112,6 +112,7 @@
                 },
             ],
             stateSave: true,
+            colReorder: { fixedColumnsLeft: 1 }, // Arrastrar encabezados reordena (se guarda con stateSave); Acciones queda fija.
             buttons: [
                 {
                     extend: 'colvis',

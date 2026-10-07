@@ -77,6 +77,14 @@ No son sugerencias: toda spec, plan, task e implementación debe cumplirlas.
 
 1. **Tablas**: siempre con **DataTables**, responsive, y con datos cargados por **AJAX**
    (server-side processing). Nada de tablas estáticas renderizadas en Blade para listados.
+   Todo listado lleva `stateSave: true`, el botón **colvis** y **`colReorder`** (reordenar columnas
+   arrastrando el encabezado; el orden persiste con el mismo stateSave). Las columnas de checkbox/acciones
+   del inicio van fijas con `colReorder: { fixedColumnsLeft: N }`; la página registra
+   `dataTables.colReorder.min.js` + `colReorder.dataTables.min.css` en su pagelevel de `config/dz.php`.
+   Con colReorder, **nunca** referenciar columnas por índice (`columns: function (idx) {...}`,
+   `state.columns[2]`): usar clases (`no-colvis`) o `data`. Excepción: tablas con encabezado de dos
+   filas (`colspan`/`rowspan`, ej. Saldos de Cuenta Corriente) no llevan colReorder — la extensión no
+   las soporta. Referencia: `resources/js/productos.js`.
 2. **Alta / edición / eliminación**: siempre mediante **modales de Bootstrap + AJAX**. La página
    **NUNCA** se refresca ni se recarga para realizar una operación (comportamiento tipo SPA sobre
    Blade). Los formularios se envían por AJAX y actualizan la tabla/UI en el lugar.

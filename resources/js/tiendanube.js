@@ -395,6 +395,7 @@
                     { data: 'mensaje_error', name: 'mensaje_error', defaultContent: '—', orderable: false },
                 ],
                 stateSave: true,
+                colReorder: true, // Arrastrar encabezados reordena las columnas (se guarda con stateSave).
                 buttons: [
                     {
                         extend: 'colvis',

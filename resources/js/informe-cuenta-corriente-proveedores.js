@@ -190,7 +190,7 @@
                 },
                 { data: 'fecha_emision', name: 'mov.fecha_emision', render: fecha },
                 // Columna técnica: alimenta el deep-link, no se muestra ni se ofrece en colvis.
-                { data: 'proveedor_id', name: 'mov.proveedor_id', visible: false },
+                { data: 'proveedor_id', name: 'mov.proveedor_id', visible: false, className: 'no-colvis' },
                 { data: 'operacion', name: 'mov.operacion', render: (v) => ETIQUETAS_OPERACION[v] || v },
                 { data: 'categoria', name: 'mov.categoria', defaultContent: '' },
                 { data: 'total_compra', name: 'mov.total_compra', className: 'text-end', render: moneyOpcional },
@@ -202,11 +202,13 @@
             ],
             order: [[1, 'desc']],
             stateSave: true,
+            colReorder: true, // Arrastrar encabezados reordena las columnas (se guarda con stateSave).
             buttons: [
                 {
                     extend: 'colvis', text: '<i class="fas fa-table-columns"></i>',
                     className: 'btn btn-outline-secondary',
-                    columns: function (idx) { return idx !== 2; },
+                    // Por clase y no por índice: con colReorder el índice 2 puede ser otra columna.
+                    columns: ':not(.no-colvis)',
                 },
             ],
         });
