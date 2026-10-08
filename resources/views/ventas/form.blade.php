@@ -194,6 +194,12 @@
     $datosConceptos = ($venta?->conceptos ?? $presupuestoOrigen?->conceptos ?? collect())->map(fn ($c) => $c->only(['tipo', 'concepto', 'monto']))->values();
     $datosEtiquetas = ($venta?->etiquetas ?? $presupuestoOrigen?->etiquetas ?? collect())->pluck('nombre');
     $datosCliente = $clienteOrigen ? ['id' => $clienteOrigen->id, 'nombre' => $clienteOrigen->nombre] : null;
+    // Conversión desde Presupuesto: el presupuesto no guarda tipo de comprobante, así que la venta
+    // toma el que corresponde al cliente (A para Responsable Inscripto), igual que al elegirlo a mano
+    // en el select. Sin esto quedaba la B del HTML.
+    if ($datosCliente && ! $venta && $presupuestoOrigen) {
+        $datosCliente['tipoComprobante'] = $clienteOrigen->tipoComprobanteQueCorresponde();
+    }
 @endphp
 @section('local-js')
 <script>

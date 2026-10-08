@@ -147,9 +147,10 @@ class ProveedorController extends Controller
     /**
      * Búsqueda flexible sobre nombre/CUIT: parte el texto en palabras y exige que
      * cada una aparezca (en cualquier orden) en nombre o CUIT — mismo criterio que
-     * en Productos (ver ProductoController::aplicarBusquedaFlexible). Para palabras
-     * de 4+ letras suma un fallback por SOUNDEX que tolera errores de tipeo en el
-     * nombre (no aplica a CUIT, que es numérico).
+     * en Productos (ver ProductoController::aplicarBusquedaFlexible).
+     *
+     * Sin fallback fonético (SOUNDEX), igual que en Clientes: el de MySQL es demasiado
+     * grueso para nombres y mezclaba parecidos con el buscado.
      */
     private function aplicarBusquedaFlexible(Builder $query, string $texto): void
     {
@@ -159,13 +160,6 @@ class ProveedorController extends Controller
             $query->where(function ($q) use ($palabra) {
                 $q->where('nombre', 'like', "%{$palabra}%")
                     ->orWhere('cuit', 'like', "%{$palabra}%");
-
-                // SOUNDEX de una cadena SIN letras (CUIT, códigos con guiones/barras)
-                // devuelve '', y eso hace que "columna LIKE CONCAT('', '%')" matchee
-                // cualquier fila — por eso se exige al menos una letra en la palabra.
-                if (preg_match('/\p{L}/u', $palabra) === 1 && mb_strlen($palabra) >= 4 && $q->getConnection()->getDriverName() === 'mysql') {
-                    $q->orWhereRaw('SOUNDEX(nombre) LIKE CONCAT(SOUNDEX(?), "%")', [$palabra]);
-                }
             });
         }
     }

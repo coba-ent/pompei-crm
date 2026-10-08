@@ -678,6 +678,9 @@
         refreshSelect2($('#f-lista-precio'));
         if (data.venta && data.venta.tipo_comprobante) {
             $('#f-tipo-comprobante').val(data.venta.tipo_comprobante);
+        } else if (data.cliente && data.cliente.tipoComprobante) {
+            // Conversión desde Presupuesto: el tipo que corresponde al cliente (A si es RI).
+            $('#f-tipo-comprobante').val(data.cliente.tipoComprobante);
         } else if (defaults.tipoComprobante) {
             $('#f-tipo-comprobante').val(defaults.tipoComprobante);
         }

@@ -155,9 +155,11 @@ class ClienteController extends Controller
      * exige que cada una aparezca (en cualquier orden) en nombre, razón social o CUIT
      * — mismo criterio que en Productos (ver ProductoController::aplicarBusquedaFlexible).
      * razon_social es opcional (no todos los clientes la tienen), por eso se suma como
-     * OR y no reemplaza a nombre. Para palabras de 4+ letras suma un fallback por
-     * SOUNDEX sobre nombre y razón social que tolera errores de tipeo (no aplica a CUIT,
-     * que es numérico).
+     * OR y no reemplaza a nombre.
+     *
+     * Sin fallback fonético (SOUNDEX): el de MySQL es demasiado grueso para nombres de
+     * personas ("Fairuz", "Fabio" y "Fabricio" dan todos F620) y al buscar "Fairuz" traía
+     * una docena de Fabricios. Pedido del cliente: o aparece lo que se escribió, o nada.
      */
     private function aplicarBusquedaFlexible(Builder $query, string $texto): void
     {
@@ -168,14 +170,6 @@ class ClienteController extends Controller
                 $q->where('nombre', 'like', "%{$palabra}%")
                     ->orWhere('razon_social', 'like', "%{$palabra}%")
                     ->orWhere('cuit', 'like', "%{$palabra}%");
-
-                // SOUNDEX de una cadena SIN letras (CUIT, códigos con guiones/barras)
-                // devuelve '', y eso hace que "columna LIKE CONCAT('', '%')" matchee
-                // cualquier fila — por eso se exige al menos una letra en la palabra.
-                if (preg_match('/\p{L}/u', $palabra) === 1 && mb_strlen($palabra) >= 4 && $q->getConnection()->getDriverName() === 'mysql') {
-                    $q->orWhereRaw('SOUNDEX(nombre) LIKE CONCAT(SOUNDEX(?), "%")', [$palabra])
-                        ->orWhereRaw('SOUNDEX(razon_social) LIKE CONCAT(SOUNDEX(?), "%")', [$palabra]);
-                }
             });
         }
     }

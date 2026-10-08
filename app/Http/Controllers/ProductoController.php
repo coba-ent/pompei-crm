@@ -229,9 +229,19 @@ class ProductoController extends Controller
         $palabras = array_filter(preg_split('/\s+/', trim($texto)));
 
         foreach ($palabras as $palabra) {
-            $query->where(function ($q) use ($palabra) {
+            $porTexto = function ($q) use ($palabra) {
                 $q->where('nombre', 'like', "%{$palabra}%")
                     ->orWhere('codigo', 'like', "%{$palabra}%");
+            };
+
+            // Fonético sólo como último recurso: la palabra no aparece escrita en ningún
+            // producto (antes se sumaba siempre como OR y mezclaba parecidos con el exacto).
+            $fonetico = preg_match('/^\p{L}+$/u', $palabra) === 1 && mb_strlen($palabra) >= 4
+                && $query->getConnection()->getDriverName() === 'mysql'
+                && ! Producto::query()->where($porTexto)->exists();
+
+            $query->where(function ($q) use ($palabra, $porTexto, $fonetico) {
+                $porTexto($q);
 
                 if (ctype_digit($palabra)) {
                     $q->orWhere('productos.id', (int) $palabra);
@@ -243,7 +253,7 @@ class ProductoController extends Controller
                 // "0103/B6.14.0-D-CR" sólo sobreviven "BDCR" y el LIKE por prefijo termina
                 // trayendo medio catálogo (todos los "BIDE..."). Con una cadena sin letras
                 // es peor todavía: SOUNDEX('') = '' y "LIKE CONCAT('', '%')" matchea TODO.
-                if (preg_match('/^\p{L}+$/u', $palabra) === 1 && mb_strlen($palabra) >= 4 && $q->getConnection()->getDriverName() === 'mysql') {
+                if ($fonetico) {
                     $q->orWhereRaw('SOUNDEX(nombre) LIKE CONCAT(SOUNDEX(?), "%")', [$palabra]);
                 }
             });
