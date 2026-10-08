@@ -91,13 +91,7 @@ class ReporteFinalQuery
      */
     public function rango(Request $request): array
     {
-        $desde = $request->filled('desde') ? $request->input('desde') : $request->input('fecha_desde');
-        $hasta = $request->filled('hasta') ? $request->input('hasta') : $request->input('fecha_hasta');
-
-        return [
-            'desde' => $desde ?: now()->startOfMonth()->toDateString(),
-            'hasta' => $hasta ?: now()->endOfMonth()->toDateString(),
-        ];
+        return RangoFechas::resolver($request, ['desde', 'fecha_desde'], ['hasta', 'fecha_hasta']);
     }
 
     // -----------------------------------------------------------------------------------

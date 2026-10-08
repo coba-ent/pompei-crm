@@ -13,7 +13,7 @@
     <div class="empresa">{{ optional($empresa)->razon_social ?? optional($empresa)->nombre }}</div>
     <h1>Reporte Final &mdash; {{ $titulo }}</h1>
     <div class="meta">
-        Período {{ $fecha($arbol['desde']) }} &ndash; {{ $fecha($arbol['hasta']) }}
+        Período {{ \App\Services\Informes\RangoFechas::etiqueta($arbol['desde'], $arbol['hasta']) }}
         &middot; emitido el {{ now()->format('d/m/Y H:i') }}
         @if ($excluidas !== [])
             &middot; <strong>escenario simulado</strong>: {{ count($excluidas) }} categoría(s) excluida(s)

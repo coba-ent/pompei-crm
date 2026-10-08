@@ -16,7 +16,7 @@
     <div class="empresa">{{ optional($empresa)->razon_social ?? optional($empresa)->nombre }}</div>
     <h1>Informe de Gastos</h1>
     <div class="meta">
-        Período {{ $fecha($stats['fecha_desde']) }} &ndash; {{ $fecha($stats['fecha_hasta']) }}
+        Período {{ \App\Services\Informes\RangoFechas::etiqueta($stats['fecha_desde'], $stats['fecha_hasta']) }}
         &middot; emitido el {{ now()->format('d/m/Y H:i') }}
     </div>
 

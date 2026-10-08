@@ -43,7 +43,8 @@
     const money = (v) => new Intl.NumberFormat('es-AR', {
         minimumFractionDigits: 2, maximumFractionDigits: 2,
     }).format(v || 0);
-    const fecha = (v) => (v ? String(v).slice(0, 10).split('-').reverse().join('/') : '');
+    // Las fechas extremas son el rango abierto del backend (X / "Borrar filtro"): RangoFechas.php.
+    const fecha = (v) => (!v ? '' : (['1900-01-01', '2999-12-31'].includes(String(v).slice(0, 10)) ? 'Sin límite' : String(v).slice(0, 10).split('-').reverse().join('/')));
     const escapar = (t) => $('<div>').text(t === null || t === undefined ? '' : t).html();
 
     $(function () {
@@ -74,9 +75,11 @@
                 cargar();
             });
             $rango.on('cancel.daterangepicker', function () {
-                const m = window.RangoEmision.mesActual();
-                fechaDesde = m.desde; fechaHasta = m.hasta;
-                $(this).val(window.RangoEmision.etiqueta(fechaDesde, fechaHasta));
+                // La X / "Borrar filtro" vacía el rango (antes volvía a "Mes actual" y parecía
+                // que no borraba). Las fechas viajan vacías y el backend lo toma como sin
+                // límite (RangoFechas.php). Al abrir la pantalla sigue arrancando en el mes actual.
+                fechaDesde = ''; fechaHasta = '';
+                $(this).val('');
                 cargar();
             });
             $('#btn-limpiar-rango-emision').on('click', function () {

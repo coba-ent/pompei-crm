@@ -98,9 +98,11 @@
             // "Borrar filtro" vuelve al mes actual y no a "sin rango": un informe de compras sin
             // acotar barrería el histórico entero en cada apertura.
             $rango.on('cancel.daterangepicker', function () {
-                const m = window.RangoEmision.mesActual();
-                fechaDesde = m.desde; fechaHasta = m.hasta;
-                $(this).val(window.RangoEmision.etiqueta(fechaDesde, fechaHasta));
+                // La X / "Borrar filtro" vacía el rango (antes volvía a "Mes actual" y parecía
+                // que no borraba). Las fechas viajan vacías y el backend lo toma como sin
+                // límite (RangoFechas.php); "Limpiar" sigue restableciendo el mes actual.
+                fechaDesde = ''; fechaHasta = '';
+                $(this).val('');
                 recargar();
             });
             $('#btn-limpiar-rango-emision').on('click', function () {

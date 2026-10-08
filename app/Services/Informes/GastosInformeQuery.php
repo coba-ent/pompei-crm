@@ -119,10 +119,7 @@ class GastosInformeQuery
     /** Rango de emisión efectivo. Por defecto, el mes actual (FR-004b). */
     public function rango(Request $request): array
     {
-        return [
-            'desde' => $request->filled('fecha_desde') ? $request->input('fecha_desde') : now()->startOfMonth()->toDateString(),
-            'hasta' => $request->filled('fecha_hasta') ? $request->input('fecha_hasta') : now()->endOfMonth()->toDateString(),
-        ];
+        return RangoFechas::resolver($request);
     }
 
     /**

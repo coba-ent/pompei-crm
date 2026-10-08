@@ -2,6 +2,7 @@
 
 namespace App\Exports\Informes;
 
+use App\Services\Informes\RangoFechas;
 use App\Services\Informes\ReporteFinalQuery;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Concerns\WithMultipleSheets;
@@ -67,8 +68,8 @@ class ReporteFinalExport implements WithMultipleSheets
             : round($totales['ingresos'] + $totalEgresos, 2);
 
         $filas = [
-            ['Desde', $arbol['desde']],
-            ['Hasta', $arbol['hasta']],
+            ['Desde', $this->extremo($arbol['desde'])],
+            ['Hasta', $this->extremo($arbol['hasta'])],
             ['Total Ingresos', $totales['ingresos']],
             ['Total Egresos', $totalEgresos],
             ['Resultado', $resultado],
@@ -192,5 +193,13 @@ class ReporteFinalExport implements WithMultipleSheets
             $bloque['categorias'],
             fn (array $categoria) => ! in_array($categoria['clave'], $excluidas, true)
         ));
+    }
+
+    /** La fecha tal cual, o "Sin límite" si el filtro de fechas se borró con la X. */
+    private function extremo(string $fecha): string
+    {
+        return in_array($fecha, [RangoFechas::DESDE_ABIERTO, RangoFechas::HASTA_ABIERTO], true)
+            ? 'Sin límite'
+            : $fecha;
     }
 }

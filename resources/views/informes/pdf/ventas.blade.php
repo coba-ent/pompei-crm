@@ -18,7 +18,7 @@
     <div class="empresa">{{ optional($empresa)->razon_social ?? optional($empresa)->nombre }}</div>
     <h1>Informe de Ventas</h1>
     <div class="meta">
-        Período {{ $fecha($rango['desde']) }} &ndash; {{ $fecha($rango['hasta']) }}
+        Período {{ \App\Services\Informes\RangoFechas::etiqueta($rango['desde'], $rango['hasta']) }}
         &middot; emitido el {{ now()->format('d/m/Y H:i') }}
     </div>
 
