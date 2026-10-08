@@ -1086,6 +1086,30 @@ table.dataTable > thead > tr > td {
     font-variant-numeric: tabular-nums;
 }
 
+/* Una descripción larga empujaba Medio de Pago y Total fuera de la pantalla (el template deja
+   las celdas en nowrap). Con layout fijo las columnas cortas tienen ancho propio y la
+   descripción se queda con el resto y hace salto de línea. */
+.gasto-detalle {
+    table-layout: fixed;
+    width: 100%;
+    min-width: 42rem; /* en pantallas angostas scrollea dentro de .table-responsive */
+}
+
+.gasto-detalle th:nth-child(1) { width: 4.5rem; }
+.gasto-detalle th:nth-child(2) { width: 6.75rem; }
+.gasto-detalle th:nth-child(4) { width: 11rem; }
+.gasto-detalle th:nth-child(5) { width: 13rem; }
+
+.gasto-detalle td:nth-child(3),
+.gasto-detalle td:nth-child(4) {
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+}
+
+.gasto-detalle td:nth-child(5) {
+    white-space: nowrap !important;
+}
+
 .gasto-detalle__id {
     color: var(--bs-secondary-color, #7b7b7b);
 }
