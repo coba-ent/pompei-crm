@@ -121,7 +121,7 @@
                             <label class="form-label">IVA por defecto (ventas)</label>
                             <select class="form-select" name="iva_venta_pct">
                                 @foreach (\App\Models\Producto::OPCIONES_IVA as $valor => $op)
-                                    <option value="{{ $valor }}" @selected($valor === '21')>{{ $op['label'] }}</option>
+                                    <option value="{{ $valor }}" @selected((string) $valor === '21')>{{ $op['label'] }}</option>
                                 @endforeach
                             </select>
                             <div class="invalid-feedback" data-field="iva_venta_pct"></div>
@@ -135,7 +135,7 @@
                             <label class="form-label">IVA por defecto (compras)</label>
                             <select class="form-select" name="iva_compra_pct">
                                 @foreach (\App\Models\Producto::OPCIONES_IVA as $valor => $op)
-                                    <option value="{{ $valor }}" @selected($valor === '21')>{{ $op['label'] }}</option>
+                                    <option value="{{ $valor }}" @selected((string) $valor === '21')>{{ $op['label'] }}</option>
                                 @endforeach
                             </select>
                             <div class="invalid-feedback" data-field="iva_compra_pct"></div>
