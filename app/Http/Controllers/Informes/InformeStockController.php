@@ -10,6 +10,7 @@ use App\Models\Proveedor;
 use App\Models\TipoProducto;
 use App\Models\User;
 use App\Models\Venta;
+use App\Services\Stock\MovimientosDeEdicion;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -253,6 +254,14 @@ class InformeStockController extends Controller
     /** Aplica los filtros externos de pantalla (nunca dentro de la ventana). */
     private function aplicarFiltros(Builder $query, Request $request): void
     {
+        // Los pares reverso/reaplicación que deja editar una Venta o Compra no se muestran: se
+        // anulan entre sí y confundían (una compra editada aparecía como "Disminución"). Ver
+        // MovimientosDeEdicion. El saldo corrido no cambia porque se calcula antes, sobre todos.
+        $ocultos = app(MovimientosDeEdicion::class)->idsOcultos();
+        if ($ocultos) {
+            $query->whereIntegerNotInRaw('mov.id', $ocultos);
+        }
+
         if ($request->filled('usuario_id')) {
             $query->where('mov.usuario_id', $request->input('usuario_id'));
         }
