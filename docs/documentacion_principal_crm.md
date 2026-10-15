@@ -1388,6 +1388,28 @@ recarga de la tabla (página, búsqueda, filtro u orden).
 
 *Fuente(s): `specs/115-ml-cambio-tipo-publicacion/`*
 
+### 3.2.ter.nonies Crear publicaciones de Mercado Libre desde un producto — **próxima spec (investigada, sin especificar)**
+
+Pedido del 15/10/2026: desde un producto del CRM, crear la publicación en Mercado Libre eligiendo el
+tipo (Clásica / Premium) y que quede vinculada en el acto. Cubre también sumarle la Premium a un
+producto que ya tiene la Clásica (y al revés), que la spec 115 **no** resuelve: la 115 cambia el tipo de
+una publicación existente, no crea una nueva.
+
+Investigación completa (API, modelo User Products, cuotas, datos faltantes, pruebas, preguntas para el
+cliente) en **[`docs/investigacion_ml_crear_publicaciones.md`](investigacion_ml_crear_publicaciones.md)**.
+Lo que condiciona el diseño:
+
+- La cuenta está en el modelo **User Products** de ML: hay un endpoint para sumar una condición de
+  venta (otro tipo, otro precio) a un producto ya publicado sin reenviar fotos ni ficha técnica
+  (`POST /user-products/{id}/items`). Es viable con los datos que el CRM ya tiene.
+- Publicar desde cero exige fotos (obligatorias en Clásica y Premium), categoría, ficha técnica (marca,
+  modelo, GTIN, medidas del paquete) y garantía. **El CRM no tiene ninguno de esos datos** (0 productos
+  con imagen al 15/10/2026). Es una dependencia que se especifica junto o se deja documentada como
+  brecha; no se "simplifica".
+- En Argentina, Clásica/Premium se presentan ahora como "sin cuotas / con cuotas"; las campañas de
+  cuotas (3x/6x/9x/12x en Premium, "interés bajo" en Clásica) son tags del item que el CRM hoy no lee
+  ni escribe.
+
 ### 3.2.quater Tiendanube (`/ingresos/tiendanube`) — spec 017
 
 Entrada **condicional** del menú Ingresos: aparece sólo cuando la función avanzada "Tiendanube" está
