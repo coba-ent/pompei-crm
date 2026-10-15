@@ -43,6 +43,16 @@
                             <option value="sin_clasificar">Sin clasificar</option>
                         </select>
                     </div>
+                    {{-- spec 115/FR-017: filtro server-side por tipo de publicación. --}}
+                    <div class="col-12 col-md-4 col-lg-3">
+                        <label for="filtro-tipo" class="form-label mb-1">Tipo de publicación</label>
+                        <select id="filtro-tipo" class="form-select">
+                            <option value="">Todos</option>
+                            <option value="gold_special">Clásica</option>
+                            <option value="gold_pro">Premium</option>
+                            <option value="sin_clasificar">Sin clasificar</option>
+                        </select>
+                    </div>
                 </div>
 
 {{-- ====================== PRECIOS RETENIDOS POR EL CORTE (spec 084, US1) ======================
@@ -84,14 +94,27 @@
                     </div>
                 </div>
 
+                {{-- spec 115 (US3): cambio de tipo de las filas marcadas en esta página. --}}
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary js-cambiar-tipo-lote" data-destino="gold_pro" disabled>
+                        <i class="fas fa-arrow-up me-1"></i> Pasar selección a Premium
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary js-cambiar-tipo-lote" data-destino="gold_special" disabled>
+                        <i class="fas fa-arrow-down me-1"></i> Pasar selección a Clásica
+                    </button>
+                    <small class="text-muted" id="conteo-seleccion-vinculaciones">Ninguna publicación seleccionada</small>
+                </div>
+
                 <div class="table-responsive">
                     <table id="tabla-ml-vinculaciones" class="table table-hover display nowrap" style="width:100%">
                         <thead>
                             <tr>
-                                <th>Acciones</th>
+                                <th class="no-colvis"><input type="checkbox" class="form-check-input" id="check-todas-vinculaciones" title="Seleccionar todas las de esta página"></th>
+                                <th class="no-colvis">Acciones</th>
                                 <th>Publicación (ID)</th>
                                 <th>Título</th>
-                                <th>Producto</th>
+                                <th title="Producto del CRM: #ID · código — nombre">Producto</th>
+                                <th title="Tipo de publicación en Mercado Libre. Premium cobra más comisión y cotiza por la lista ML Premium.">Tipo</th>
                                 <th>Fecha</th>
                                 <th title="Cómo despacha Mercado Libre esta publicación. Las que están en Full las despacha Mercado Libre desde su propio centro de distribución: el CRM no les envía stock.">
                                     Logística
@@ -191,6 +214,100 @@
     </div>
 </div>
 
+{{-- spec 115 (US1): confirmación del cambio de tipo de una publicación. --}}
+<div class="modal fade" id="modal-cambio-tipo" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modal-cambio-tipo-titulo">Cambiar tipo de publicación</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center py-4" id="cambio-tipo-cargando">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <div class="text-muted small mt-2">Consultando la publicación en Mercado Libre…</div>
+                </div>
+                <div class="d-none" id="cambio-tipo-contenido">
+                    <dl class="row mb-0 small">
+                        <dt class="col-4">Publicación</dt>
+                        <dd class="col-8" id="cambio-tipo-publicacion"></dd>
+                        <dt class="col-4">Producto</dt>
+                        <dd class="col-8" id="cambio-tipo-producto"></dd>
+                        <dt class="col-4">Tipo</dt>
+                        <dd class="col-8" id="cambio-tipo-tipos"></dd>
+                        <dt class="col-4">Precio</dt>
+                        <dd class="col-8" id="cambio-tipo-precios"></dd>
+                        <dt class="col-4">Lista de precios</dt>
+                        <dd class="col-8" id="cambio-tipo-lista"></dd>
+                    </dl>
+                    <div class="alert alert-warning small mt-3 mb-0 d-none" id="cambio-tipo-aviso-comision">
+                        <i class="fas fa-triangle-exclamation me-1"></i>
+                        Premium cobra <strong>más comisión por venta</strong> que Clásica.
+                    </div>
+                    <div class="alert alert-info small mt-3 mb-0 d-none" id="cambio-tipo-sin-cambios"></div>
+                    <div class="alert alert-danger small mt-3 mb-0 d-none" id="cambio-tipo-bloqueo"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btn-confirmar-cambio-tipo" disabled>Confirmar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- spec 115 (US3): confirmación, progreso y resumen del cambio de tipo masivo. --}}
+<div class="modal fade" id="modal-cambio-tipo-lote" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modal-cambio-tipo-lote-titulo">Cambiar tipo de publicación</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center py-4" id="cambio-tipo-lote-cargando">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
+                <div class="d-none" id="cambio-tipo-lote-confirmacion">
+                    <div class="alert alert-warning small d-none" id="cambio-tipo-lote-aviso-comision">
+                        <i class="fas fa-triangle-exclamation me-1"></i>
+                        Premium cobra <strong>más comisión por venta</strong> que Clásica.
+                    </div>
+                    <h6>Se van a cambiar (<span id="cambio-tipo-lote-conteo-cambiar">0</span>)</h6>
+                    <div class="table-responsive mb-3">
+                        <table class="table table-sm mb-0">
+                            <thead><tr><th>Publicación</th><th>Producto</th><th class="text-end">Precio actual</th><th class="text-end">Precio nuevo</th></tr></thead>
+                            <tbody id="cambio-tipo-lote-cambiar"></tbody>
+                        </table>
+                    </div>
+                    <h6>Omitidas (<span id="cambio-tipo-lote-conteo-omitidas">0</span>)</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead><tr><th>Publicación</th><th>Motivo</th></tr></thead>
+                            <tbody id="cambio-tipo-lote-omitidas"></tbody>
+                        </table>
+                    </div>
+                    <p class="text-muted small mt-3 mb-0">
+                        Al procesar cada publicación se vuelve a verificar contra Mercado Libre su tipo vigente
+                        y que el destino esté disponible.
+                    </p>
+                </div>
+                <div class="d-none" id="cambio-tipo-lote-progreso">
+                    <p class="mb-2" id="cambio-tipo-lote-progreso-texto">Procesando…</p>
+                    <div class="progress" style="height: 1.25rem;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" id="cambio-tipo-lote-barra" role="progressbar" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="d-none" id="cambio-tipo-lote-resumen"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal" id="btn-cerrar-cambio-tipo-lote">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btn-confirmar-cambio-tipo-lote" disabled>Confirmar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="modal-resultado-vinculacion-automatica" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
@@ -221,6 +338,12 @@
             productosOpciones: @json(route('productos.opciones')),
             retenciones: @json(route('ingresos.mercadolibre.retencionesPrecio.index')),
             retencionesBase: @json(url('ingresos/mercadolibre/retenciones-precio')),
+            // spec 115: __ID__ se reemplaza por el id del vínculo en el JS.
+            cambioTipoPrevisualizar: @json(route('ingresos.mercadolibre.vinculaciones.cambioTipo.previsualizar', '__ID__')),
+            cambioTipoEjecutar: @json(route('ingresos.mercadolibre.vinculaciones.cambioTipo.ejecutar', '__ID__')),
+            cambioTipoLotePrevisualizar: @json(route('ingresos.mercadolibre.vinculaciones.cambioTipoLote.previsualizar')),
+            cambioTipoLoteEjecutar: @json(route('ingresos.mercadolibre.vinculaciones.cambioTipoLote.ejecutar')),
+            cambioTipoLoteEstado: @json(route('ingresos.mercadolibre.vinculaciones.cambioTipoLote.estado')),
         },
     };
 </script>

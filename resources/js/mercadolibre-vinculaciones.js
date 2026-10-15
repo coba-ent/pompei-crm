@@ -40,6 +40,14 @@
 
     let tabla = null;
     let idEnEdicion = null;
+    // spec 115 (US3): ids marcados en la página visible. Se limpia en cada recarga de la tabla
+    // (página, búsqueda, filtro u orden): la selección nunca abarca filas que no se están viendo.
+    const seleccion = new Set();
+
+    const escapar = (v) => $('<div>').text(v === null || v === undefined ? '' : String(v)).html();
+    const dinero = (v) => v === null || v === undefined
+        ? 'Desconocido'
+        : '$ ' + Number(v).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     $(function () {
         inicializarListado();
@@ -49,6 +57,8 @@
         inicializarVinculacionAutomatica();
         inicializarSincronizacionForzada();
         inicializarEliminarTodas();
+        inicializarCambioTipo();
+        inicializarCambioTipoLote();
 
         if (window.bootstrap && window.bootstrap.Tooltip) {
             document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
@@ -204,13 +214,44 @@
             // spec 065/FR-025: el filtro viaja al endpoint server-side en cada recarga.
             ajax: {
                 url: rutas.datatable,
-                data: (d) => { d.logistic_type = $('#filtro-logistica').val() || ''; },
+                data: (d) => {
+                    d.logistic_type = $('#filtro-logistica').val() || '';
+                    d.listing_type = $('#filtro-tipo').val() || '';
+                },
             },
             columns: [
-                { data: 'acciones', name: 'acciones', orderable: false, searchable: false },
+                {
+                    // spec 115 (US3): casilla de selección para el cambio de tipo masivo.
+                    data: 'id', name: 'seleccion', orderable: false, searchable: false, className: 'no-colvis',
+                    render: (id) => '<input type="checkbox" class="form-check-input js-check-vinculacion" value="' + id + '">',
+                },
+                { data: 'acciones', name: 'acciones', orderable: false, searchable: false, className: 'no-colvis' },
                 { data: 'ml_item_id', name: 'ml_item_id' },
                 { data: 'titulo_ml', name: 'titulo_ml' },
-                { data: 'producto_nombre', name: 'producto.nombre' },
+                {
+                    // spec 115/FR-018: el producto del CRM se identifica por ID + código + nombre; el
+                    // endpoint busca por los tres (filterColumn sobre `producto.nombre`).
+                    data: 'producto_nombre', name: 'producto.nombre',
+                    render: (data, type, row) => {
+                        if (!row.producto_id) { return '<span class="text-muted">—</span>'; }
+
+                        return '<span class="text-muted">#' + row.producto_id + ' · ' + escapar(row.producto_codigo || 's/código') + ' —</span> '
+                            + escapar(data);
+                    },
+                },
+                {
+                    // spec 115/FR-016: Premium destacada (cotiza por otra lista y cobra más comisión).
+                    data: 'tipo_etiqueta', name: 'listing_type_id', searchable: false,
+                    render: (data, type, row) => {
+                        if (row.listing_type_id === 'gold_pro') {
+                            return '<span class="badge bg-primary">Premium</span>';
+                        }
+
+                        return row.listing_type_id
+                            ? '<span>' + escapar(data) + '</span>'
+                            : '<span class="text-muted">' + escapar(data) + '</span>';
+                    },
+                },
                 { data: 'created_at', name: 'created_at' },
                 {
                     // spec 065/FR-024: Full va destacada porque cambia el comportamiento del
@@ -251,16 +292,48 @@
                 },
             ],
             stateSave: true,
-            colReorder: { fixedColumnsLeft: 1 }, // Arrastrar encabezados reordena (se guarda con stateSave); Acciones queda fija.
+            // Los filtros viajan con el estado guardado (FR-017): al volver a la pantalla siguen puestos.
+            stateSaveParams: (settings, data) => {
+                data.filtroLogistica = $('#filtro-logistica').val() || '';
+                data.filtroTipo = $('#filtro-tipo').val() || '';
+            },
+            stateLoadParams: (settings, data) => {
+                if (data.filtroLogistica !== undefined) { $('#filtro-logistica').val(data.filtroLogistica); }
+                if (data.filtroTipo !== undefined) { $('#filtro-tipo').val(data.filtroTipo); }
+            },
+            colReorder: { fixedColumnsLeft: 2 }, // Arrastrar encabezados reordena (se guarda con stateSave); Selección y Acciones quedan fijas.
             buttons: [
                 {
                     extend: 'colvis',
                     text: '<i class="fas fa-table-columns"></i>',
                     className: 'btn btn-outline-secondary',
-                    // Columna 0 es "Acciones", no se puede ocultar.
-                    columns: function (idx) { return idx !== 0; },
+                    // Selección y Acciones no se pueden ocultar (por clase, no por índice: colReorder).
+                    columns: ':not(.no-colvis)',
                 },
             ],
+        });
+
+        $tabla.on('preXhr.dt', function () {
+            seleccion.clear();
+            $('#check-todas-vinculaciones').prop('checked', false);
+            actualizarSeleccion();
+        });
+
+        $tabla.on('change', '.js-check-vinculacion', function () {
+            const id = Number(this.value);
+            if (this.checked) { seleccion.add(id); } else { seleccion.delete(id); }
+            actualizarSeleccion();
+        });
+
+        // "Todas las de esta página" (FR-015b): sólo las filas visibles.
+        $('#check-todas-vinculaciones').on('change', function () {
+            const marcar = this.checked;
+            $tabla.find('tbody .js-check-vinculacion').each(function () {
+                this.checked = marcar;
+                const id = Number(this.value);
+                if (marcar) { seleccion.add(id); } else { seleccion.delete(id); }
+            });
+            actualizarSeleccion();
         });
 
         $tabla.one('init.dt', function () {
@@ -271,6 +344,247 @@
         // recarga sólo la tabla (regla #2), nunca la página.
         $('#filtro-logistica').select2({ width: '100%', minimumResultsForSearch: -1 })
             .on('change', function () { tabla.ajax.reload(); });
+        $('#filtro-tipo').select2({ width: '100%', minimumResultsForSearch: -1 })
+            .on('change', function () { tabla.ajax.reload(); });
+    }
+
+    const MAXIMO_LOTE = 100;
+
+    function actualizarSeleccion() {
+        const n = seleccion.size;
+        $('.js-cambiar-tipo-lote').prop('disabled', n === 0 || n > MAXIMO_LOTE);
+        $('#conteo-seleccion-vinculaciones').text(
+            n === 0 ? 'Ninguna publicación seleccionada' : n + (n === 1 ? ' publicación seleccionada' : ' publicaciones seleccionadas')
+        );
+    }
+
+    const ETIQUETAS_TIPO = { gold_pro: 'Premium', gold_special: 'Clásica' };
+
+    /**
+     * spec 115 (US1): cambio de tipo de una publicación. El modal muestra lo que va a pasar
+     * (tipo y precio antes/después, lista de la que sale el precio) y sólo deja confirmar si el
+     * servidor dice que se puede: la verificación contra ML y las reglas viven allá.
+     */
+    function inicializarCambioTipo() {
+        const modalEl = document.getElementById('modal-cambio-tipo');
+        if (!modalEl) { return; }
+        const modal = new bootstrap.Modal(modalEl);
+        const $confirmar = $('#btn-confirmar-cambio-tipo');
+        let vinculoId = null;
+        let destino = null;
+
+        $(document).on('click', '.js-cambiar-tipo', function (e) {
+            e.preventDefault();
+            vinculoId = $(this).data('id');
+            destino = $(this).data('destino') || null;
+
+            $('#modal-cambio-tipo-titulo').text(destino ? 'Pasar a ' + ETIQUETAS_TIPO[destino] : 'Cambiar tipo de publicación');
+            $('#cambio-tipo-cargando').removeClass('d-none');
+            $('#cambio-tipo-contenido').addClass('d-none');
+            $confirmar.prop('disabled', true).text('Confirmar');
+            modal.show();
+
+            const url = rutas.cambioTipoPrevisualizar.replace('__ID__', vinculoId) + (destino ? '?destino=' + destino : '');
+
+            $.ajax({ url: url, method: 'GET' })
+                .done((resp) => {
+                    destino = resp.tipo_destino;
+                    renderPrevisualizacion(resp);
+                })
+                .fail((xhr) => {
+                    const resp = xhr.responseJSON || {};
+                    modal.hide();
+                    toast('error', resp.mensaje || resp.message || 'No se pudo consultar la publicación en Mercado Libre.');
+                });
+        });
+
+        function renderPrevisualizacion(r) {
+            const v = r.vinculo || {};
+            const p = v.producto;
+
+            $('#modal-cambio-tipo-titulo').text(r.tipo_destino_etiqueta ? 'Pasar a ' + r.tipo_destino_etiqueta : 'Cambiar tipo de publicación');
+            $('#cambio-tipo-publicacion').html('<code>' + escapar(v.ml_item_id) + '</code>' + (v.titulo_ml ? ' — ' + escapar(v.titulo_ml) : ''));
+            $('#cambio-tipo-producto').html(p ? '#' + p.id + ' · ' + escapar(p.codigo || 's/código') + ' — ' + escapar(p.nombre) : '—');
+            $('#cambio-tipo-tipos').html(escapar(r.tipo_actual_etiqueta) + (r.tipo_destino_etiqueta ? ' <i class="fas fa-arrow-right mx-1"></i> <strong>' + escapar(r.tipo_destino_etiqueta) + '</strong>' : ''));
+            $('#cambio-tipo-precios').html(
+                r.precio_destino === null
+                    ? escapar(dinero(r.precio_actual))
+                    : escapar(dinero(r.precio_actual)) + ' <i class="fas fa-arrow-right mx-1"></i> <strong>' + escapar(dinero(r.precio_destino)) + '</strong>'
+            );
+            $('#cambio-tipo-lista').text(r.lista_destino ? (r.lista_destino.nombre || '#' + r.lista_destino.id) : '—');
+            $('#cambio-tipo-aviso-comision').toggleClass('d-none', !r.aviso_comision || !!r.motivo_bloqueo || !!r.sin_cambios);
+            $('#cambio-tipo-sin-cambios').toggleClass('d-none', !r.sin_cambios)
+                .text(r.sin_cambios ? 'En Mercado Libre la publicación ya es ' + r.tipo_destino_etiqueta + '. Al confirmar sólo se registra en el CRM; no se envía nada.' : '');
+            $('#cambio-tipo-bloqueo').toggleClass('d-none', !r.motivo_bloqueo).text(r.motivo_bloqueo || '');
+
+            $('#cambio-tipo-cargando').addClass('d-none');
+            $('#cambio-tipo-contenido').removeClass('d-none');
+            $confirmar.prop('disabled', !(r.puede_confirmar || r.sin_cambios));
+        }
+
+        $confirmar.on('click', function () {
+            if (!vinculoId || !destino) { return; }
+            window.AppBtn.loading($confirmar, true);
+
+            $.ajax({ url: rutas.cambioTipoEjecutar.replace('__ID__', vinculoId), method: 'POST', data: { destino: destino } })
+                .done((resp) => {
+                    toast(resp.resultado === 'cambiado_precio_pendiente' ? 'warning' : 'success', resp.mensaje);
+                    modal.hide();
+                })
+                .fail((xhr) => {
+                    const resp = xhr.responseJSON || {};
+                    toast(resp.resultado === 'revertido' ? 'warning' : 'error', resp.mensaje || resp.message || 'No se pudo cambiar el tipo de la publicación.');
+                    if (xhr.status !== 409) { modal.hide(); }
+                })
+                .always(() => {
+                    window.AppBtn.loading($confirmar, false);
+                    if (tabla) { tabla.ajax.reload(null, false); }
+                });
+        });
+    }
+
+    const ETIQUETAS_RESULTADO = {
+        cambiado: 'Cambiadas',
+        cambiado_precio_pendiente: 'Cambiadas con precio pendiente',
+        sin_cambios: 'Sin cambios (ya tenían ese tipo)',
+        bloqueado: 'Bloqueadas',
+        fallido: 'Fallidas',
+        revertido: 'Revertidas (se restituyó el precio)',
+    };
+
+    /**
+     * spec 115 (US3): cambio de tipo masivo. La confirmación anticipa las omitidas con datos del
+     * CRM; el lote corre en segundo plano y la pantalla consulta su estado hasta que termina
+     * (mismo patrón que la Sincronización forzada).
+     */
+    function inicializarCambioTipoLote() {
+        const modalEl = document.getElementById('modal-cambio-tipo-lote');
+        if (!modalEl) { return; }
+        const modal = new bootstrap.Modal(modalEl);
+        const $confirmar = $('#btn-confirmar-cambio-tipo-lote');
+        const POLL_INTERVALO_MS = 2000;
+        const POLL_MAXIMO = 300; // ~10 minutos, el timeout del job
+        let destino = null;
+        let idsAEnviar = [];
+
+        function mostrar(seccion) {
+            ['cargando', 'confirmacion', 'progreso', 'resumen'].forEach((s) => {
+                $('#cambio-tipo-lote-' + s).toggleClass('d-none', s !== seccion);
+            });
+        }
+
+        $('.js-cambiar-tipo-lote').on('click', function () {
+            destino = $(this).data('destino');
+            const ids = Array.from(seleccion);
+            if (!ids.length) { return; }
+
+            $('#modal-cambio-tipo-lote-titulo').text('Pasar selección a ' + ETIQUETAS_TIPO[destino]);
+            $('#btn-cerrar-cambio-tipo-lote').text('Cancelar');
+            $confirmar.removeClass('d-none').prop('disabled', true);
+            mostrar('cargando');
+            modal.show();
+
+            $.ajax({ url: rutas.cambioTipoLotePrevisualizar, method: 'POST', data: { destino: destino, ids: ids } })
+                .done(renderConfirmacion)
+                .fail((xhr) => {
+                    const resp = xhr.responseJSON || {};
+                    modal.hide();
+                    toast('error', resp.mensaje || resp.message || 'No se pudo preparar el cambio de tipo.');
+                });
+        });
+
+        function renderConfirmacion(r) {
+            idsAEnviar = r.a_cambiar.map((f) => f.id);
+
+            $('#cambio-tipo-lote-conteo-cambiar').text(r.a_cambiar.length);
+            $('#cambio-tipo-lote-cambiar').html(r.a_cambiar.length
+                ? r.a_cambiar.map((f) => '<tr><td><code>' + escapar(f.ml_item_id) + '</code></td><td>' + escapar(f.producto) + '</td>'
+                    + '<td class="text-end">' + escapar(dinero(f.precio_actual)) + '</td>'
+                    + '<td class="text-end fw-semibold">' + escapar(dinero(f.precio_destino)) + '</td></tr>').join('')
+                : '<tr><td colspan="4" class="text-muted">Ninguna publicación de la selección se puede cambiar.</td></tr>');
+
+            $('#cambio-tipo-lote-conteo-omitidas').text(r.omitidas.length);
+            $('#cambio-tipo-lote-omitidas').html(r.omitidas.length
+                ? r.omitidas.map((f) => '<tr><td><code>' + escapar(f.ml_item_id) + '</code></td><td>' + escapar(f.motivo) + '</td></tr>').join('')
+                : '<tr><td colspan="2" class="text-muted">Ninguna.</td></tr>');
+
+            $('#cambio-tipo-lote-aviso-comision').toggleClass('d-none', !r.aviso_comision);
+            $confirmar.prop('disabled', !r.puede_confirmar);
+            mostrar('confirmacion');
+        }
+
+        $confirmar.on('click', function () {
+            if (!idsAEnviar.length) { return; }
+            window.AppBtn.loading($confirmar, true);
+
+            $.ajax({ url: rutas.cambioTipoLoteEjecutar, method: 'POST', data: { destino: destino, ids: idsAEnviar } })
+                .done((resp) => {
+                    toast('info', resp.mensaje || 'Cambio de tipo encolado.');
+                    $confirmar.addClass('d-none');
+                    $('#btn-cerrar-cambio-tipo-lote').text('Cerrar');
+                    actualizarProgreso({ procesadas: 0, total: idsAEnviar.length });
+                    mostrar('progreso');
+                    setTimeout(() => consultarEstado(POLL_MAXIMO), POLL_INTERVALO_MS);
+                })
+                .fail((xhr) => {
+                    const resp = xhr.responseJSON || {};
+                    toast('error', resp.mensaje || resp.message || 'No se pudo iniciar el cambio de tipo.');
+                })
+                .always(() => window.AppBtn.loading($confirmar, false));
+        });
+
+        function actualizarProgreso(estado) {
+            const total = estado.total || 1;
+            const hechas = estado.procesadas || 0;
+            $('#cambio-tipo-lote-progreso-texto').text('Procesando ' + hechas + ' de ' + total + '…');
+            $('#cambio-tipo-lote-barra').css('width', Math.round(hechas * 100 / total) + '%');
+        }
+
+        function consultarEstado(intentosRestantes) {
+            if (intentosRestantes <= 0) {
+                toast('warning', 'El cambio de tipo sigue en curso en segundo plano; recargá la tabla en un rato.');
+                return;
+            }
+
+            $.ajax({ url: rutas.cambioTipoLoteEstado, method: 'GET' })
+                .done((estado) => {
+                    if (estado.estado === 'en_curso') {
+                        actualizarProgreso(estado);
+                        setTimeout(() => consultarEstado(intentosRestantes - 1), POLL_INTERVALO_MS);
+                        return;
+                    }
+
+                    renderResumen(estado);
+                    if (tabla) { tabla.ajax.reload(null, false); }
+                })
+                .fail(() => setTimeout(() => consultarEstado(intentosRestantes - 1), POLL_INTERVALO_MS));
+        }
+
+        function renderResumen(estado) {
+            const resumen = estado.resumen || {};
+            const lineas = Object.keys(ETIQUETAS_RESULTADO)
+                .filter((k) => resumen[k] > 0)
+                .map((k) => '<li>' + ETIQUETAS_RESULTADO[k] + ': <strong>' + resumen[k] + '</strong></li>')
+                .join('');
+            const detalle = (estado.detalle || []).map((f) => '<tr><td><code>' + escapar(f.ml_item_id) + '</code></td><td>'
+                + escapar(ETIQUETAS_RESULTADO[f.resultado] || f.resultado) + '</td><td>' + escapar(f.mensaje) + '</td></tr>').join('');
+
+            let html = estado.estado === 'error'
+                ? '<div class="alert alert-danger small">' + escapar(estado.mensaje || 'El cambio de tipo se interrumpió.') + '</div>'
+                : '';
+            html += '<ul class="mb-3">' + (lineas || '<li>No se procesó ninguna publicación.</li>') + '</ul>';
+            if (detalle) {
+                html += '<div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Publicación</th><th>Resultado</th><th>Motivo</th></tr></thead><tbody>'
+                    + detalle + '</tbody></table></div>';
+            }
+
+            $('#cambio-tipo-lote-resumen').html(html);
+            mostrar('resumen');
+
+            const cambiadas = (resumen.cambiado || 0) + (resumen.cambiado_precio_pendiente || 0);
+            toast(estado.estado === 'error' ? 'error' : (detalle ? 'warning' : 'success'),
+                cambiadas + ' publicación(es) cambiada(s) a ' + (ETIQUETAS_TIPO[destino] || destino) + '.');
+        }
     }
 
     const ESTADOS_STOCK = {

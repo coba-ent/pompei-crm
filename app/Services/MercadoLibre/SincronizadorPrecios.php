@@ -34,8 +34,9 @@ class SincronizadorPrecios
      * sincronizarListaCompleta() (que ya verificaron los cortes una sola vez
      * antes de iterar — ver verificarCortes()).
      *
-     * spec 084: acá vive el corte de seguridad de precios. `$omitirCorte` sólo lo usa la
-     * aprobación manual de una retención, donde una persona ya evaluó el caso.
+     * spec 084: acá vive el corte de seguridad de precios. `$omitirCorte` sólo lo usan las
+     * confirmaciones humanas que muestran los dos importes: la aprobación manual de una retención
+     * (spec 084) y el cambio de tipo de publicación Clásica ↔ Premium (spec 115, FR-009).
      */
     public function enviarUno(MercadoLibrePublicacionProducto $vinculo, float $precio, bool $omitirCorte = false): bool
     {
@@ -57,9 +58,10 @@ class SincronizadorPrecios
         // garantizaría que algún día sean tres reglas distintas — que es exactamente cómo nació el
         // incidente del 25/08. Corre DESPUÉS de verificarCortes() a propósito: aquellos cortes
         // conservan el pendiente para el próximo intento válido y son una decisión distinta.
-        // `omitirCorte` es exclusivamente para la aprobación humana de una retención: ahí una
-        // persona ya vio los dos importes y decidió. Ningún camino automático puede pasarlo en
-        // true, porque sería una puerta trasera al corte.
+        // `omitirCorte` es exclusivamente para confirmaciones humanas —aprobar una retención
+        // (spec 084) o confirmar un cambio de tipo de publicación (spec 115)—: ahí una persona ya
+        // vio los dos importes y decidió. Ningún camino automático puede pasarlo en true, porque
+        // sería una puerta trasera al corte.
         $configuracion = MercadoLibreConfiguracion::actual();
         $decision = $omitirCorte
             ? ['publicar' => true, 'motivo' => null, 'caida_pct' => null, 'precio_publicado' => null, 'umbral_pct' => 0.0]
@@ -310,17 +312,28 @@ class SincronizadorPrecios
      */
     public function resolverListaPrecio(MercadoLibrePublicacionProducto $vinculo, MercadoLibreConfiguracion $configuracion): ?int
     {
-        if ($vinculo->esPremium() && $configuracion->lista_precio_id_premium && $vinculo->producto) {
-            $tienePrecioPremium = $vinculo->producto->precios()
-                ->where('lista_precio_id', $configuracion->lista_precio_id_premium)
-                ->exists();
+        if ($vinculo->esPremium() && $vinculo->producto) {
+            $listaPremium = $this->listaPrecioParaTipo(MercadoLibrePublicacionProducto::TIPO_PREMIUM, $configuracion);
 
-            if ($tienePrecioPremium) {
-                return $configuracion->lista_precio_id_premium;
+            if ($listaPremium && $vinculo->producto->precios()->where('lista_precio_id', $listaPremium)->exists()) {
+                return $listaPremium;
             }
         }
 
-        return $configuracion->lista_precio_id;
+        return $this->listaPrecioParaTipo(MercadoLibrePublicacionProducto::TIPO_CLASICA, $configuracion);
+    }
+
+    /**
+     * Qué lista corresponde a un tipo de publicación, **sin fallback** (spec 115, research R4).
+     * Es la regla única "tipo → lista": `resolverListaPrecio()` le agrega encima el fallback de
+     * spec 050 para la sincronización automática; el cambio de tipo la usa tal cual, porque ahí
+     * caer en la lista general es justo lo que FR-005 prohíbe (Premium con precio de Clásica).
+     */
+    public function listaPrecioParaTipo(string $tipo, MercadoLibreConfiguracion $configuracion): ?int
+    {
+        return $tipo === MercadoLibrePublicacionProducto::TIPO_PREMIUM
+            ? ($configuracion->lista_precio_id_premium ?: null)
+            : ($configuracion->lista_precio_id ?: null);
     }
 
     /**
@@ -332,6 +345,15 @@ class SincronizadorPrecios
      * vuelve a evaluar la misma condición dentro del bucle.
      */
     private function verificarCortes(): ?string
+    {
+        return $this->motivoBloqueoEscritura();
+    }
+
+    /**
+     * Versión pública de los cortes (spec 115): el cambio de tipo los verifica al previsualizar
+     * para no ofrecer una acción que va a fallar, sin duplicar la regla.
+     */
+    public function motivoBloqueoEscritura(): ?string
     {
         if (! (bool) FuncionAvanzada::where('clave', 'mercadolibre')->value('activa')) {
             return 'La función "Mercado Libre" está desactivada en Funciones Avanzadas.';

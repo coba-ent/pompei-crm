@@ -8,6 +8,7 @@ use App\Models\Integraciones\MercadoLibreConfiguracion;
 use App\Models\Integraciones\MercadoLibreCuenta;
 use App\Models\Integraciones\MercadoLibrePublicacionProducto;
 use App\Models\ListaPrecio;
+use App\Models\PrecioProducto;
 use App\Models\Producto;
 use App\Models\Rol;
 use App\Services\MercadoLibre\SincronizadorPrecios;
@@ -194,5 +195,41 @@ class SincronizadorPreciosTest extends TestCase
         $log = \DB::table('ml_operaciones_log')->where('operacion', 'sincronizar_precio')->orderByDesc('id')->first();
         $this->assertStringNotContainsString('atk-vigente', json_encode($log));
         $this->assertStringNotContainsString('access_token', json_encode($log));
+    }
+
+    /** spec 115 (T006, research R4): la regla tipo → lista es estricta, sin fallback. */
+    public function test_lista_precio_para_tipo_es_estricta(): void
+    {
+        $sincronizador = app(SincronizadorPrecios::class);
+        $configuracion = MercadoLibreConfiguracion::actual();
+
+        $this->assertSame($this->lista->id, $sincronizador->listaPrecioParaTipo('gold_special', $configuracion));
+        $this->assertNull($sincronizador->listaPrecioParaTipo('gold_pro', $configuracion));
+
+        $premium = ListaPrecio::create(['nombre' => 'ML Premium', 'activo' => true]);
+        $configuracion->update(['lista_precio_id_premium' => $premium->id]);
+
+        $this->assertSame($premium->id, $sincronizador->listaPrecioParaTipo('gold_pro', $configuracion->fresh()));
+    }
+
+    /** spec 115 (T006): resolverListaPrecio() conserva el fallback de spec 050 tras el refactor. */
+    public function test_resolver_lista_precio_conserva_el_fallback_de_spec_050(): void
+    {
+        $premium = ListaPrecio::create(['nombre' => 'ML Premium', 'activo' => true]);
+        MercadoLibreConfiguracion::actual()->update(['lista_precio_id_premium' => $premium->id]);
+        $configuracion = MercadoLibreConfiguracion::actual();
+        $sincronizador = app(SincronizadorPrecios::class);
+
+        $conPremium = Producto::factory()->create();
+        PrecioProducto::create(['producto_id' => $conPremium->id, 'lista_precio_id' => $premium->id, 'precio' => 150]);
+        $sinPremium = Producto::factory()->create();
+
+        $premiumConPrecio = MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA1', 'producto_id' => $conPremium->id, 'listing_type_id' => 'gold_pro']);
+        $premiumSinPrecio = MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA2', 'producto_id' => $sinPremium->id, 'listing_type_id' => 'gold_pro']);
+        $clasica = MercadoLibrePublicacionProducto::create(['ml_item_id' => 'MLA3', 'producto_id' => $conPremium->id, 'listing_type_id' => 'gold_special']);
+
+        $this->assertSame($premium->id, $sincronizador->resolverListaPrecio($premiumConPrecio, $configuracion));
+        $this->assertSame($this->lista->id, $sincronizador->resolverListaPrecio($premiumSinPrecio, $configuracion));
+        $this->assertSame($this->lista->id, $sincronizador->resolverListaPrecio($clasica, $configuracion));
     }
 }

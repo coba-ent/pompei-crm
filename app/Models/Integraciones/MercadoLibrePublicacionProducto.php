@@ -46,6 +46,19 @@ class MercadoLibrePublicacionProducto extends Model
     /** Valor crudo de `shipping.logistic_type` que identifica a Full (spec 065, research R1). */
     public const LOGISTICA_FULL = 'fulfillment';
 
+    /** Tipos de publicación pagos de Mercado Libre Argentina (spec 050; cambio entre ellos: spec 115). */
+    public const TIPO_CLASICA = 'gold_special';
+
+    public const TIPO_PREMIUM = 'gold_pro';
+
+    /** Los únicos tipos entre los que el CRM permite cambiar (spec 115): otros (ej. `free`) quedan fuera. */
+    public const TIPOS_SOPORTADOS = [self::TIPO_CLASICA, self::TIPO_PREMIUM];
+
+    public const ETIQUETAS_TIPO = [
+        self::TIPO_CLASICA => 'Clásica',
+        self::TIPO_PREMIUM => 'Premium',
+    ];
+
     protected $casts = [
         'stock_pendiente' => 'boolean',
         'stock_sincronizado_en' => 'datetime',
@@ -135,7 +148,7 @@ class MercadoLibrePublicacionProducto extends Model
      */
     public function esPremium(): bool
     {
-        return $this->listing_type_id === 'gold_pro';
+        return $this->listing_type_id === self::TIPO_PREMIUM;
     }
 
     /**
@@ -182,5 +195,23 @@ class MercadoLibrePublicacionProducto extends Model
         }
 
         return self::ETIQUETAS_LOGISTICA[$this->logistic_type] ?? $this->logistic_type;
+    }
+
+    /**
+     * Etiqueta legible del tipo de publicación (spec 115, FR-016). Mismo criterio que la logística:
+     * un tipo que el CRM no conoce se muestra tal cual en vez de pasar por "Sin clasificar".
+     */
+    public function getTipoEtiquetaAttribute(): string
+    {
+        return self::etiquetaTipo($this->listing_type_id);
+    }
+
+    public static function etiquetaTipo(?string $tipo): string
+    {
+        if ($tipo === null || $tipo === '') {
+            return 'Sin clasificar';
+        }
+
+        return self::ETIQUETAS_TIPO[$tipo] ?? $tipo;
     }
 }

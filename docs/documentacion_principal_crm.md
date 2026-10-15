@@ -1250,7 +1250,9 @@ gold_pro      (Premium)   →  lista_precio_id_premium    "ML Premium"   ≈ ML 
 ```
 
 `SincronizadorPrecios::resolverListaPrecio()` es **el único lugar** donde se decide qué lista le
-corresponde a un vínculo. Todo camino que empuje precios tiene que pasar por ahí.
+corresponde a un vínculo. Todo camino que empuje precios tiene que pasar por ahí. (Desde spec 115 el
+mapeo tipo → lista vive en `listaPrecioParaTipo()`, que `resolverListaPrecio()` usa sumándole el fallback;
+el cambio de tipo usa la versión estricta, sin fallback.)
 
 **Qué pasó.** `PrecioProductoObserver` no lo hacía: miraba sólo la lista general y le mandaba ese
 precio a *todos* los vínculos del producto. Una importación masiva del 25/08 cambió la lista general
@@ -1341,7 +1343,50 @@ se apaga, el CRM vuelve a publicar cualquier precio sin validar, que es el estad
 tiene el problema de las dos listas (usa una sola) y no causó incidentes, pero queda fuera de la
 spec 084 y necesita la suya.
 
+> **Segunda excepción humana al corte (spec 115)**: además de aprobar una retención, la confirmación de
+> un **cambio de tipo de publicación** (Clásica ↔ Premium, §3.2.ter.octies) publica su precio sin pasar
+> por el corte, porque el modal muestra el precio actual y el nuevo antes de confirmar. Son las **dos
+> únicas** llamadas autorizadas a usar `omitirCorte`; ningún camino automático puede hacerlo.
+
 *Fuente(s): `specs/084-corte-bajada-precios-ml/`*
+
+### 3.2.ter.octies Cambio de tipo de publicación Clásica ↔ Premium — spec 115 (implementada 15/10/2026)
+
+Desde **Vinculaciones ML** se puede pasar una publicación (o una selección) de Clásica a Premium y al
+revés, sin entrar a Mercado Libre. El cambio no tiene costo en ML; lo que cambia es la comisión por
+venta (Premium cobra más), y la confirmación lo avisa.
+
+**Un cambio de tipo es siempre un cambio de precio.** Como cada publicación cotiza por la lista de su
+tipo (§3.2.ter.quinquies), cambiar el tipo sin cambiar el precio deja la publicación mal cotizada —el
+incidente del 25/08 en sentido inverso—. Reglas que no se "simplifican":
+
+- **Sin precio destino no hay cambio.** Pasar a Premium exige que el producto tenga precio en la lista
+  Premium configurada; pasar a Clásica, en la lista general. A diferencia de la sincronización normal,
+  acá **no hay fallback** a la lista general (spec 050 FR-008): el fallback es exactamente lo que se
+  quiere evitar.
+- **El orden nunca deja la publicación por debajo de su tipo**: a Premium se sube primero el precio y
+  después se cambia el tipo; a Clásica se cambia primero el tipo y después se baja el precio. Si el
+  segundo paso falla: a Premium se restituye el precio anterior (sigue Clásica); a Clásica queda el
+  precio pendiente (cobra de más, nunca de menos).
+- **Se verifica contra ML antes de confirmar**: tipo vigente (si ya es el destino, se actualiza el
+  vínculo y no se envía nada) y que el destino esté disponible para ese ítem.
+- El tipo nuevo queda guardado en el vínculo **en el momento**, sin esperar la clasificación diaria.
+- Respeta los cortes de siempre (función desactivada, sólo lectura, sin cuenta) y el candado de
+  sincronización de precios. El lote corre en segundo plano (mismo patrón que la Sincronización
+  forzada) y termina con un resumen de cambiadas / omitidas / fallidas.
+- Cada intento queda en `ml_cambios_tipo_publicacion` con usuario, tipos y precios.
+
+La tabla de Vinculaciones suma además casillas de selección, columna **Tipo** (Clásica / Premium /
+Sin clasificar) con filtro, y la columna Producto identifica el producto del CRM como
+`#ID · código — nombre`, buscable por cualquiera de los tres.
+
+Detalles de la implementación: la confirmación individual ofrece Confirmar también cuando ML ya tenía
+el tipo destino (sólo se registra como "sin cambios" en el historial); si el precio destino es igual al
+publicado se cambia sólo el tipo; el revertido de "a Premium" re-envía el precio anterior también con la
+excepción del corte (es volver a lo que ya estaba publicado). La selección del lote se limpia en cada
+recarga de la tabla (página, búsqueda, filtro u orden).
+
+*Fuente(s): `specs/115-ml-cambio-tipo-publicacion/`*
 
 ### 3.2.quater Tiendanube (`/ingresos/tiendanube`) — spec 017
 

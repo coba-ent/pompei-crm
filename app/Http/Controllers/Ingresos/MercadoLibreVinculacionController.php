@@ -55,6 +55,15 @@ class MercadoLibreVinculacionController extends Controller
                 : $query->where('logistic_type', $logistica);
         }
 
+        // spec 115/FR-017: filtro por tipo de publicación, con el mismo `sin_clasificar` que logística.
+        if ($request->filled('listing_type')) {
+            $tipo = $request->input('listing_type');
+
+            $tipo === 'sin_clasificar'
+                ? $query->whereNull('listing_type_id')
+                : $query->where('listing_type_id', $tipo);
+        }
+
         // El stock que realmente se publica sale de UN depósito, no del total del
         // producto. Mostrar el total acá induce a error: se ve "17" en el CRM y "7"
         // en Mercado Libre y parece un problema de sincronización cuando no lo es.
@@ -63,6 +72,21 @@ class MercadoLibreVinculacionController extends Controller
 
         return DataTables::eloquent($query)
             ->addColumn('producto_nombre', fn (MercadoLibrePublicacionProducto $v) => optional($v->producto)->nombre)
+            // spec 115/FR-018: el producto del CRM se identifica por ID + código + nombre.
+            ->addColumn('producto_codigo', fn (MercadoLibrePublicacionProducto $v) => optional($v->producto)->codigo)
+            ->filterColumn('producto.nombre', function ($query, $termino) {
+                $query->whereHas('producto', function ($q) use ($termino) {
+                    $q->where(function ($q) use ($termino) {
+                        if (ctype_digit(ltrim(trim($termino), '#'))) {
+                            $q->orWhere('productos.id', (int) ltrim(trim($termino), '#'));
+                        }
+
+                        $q->orWhere('productos.codigo', 'like', "%{$termino}%")
+                            ->orWhere('productos.nombre', 'like', "%{$termino}%");
+                    });
+                });
+            })
+            ->addColumn('tipo_etiqueta', fn (MercadoLibrePublicacionProducto $v) => $v->tipo_etiqueta)
             ->addColumn('stock_ml', fn (MercadoLibrePublicacionProducto $v) => $v->producto
                 ? (int) max(0, $stockService->disponibilidad($v->producto, null, $depositoMl))
                 : null)

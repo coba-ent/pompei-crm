@@ -1184,6 +1184,31 @@ un índice único (MariaDB no tiene índices únicos parciales). La regla vive e
 el código, porque es la que impide que dos retenciones se pisen. Sin soft delete: no es un documento
 fiscal, el historial se conserva por `estado`.
 
+### `ml_cambios_tipo_publicacion`
+
+**Tabla nueva (spec 115, implementada 15/10/2026 — migración `2026_10_15_000001`)**. Historial de cada intento de cambiar una publicación entre
+Clásica (`gold_special`) y Premium (`gold_pro`) desde Vinculaciones ML, individual o en lote. Se
+conservan también los bloqueados y fallidos: un cambio de tipo es siempre también un cambio de precio
+y tiene que quedar quién lo confirmó y con qué importes.
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| ml_publicacion_producto_id | FK → ml_publicacion_producto, nullable, `nullOnDelete` | El vínculo puede borrarse después; por eso se copia `ml_item_id` |
+| ml_item_id | string(30) | |
+| producto_id | FK → productos, nullable, `nullOnDelete` | |
+| tipo_anterior / tipo_destino | string(30) | `tipo_anterior` `null` = sin clasificar |
+| precio_anterior / precio_nuevo | decimal(15,2), nullable | `precio_publicado` al momento del intento / precio de la lista destino |
+| lista_precio_id | FK → listas_precio, nullable | Lista de la que salió el precio nuevo |
+| resultado | string(30) | `cambiado` / `cambiado_precio_pendiente` / `sin_cambios` / `bloqueado` / `fallido` / `revertido` |
+| mensaje | text, nullable | Motivo del bloqueo o falla (el de Mercado Libre si lo hubo) |
+| lote_id | uuid, nullable, indexado | `null` = cambio individual |
+| usuario_id | FK → users, nullable | Quien confirmó |
+
+Sin columnas nuevas en `ml_publicacion_producto`: el cambio actualiza en el momento `listing_type_id`
+/ `listing_type_sincronizado_en`, y el precio lo manejan las columnas de siempre vía
+`SincronizadorPrecios::enviarUno()`. El estado del lote vive en Cache (`ml:cambio_tipo_lote:estado`),
+no en tabla. Detalle en `specs/115-ml-cambio-tipo-publicacion/data-model.md`.
+
 > **Columnas nuevas (spec 065, implementada)** — tipo de logística por vínculo, para distinguir las
 > publicaciones **Full** (mercadería en el centro de distribución de Mercado Libre) de las de
 > logística propia: `logistic_type` (string(40), nullable, indexada — valor crudo de

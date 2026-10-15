@@ -27,6 +27,7 @@ use App\Http\Controllers\Informes\InformeStockController;
 use App\Http\Controllers\Informes\InformeVentasController;
 use App\Http\Controllers\Informes\InformeVistaController;
 use App\Http\Controllers\Informes\ReporteFinalController;
+use App\Http\Controllers\Ingresos\MercadoLibreCambioTipoController;
 use App\Http\Controllers\Ingresos\MercadoLibreVentaController;
 use App\Http\Controllers\Ingresos\MercadoLibreVinculacionController;
 use App\Http\Controllers\Ingresos\TiendanubeVentaController;
@@ -445,10 +446,18 @@ Route::middleware('auth')->group(function () {
             Route::post('sincronizacion-forzada', [MercadoLibreVinculacionController::class, 'sincronizacionForzada'])->name('sincronizacionForzada');
             Route::get('sincronizacion-forzada/estado', [MercadoLibreVinculacionController::class, 'sincronizacionForzadaEstado'])->name('sincronizacionForzada.estado');
             Route::delete('/', [MercadoLibreVinculacionController::class, 'eliminarTodas'])->name('eliminarTodas');
+            // spec 115 (US3): rutas estáticas del lote ANTES de las {vinculacion}, para que el
+            // parámetro no las capture.
+            Route::post('cambio-tipo-lote/previsualizar', [MercadoLibreCambioTipoController::class, 'previsualizarLote'])->name('cambioTipoLote.previsualizar');
+            Route::post('cambio-tipo-lote', [MercadoLibreCambioTipoController::class, 'ejecutarLote'])->name('cambioTipoLote.ejecutar');
+            Route::get('cambio-tipo-lote/estado', [MercadoLibreCambioTipoController::class, 'estadoLote'])->name('cambioTipoLote.estado');
             Route::patch('{vinculacion}', [MercadoLibreVinculacionController::class, 'update'])->name('update');
             Route::delete('{vinculacion}', [MercadoLibreVinculacionController::class, 'destroy'])->name('destroy');
             // spec 063 (T025/FR-017): reactiva una publicación bloqueada por error permanente.
             Route::post('{vinculacion}/reactivar', [MercadoLibreVinculacionController::class, 'reactivar'])->name('reactivar');
+            // spec 115 (US1): cambio de tipo de publicación Clásica ↔ Premium.
+            Route::get('{vinculacion}/cambio-tipo', [MercadoLibreCambioTipoController::class, 'previsualizar'])->name('cambioTipo.previsualizar');
+            Route::post('{vinculacion}/cambio-tipo', [MercadoLibreCambioTipoController::class, 'ejecutar'])->name('cambioTipo.ejecutar');
         });
 
         // Corte de seguridad de precios (spec 084, US1): los envíos frenados se resuelven desde
