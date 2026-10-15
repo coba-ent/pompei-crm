@@ -15,12 +15,12 @@
                         <i class="fas fa-link me-1"></i> Vinculaciones
                     </a>
                 @endif
-                <button type="button" class="btn btn-outline-primary me-1" id="btn-sincronizar-stock-ml">
-                    <i class="fas fa-boxes-stacked me-1"></i> Sincronizar stock ahora
-                </button>
-                {{-- "Sincronizar precios ahora" vive en Productos (spec 016, corrección de UX): --}}
-                <button type="button" class="btn btn-outline-primary me-1" id="btn-sincronizar-ml">
-                    <i class="fas fa-sync-alt me-1"></i> Sincronizar ahora
+                {{-- "Sincronizar stock ahora" oculto (15/10/2026): la Sincronización forzada de
+                     Vinculaciones ya empuja todo el stock y el precio, y el cron corre solo.
+                     El endpoint y el handler JS siguen; volver a mostrarlo = reponer el botón. --}}
+                <button type="button" class="btn btn-outline-primary me-1" id="btn-sincronizar-ml"
+                    title="Trae ya las órdenes nuevas, sin esperar la corrida automática">
+                    <i class="fas fa-download me-1"></i> Traer órdenes ahora
                 </button>
                 <button type="button" class="btn btn-primary" id="btn-transformar-todas-en-venta-ml">
                     <i class="fas fa-file-invoice-dollar me-1"></i> Transformar todas en Venta

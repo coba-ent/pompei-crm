@@ -125,12 +125,12 @@
 
             $.post(rutas.sincronizar)
                 .done((resp) => {
-                    toast('success', resp.mensaje || 'Sincronización completa.');
+                    toast('success', resp.mensaje || 'Órdenes actualizadas.');
                     if (window._tnOrdenesTabla) { window._tnOrdenesTabla.ajax.reload(null, false); }
                 })
                 .fail((xhr) => {
                     const resp = xhr.responseJSON || {};
-                    toast('error', resp.mensaje || 'No se pudo sincronizar.');
+                    toast('error', resp.mensaje || 'No se pudieron traer las órdenes.');
                 })
                 .always(() => window.AppBtn.loading($btn, false));
         });
