@@ -128,7 +128,7 @@ class AuditoriaService
         }
 
         if (! empty($filtros['operacion'])) {
-            $query->deOperacion((string) $filtros['operacion']);
+            $query->deOperacion($filtros['operacion']);
         }
 
         if (! empty($filtros['usuario_id'])) {

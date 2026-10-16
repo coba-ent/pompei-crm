@@ -100,4 +100,24 @@ class AuditoriaFiltrosTest extends TestCase
         $data = $this->datatable(['operacion' => 'gasto', 'usuario_id' => $usuario->id]);
         $this->assertSame(0, $data['recordsFiltered']);
     }
+
+    /** Pedido del cliente (16/10/2026): el filtro de Operación admite varias a la vez. */
+    public function test_filtra_por_varias_operaciones(): void
+    {
+        Venta::factory()->create();
+        Venta::factory()->create();
+        $ventas = LogAuditoria::where('tipo_operacion', 'venta')->count();
+        $otra = LogAuditoria::where('tipo_operacion', '!=', 'venta')->value('tipo_operacion');
+
+        $this->assertSame($ventas, $this->datatable(['operacion' => ['venta', 'gasto']])['recordsFiltered']);
+        $this->assertSame(0, $this->datatable(['operacion' => ['gasto']])['recordsFiltered']);
+        $this->assertSame(LogAuditoria::count(), $this->datatable(['operacion' => []])['recordsFiltered']);
+
+        if ($otra) {
+            $this->assertSame(
+                LogAuditoria::whereIn('tipo_operacion', ['venta', $otra])->count(),
+                $this->datatable(['operacion' => ['venta', $otra]])['recordsFiltered'],
+            );
+        }
+    }
 }

@@ -195,7 +195,8 @@ class AuditoriaController extends Controller
 
         return [
             'id' => $request->integer('id') ?: null,
-            'operacion' => $request->string('operacion')->toString() ?: null,
+            // Multiple (pedido del cliente, 16/10/2026): llega como array; un string suelto sigue valiendo.
+            'operacion' => array_values(array_filter(array_map('strval', (array) $request->input('operacion', [])))) ?: null,
             'usuario_id' => $usuarioId,
             'origen_sistema' => $origenSistema,
             'fecha_desde' => $request->string('fecha_desde')->toString() ?: null,

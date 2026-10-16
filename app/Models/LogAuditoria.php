@@ -33,9 +33,10 @@ class LogAuditoria extends Model
         return $query->where('id', $id);
     }
 
-    public function scopeDeOperacion(Builder $query, string $operacion): Builder
+    /** Una operación o varias (el filtro de la pantalla es múltiple). */
+    public function scopeDeOperacion(Builder $query, string|array $operacion): Builder
     {
-        return $query->where('tipo_operacion', $operacion);
+        return $query->whereIn('tipo_operacion', (array) $operacion);
     }
 
     public function scopeDeUsuario(Builder $query, int $usuarioId): Builder

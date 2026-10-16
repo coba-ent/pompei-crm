@@ -42,7 +42,7 @@
         const $tabla = $('#tabla-auditoria');
         if (!$tabla.length) { return; }
 
-        initSelect2($('#filtro-operacion'), { placeholder: 'Todas', allowClear: true });
+        initSelect2($('#filtro-operacion'), { placeholder: 'Todas', allowClear: true, closeOnSelect: false });
         initSelect2($('#filtro-usuario'), { placeholder: 'Todos', allowClear: true });
 
         let fechaDesde = cfg.hoy;
@@ -191,7 +191,7 @@
         $('#btn-aplicar-filtros').on('click', () => tabla.ajax.reload());
         $('#btn-limpiar-filtros').on('click', () => {
             $('#filtro-id').val('');
-            $('#filtro-operacion').val('').trigger('change.select2');
+            $('#filtro-operacion').val([]).trigger('change.select2');
             $('#filtro-usuario').val('').trigger('change.select2');
             fechaDesde = cfg.hoy; fechaHasta = cfg.hoy;
             $('#filtro-rango-fecha').val('Hoy');

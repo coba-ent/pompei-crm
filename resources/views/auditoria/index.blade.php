@@ -33,8 +33,7 @@
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label">Operación</label>
-                                <select id="filtro-operacion" class="form-control">
-                                    <option value="">Todas</option>
+                                <select id="filtro-operacion" class="form-control" multiple>
                                     @foreach ($operaciones as $valor => $label)
                                         <option value="{{ $valor }}">{{ $label }}</option>
                                     @endforeach
