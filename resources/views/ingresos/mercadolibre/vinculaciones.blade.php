@@ -239,7 +239,15 @@
                         <dd class="col-8" id="cambio-tipo-precios"></dd>
                         <dt class="col-4">Lista de precios</dt>
                         <dd class="col-8" id="cambio-tipo-lista"></dd>
+                        <dt class="col-4">Cuotas actuales</dt>
+                        <dd class="col-8" id="cambio-tipo-cuotas-actual"></dd>
                     </dl>
+                    {{-- Ajuste 16/10/2026 (FR-019): las cuotas se eligen en la misma confirmación. --}}
+                    <div class="mt-3 d-none" id="cambio-tipo-cuotas-bloque">
+                        <label class="form-label small fw-semibold mb-1">Cuotas en la publicación</label>
+                        <div id="cambio-tipo-cuotas"></div>
+                        <div class="form-text" id="cambio-tipo-cuotas-ayuda">Cargo de Mercado Libre por cada venta al precio nuevo (comisión + costo de las cuotas).</div>
+                    </div>
                     <div class="alert alert-warning small mt-3 mb-0 d-none" id="cambio-tipo-aviso-comision">
                         <i class="fas fa-triangle-exclamation me-1"></i>
                         Premium cobra <strong>más comisión por venta</strong> que Clásica.
@@ -272,6 +280,11 @@
                     <div class="alert alert-warning small d-none" id="cambio-tipo-lote-aviso-comision">
                         <i class="fas fa-triangle-exclamation me-1"></i>
                         Premium cobra <strong>más comisión por venta</strong> que Clásica.
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold mb-1">Cuotas en todas las publicaciones</label>
+                        <div id="cambio-tipo-lote-cuotas"></div>
+                        <div class="form-text">Si la categoría de alguna publicación no admite la opción elegida, esa publicación no se cambia y figura en el resumen.</div>
                     </div>
                     <h6>Se van a cambiar (<span id="cambio-tipo-lote-conteo-cambiar">0</span>)</h6>
                     <div class="table-responsive mb-3">

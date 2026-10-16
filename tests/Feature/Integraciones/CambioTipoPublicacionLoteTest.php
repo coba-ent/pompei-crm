@@ -89,7 +89,7 @@ class CambioTipoPublicacionLoteTest extends TestCase
             }
 
             if ($request->method() === 'GET') {
-                return Http::response(['id' => $item, 'listing_type_id' => 'gold_special'], 200);
+                return Http::response(['id' => $item, 'listing_type_id' => 'gold_special', 'tags' => ['immediate_payment']], 200);
             }
 
             if (str_ends_with($ruta, '/listing_type')) {
@@ -178,6 +178,27 @@ class CambioTipoPublicacionLoteTest extends TestCase
         $filas = MercadoLibreCambioTipoPublicacion::all();
         $this->assertCount(3, $filas);
         $this->assertTrue($filas->every(fn ($f) => $f->lote_id === 'lote-1' && $f->usuario_id === auth()->id()));
+    }
+
+    /** Ajuste 16/10/2026: la opción de cuotas elegida en la confirmación viaja al job y se aplica a cada una. */
+    public function test_el_lote_aplica_las_cuotas_elegidas(): void
+    {
+        Queue::fake();
+        $v = $this->vinculo('MLA1');
+
+        $this->postJson(route('ingresos.mercadolibre.vinculaciones.cambioTipoLote.previsualizar'), ['destino' => 'gold_pro', 'ids' => [$v->id]])
+            ->assertJson(['cuotas_sugerida' => 'no-campaign', 'cuotas_opciones' => [['id' => '3x_campaign'], ['id' => 'no-campaign'], ['id' => '9x_campaign'], ['id' => '12x_campaign']]]);
+
+        $this->postJson(route('ingresos.mercadolibre.vinculaciones.cambioTipoLote.ejecutar'), ['destino' => 'gold_pro', 'ids' => [$v->id], 'cuotas' => '9x_campaign'])
+            ->assertStatus(202);
+        Queue::assertPushed(CambioTipoPublicacionLote::class, fn ($job) => $job->cuotas === '9x_campaign');
+
+        $this->fakeMl();
+        (new CambioTipoPublicacionLote('lote-c', [$v->id], 'gold_pro', auth()->id(), '9x_campaign'))->handle(app(CambiadorTipoPublicacion::class));
+
+        $this->assertSame(1, Cache::get(CambioTipoPublicacionLote::ESTADO_CACHE_KEY)['resumen']['cambiado']);
+        Http::assertSent(fn ($r) => $r->method() === 'PUT' && ($r['tags'] ?? null) === ['9x_campaign', 'immediate_payment']);
+        $this->assertSame('9x_campaign', MercadoLibreCambioTipoPublicacion::first()->cuotas);
     }
 
     /** SC-004: un lote de 50 termina holgado (con ML simulado, mide el costo propio del CRM). */

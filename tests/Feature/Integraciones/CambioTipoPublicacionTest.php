@@ -96,6 +96,15 @@ class CambioTipoPublicacionTest extends TestCase
     private bool $fakeRegistrado = false;
 
     /**
+     * Cuotas del ML simulado (ajuste 16/10/2026). `campanias` null = el endpoint de campañas no
+     * responde (el CRM cae a la lista documentada); `cargos` = % por campaña para `listing_prices`.
+     */
+    private array $cuotasMl = [];
+
+    /** Último cuerpo `tags` recibido en un PUT /items. */
+    private ?array $tagsEnviados = null;
+
+    /**
      * Mercado Libre simulado. `$tipoEnMl` es el tipo vigente; las escrituras se pueden hacer fallar.
      * El fake se registra una sola vez y lee `$this->ml`: `Http::fake()` acumula stubs y el primero
      * registrado gana, así que volver a llamarlo no cambiaría el comportamiento.
@@ -104,6 +113,8 @@ class CambioTipoPublicacionTest extends TestCase
     {
         $this->llamadas = [];
         $this->ml = compact('tipoEnMl', 'disponibles', 'fallaTipo', 'fallaPrecio');
+        $this->cuotasMl = ['tags' => ['immediate_payment', 'good_quality_thumbnail'], 'campanias' => null, 'fallaCuotas' => false, 'cargos' => []];
+        $this->tagsEnviados = null;
 
         if ($this->fakeRegistrado) {
             return;
@@ -112,15 +123,47 @@ class CambioTipoPublicacionTest extends TestCase
 
         Http::fake(function (Request $request) {
             $ml = $this->ml;
+            $cuotas = $this->cuotasMl;
             $ruta = parse_url($request->url(), PHP_URL_PATH);
-            $this->llamadas[] = $request->method().' '.$ruta;
+            $esPutTags = $request->method() === 'PUT' && isset($request['tags']);
+            $this->llamadas[] = $request->method().' '.$ruta.($esPutTags ? ' [tags]' : '');
 
             if ($request->method() === 'GET' && (str_ends_with($ruta, '/available_upgrades') || str_ends_with($ruta, '/available_downgrades'))) {
                 return Http::response(array_map(fn ($id) => ['site_id' => 'MLA', 'id' => $id, 'name' => $id], $ml['disponibles']), 200);
             }
 
+            if ($request->method() === 'GET' && str_ends_with($ruta, '/special_installments/campaigns')) {
+                if ($cuotas['campanias'] === null) {
+                    return Http::response(['message' => 'not_found'], 404);
+                }
+
+                return Http::response([[
+                    'channel' => 'marketplace',
+                    'available_campaigns' => collect($cuotas['campanias'])->map(fn ($ids, $tipo) => [
+                        'listing_type_id' => $tipo,
+                        'available_campaigns' => array_map(fn ($id) => ['campaign_id' => $id, 'description_campaign' => "desc {$id}"], $ids),
+                    ])->values()->all(),
+                ]], 200);
+            }
+
+            if ($request->method() === 'GET' && str_ends_with($ruta, '/listing_prices')) {
+                parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $q);
+                $porcentaje = $cuotas['cargos'][$q['tags'] ?? 'no-campaign'] ?? null;
+
+                return $porcentaje === null
+                    ? Http::response(['message' => 'not_found'], 404)
+                    : Http::response([[
+                        'listing_type_id' => $q['listing_type_id'],
+                        'sale_fee_amount' => round($q['price'] * $porcentaje / 100, 2),
+                        'sale_fee_details' => ['percentage_fee' => $porcentaje],
+                    ]], 200);
+            }
+
             if ($request->method() === 'GET') {
-                return Http::response(['id' => 'MLA123', 'listing_type_id' => $ml['tipoEnMl'], 'status' => 'active'], 200);
+                return Http::response([
+                    'id' => 'MLA123', 'site_id' => 'MLA', 'category_id' => 'MLA1234', 'domain_id' => 'MLA-FAUCETS',
+                    'listing_type_id' => $ml['tipoEnMl'], 'status' => 'active', 'tags' => $cuotas['tags'],
+                ], 200);
             }
 
             if ($request->method() === 'POST' && str_ends_with($ruta, '/listing_type')) {
@@ -129,7 +172,18 @@ class CambioTipoPublicacionTest extends TestCase
                 }
                 $this->ml['tipoEnMl'] = $request['id'];
 
-                return Http::response(['id' => 'MLA123', 'listing_type_id' => $request['id']], 200);
+                return Http::response(['id' => 'MLA123', 'listing_type_id' => $request['id'], 'tags' => $cuotas['tags']], 200);
+            }
+
+            if ($esPutTags) {
+                $this->tagsEnviados = $request['tags'];
+
+                if ($cuotas['fallaCuotas']) {
+                    return Http::response(['message' => 'category not enabled for installments', 'error' => 'bad_request'], 400);
+                }
+                $this->cuotasMl['tags'] = $request['tags'];
+
+                return Http::response(['id' => 'MLA123', 'tags' => $request['tags']], 200);
             }
 
             if ($request->method() === 'PUT') {
@@ -514,5 +568,129 @@ class CambioTipoPublicacionTest extends TestCase
         $this->getJson(route('ingresos.mercadolibre.vinculaciones.cambioTipo.previsualizar', [$vinculo, 'destino' => 'gold_pro']))
             ->assertStatus(502)
             ->assertJson(['ok' => false]);
+    }
+
+    // ─────────────────── Ajuste 16/10/2026: elegir las cuotas al cambiar el tipo ───────────────────
+
+    public function test_a_premium_con_9_cuotas_aplica_la_campania_despues_del_tipo_sin_perder_los_demas_tags(): void
+    {
+        $vinculo = $this->vinculo();
+        $this->fakeMl();
+        $this->cuotasMl['campanias'] = ['gold_pro' => ['3x_campaign', 'no-campaign', '9x_campaign']];
+
+        $r = $this->cambiador()->ejecutar($vinculo, 'gold_pro', auth()->id(), cuotas: '9x_campaign');
+
+        $this->assertSame('cambiado', $r['resultado']);
+        $this->assertStringContainsString('9 cuotas sin interés', $r['mensaje']);
+        $this->assertSame(['PUT /items/MLA123', 'POST /items/MLA123/listing_type', 'PUT /items/MLA123 [tags]'], $this->escrituras());
+        $this->assertSame(['9x_campaign', 'immediate_payment', 'good_quality_thumbnail'], $this->tagsEnviados);
+        $this->assertSame('9x_campaign', MercadoLibreCambioTipoPublicacion::latest('id')->value('cuotas'));
+    }
+
+    public function test_a_premium_con_6_cuotas_no_escribe_tags_porque_es_lo_que_ml_aplica_solo(): void
+    {
+        $vinculo = $this->vinculo();
+        $this->fakeMl();
+
+        $r = $this->cambiador()->ejecutar($vinculo, 'gold_pro', auth()->id(), cuotas: 'no-campaign');
+
+        $this->assertSame('cambiado', $r['resultado']);
+        $this->assertSame(['PUT /items/MLA123', 'POST /items/MLA123/listing_type'], $this->escrituras());
+    }
+
+    public function test_a_clasica_saca_la_campania_premium_y_puede_activar_interes_bajo(): void
+    {
+        $vinculo = $this->vinculo('gold_pro', publicado: 145_350);
+        $this->fakeMl('gold_pro');
+        $this->cuotasMl['tags'] = ['12x_campaign', 'immediate_payment'];
+
+        $r = $this->cambiador()->ejecutar($vinculo, 'gold_special', auth()->id(), cuotas: 'pcj-co-funded');
+
+        $this->assertSame('cambiado', $r['resultado']);
+        $this->assertSame(['POST /items/MLA123/listing_type', 'PUT /items/MLA123', 'PUT /items/MLA123 [tags]'], $this->escrituras());
+        $this->assertSame(['pcj-co-funded', 'immediate_payment'], $this->tagsEnviados);
+    }
+
+    public function test_si_ml_rechaza_las_cuotas_el_cambio_de_tipo_y_precio_queda_hecho(): void
+    {
+        $vinculo = $this->vinculo();
+        $this->fakeMl();
+        $this->cuotasMl['fallaCuotas'] = true;
+
+        $this->postJson(route('ingresos.mercadolibre.vinculaciones.cambioTipo.ejecutar', $vinculo), ['destino' => 'gold_pro', 'cuotas' => '12x_campaign'])
+            ->assertOk()
+            ->assertJson(['ok' => true, 'resultado' => 'cambiado_cuotas_pendientes']);
+
+        $vinculo->refresh();
+        $this->assertSame('gold_pro', $vinculo->listing_type_id);
+        $this->assertEqualsWithDelta(145_350, (float) $vinculo->precio_publicado, 0.01);
+    }
+
+    public function test_cuotas_que_la_categoria_no_admite_bloquean_sin_escrituras(): void
+    {
+        $vinculo = $this->vinculo();
+        $this->fakeMl();
+        $this->cuotasMl['campanias'] = ['gold_pro' => ['3x_campaign', 'no-campaign']];
+
+        $r = $this->cambiador()->ejecutar($vinculo, 'gold_pro', auth()->id(), cuotas: '12x_campaign');
+
+        $this->assertSame('bloqueado', $r['resultado']);
+        $this->assertStringContainsString('12 cuotas', $r['mensaje']);
+        $this->assertSame([], $this->escrituras());
+        $this->assertSame('gold_special', $vinculo->fresh()->listing_type_id);
+    }
+
+    public function test_previsualizacion_ofrece_las_cuotas_de_la_categoria_con_su_cargo(): void
+    {
+        $vinculo = $this->vinculo();
+        $this->fakeMl();
+        $this->cuotasMl['campanias'] = [
+            'gold_special' => ['no-campaign', 'pcj-co-funded'],
+            'gold_pro' => ['3x_campaign', 'no-campaign', '9x_campaign', 'campania_nueva'],
+        ];
+        $this->cuotasMl['cargos'] = ['no-campaign' => 23.5, '9x_campaign' => 27];
+
+        $r = $this->getJson(route('ingresos.mercadolibre.vinculaciones.cambioTipo.previsualizar', [$vinculo, 'destino' => 'gold_pro']))
+            ->assertOk()
+            ->assertJson([
+                'puede_confirmar' => true,
+                'cuotas_actual' => 'no-campaign',
+                'cuotas_actual_etiqueta' => 'Sin cuotas (sólo las de los bancos)',
+                'cuotas_sugerida' => 'no-campaign',
+            ])
+            ->json('cuotas_opciones');
+
+        $this->assertSame(['3x_campaign', 'no-campaign', '9x_campaign', 'campania_nueva'], array_column($r, 'id'));
+        $this->assertSame('6 cuotas sin interés', $r[1]['etiqueta']);
+        $this->assertSame('desc campania_nueva', $r[3]['etiqueta']);
+        $this->assertNull($r[0]['cargo']);
+        $this->assertEquals(['porcentaje' => 27, 'importe' => 39_244.5], $r[2]['cargo']);
+        $this->assertSame([], $this->escrituras());
+    }
+
+    public function test_sin_respuesta_de_campanias_ofrece_la_lista_documentada(): void
+    {
+        $vinculo = $this->vinculo('gold_pro', publicado: 145_350);
+        $this->fakeMl('gold_pro');
+        $this->cuotasMl['tags'] = ['3x_campaign'];
+
+        $this->getJson(route('ingresos.mercadolibre.vinculaciones.cambioTipo.previsualizar', [$vinculo, 'destino' => 'gold_special']))
+            ->assertOk()
+            ->assertJson([
+                'cuotas_actual' => '3x_campaign',
+                'cuotas_actual_etiqueta' => '3 cuotas sin interés',
+                'cuotas_opciones' => [['id' => 'no-campaign'], ['id' => 'pcj-co-funded']],
+                'cuotas_sugerida' => 'no-campaign',
+            ]);
+    }
+
+    public function test_cuotas_con_formato_invalido_dan_422(): void
+    {
+        $vinculo = $this->vinculo();
+        $this->fakeMl();
+
+        $this->postJson(route('ingresos.mercadolibre.vinculaciones.cambioTipo.ejecutar', $vinculo), ['destino' => 'gold_pro', 'cuotas' => '9 cuotas'])
+            ->assertStatus(422);
+        $this->assertSame([], $this->llamadas);
     }
 }

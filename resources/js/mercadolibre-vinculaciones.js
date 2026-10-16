@@ -361,6 +361,24 @@
     const ETIQUETAS_TIPO = { gold_pro: 'Premium', gold_special: 'Clásica' };
 
     /**
+     * Ajuste 16/10/2026 (FR-019): opciones de cuotas como radios —son 2 a 4 opciones fijas, no un
+     * catálogo— con el cargo de ML de cada una cuando el servidor lo pudo consultar.
+     */
+    function renderOpcionesCuotas($contenedor, nombre, opciones, sugerida) {
+        $contenedor.html((opciones || []).map((o, i) => {
+            const id = nombre + '-' + i;
+            const cargo = o.cargo
+                ? ' <span class="text-muted">— cargo ' + escapar(String(o.cargo.porcentaje).replace('.', ',')) + '%'
+                    + (o.cargo.importe !== null ? ' (' + escapar(dinero(o.cargo.importe)) + ')' : '') + '</span>'
+                : '';
+            return '<div class="form-check">'
+                + '<input class="form-check-input" type="radio" name="' + nombre + '" id="' + id + '" value="' + escapar(o.id) + '"'
+                + (o.id === sugerida ? ' checked' : '') + '>'
+                + '<label class="form-check-label small" for="' + id + '">' + escapar(o.etiqueta) + cargo + '</label></div>';
+        }).join(''));
+    }
+
+    /**
      * spec 115 (US1): cambio de tipo de una publicación. El modal muestra lo que va a pasar
      * (tipo y precio antes/después, lista de la que sale el precio) y sólo deja confirmar si el
      * servidor dice que se puede: la verificación contra ML y las reglas viven allá.
@@ -412,6 +430,11 @@
                     : escapar(dinero(r.precio_actual)) + ' <i class="fas fa-arrow-right mx-1"></i> <strong>' + escapar(dinero(r.precio_destino)) + '</strong>'
             );
             $('#cambio-tipo-lista').text(r.lista_destino ? (r.lista_destino.nombre || '#' + r.lista_destino.id) : '—');
+            $('#cambio-tipo-cuotas-actual').text(r.cuotas_actual_etiqueta || '—');
+            const opcionesCuotas = r.puede_confirmar ? (r.cuotas_opciones || []) : [];
+            renderOpcionesCuotas($('#cambio-tipo-cuotas'), 'cambio-tipo-cuotas', opcionesCuotas, r.cuotas_sugerida);
+            $('#cambio-tipo-cuotas-bloque').toggleClass('d-none', !opcionesCuotas.length);
+            $('#cambio-tipo-cuotas-ayuda').toggleClass('d-none', !opcionesCuotas.some((o) => o.cargo));
             $('#cambio-tipo-aviso-comision').toggleClass('d-none', !r.aviso_comision || !!r.motivo_bloqueo || !!r.sin_cambios);
             $('#cambio-tipo-sin-cambios').toggleClass('d-none', !r.sin_cambios)
                 .text(r.sin_cambios ? 'En Mercado Libre la publicación ya es ' + r.tipo_destino_etiqueta + '. Al confirmar sólo se registra en el CRM; no se envía nada.' : '');
@@ -426,9 +449,14 @@
             if (!vinculoId || !destino) { return; }
             window.AppBtn.loading($confirmar, true);
 
-            $.ajax({ url: rutas.cambioTipoEjecutar.replace('__ID__', vinculoId), method: 'POST', data: { destino: destino } })
+            const datos = { destino: destino };
+            const cuotas = $('input[name="cambio-tipo-cuotas"]:checked').val();
+            if (cuotas) { datos.cuotas = cuotas; }
+
+            $.ajax({ url: rutas.cambioTipoEjecutar.replace('__ID__', vinculoId), method: 'POST', data: datos })
                 .done((resp) => {
-                    toast(resp.resultado === 'cambiado_precio_pendiente' ? 'warning' : 'success', resp.mensaje);
+                    const conAviso = resp.resultado === 'cambiado_precio_pendiente' || resp.resultado === 'cambiado_cuotas_pendientes';
+                    toast(conAviso ? 'warning' : 'success', resp.mensaje);
                     modal.hide();
                 })
                 .fail((xhr) => {
@@ -446,6 +474,7 @@
     const ETIQUETAS_RESULTADO = {
         cambiado: 'Cambiadas',
         cambiado_precio_pendiente: 'Cambiadas con precio pendiente',
+        cambiado_cuotas_pendientes: 'Cambiadas sin las cuotas elegidas',
         sin_cambios: 'Sin cambios (ya tenían ese tipo)',
         bloqueado: 'Bloqueadas',
         fallido: 'Fallidas',
@@ -509,6 +538,7 @@
                 : '<tr><td colspan="2" class="text-muted">Ninguna.</td></tr>');
 
             $('#cambio-tipo-lote-aviso-comision').toggleClass('d-none', !r.aviso_comision);
+            renderOpcionesCuotas($('#cambio-tipo-lote-cuotas'), 'cambio-tipo-lote-cuotas', r.cuotas_opciones, r.cuotas_sugerida);
             $confirmar.prop('disabled', !r.puede_confirmar);
             mostrar('confirmacion');
         }
@@ -517,7 +547,11 @@
             if (!idsAEnviar.length) { return; }
             window.AppBtn.loading($confirmar, true);
 
-            $.ajax({ url: rutas.cambioTipoLoteEjecutar, method: 'POST', data: { destino: destino, ids: idsAEnviar } })
+            const datos = { destino: destino, ids: idsAEnviar };
+            const cuotas = $('input[name="cambio-tipo-lote-cuotas"]:checked').val();
+            if (cuotas) { datos.cuotas = cuotas; }
+
+            $.ajax({ url: rutas.cambioTipoLoteEjecutar, method: 'POST', data: datos })
                 .done((resp) => {
                     toast('info', resp.mensaje || 'Cambio de tipo encolado.');
                     $confirmar.addClass('d-none');
@@ -581,7 +615,7 @@
             $('#cambio-tipo-lote-resumen').html(html);
             mostrar('resumen');
 
-            const cambiadas = (resumen.cambiado || 0) + (resumen.cambiado_precio_pendiente || 0);
+            const cambiadas = (resumen.cambiado || 0) + (resumen.cambiado_precio_pendiente || 0) + (resumen.cambiado_cuotas_pendientes || 0);
             toast(estado.estado === 'error' ? 'error' : (detalle ? 'warning' : 'success'),
                 cambiadas + ' publicación(es) cambiada(s) a ' + (ETIQUETAS_TIPO[destino] || destino) + '.');
         }

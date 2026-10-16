@@ -22,6 +22,10 @@ use Illuminate\Support\Facades\Cache;
  *
  * El precio sale siempre por `SincronizadorPrecios::enviarUno()`, el único punto que hace el PUT,
  * con `omitirCorte` porque una persona confirmó los dos importes (FR-009, research R3).
+ *
+ * Las cuotas (ajuste 16/10/2026, FR-019..FR-021) se eligen en la misma confirmación y se aplican
+ * **después** del cambio de tipo, porque cada campaña sólo vale para su tipo. Si ML las rechaza, el
+ * cambio de tipo y precio queda hecho: la publicación sigue con las cuotas que ML le asigna.
  */
 class CambiadorTipoPublicacion
 {
@@ -36,8 +40,12 @@ class CambiadorTipoPublicacion
      *
      * `$destino` null sólo para vínculos sin clasificar: se propone el opuesto del tipo real.
      * Con `ok = false` hubo un error de comunicación con ML (no un bloqueo de negocio).
+     *
+     * `$conCuotas` arma las opciones de cuotas del destino (una consulta más a ML) y `$conCostos`
+     * agrega el cargo de ML de cada opción (una consulta por opción): la ejecución sólo necesita
+     * lo primero, y sólo cuando se eligieron cuotas.
      */
-    public function previsualizar(Vinculo $vinculo, ?string $destino = null): array
+    public function previsualizar(Vinculo $vinculo, ?string $destino = null, bool $conCuotas = true, bool $conCostos = true): array
     {
         $vinculo->loadMissing('producto:id,nombre,codigo');
         $configuracion = MercadoLibreConfiguracion::actual();
@@ -56,6 +64,10 @@ class CambiadorTipoPublicacion
             'lista_destino' => null,
             'sin_cambios' => false,
             'aviso_comision' => $destino === Vinculo::TIPO_PREMIUM,
+            'cuotas_actual' => null,
+            'cuotas_actual_etiqueta' => null,
+            'cuotas_opciones' => [],
+            'cuotas_sugerida' => null,
         ];
 
         if ($motivo = $this->motivoBloqueoLocal($vinculo, $destino, $configuracion, $base)) {
@@ -78,6 +90,8 @@ class CambiadorTipoPublicacion
 
         $base['tipo_actual'] = $tipoVigente;
         $base['tipo_actual_etiqueta'] = Vinculo::etiquetaTipo($tipoVigente);
+        $base['cuotas_actual'] = CampaniasCuotas::vigente((array) ($item->datos['tags'] ?? []));
+        $base['cuotas_actual_etiqueta'] = CampaniasCuotas::etiqueta($base['cuotas_actual'], $tipoVigente);
 
         if (! in_array($tipoVigente, Vinculo::TIPOS_SOPORTADOS, true)) {
             return [...$base, 'motivo_bloqueo' => 'La publicación es de tipo "'.Vinculo::etiquetaTipo($tipoVigente).'": sólo se puede cambiar entre Clásica y Premium.'];
@@ -109,6 +123,13 @@ class CambiadorTipoPublicacion
             return [...$base, 'motivo_bloqueo' => 'Mercado Libre no ofrece el tipo '.Vinculo::etiquetaTipo($destino).' para esta publicación.'];
         }
 
+        if ($conCuotas) {
+            $base['cuotas_opciones'] = $this->opcionesCuotas($item->datos, $destino, $base['precio_destino'], $conCostos);
+            $base['cuotas_sugerida'] = in_array($base['cuotas_actual'], array_column($base['cuotas_opciones'], 'id'), true)
+                ? $base['cuotas_actual']
+                : CampaniasCuotas::SIN_CAMPANIA;
+        }
+
         return [...$base, 'puede_confirmar' => true];
     }
 
@@ -116,9 +137,12 @@ class CambiadorTipoPublicacion
      * Ejecuta el cambio (contracts §2). Re-evalúa todo con `previsualizar()`: no confía en lo que
      * vio la pantalla. Registra siempre una fila de historial (FR-012).
      *
+     * `$cuotas` es la campaña elegida (`CampaniasCuotas`); null = no tocar las cuotas, que quedan
+     * como ML las deje al cambiar el tipo.
+     *
      * @return array{ok: bool, resultado: string, mensaje: string, candado?: bool}
      */
-    public function ejecutar(Vinculo $vinculo, string $destino, ?int $usuarioId, ?string $loteId = null): array
+    public function ejecutar(Vinculo $vinculo, string $destino, ?int $usuarioId, ?string $loteId = null, ?string $cuotas = null): array
     {
         $lock = Cache::lock(SincronizadorPrecios::LOCK_KEY, 60);
 
@@ -126,13 +150,13 @@ class CambiadorTipoPublicacion
             $lock->block(10);
         } catch (LockTimeoutException) {
             $mensaje = 'Hay una sincronización de precios en curso, probá en unos minutos.';
-            $this->registrar($vinculo, $destino, null, Cambio::RESULTADO_BLOQUEADO, $mensaje, $usuarioId, $loteId);
+            $this->registrar($vinculo, $destino, ['cuotas_elegidas' => $cuotas], Cambio::RESULTADO_BLOQUEADO, $mensaje, $usuarioId, $loteId);
 
             return ['ok' => false, 'resultado' => Cambio::RESULTADO_BLOQUEADO, 'mensaje' => $mensaje, 'candado' => true];
         }
 
         try {
-            return $this->ejecutarConCandado($vinculo, $destino, $usuarioId, $loteId);
+            return $this->ejecutarConCandado($vinculo, $destino, $usuarioId, $loteId, $cuotas);
         } finally {
             $lock->release();
         }
@@ -180,12 +204,17 @@ class CambiadorTipoPublicacion
             'omitidas' => $omitidas,
             'puede_confirmar' => $aCambiar !== [],
             'aviso_comision' => $destino === Vinculo::TIPO_PREMIUM,
+            // Sin consultar a ML: la lista documentada. Si la categoría de alguna publicación no
+            // admite la opción elegida, esa queda bloqueada al procesarla (FR-021).
+            'cuotas_opciones' => CampaniasCuotas::opcionesPorDefecto($destino),
+            'cuotas_sugerida' => CampaniasCuotas::SIN_CAMPANIA,
         ];
     }
 
-    private function ejecutarConCandado(Vinculo $vinculo, string $destino, ?int $usuarioId, ?string $loteId): array
+    private function ejecutarConCandado(Vinculo $vinculo, string $destino, ?int $usuarioId, ?string $loteId, ?string $cuotas): array
     {
-        $previa = $this->previsualizar($vinculo, $destino);
+        $previa = $this->previsualizar($vinculo, $destino, conCuotas: $cuotas !== null, conCostos: false);
+        $previa['cuotas_elegidas'] = $cuotas;
         $vinculo->refresh();
 
         if (! $previa['ok']) {
@@ -205,17 +234,23 @@ class CambiadorTipoPublicacion
             return $this->resultado($vinculo, $destino, $previa, Cambio::RESULTADO_BLOQUEADO, $previa['motivo_bloqueo'], $usuarioId, $loteId);
         }
 
+        if ($cuotas !== null && ! in_array($cuotas, array_column($previa['cuotas_opciones'], 'id'), true)) {
+            return $this->resultado($vinculo, $destino, $previa, Cambio::RESULTADO_BLOQUEADO,
+                'Mercado Libre no ofrece "'.CampaniasCuotas::etiqueta($cuotas, $destino).'" para esta publicación; no se cambió nada.',
+                $usuarioId, $loteId);
+        }
+
         $precioAnterior = $previa['precio_actual'];
         $precioNuevo = (float) $previa['precio_destino'];
         $hayQueEnviarPrecio = $precioAnterior === null || abs($precioAnterior - $precioNuevo) >= 0.005;
 
         return $destino === Vinculo::TIPO_PREMIUM
-            ? $this->pasarAPremium($vinculo, $previa, $precioAnterior, $precioNuevo, $hayQueEnviarPrecio, $usuarioId, $loteId)
-            : $this->pasarAClasica($vinculo, $previa, $precioNuevo, $hayQueEnviarPrecio, $usuarioId, $loteId);
+            ? $this->pasarAPremium($vinculo, $previa, $precioAnterior, $precioNuevo, $hayQueEnviarPrecio, $usuarioId, $loteId, $cuotas)
+            : $this->pasarAClasica($vinculo, $previa, $precioNuevo, $hayQueEnviarPrecio, $usuarioId, $loteId, $cuotas);
     }
 
-    /** Primero el precio, después el tipo: nunca Premium con precio de Clásica (FR-008a). */
-    private function pasarAPremium(Vinculo $vinculo, array $previa, ?float $precioAnterior, float $precioNuevo, bool $hayQueEnviarPrecio, ?int $usuarioId, ?string $loteId): array
+    /** Primero el precio, después el tipo y al final las cuotas: nunca Premium con precio de Clásica (FR-008a). */
+    private function pasarAPremium(Vinculo $vinculo, array $previa, ?float $precioAnterior, float $precioNuevo, bool $hayQueEnviarPrecio, ?int $usuarioId, ?string $loteId, ?string $cuotas): array
     {
         $destino = Vinculo::TIPO_PREMIUM;
 
@@ -225,13 +260,20 @@ class CambiadorTipoPublicacion
                 $usuarioId, $loteId);
         }
 
-        $error = $this->cambiarTipo($vinculo, $destino);
+        $error = $this->cambiarTipo($vinculo, $destino, $itemTrasCambio);
 
         if ($error === null) {
             $this->cerrarRetencionAbierta($vinculo);
+            $mensaje = "Publicación {$vinculo->ml_item_id} pasada a Premium a ".$this->dinero($precioNuevo);
+
+            if ($errorCuotas = $this->aplicarCuotas($vinculo, $cuotas, $itemTrasCambio)) {
+                return $this->resultado($vinculo, $destino, $previa, Cambio::RESULTADO_CAMBIADO_CUOTAS_PENDIENTES,
+                    $mensaje.', pero Mercado Libre no aplicó las cuotas elegidas ('.$errorCuotas.'): quedó con las que asigna por defecto.',
+                    $usuarioId, $loteId);
+            }
 
             return $this->resultado($vinculo, $destino, $previa, Cambio::RESULTADO_CAMBIADO,
-                "Publicación {$vinculo->ml_item_id} pasada a Premium a ".$this->dinero($precioNuevo).'.', $usuarioId, $loteId);
+                $mensaje.$this->sufijoCuotas($cuotas, $destino).'.', $usuarioId, $loteId);
         }
 
         if (! $hayQueEnviarPrecio) {
@@ -249,32 +291,151 @@ class CambiadorTipoPublicacion
         return $this->resultado($vinculo, $destino, $previa, Cambio::RESULTADO_REVERTIDO, $mensaje, $usuarioId, $loteId);
     }
 
-    /** Primero el tipo, después el precio: si el precio falla, cobra de más y no de menos (FR-008b). */
-    private function pasarAClasica(Vinculo $vinculo, array $previa, float $precioNuevo, bool $hayQueEnviarPrecio, ?int $usuarioId, ?string $loteId): array
+    /**
+     * Primero el tipo, después el precio: si el precio falla, cobra de más y no de menos (FR-008b).
+     * Las cuotas se intentan aunque el precio haya fallado: son independientes.
+     */
+    private function pasarAClasica(Vinculo $vinculo, array $previa, float $precioNuevo, bool $hayQueEnviarPrecio, ?int $usuarioId, ?string $loteId, ?string $cuotas): array
     {
         $destino = Vinculo::TIPO_CLASICA;
 
-        if ($error = $this->cambiarTipo($vinculo, $destino)) {
+        if ($error = $this->cambiarTipo($vinculo, $destino, $itemTrasCambio)) {
             return $this->resultado($vinculo, $destino, $previa, Cambio::RESULTADO_FALLIDO, $error, $usuarioId, $loteId);
         }
 
-        if ($hayQueEnviarPrecio && ! $this->sincronizadorPrecios->enviarUno($vinculo, $precioNuevo, omitirCorte: true)) {
+        $precioFallo = $hayQueEnviarPrecio && ! $this->sincronizadorPrecios->enviarUno($vinculo, $precioNuevo, omitirCorte: true);
+        $errorCuotas = $this->aplicarCuotas($vinculo, $cuotas, $itemTrasCambio);
+        $avisoCuotas = $errorCuotas ? ' Mercado Libre no aplicó las cuotas elegidas ('.$errorCuotas.'); revisalas en la publicación.' : '';
+
+        if ($precioFallo) {
             $vinculo->update(['precio_pendiente' => true]);
 
             return $this->resultado($vinculo, $destino, $previa, Cambio::RESULTADO_CAMBIADO_PRECIO_PENDIENTE,
-                'Pasada a Clásica; el precio quedó pendiente: '.($vinculo->fresh()->precio_error ?? 'Mercado Libre rechazó el precio.'),
+                'Pasada a Clásica; el precio quedó pendiente: '.($vinculo->fresh()->precio_error ?? 'Mercado Libre rechazó el precio.').$avisoCuotas,
                 $usuarioId, $loteId);
         }
 
         $this->cerrarRetencionAbierta($vinculo);
+        $mensaje = "Publicación {$vinculo->ml_item_id} pasada a Clásica a ".$this->dinero($precioNuevo);
+
+        if ($errorCuotas) {
+            return $this->resultado($vinculo, $destino, $previa, Cambio::RESULTADO_CAMBIADO_CUOTAS_PENDIENTES, $mensaje.'.'.$avisoCuotas, $usuarioId, $loteId);
+        }
 
         return $this->resultado($vinculo, $destino, $previa, Cambio::RESULTADO_CAMBIADO,
-            "Publicación {$vinculo->ml_item_id} pasada a Clásica a ".$this->dinero($precioNuevo).'.', $usuarioId, $loteId);
+            $mensaje.$this->sufijoCuotas($cuotas, $destino).'.', $usuarioId, $loteId);
     }
 
-    /** POST del cambio de tipo (research R1). Devuelve el motivo del rechazo o null si ML lo aceptó. */
-    private function cambiarTipo(Vinculo $vinculo, string $destino): ?string
+    /**
+     * Deja la publicación con la campaña de cuotas elegida (FR-020). ML reemplaza la lista entera de
+     * tags, así que se parte de los tags vigentes **después** del cambio de tipo; si no se pueden
+     * leer no se envía nada —mandar sólo la campaña borraría los demás tags—. Si la campaña ya es
+     * la vigente no hay escritura (el caso común: Premium con las 6 cuotas por defecto).
+     *
+     * Devuelve el motivo del rechazo o null si quedó aplicada (o no había nada que aplicar).
+     */
+    private function aplicarCuotas(Vinculo $vinculo, ?string $cuotas, ?array $itemTrasCambio): ?string
     {
+        if ($cuotas === null) {
+            return null;
+        }
+
+        $tags = $itemTrasCambio['tags'] ?? null;
+
+        if (! is_array($tags)) {
+            $item = $this->cliente->obtener('consultar_tipo_publicacion', "/items/{$vinculo->ml_item_id}");
+            $tags = $item->fallo() ? null : ($item->datos['tags'] ?? null);
+        }
+
+        if (! is_array($tags)) {
+            return 'no se pudieron leer los tags de la publicación';
+        }
+
+        if (CampaniasCuotas::vigente($tags) === $cuotas) {
+            return null;
+        }
+
+        $respuesta = $this->cliente->enviar('cambiar_cuotas_publicacion', 'PUT', "/items/{$vinculo->ml_item_id}", [
+            'tags' => CampaniasCuotas::tagsCon($tags, $cuotas),
+        ]);
+
+        return $respuesta->fallo() ? ($respuesta->mensajeError ?? 'Mercado Libre rechazó las cuotas') : null;
+    }
+
+    /**
+     * Campañas que admite la categoría para el tipo destino, con el cargo de ML de cada una cuando
+     * se piden costos. Si ML no responde se ofrece la lista documentada: elegir una que la
+     * categoría no admita termina en "cuotas pendientes", nunca en una publicación rota.
+     */
+    private function opcionesCuotas(array $item, string $destino, ?float $precio, bool $conCostos): array
+    {
+        $opciones = null;
+
+        if ($categoria = $item['category_id'] ?? null) {
+            $campanias = $this->cliente->obtener('consultar_campanias_cuotas', '/special_installments/campaigns', [
+                'category_id' => $categoria,
+                'listing_type_id' => $destino,
+            ]);
+
+            if (! $campanias->fallo()) {
+                $opciones = CampaniasCuotas::opcionesDesdeMl($campanias->datos, $destino);
+            }
+        }
+
+        $opciones ??= CampaniasCuotas::opcionesPorDefecto($destino);
+
+        if (! $conCostos || ! $precio) {
+            return $opciones;
+        }
+
+        return array_map(fn ($opcion) => [
+            ...$opcion,
+            'cargo' => $this->cargoVenta($item, $destino, $opcion['id'], $precio),
+        ], $opciones);
+    }
+
+    /** Cargo por vender de ML (comisión + costo de cuotas) para un precio; null si no responde. */
+    private function cargoVenta(array $item, string $destino, string $campania, float $precio): ?array
+    {
+        $parametros = array_filter([
+            'price' => $precio,
+            'listing_type_id' => $destino,
+            'tags' => $campania === CampaniasCuotas::SIN_CAMPANIA ? null : $campania,
+            'domain_id' => $item['domain_id'] ?? null,
+        ], fn ($v) => $v !== null);
+
+        $sitio = $item['site_id'] ?? 'MLA';
+        $respuesta = $this->cliente->obtener('consultar_cargos_venta', "/sites/{$sitio}/listing_prices", $parametros);
+
+        if ($respuesta->fallo()) {
+            return null;
+        }
+
+        $filas = array_is_list($respuesta->datos) ? $respuesta->datos : [$respuesta->datos];
+        $fila = collect($filas)->first(fn ($f) => is_array($f) && ($f['listing_type_id'] ?? $destino) === $destino);
+
+        if (! is_array($fila) || ! isset($fila['sale_fee_details']['percentage_fee'])) {
+            return null;
+        }
+
+        return [
+            'porcentaje' => (float) $fila['sale_fee_details']['percentage_fee'],
+            'importe' => isset($fila['sale_fee_amount']) ? (float) $fila['sale_fee_amount'] : null,
+        ];
+    }
+
+    private function sufijoCuotas(?string $cuotas, string $destino): string
+    {
+        return $cuotas === null ? '' : ', '.mb_strtolower(CampaniasCuotas::etiqueta($cuotas, $destino));
+    }
+
+    /**
+     * POST del cambio de tipo (research R1). Devuelve el motivo del rechazo o null si ML lo aceptó;
+     * en `$item` deja el ítem que devolvió ML (de ahí salen los tags para aplicar las cuotas).
+     */
+    private function cambiarTipo(Vinculo $vinculo, string $destino, ?array &$item = null): ?string
+    {
+        $item = null;
         $respuesta = $this->cliente->enviar('cambiar_tipo_publicacion', 'POST', "/items/{$vinculo->ml_item_id}/listing_type", ['id' => $destino]);
 
         if ($respuesta->fallo()) {
@@ -289,6 +450,7 @@ class CambiadorTipoPublicacion
         }
 
         $vinculo->update(['listing_type_id' => $destino, 'listing_type_sincronizado_en' => now()]);
+        $item = $respuesta->datos;
 
         return null;
     }
@@ -359,7 +521,7 @@ class CambiadorTipoPublicacion
         $this->registrar($vinculo, $destino, $previa, $resultado, $mensaje, $usuarioId, $loteId);
 
         return [
-            'ok' => in_array($resultado, [Cambio::RESULTADO_CAMBIADO, Cambio::RESULTADO_CAMBIADO_PRECIO_PENDIENTE, Cambio::RESULTADO_SIN_CAMBIOS], true),
+            'ok' => in_array($resultado, [Cambio::RESULTADO_CAMBIADO, Cambio::RESULTADO_CAMBIADO_PRECIO_PENDIENTE, Cambio::RESULTADO_CAMBIADO_CUOTAS_PENDIENTES, Cambio::RESULTADO_SIN_CAMBIOS], true),
             'resultado' => $resultado,
             'mensaje' => $mensaje,
         ];
@@ -376,6 +538,7 @@ class CambiadorTipoPublicacion
             'precio_anterior' => $previa['precio_actual'] ?? $vinculo->precio_publicado,
             'precio_nuevo' => $previa['precio_destino'] ?? null,
             'lista_precio_id' => $previa['lista_destino']['id'] ?? null,
+            'cuotas' => $previa['cuotas_elegidas'] ?? null,
             'resultado' => $resultado,
             'mensaje' => $mensaje,
             'lote_id' => $loteId,

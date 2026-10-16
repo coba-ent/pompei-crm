@@ -24,6 +24,9 @@ class MercadoLibreCambioTipoPublicacion extends Model
     /** →Clásica con el tipo cambiado y el precio sin enviar: cobra de más, nunca de menos (FR-008b). */
     public const RESULTADO_CAMBIADO_PRECIO_PENDIENTE = 'cambiado_precio_pendiente';
 
+    /** Tipo y precio publicados, pero ML rechazó la campaña de cuotas elegida (FR-020). */
+    public const RESULTADO_CAMBIADO_CUOTAS_PENDIENTES = 'cambiado_cuotas_pendientes';
+
     /** Mercado Libre ya tenía el tipo destino: sólo se actualizó el vínculo. */
     public const RESULTADO_SIN_CAMBIOS = 'sin_cambios';
 
@@ -39,6 +42,7 @@ class MercadoLibreCambioTipoPublicacion extends Model
     public const RESULTADOS = [
         self::RESULTADO_CAMBIADO,
         self::RESULTADO_CAMBIADO_PRECIO_PENDIENTE,
+        self::RESULTADO_CAMBIADO_CUOTAS_PENDIENTES,
         self::RESULTADO_SIN_CAMBIOS,
         self::RESULTADO_BLOQUEADO,
         self::RESULTADO_FALLIDO,
@@ -47,7 +51,7 @@ class MercadoLibreCambioTipoPublicacion extends Model
 
     protected $fillable = [
         'ml_publicacion_producto_id', 'ml_item_id', 'producto_id',
-        'tipo_anterior', 'tipo_destino', 'precio_anterior', 'precio_nuevo', 'lista_precio_id',
+        'tipo_anterior', 'tipo_destino', 'precio_anterior', 'precio_nuevo', 'lista_precio_id', 'cuotas',
         'resultado', 'mensaje', 'lote_id', 'usuario_id',
     ];
 

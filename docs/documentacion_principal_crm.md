@@ -1386,7 +1386,26 @@ publicado se cambia sólo el tipo; el revertido de "a Premium" re-envía el prec
 excepción del corte (es volver a lo que ya estaba publicado). La selección del lote se limpia en cada
 recarga de la tabla (página, búsqueda, filtro u orden).
 
-*Fuente(s): `specs/115-ml-cambio-tipo-publicacion/`*
+**Cuotas (ajuste 16/10/2026, FR-019..FR-021).** Al pasar a Premium sin decir nada, ML deja la
+publicación con 6 cuotas al mismo precio (su default para Premium sin campaña). Ahora la confirmación
+—individual y de lote— permite **elegir las cuotas en el momento**:
+
+- Premium: 3 / 6 / 9 / 12 cuotas sin interés. Clásica: sin cuotas / 3 a 12 cuotas con interés bajo.
+- En el individual se ofrecen las que ML admite para la categoría de la publicación, con el **cargo de
+  ML** (comisión + costo de cuotas) de cada opción al precio nuevo y las cuotas actuales a la vista. En el
+  lote, una opción para toda la selección (lista documentada); la publicación cuya categoría no la admita
+  queda bloqueada sin tocarse.
+- En ML las cuotas son un **tag** del ítem (una campaña por publicación). Se aplican **después** del
+  cambio de tipo, reenviando todos los demás tags; si la opción ya es la vigente no se envía nada.
+- Si ML rechaza las cuotas, el cambio de tipo y precio queda hecho y el resultado es "cambiada sin las
+  cuotas elegidas" (advertencia con el motivo). No se revierte: lo que protege FR-008 es el precio.
+- La opción elegida queda en el historial (`ml_cambios_tipo_publicacion.cuotas`).
+
+La misma regla ("las cuotas se eligen en el momento, no por un default configurable") aplica a la
+futura creación de publicaciones (§3.2.ter.nonies); el mapa de campañas vive en
+`App\Services\MercadoLibre\CampaniasCuotas` para reusarlo ahí.
+
+*Fuente(s): `specs/115-ml-cambio-tipo-publicacion/` (spec.md "Ajuste 2026-10-16", research R9)*
 
 ### 3.2.ter.nonies Crear publicaciones de Mercado Libre desde un producto — **próxima spec (investigada, sin especificar)**
 
@@ -1407,8 +1426,9 @@ Lo que condiciona el diseño:
   con imagen al 15/10/2026). Es una dependencia que se especifica junto o se deja documentada como
   brecha; no se "simplifica".
 - En Argentina, Clásica/Premium se presentan ahora como "sin cuotas / con cuotas"; las campañas de
-  cuotas (3x/6x/9x/12x en Premium, "interés bajo" en Clásica) son tags del item que el CRM hoy no lee
-  ni escribe.
+  cuotas (3x/6x/9x/12x en Premium, "interés bajo" en Clásica) son tags del item. Desde el ajuste del
+  16/10/2026 a la spec 115 el CRM ya las lee y las escribe al cambiar el tipo, y el usuario definió que
+  **al crear una publicación también se eligen en el momento** (no un default configurable).
 
 ### 3.2.quater Tiendanube (`/ingresos/tiendanube`) — spec 017
 

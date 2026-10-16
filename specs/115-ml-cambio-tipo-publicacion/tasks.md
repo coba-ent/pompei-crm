@@ -109,6 +109,19 @@ real a Mercado Libre.
 
 ---
 
+## Phase 7: Ajuste 16/10/2026 — elegir las cuotas (FR-019..FR-021, research R9)
+
+Pedido del usuario como ajuste de esta spec, sin spec nueva.
+
+- [X] T032 `App\Services\MercadoLibre\CampaniasCuotas`: mapa tipo → campañas, opciones desde `/special_installments/campaigns` con respaldo documentado, campaña vigente según tags, tags a enviar
+- [X] T033 `CambiadorTipoPublicacion`: cuotas actuales/opciones/sugerida y cargo por opción en `previsualizar()`; `ejecutar(..., cuotas)` valida la opción contra ML, aplica el `PUT` de tags después del cambio de tipo, resultado `cambiado_cuotas_pendientes`
+- [X] T034 Migración `2026_10_16_000001` (columna `cuotas` en `ml_cambios_tipo_publicacion`), modelo, controlador (`cuotas` opcional en individual y lote) y job del lote
+- [X] T035 Modal individual y de lote: radios de cuotas (con cargo cuando ML lo informa) y envío de la opción; etiqueta del resumen
+- [X] T036 Tests en `CambioTipoPublicacionTest` (9 cuotas, 6 cuotas sin escritura, Clásica con interés bajo, rechazo de cuotas, cuota no admitida, previsualización con cargo, respaldo documentado, 422) y `CambioTipoPublicacionLoteTest` (cuotas en el lote)
+- [ ] T037 Probar contra un usuario de test de ML que el `PUT` de tags con la lista completa sea aceptado (research R9, riesgo) — nunca contra la cuenta del cliente
+
+---
+
 ## Dependencies & Execution Order
 
 - **Setup (T001–T002)** → **Foundational (T003–T006)** → historias.

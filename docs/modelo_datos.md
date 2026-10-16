@@ -1199,7 +1199,8 @@ y tiene que quedar quién lo confirmó y con qué importes.
 | tipo_anterior / tipo_destino | string(30) | `tipo_anterior` `null` = sin clasificar |
 | precio_anterior / precio_nuevo | decimal(15,2), nullable | `precio_publicado` al momento del intento / precio de la lista destino |
 | lista_precio_id | FK → listas_precio, nullable | Lista de la que salió el precio nuevo |
-| resultado | string(30) | `cambiado` / `cambiado_precio_pendiente` / `sin_cambios` / `bloqueado` / `fallido` / `revertido` |
+| cuotas | string(40), nullable | *(ajuste 16/10/2026, migración `2026_10_16_000001`)* Campaña de cuotas elegida en la confirmación: `no-campaign` (6 cuotas en Premium / sin cuotas en Clásica), `3x_campaign`, `9x_campaign`, `12x_campaign`, `pcj-co-funded`; `null` = sin elección |
+| resultado | string(30) | `cambiado` / `cambiado_precio_pendiente` / `cambiado_cuotas_pendientes` / `sin_cambios` / `bloqueado` / `fallido` / `revertido` |
 | mensaje | text, nullable | Motivo del bloqueo o falla (el de Mercado Libre si lo hubo) |
 | lote_id | uuid, nullable, indexado | `null` = cambio individual |
 | usuario_id | FK → users, nullable | Quien confirmó |

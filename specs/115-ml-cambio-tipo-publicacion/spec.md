@@ -39,6 +39,18 @@ decisiones de alcance las tomó el usuario antes de `specify`.
 - Q: ¿Qué se informa como "precio que va a quedar" si la publicación no tiene precio publicado conocido? → A: Se muestra el precio destino y "Desconocido" como actual; no bloquea, porque la confirmación humana ya cubre la falta de referencia del corte de spec 084.
 - Q: ¿Una publicación con otro tipo (ej. Gratuita) se puede pasar a Clásica/Premium? → A: No, queda fuera de alcance: se muestra su tipo y no ofrece la acción.
 
+### Ajuste 2026-10-16 — elegir las cuotas (pedido del usuario, sin spec nueva)
+
+Al usarla, el usuario vio que al pasar a Premium Mercado Libre le ponía solo las 6 cuotas al mismo
+precio (lo que ML aplica a una Premium sin campaña) y pidió **elegir las cuotas en el momento**, en la
+misma confirmación. Lo pidió como ajuste de esta spec, no como spec nueva. Agrega FR-019..FR-021 y la
+investigación R9 de `research.md`.
+
+- Q: ¿Las cuotas se eligen en el momento o salen de un valor por defecto configurable? → A: En el momento, en la confirmación. Vale también para la futura creación de publicaciones (reemplaza la decisión "cuotas por defecto configurables" de `docs/investigacion_ml_crear_publicaciones.md` §8).
+- Q: ¿Sólo al pasar a Premium? → A: En los dos sentidos: Premium ofrece 3 / 6 / 9 / 12 cuotas sin interés; Clásica ofrece "Sin cuotas" o "3 a 12 cuotas con interés bajo". Al pasar a Clásica hay que sacar igual la campaña Premium que tuviera, así que la elección sale gratis.
+- Q: ¿Y en el lote? → A: Una sola opción para toda la selección, de la lista documentada (sin consultar a ML por cada una); si la categoría de alguna no la admite, esa publicación queda bloqueada sin tocarse.
+- Q: Si ML rechaza las cuotas después de cambiar tipo y precio, ¿se revierte todo? → A: No. Tipo y precio son lo que protege FR-008; las cuotas no afectan cuánto cobra el vendedor por debajo de su tipo. Queda "cambiada sin las cuotas elegidas" con el motivo, para revisarla en ML.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Pasar una publicación de Clásica a Premium (o al revés) (Priority: P1)
@@ -73,6 +85,10 @@ el precio de la lista Premium, y en el CRM que el menú de la fila ofrece ahora 
 5. **Given** Mercado Libre rechaza el cambio de tipo, **When** el usuario confirma, **Then** la publicación
    conserva su tipo y su precio anteriores en Mercado Libre, el CRM muestra el motivo en una notificación
    y el vínculo no queda marcado con un tipo que no tiene.
+6. *(Ajuste 16/10)* **Given** el modal de "Pasar a Premium", **When** se abre, **Then** muestra las cuotas
+   actuales y las opciones de cuotas que la categoría admite (3 / 6 / 9 / 12 sin interés), con el cargo de
+   ML de cada una al precio nuevo, y preselecciona las 6 cuotas; **When** el usuario elige 9 y confirma,
+   **Then** la publicación queda Premium con 9 cuotas sin interés.
 
 ---
 
@@ -136,6 +152,8 @@ resumen informa la tercera como omitida.
 - **Otra sincronización de precios en curso** (forzada, observer, pendientes): el cambio espera o se rechaza con aviso; nunca corre en paralelo sobre la misma publicación.
 - **Función ML desactivada / modo sólo lectura / cuenta desconectada**: la acción se rechaza con el mismo mensaje que el resto de las escrituras hacia Mercado Libre y no se envía nada.
 - **Publicación pausada, cerrada o en revisión**: se respeta lo que Mercado Libre admita; si rechaza, se informa el motivo (ver FR-006).
+- **Cuotas que la categoría no admite** (ej. 12 cuotas en una categoría que sólo tiene 3 y 6): en el individual no se ofrecen; en el lote esa publicación queda bloqueada sin tocarse (FR-021).
+- **Producto usado o reacondicionado**: ML no admite campañas de cuotas; si las rechaza, queda "cambiada sin las cuotas elegidas" (FR-020).
 
 ## Requirements *(mandatory)*
 
@@ -164,6 +182,12 @@ resumen informa la tercera como omitida.
 - **FR-015a**: El lote MUST ejecutarse en segundo plano; la pantalla consulta su estado sin recargar y muestra el resumen al terminar. No puede haber dos lotes de cambio de tipo en curso a la vez.
 - **FR-015b**: La selección abarca sólo las filas visibles de la página actual (con opción "seleccionar todas las de esta página"), hasta 100 publicaciones por lote, y se limpia al cambiar de página, filtro o búsqueda.
 - **FR-015c**: Si una publicación no tiene precio publicado conocido, la confirmación MUST mostrarlo como "Desconocido" junto al precio destino; esto no bloquea el cambio.
+
+**Cuotas** *(ajuste 16/10/2026)*
+
+- **FR-019**: La confirmación (individual y de lote) MUST permitir elegir la opción de cuotas que va a quedar en la publicación: para Premium 3, 6, 9 o 12 cuotas sin interés; para Clásica "Sin cuotas" o "3 a 12 cuotas con interés bajo". En el individual se ofrecen las que Mercado Libre admite para la categoría (con la lista documentada como respaldo si ML no responde), se muestran las cuotas actuales, el cargo de ML de cada opción al precio nuevo cuando ML lo informa, y viene preseleccionada la vigente si sigue valiendo o, si no, la que ML aplica por defecto (6 cuotas en Premium, sin cuotas en Clásica).
+- **FR-020**: Las cuotas MUST aplicarse **después** del cambio de tipo (cada campaña sólo vale para su tipo), reenviando todos los demás tags de la publicación. Si la opción elegida ya es la vigente no se envía nada. Si Mercado Libre la rechaza, el cambio de tipo y precio queda hecho y el resultado es **cambiada sin las cuotas elegidas**, con el motivo.
+- **FR-021**: Si la opción elegida no está entre las que Mercado Libre admite para esa publicación, el cambio MUST bloquearse sin enviar nada. La opción elegida queda en el historial de cada intento.
 
 **Tabla de Vinculaciones**
 

@@ -39,9 +39,12 @@ class MercadoLibreCambioTipoController extends Controller
     /** contracts §2. */
     public function ejecutar(Request $request, Vinculo $vinculacion): JsonResponse
     {
-        $datos = $request->validate(['destino' => ['required', Rule::in(Vinculo::TIPOS_SOPORTADOS)]]);
+        $datos = $request->validate([
+            'destino' => ['required', Rule::in(Vinculo::TIPOS_SOPORTADOS)],
+            'cuotas' => self::reglaCuotas(),
+        ]);
 
-        $resultado = $this->cambiador->ejecutar($vinculacion, $datos['destino'], $request->user()?->id);
+        $resultado = $this->cambiador->ejecutar($vinculacion, $datos['destino'], $request->user()?->id, cuotas: $datos['cuotas'] ?? null);
 
         $codigo = match ($resultado['resultado']) {
             Cambio::RESULTADO_BLOQUEADO => ($resultado['candado'] ?? false) ? 409 : 422,
@@ -80,11 +83,12 @@ class MercadoLibreCambioTipoController extends Controller
             'estado' => 'en_curso',
             'lote_id' => $loteId,
             'destino' => $datos['destino'],
+            'cuotas' => $datos['cuotas'] ?? null,
             'total' => count($ids),
             'procesadas' => 0,
         ], now()->addMinutes(CambioTipoPublicacionLote::ESTADO_TTL_MINUTOS));
 
-        CambioTipoPublicacionLote::dispatch($loteId, $ids, $datos['destino'], $request->user()?->id);
+        CambioTipoPublicacionLote::dispatch($loteId, $ids, $datos['destino'], $request->user()?->id, $datos['cuotas'] ?? null);
 
         return response()->json([
             'ok' => true,
@@ -103,6 +107,7 @@ class MercadoLibreCambioTipoController extends Controller
     {
         return $request->validate([
             'destino' => ['required', Rule::in(Vinculo::TIPOS_SOPORTADOS)],
+            'cuotas' => self::reglaCuotas(),
             'ids' => ['required', 'array', 'min:1', 'max:'.self::LOTE_MAXIMO],
             'ids.*' => ['integer', 'distinct', Rule::exists('ml_publicacion_producto', 'id')],
         ], [
@@ -110,5 +115,14 @@ class MercadoLibreCambioTipoController extends Controller
             'ids.min' => 'Seleccioná al menos una publicación.',
             'ids.max' => 'Se pueden cambiar hasta '.self::LOTE_MAXIMO.' publicaciones por vez.',
         ]);
+    }
+
+    /**
+     * Sólo la forma del id de campaña: qué campañas admite cada publicación lo decide ML y se
+     * verifica al ejecutar (puede activar campañas nuevas que el CRM no conoce).
+     */
+    private static function reglaCuotas(): array
+    {
+        return ['nullable', 'string', 'regex:/^[a-z0-9_-]{1,40}$/'];
     }
 }

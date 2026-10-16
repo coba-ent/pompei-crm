@@ -38,6 +38,7 @@ class CambioTipoPublicacionLote implements ShouldQueue
         public readonly array $ids,
         public readonly string $destino,
         public readonly ?int $usuarioId,
+        public readonly ?string $cuotas = null,
     ) {}
 
     public function handle(CambiadorTipoPublicacion $cambiador): void
@@ -49,7 +50,7 @@ class CambioTipoPublicacionLote implements ShouldQueue
         try {
             foreach (Vinculo::whereIn('id', $this->ids)->get() as $vinculo) {
                 try {
-                    $resultado = $cambiador->ejecutar($vinculo, $this->destino, $this->usuarioId, $this->loteId);
+                    $resultado = $cambiador->ejecutar($vinculo, $this->destino, $this->usuarioId, $this->loteId, $this->cuotas);
                 } catch (Throwable $e) {
                     report($e);
                     $resultado = ['resultado' => Cambio::RESULTADO_FALLIDO, 'mensaje' => 'Error inesperado: '.$e->getMessage()];

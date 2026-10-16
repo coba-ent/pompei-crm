@@ -90,3 +90,36 @@
 - La doc de ML menciona restricciones nuevas al `PUT /items` sólo con `price` (marzo 2026). El envío de
   precio en producción funciona hoy (spec 084 operativa); esta spec reutiliza `enviarUno()` sin cambiar
   cómo envía. Si ML cambia ese contrato, impacta a toda la sincronización de precios y se trata aparte.
+
+## R9 — Cuotas (ajuste 16/10/2026, FR-019..FR-021)
+
+- **Fuente**: "Campañas con cuotas para Marketplace" de ML Argentina
+  (https://developers.mercadolibre.com.ar/es_ar/campana-con-cuotas-para-marketplace, consultada 16/10/2026).
+- **Modelo de ML**: las cuotas no son un campo, son un **tag** en `/items`, una sola campaña por
+  publicación y canal. `gold_pro` sin tag = 6 cuotas al mismo precio (lo que ML pone al crear o pasar a
+  Premium: el comportamiento que reportó el usuario); `3x_campaign` / `9x_campaign` / `12x_campaign`.
+  `gold_special` sin tag = sin cuotas; `pcj-co-funded` = 3 a 12 con interés bajo (+4%). En el CRM "sin
+  tag" se representa con `no-campaign`, el mismo id que devuelve ML. Mapa en `App\Services\MercadoLibre\CampaniasCuotas`
+  (reutilizable por la futura creación de publicaciones).
+- **Decision**:
+  - Opciones: `GET /special_installments/campaigns?category_id=…&listing_type_id=…` con la categoría del
+    `GET /items` que ya hace la previsualización. Si falla, la lista documentada. Una campaña nueva que
+    ML devuelva y el CRM no conozca se ofrece con la descripción de ML.
+  - Cargo por opción (sólo en la previsualización individual, best-effort):
+    `GET /sites/MLA/listing_prices?price=<precio destino>&listing_type_id=…&tags=…&domain_id=…` →
+    `sale_fee_details.percentage_fee` y `sale_fee_amount`. Si no responde, la opción se muestra sin cargo.
+  - Aplicar: `PUT /items/{id}` con `{"tags": [...]}` **después** del POST `listing_type`, partiendo de los
+    tags que devuelve ese POST (o un `GET /items` si no vienen): se quitan las campañas y se agrega la
+    elegida. ML reemplaza la lista entera, así que si los tags no se pueden leer **no se envía nada**
+    (mandar sólo la campaña borraría los demás). Si la campaña elegida ya es la vigente, no hay PUT.
+  - Este PUT sólo lleva `tags`: no es un envío de precio y no pasa por `enviarUno()`.
+  - Rechazo de las cuotas → `cambiado_cuotas_pendientes` (HTTP 200, toast de advertencia), sin revertir.
+  - `cuotas` en la entrada: sólo se valida la forma (`^[a-z0-9_-]{1,40}$`); la disponibilidad la decide
+    ML al ejecutar (FR-021). `null` = no tocar las cuotas (comportamiento anterior al ajuste).
+- **Alternatives considered**: valor por defecto configurable en Configuración (descartado por el
+  usuario: quiere elegir en el momento); revertir tipo y precio si fallan las cuotas (rechazado: deshace
+  lo que protege FR-008 por algo que no afecta el precio); consultar campañas por publicación en la
+  previsualización del lote (rechazado: el lote no llama a ML al previsualizar, R5).
+- **Riesgo a verificar con un usuario de test de ML**: que el `PUT` con todos los tags no sea rechazado
+  por algún tag que ML maneje internamente. Si lo rechaza, el resultado es "cambiada sin las cuotas
+  elegidas", no una publicación rota.

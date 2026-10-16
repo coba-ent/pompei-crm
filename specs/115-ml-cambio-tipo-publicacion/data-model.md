@@ -13,7 +13,8 @@
 | precio_anterior | decimal(15,2) nullable | `precio_publicado` al momento del intento |
 | precio_nuevo | decimal(15,2) nullable | precio de la lista destino |
 | lista_precio_id | FK nullable → `listas_precio.id` | lista de la que salió el precio |
-| resultado | string(30) | `cambiado` · `cambiado_precio_pendiente` · `sin_cambios` · `bloqueado` · `fallido` · `revertido` |
+| cuotas | string(40) nullable | *(ajuste 16/10/2026, migración `2026_10_16_000001`)* campaña de cuotas elegida (`no-campaign`, `3x_campaign`, `9x_campaign`, `12x_campaign`, `pcj-co-funded`, …); null = sin elección |
+| resultado | string(30) | `cambiado` · `cambiado_precio_pendiente` · `cambiado_cuotas_pendientes` · `sin_cambios` · `bloqueado` · `fallido` · `revertido` |
 | mensaje | text nullable | motivo de bloqueo/falla (el de ML si lo hubo) |
 | lote_id | uuid nullable, index | null = cambio individual |
 | usuario_id | FK nullable → `users.id` | quien confirmó (en el job se pasa explícito) |
@@ -24,6 +25,7 @@
 Estados de `resultado`:
 - `cambiado`: tipo y precio OK.
 - `cambiado_precio_pendiente`: →Clásica con tipo cambiado y precio no enviado (queda `precio_pendiente = 1`).
+- `cambiado_cuotas_pendientes`: tipo y precio OK, pero ML rechazó la campaña de cuotas elegida (queda la que ML asigna).
 - `sin_cambios`: ML ya tenía el tipo destino; sólo se actualizó el vínculo.
 - `bloqueado`: no se envió nada (sin precio destino, tipo no disponible, cortes, candado).
 - `fallido`: ML rechazó el cambio de tipo antes de que se tocara el precio.

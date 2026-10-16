@@ -202,7 +202,10 @@ y el B queda documentado como pendiente.
 - **Fotos: se cargan en el CRM.** Al crear la publicación, el CRM las pide. Implica construir la carga de
   imágenes del producto, que hoy no existe (0 productos con imagen).
 - **Salen pausadas**, para revisarlas en Mercado Libre antes de activarlas.
-- **Cuotas por defecto: configurables** desde Configuración (integración ML), en vez de fijas en el código.
+- ~~**Cuotas por defecto: configurables** desde Configuración (integración ML), en vez de fijas en el código.~~
+  **Corregido el 16/10/2026**: las cuotas **se eligen en el momento** de crear la publicación (igual que
+  en el cambio de tipo de la spec 115, ajuste del 16/10). Reusar `App\Services\MercadoLibre\CampaniasCuotas`
+  y el mismo selector con cargo por opción. La pregunta 6 queda resuelta.
 
 Siguen abiertas: 3 (ficha técnica), 4 (garantía por defecto), 7 (mostrar cuotas en Vinculaciones) y
 8 (desde dónde se dispara).
