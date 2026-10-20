@@ -8,7 +8,7 @@
                 </div>
                 <div class="modal-body">
                     <p class="fw-bold">
-                        Seleccioná el Tipo de Producto/Servicio para los <span id="masiva-tipo-producto-cantidad">0</span> productos seleccionados
+                        Seleccioná el Tipo de Producto/Servicio para los <span class="js-masiva-cantidad">0</span> productos seleccionados
                     </p>
 
                     <div class="mb-3">
@@ -20,7 +20,7 @@
                 </div>
                 <div class="modal-footer justify-content-center">
                     <button type="button" class="btn btn-danger" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-success">Actualizar</button>
+                    <button type="submit" class="btn btn-success">Actualizar <span class="js-masiva-cantidad">0</span> productos</button>
                 </div>
             </form>
         </div>

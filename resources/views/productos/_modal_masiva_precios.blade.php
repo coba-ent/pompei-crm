@@ -9,7 +9,7 @@
                 </div>
                 <div class="modal-body">
                     <p class="text-center fw-bold">
-                        Vas a editar los <span id="masiva-precios-cantidad">0</span> productos seleccionados
+                        Vas a editar los <span class="js-masiva-cantidad">0</span> productos seleccionados
                     </p>
 
                     <div class="d-flex justify-content-center gap-3 mb-4">

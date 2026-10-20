@@ -62,11 +62,27 @@ class AccionMasivaProductoRequest extends FormRequest
                         $fail('El campo ids es obligatorio.');
                     }
                 },
-                'nullable', 'array',
+                // La pantalla manda tandas de a 200 (resources/js/productos.js); el tope acota la
+                // duración de un pedido armado a mano.
+                'nullable', 'array', 'max:1000',
+                // Una sola consulta para todo el arreglo: `exists` sobre `ids.*` hace una por id.
+                // "eliminar" no lo chequea: si la pantalla reintenta una tanda que ya se había
+                // borrado (corte de red después del COMMIT), esos ids ya no existen y no es un error.
+                function ($attribute, $value, $fail) {
+                    if ($this->input('accion') === 'eliminar') {
+                        return;
+                    }
+                    $ids = array_unique(array_map('intval', (array) $value));
+                    if ($ids !== [] && Producto::whereIn('id', $ids)->count() !== count($ids)) {
+                        $fail('Alguno de los productos seleccionados ya no existe.');
+                    }
+                },
             ],
-            'ids.*' => ['integer', 'exists:productos,id'],
+            'ids.*' => ['integer'],
             'todos' => ['nullable', 'boolean'],
             'filtros' => ['nullable', 'array'],
+            // Identifica la edición masiva completa entre tandas (ver AjusteMasivoPrecios::aplicar()).
+            'corrida' => ['nullable', 'string', 'max:64'],
         ];
 
         $accion = $this->input('accion');

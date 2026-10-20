@@ -23,6 +23,10 @@ use Throwable;
  * originó (FR-005/FR-025). Dispara el envío después del COMMIT de la
  * transacción del llamador (research.md R2) — nunca dentro. Ambas ramas son
  * completamente independientes entre sí (spec 018 plan.md §7).
+ *
+ * Única excepción: la edición masiva de precios (`App\Services\Productos\AjusteMasivoPrecios`)
+ * escribe en bloque, sin eventos de Eloquent, y reproduce allá estas tres ramas. Un cambio de
+ * regla acá (qué lista va a qué publicación, el formato del detalle) tiene que hacerse también ahí.
  */
 class PrecioProductoObserver
 {
@@ -112,6 +116,16 @@ class PrecioProductoObserver
     private function detalle(string $nombreProducto, PrecioProducto $precio, ?float $anterior, ?float $nuevo): string
     {
         $lista = $precio->listaPrecio()->first()?->nombre ?? "Lista #{$precio->lista_precio_id}";
+
+        return self::detalleCambio($nombreProducto, $lista, $anterior, $nuevo);
+    }
+
+    /**
+     * Formato del detalle, compartido con la edición masiva (`AjusteMasivoPrecios`), que escribe
+     * en bloque sin pasar por este observer y tiene que dejar el mismo rastro.
+     */
+    public static function detalleCambio(string $nombreProducto, string $lista, ?float $anterior, ?float $nuevo): string
+    {
         $importe = fn (?float $v) => $v === null ? 'sin precio' : number_format($v, 2, ',', '.');
 
         $cola = sprintf(

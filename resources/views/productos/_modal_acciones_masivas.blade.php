@@ -7,7 +7,8 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="text-muted">Realizá acciones masivas sobre el producto seleccionado.</p>
+                    <p class="text-muted">Realizá acciones masivas sobre los productos seleccionados.</p>
+                    <p class="fw-bold">La acción se va a aplicar a <span class="js-masiva-cantidad">0</span> productos.</p>
 
                     <div class="mb-3">
                         <label class="form-label">Elegí una Acción</label>

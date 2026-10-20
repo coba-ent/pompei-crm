@@ -2,11 +2,18 @@
 
 namespace Tests\Feature;
 
+use App\Enums\MercadoLibre\EstadoConexion;
 use App\Models\Deposito;
+use App\Models\FuncionAvanzada;
+use App\Models\Integraciones\MercadoLibreConfiguracion;
+use App\Models\Integraciones\MercadoLibreCuenta;
+use App\Models\Integraciones\MercadoLibrePublicacionProducto;
 use App\Models\ListaPrecio;
 use App\Models\Producto;
 use App\Models\TipoProducto;
+use Database\Seeders\FuncionAvanzadaSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class ProductoAccionesMasivasTest extends TestCase
@@ -227,5 +234,133 @@ class ProductoAccionesMasivasTest extends TestCase
         ]);
 
         $response->assertStatus(422)->assertJsonValidationErrors('accion');
+    }
+
+    /**
+     * La pantalla reintenta una tanda si se corta la conexión, y el corte puede llegar después
+     * del COMMIT: con la misma `corrida`, el aumento no se aplica dos veces.
+     */
+    public function test_reintentar_una_tanda_de_la_misma_corrida_no_aplica_el_aumento_dos_veces(): void
+    {
+        $lista = ListaPrecio::create(['nombre' => 'General', 'activo' => true]);
+        $producto = Producto::create(['nombre' => 'P1', 'tipo' => 'producto', 'precio_venta' => 100]);
+        $producto->precios()->create(['lista_precio_id' => $lista->id, 'precio' => 200]);
+
+        $tanda = [
+            'accion' => 'precio_venta', 'modo' => 'porcentaje', 'redondear' => false,
+            'campos' => [
+                'precio_venta' => ['valor' => 10, 'signo' => 'aumentar'],
+                'lista_'.$lista->id => ['valor' => 10, 'signo' => 'aumentar'],
+            ],
+            'todos' => false, 'ids' => [$producto->id], 'corrida' => 'corrida-de-prueba',
+        ];
+
+        $this->postJson(route('productos.acciones-masivas'), $tanda)->assertOk()->assertJson(['actualizados' => 1, 'ya_aplicados' => 0]);
+        $this->postJson(route('productos.acciones-masivas'), $tanda)->assertOk()->assertJson(['actualizados' => 0, 'ya_aplicados' => 1]);
+
+        $this->assertDatabaseHas('productos', ['id' => $producto->id, 'precio_venta' => 110]);
+        $this->assertDatabaseHas('precios_producto', ['producto_id' => $producto->id, 'lista_precio_id' => $lista->id, 'precio' => 220]);
+
+        // Una corrida nueva (otra edición masiva) sí vuelve a aplicar.
+        $this->postJson(route('productos.acciones-masivas'), ['corrida' => 'otra-corrida'] + $tanda)->assertOk();
+        $this->assertDatabaseHas('productos', ['id' => $producto->id, 'precio_venta' => 121]);
+    }
+
+    public function test_porcentaje_sobre_un_producto_sin_precio_en_la_lista_no_crea_un_precio_cero(): void
+    {
+        $lista = ListaPrecio::create(['nombre' => 'ML', 'activo' => true]);
+        $sinPrecio = Producto::create(['nombre' => 'Sin precio', 'tipo' => 'producto']);
+
+        $this->postJson(route('productos.acciones-masivas'), [
+            'accion' => 'precio_venta', 'modo' => 'porcentaje',
+            'campos' => ['lista_'.$lista->id => ['valor' => 10, 'signo' => 'aumentar']],
+            'ids' => [$sinPrecio->id],
+        ])->assertOk();
+
+        $this->assertDatabaseMissing('precios_producto', ['producto_id' => $sinPrecio->id]);
+
+        // Un valor fijo sí crea el precio, como antes.
+        $this->postJson(route('productos.acciones-masivas'), [
+            'accion' => 'precio_venta', 'modo' => 'fijo',
+            'campos' => ['lista_'.$lista->id => ['valor' => 500, 'signo' => 'aumentar']],
+            'ids' => [$sinPrecio->id],
+        ])->assertOk();
+
+        $this->assertDatabaseHas('precios_producto', ['producto_id' => $sinPrecio->id, 'lista_precio_id' => $lista->id, 'precio' => 500]);
+    }
+
+    /**
+     * Los envíos a Mercado Libre no salen dentro del pedido que guarda los precios (un PUT por
+     * publicación colgaba la pantalla): el vínculo queda pendiente y se manda en la segunda fase.
+     */
+    public function test_el_envio_a_mercado_libre_sale_en_la_segunda_fase_y_no_al_guardar(): void
+    {
+        (new FuncionAvanzadaSeeder)->run();
+        FuncionAvanzada::where('clave', 'mercadolibre')->update(['activa' => true]);
+        MercadoLibreConfiguracion::actual()->update([
+            'client_id' => '123456789012', 'client_secret' => 'clave-secreta-de-prueba-32chars', 'site_id' => 'MLA',
+        ]);
+        MercadoLibreCuenta::create([
+            'ml_user_id' => 1, 'nickname' => 'CUENTA', 'site_id' => 'MLA',
+            'estado' => EstadoConexion::Conectada->value,
+            'access_token' => 'atk', 'refresh_token' => 'rtk',
+            'token_expira_en' => now()->addHours(3), 'vinculada_en' => now(),
+        ]);
+        Http::fake(['api.mercadolibre.com/items/*' => Http::response(['id' => 'MLA1'], 200)]);
+
+        $listaMl = ListaPrecio::create(['nombre' => 'ML', 'activo' => true]);
+        $otraLista = ListaPrecio::create(['nombre' => 'Mayorista', 'activo' => true]);
+        MercadoLibreConfiguracion::actual()->update(['lista_precio_id' => $listaMl->id]);
+
+        $producto = Producto::create(['nombre' => 'Producto ML', 'tipo' => 'producto']);
+        $producto->precios()->create(['lista_precio_id' => $listaMl->id, 'precio' => 1000]);
+        $producto->precios()->create(['lista_precio_id' => $otraLista->id, 'precio' => 800]);
+        $vinculo = MercadoLibrePublicacionProducto::create([
+            'ml_item_id' => 'MLA1', 'producto_id' => $producto->id,
+            'listing_type_id' => MercadoLibrePublicacionProducto::TIPO_CLASICA,
+        ]);
+        Http::assertNothingSent();
+
+        // Un cambio sólo en otra lista no toca a Mercado Libre.
+        $this->postJson(route('productos.acciones-masivas'), [
+            'accion' => 'precio_venta', 'modo' => 'porcentaje',
+            'campos' => ['lista_'.$otraLista->id => ['valor' => 10, 'signo' => 'aumentar']],
+            'ids' => [$producto->id],
+        ])->assertOk()->assertJsonPath('envios.ml', []);
+
+        $respuesta = $this->postJson(route('productos.acciones-masivas'), [
+            'accion' => 'precio_venta', 'modo' => 'porcentaje',
+            'campos' => ['lista_'.$listaMl->id => ['valor' => 10, 'signo' => 'aumentar']],
+            'ids' => [$producto->id],
+        ])->assertOk()->assertJsonPath('envios.ml', [$vinculo->id]);
+
+        Http::assertNothingSent();
+        $this->assertTrue($vinculo->fresh()->precio_pendiente);
+
+        $this->postJson(route('productos.acciones-masivas.enviar-precios'), ['ml' => $respuesta->json('envios.ml')])
+            ->assertOk()
+            ->assertJson(['ml_procesados' => 1, 'enviados' => 1, 'no_enviados' => 0]);
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/items/MLA1') && $request['price'] === 1100.0);
+        $this->assertFalse($vinculo->fresh()->precio_pendiente);
+    }
+
+    public function test_ids_resuelve_el_conjunto_filtrado_una_sola_vez(): void
+    {
+        $activo = Producto::create(['nombre' => 'Activo', 'tipo' => 'producto', 'activo' => true]);
+        Producto::create(['nombre' => 'Inactivo', 'tipo' => 'producto', 'activo' => false]);
+
+        $this->postJson(route('productos.acciones-masivas.ids'), ['filtros' => ['estado' => 'activos']])
+            ->assertOk()
+            ->assertExactJson(['ids' => [$activo->id]]);
+    }
+
+    public function test_reintentar_una_tanda_de_eliminar_ya_borrada_no_falla(): void
+    {
+        $producto = Producto::create(['nombre' => 'P1', 'tipo' => 'producto']);
+        $tanda = ['accion' => 'eliminar', 'ids' => [$producto->id]];
+
+        $this->postJson(route('productos.acciones-masivas'), $tanda)->assertOk()->assertJson(['eliminados' => 1]);
+        $this->postJson(route('productos.acciones-masivas'), $tanda)->assertOk()->assertJson(['eliminados' => 0]);
     }
 }

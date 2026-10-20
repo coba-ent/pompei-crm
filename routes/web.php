@@ -132,6 +132,8 @@ Route::middleware('auth')->group(function () {
     Route::get('productos/opciones', [ProductoController::class, 'opciones'])->name('productos.opciones');
     Route::post('productos/{producto}/copia', [ProductoController::class, 'copia'])->name('productos.copia');
     Route::post('productos/acciones-masivas', [ProductoController::class, 'accionesMasivas'])->name('productos.acciones-masivas');
+    Route::post('productos/acciones-masivas/ids', [ProductoController::class, 'idsAccionMasiva'])->name('productos.acciones-masivas.ids');
+    Route::post('productos/acciones-masivas/enviar-precios', [ProductoController::class, 'enviarPreciosMasivos'])->name('productos.acciones-masivas.enviar-precios');
     // Botón "Sincronizar precios ahora" (spec 016) — reutiliza MercadoLibreVentaController,
     // vive en la pantalla de Productos (no en Mercado Libre): sin gate `permiso:ventas.ver`,
     // alcanza con poder llegar a la pantalla de Productos (mismo criterio que el resto de sus rutas).

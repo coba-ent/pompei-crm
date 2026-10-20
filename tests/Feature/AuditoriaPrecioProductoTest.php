@@ -281,8 +281,10 @@ class AuditoriaPrecioProductoTest extends TestCase
         MercadoLibreConfiguracion::actual()->update(['lista_precio_id' => $lista->id]);
 
         $producto = Producto::create(['nombre' => 'Producto ML', 'codigo' => 'ML-1']);
+        // Con tipo de publicación: sin él, la spec 084 lo deja pendiente sin enviar.
         MercadoLibrePublicacionProducto::create([
             'ml_item_id' => 'MLA1', 'producto_id' => $producto->id,
+            'listing_type_id' => MercadoLibrePublicacionProducto::TIPO_CLASICA,
         ]);
 
         $producto->precios()->updateOrCreate(['lista_precio_id' => $lista->id], ['precio' => 999.50]);

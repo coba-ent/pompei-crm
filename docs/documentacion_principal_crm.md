@@ -184,8 +184,22 @@ de acciones) y el header de la tabla un checkbox "seleccionar todo" (sólo afect
 Al marcar al menos un producto aparece una barra sobre la tabla: *"N productos seleccionados. Haga
 click aquí para realizar acciones. Seleccionar los N productos."* — este último link amplía la
 selección a **todos** los productos que matchean el filtro/búsqueda vigente (no sólo la página),
-resuelto en el backend reconstruyendo la misma query de la DataTable (sin mandar miles de IDs al
-cliente). La selección se limpia automáticamente al cambiar de página, filtro, orden o búsqueda.
+resuelto en el backend reconstruyendo la misma query de la DataTable. La selección se limpia
+automáticamente al cambiar de página, filtro, orden o búsqueda.
+
+**Ejecución en tandas (20/10/2026).** Una acción sobre todo el catálogo (~9.800 productos × 11
+listas) en un único pedido superaba el límite de PHP y no aplicaba nada (incidente del 19/10/2026).
+Ahora la pantalla resuelve primero los ids de la selección (una sola vez, para que una acción que
+cambia lo filtrado no corra el conjunto), los manda en tandas de 250 con una barra de progreso
+—mismo patrón que la importación— y reintenta una tanda ante un corte de red. Consecuencias:
+- **Cada tanda es atómica; la acción completa no.** Si se corta a mitad de camino, el aviso dice a
+  cuántos productos se aplicó.
+- **Un aumento no se aplica dos veces al reintentar**: cada edición masiva lleva un identificador de
+  corrida y el backend saltea los productos que esa corrida ya ajustó.
+- **Precios hacia Mercado Libre / Tiendanube en una segunda fase**: guardar los precios no espera a
+  las integraciones; los vínculos afectados quedan `precio_pendiente` y la pantalla los envía después
+  (fase "Enviando precios…"), con las mismas reglas y cortes que cualquier otro envío.
+- Un porcentaje sobre un producto **sin precio** en una lista ya no crea un precio $0 en esa lista.
 
 El modal "Acciones Masivas" ofrece 11 operaciones en lote, en este orden: Modificar Precio de Venta,
 Modificar Costo, Mostrar en Ventas, No Mostrar en Ventas, Mostrar en Compras, No Mostrar en Compras,

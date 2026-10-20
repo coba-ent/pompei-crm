@@ -12,6 +12,7 @@ use App\Models\Producto;
 use App\Models\Proveedor;
 use App\Models\Stock;
 use App\Models\TipoProducto;
+use App\Services\Productos\AjusteMasivoPrecios;
 use App\Services\Stock\StockService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -480,6 +481,10 @@ class ProductoController extends Controller
      * tienen modal propio y payload estructurado (capturas/acciones masivas);
      * el resto usa el modal genérico con un único `valor`. "eliminar" se
      * evalúa producto por producto; el resto es atómico por lote (transacción).
+     *
+     * La pantalla manda la selección en tandas (`ids`, de a 250) y no de una:
+     * un único pedido sobre miles de productos excedía el límite de PHP. Cada
+     * tanda es atómica, no la acción completa.
      */
     public function accionesMasivas(AccionMasivaProductoRequest $request): JsonResponse
     {
@@ -562,56 +567,66 @@ class ProductoController extends Controller
      */
     private function accionAjustarPrecios(Builder $query, array $datos): JsonResponse
     {
-        $modo = $datos['modo'];
-        $redondear = (bool) ($datos['redondear'] ?? false);
-        $campos = $datos['campos'];
-
-        $actualizados = DB::transaction(fn () => OrigenCambioPrecio::durante(OrigenCambioPrecio::EDICION_MASIVA, function () use ($query, $campos, $modo, $redondear) {
-            $productos = (clone $query)->with('precios')->get();
-
-            foreach ($productos as $producto) {
-                if (isset($campos['precio_venta'])) {
-                    $producto->precio_venta = $this->ajustarValor((float) $producto->precio_venta, $modo, $campos['precio_venta'], $redondear);
-                }
-                if (isset($campos['costo'])) {
-                    $producto->costo = $this->ajustarValor((float) $producto->costo, $modo, $campos['costo'], $redondear);
-                }
-                if ($producto->isDirty()) {
-                    $producto->save();
-                }
-
-                foreach ($campos as $campo => $ajuste) {
-                    if (! str_starts_with($campo, 'lista_')) {
-                        continue;
-                    }
-                    $listaId = (int) substr($campo, 6);
-                    $actual = (float) optional($producto->precios->firstWhere('lista_precio_id', $listaId))->precio;
-                    $nuevo = $this->ajustarValor($actual, $modo, $ajuste, $redondear);
-                    $producto->precios()->updateOrCreate(['lista_precio_id' => $listaId], ['precio' => $nuevo]);
-                }
-            }
-
-            return $productos->count();
-        }));
+        // Ver AjusteMasivoPrecios: la tanda se escribe en bloque y los envíos a Mercado Libre /
+        // Tiendanube vuelven en `envios` para que la pantalla los mande con enviarPreciosMasivos().
+        $resultado = app(AjusteMasivoPrecios::class)->aplicar(
+            $this->idsDe($query),
+            $datos['campos'],
+            $datos['modo'],
+            (bool) ($datos['redondear'] ?? false),
+            $datos['corrida'] ?? null,
+        );
 
         return response()->json([
             'ok' => true,
-            'mensaje' => $actualizados.' productos actualizados.',
-            'actualizados' => $actualizados,
-        ]);
+            'mensaje' => ($resultado['actualizados'] + $resultado['ya_aplicados']).' productos actualizados.',
+        ] + $resultado);
     }
 
     /**
-     * @param  array{valor: numeric-string|float, signo: string}  $ajuste
+     * Ids del conjunto "todos los que matchean el filtro" de Acciones Masivas. La pantalla los
+     * resuelve UNA vez antes de partir la acción en tandas: si cada tanda volviera a evaluar los
+     * filtros, una acción que cambia lo filtrado (inactivar, cambiar proveedor) correría el
+     * conjunto entre tanda y tanda y salteara o repitiera productos.
      */
-    private function ajustarValor(float $actual, string $modo, array $ajuste, bool $redondear): float
+    public function idsAccionMasiva(Request $request): JsonResponse
     {
-        $valor = (float) $ajuste['valor'];
-        $delta = $modo === 'porcentaje' ? $actual * ($valor / 100) : $valor;
-        $nuevo = $ajuste['signo'] === 'disminuir' ? $actual - $delta : $actual + $delta;
-        $nuevo = max(0.0, $nuevo);
+        // Sin las columnas de listas de precio: acá sólo hacen falta los ids.
+        $query = $this->queryFiltrada(Request::create('/', 'GET', (array) $request->input('filtros', [])), collect());
 
-        return $redondear ? round($nuevo) : round($nuevo, 2);
+        return response()->json(['ids' => $this->idsDe($query)]);
+    }
+
+    /**
+     * Ids de un query de productos. Por subconsulta y no con `pluck()` directo: `queryFiltrada()`
+     * filtra stock con HAVING sobre una columna calculada, que `pluck()` sacaría del SELECT.
+     *
+     * @return array<int, int>
+     */
+    private function idsDe(Builder $query): array
+    {
+        return DB::query()->fromSub($query, 'filtrados')->orderBy('id')->pluck('id')->map(fn ($id) => (int) $id)->all();
+    }
+
+    /**
+     * Segunda fase de "Modificar Precio de Venta": envía a Mercado Libre / Tiendanube los vínculos
+     * que dejó pendientes la edición masiva, con presupuesto de tiempo por pedido.
+     */
+    public function enviarPreciosMasivos(Request $request): JsonResponse
+    {
+        $datos = $request->validate([
+            'ml' => ['nullable', 'array', 'max:500'],
+            'ml.*' => ['integer'],
+            'tn' => ['nullable', 'array', 'max:500'],
+            'tn.*' => ['integer'],
+        ]);
+
+        $resultado = app(AjusteMasivoPrecios::class)->enviar(
+            array_map('intval', $datos['ml'] ?? []),
+            array_map('intval', $datos['tn'] ?? []),
+        );
+
+        return response()->json(['ok' => true] + $resultado);
     }
 
     /**

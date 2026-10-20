@@ -7,6 +7,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                 </div>
                 <div class="modal-body">
+                    <p class="text-center fw-bold">Vas a editar los <span class="js-masiva-cantidad">0</span> productos seleccionados</p>
                     <p class="fw-bold">IVA que se aplicará por defecto a los productos al momento de Comprar y/o Vender</p>
 
                     <div class="row g-3">
@@ -30,7 +31,7 @@
                 </div>
                 <div class="modal-footer justify-content-center">
                     <button type="button" class="btn btn-danger" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-success">Actualizar</button>
+                    <button type="submit" class="btn btn-success">Actualizar <span class="js-masiva-cantidad">0</span> productos</button>
                 </div>
             </form>
         </div>

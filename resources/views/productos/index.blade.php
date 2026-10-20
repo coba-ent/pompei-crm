@@ -245,6 +245,7 @@
 @include('productos._modal_masiva_precios')
 @include('productos._modal_masiva_iva')
 @include('productos._modal_masiva_tipo_producto')
+@include('productos._modal_masiva_progreso')
 
 {{-- Modal de confirmación de eliminación --}}
 <div class="modal fade" id="modal-eliminar-producto" tabindex="-1" aria-hidden="true">
@@ -280,6 +281,8 @@
             listas: "{{ url('listas-precio') }}",
             tipos: "{{ url('tipos-producto') }}",
             accionesMasivas: "{{ route('productos.acciones-masivas') }}",
+            accionesMasivasIds: "{{ route('productos.acciones-masivas.ids') }}",
+            accionesMasivasEnviarPrecios: "{{ route('productos.acciones-masivas.enviar-precios') }}",
             sincronizarPreciosMl: "{{ route('productos.sincronizarPreciosMl') }}",
             sincronizarPreciosTn: "{{ route('productos.sincronizarPreciosTn') }}",
         },

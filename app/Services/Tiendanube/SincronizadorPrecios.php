@@ -304,6 +304,15 @@ class SincronizadorPrecios
      * no termine registrando un "bloqueada" por cada vínculo cuando enviarUno()
      * vuelve a evaluar la misma condición dentro del bucle.
      */
+    /**
+     * Versión pública de los cortes, como la de Mercado Libre: la edición masiva de precios los
+     * verifica una sola vez antes de enviar una tanda, sin duplicar la regla.
+     */
+    public function motivoBloqueoEscritura(): ?string
+    {
+        return $this->verificarCortes();
+    }
+
     private function verificarCortes(): ?string
     {
         if (! (bool) FuncionAvanzada::where('clave', 'tiendanube')->value('activa')) {

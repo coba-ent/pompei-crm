@@ -704,25 +704,263 @@
             return seleccionarTodos ? totalFiltrado() : selectedIds.size;
         }
 
+        function formatoCantidad(n) {
+            return new Intl.NumberFormat('es-AR').format(n);
+        }
+
+        // Todo modal de acción masiva dice, antes de confirmar, a cuántos productos se va a aplicar.
+        function mostrarCantidad($modal) {
+            $modal.find('.js-masiva-cantidad').text(formatoCantidad(cantidadSeleccionada()));
+        }
+
         function payloadSeleccion() {
             return seleccionarTodos
                 ? { todos: 1, filtros: filtrosActuales() }
                 : { todos: 0, ids: Array.from(selectedIds) };
         }
 
-        function ejecutarAccionMasiva(payload) {
+        // ---- Ejecución en tandas ----
+        // Una acción sobre miles de productos en un único pedido excedía el límite de PHP (30 s) y
+        // no aplicaba nada (19/10/2026). Se parte en tandas de TANDA_PRODUCTOS con una barra de
+        // progreso, como la importación. El conjunto "todos los del filtro" se resuelve a ids UNA
+        // vez al principio, para que una acción que cambia lo filtrado no corra el conjunto.
+        const TANDA_PRODUCTOS = 250;
+        const TANDA_ENVIOS = 50;
+        // Un corte de red o un 5xx se reintenta con espera creciente; un 422 no (es determinístico).
+        // Reintentar un aumento es seguro porque cada tanda lleva la `corrida` y el backend saltea
+        // los productos que esa corrida ya ajustó (AjusteMasivoPrecios::aplicar()).
+        const ESPERAS_REINTENTO = [2000, 4000, 8000];
+
+        const $modalProgreso = $('#modal-masiva-progreso');
+        const modalProgreso = window.bootstrap ? new window.bootstrap.Modal($modalProgreso[0]) : null;
+
+        function progreso(titulo, hechos, total, unidad) {
+            const porcentaje = total > 0 ? Math.round((hechos / total) * 100) : 0;
+            $('#masiva-progreso-titulo').text(titulo);
+            $('#masiva-progreso-detalle').text(hechos + ' de ' + total + ' ' + unidad + '…');
+            $('#masiva-progreso-barra').css('width', porcentaje + '%').attr('aria-valuenow', porcentaje);
+        }
+
+        function postJson(url, data) {
             return $.ajax({
-                url: rutas.accionesMasivas,
+                url: url,
                 method: 'POST',
-                data: payload,
+                data: data,
                 dataType: 'json',
                 headers: { 'X-Requested-With': 'XMLHttpRequest' },
             });
         }
 
+        function postConReintentos(url, data, intento) {
+            intento = intento || 0;
+            const d = $.Deferred();
+            postJson(url, data)
+                .done(d.resolve)
+                .fail(function (xhr) {
+                    const transitorio = xhr.status === 0 || xhr.status >= 500;
+                    if (!transitorio || intento >= ESPERAS_REINTENTO.length) {
+                        d.reject(xhr);
+                        return;
+                    }
+                    $('#masiva-progreso-detalle').text('Se cortó la conexión. Reintentando (' + (intento + 1) + ' de ' + ESPERAS_REINTENTO.length + ')…');
+                    setTimeout(function () {
+                        postConReintentos(url, data, intento + 1).done(d.resolve).fail(d.reject);
+                    }, ESPERAS_REINTENTO[intento]);
+                });
+            return d.promise();
+        }
+
+        function nuevaCorrida() {
+            if (window.crypto && window.crypto.randomUUID) {
+                return window.crypto.randomUUID();
+            }
+            return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+        }
+
+        function mostrarProgreso($modalOrigen) {
+            const d = $.Deferred();
+            const abrir = function () {
+                progreso('Aplicando cambios…', 0, 0, 'productos');
+                $('#masiva-progreso-detalle').text('Preparando…');
+                modalProgreso ? modalProgreso.show() : $modalProgreso.show();
+                d.resolve();
+            };
+            // Secuencial, no apilado: dos modales abiertos a la vez rompen el scroll de la página.
+            if ($modalOrigen && $modalOrigen.hasClass('show')) {
+                $modalOrigen.one('hidden.bs.modal', abrir);
+                const instancia = window.bootstrap ? window.bootstrap.Modal.getInstance($modalOrigen[0]) : null;
+                instancia ? instancia.hide() : $modalOrigen.hide();
+            } else {
+                abrir();
+            }
+            return d.promise();
+        }
+
+        function ocultarProgreso() {
+            modalProgreso ? modalProgreso.hide() : $modalProgreso.hide();
+        }
+
+        /**
+         * Aplica la acción a toda la selección en tandas. Resuelve con el resultado acumulado
+         * (misma forma que la respuesta de una tanda) o rechaza con { xhr, aplicados, total }.
+         */
+        function ejecutarAccionMasiva(payload, $modalOrigen) {
+            const d = $.Deferred();
+            // Lo que el modal le mostró al usuario antes de confirmar.
+            const anunciados = cantidadSeleccionada();
+            const base = Object.assign({}, payload);
+            delete base.todos;
+            delete base.filtros;
+            delete base.ids;
+            base.corrida = nuevaCorrida();
+
+            const acumulado = { actualizados: 0, eliminados: 0, no_eliminados: [], ml: [], tn: [] };
+            let total = 0;
+            let aplicados = 0;
+
+            function fallar(xhr, fase) {
+                ocultarProgreso();
+                d.reject({ xhr: xhr, aplicados: aplicados, total: total, fase: fase || 'aplicar' });
+            }
+
+            function terminar(envio) {
+                ocultarProgreso();
+                let mensaje = acumulado.actualizados + ' productos actualizados.';
+                if (envio && envio.enviados > 0) {
+                    mensaje += ' Se enviaron ' + envio.enviados + ' precios a Mercado Libre / Tiendanube.';
+                }
+                d.resolve(Object.assign({ ok: true, mensaje: mensaje, envio: envio || null }, acumulado));
+            }
+
+            function aplicarTanda(ids, desde) {
+                if (desde >= ids.length) {
+                    enviarPrecios();
+                    return;
+                }
+                const lote = ids.slice(desde, desde + TANDA_PRODUCTOS);
+                postConReintentos(rutas.accionesMasivas, Object.assign({ todos: 0, ids: lote }, base))
+                    .done(function (resp) {
+                        aplicados = desde + lote.length;
+                        acumulado.actualizados += (resp.actualizados || 0) + (resp.ya_aplicados || 0);
+                        acumulado.eliminados += resp.eliminados || 0;
+                        acumulado.no_eliminados = acumulado.no_eliminados.concat(resp.no_eliminados || []);
+                        if (resp.envios) {
+                            acumulado.ml = acumulado.ml.concat(resp.envios.ml || []);
+                            acumulado.tn = acumulado.tn.concat(resp.envios.tn || []);
+                        }
+                        progreso('Aplicando cambios…', aplicados, total, 'productos');
+                        aplicarTanda(ids, desde + TANDA_PRODUCTOS);
+                    })
+                    .fail(function (xhr) { fallar(xhr, 'aplicar'); });
+            }
+
+            // Segunda fase (sólo precios): los cambios ya están guardados en el CRM; acá se mandan a
+            // Mercado Libre / Tiendanube. El backend procesa lo que entra en su presupuesto de
+            // tiempo y devuelve cuántos hizo, así que se sigue con el resto hasta vaciar la cola.
+            function enviarPrecios() {
+                let ml = acumulado.ml.slice();
+                let tn = acumulado.tn.slice();
+                const totalEnvios = ml.length + tn.length;
+                const envio = { total: totalEnvios, enviados: 0, no_enviados: 0, bloqueos: [] };
+
+                if (totalEnvios === 0) {
+                    terminar(null);
+                    return;
+                }
+
+                const paso = function () {
+                    if (ml.length === 0 && tn.length === 0) {
+                        terminar(envio);
+                        return;
+                    }
+                    progreso('Enviando precios a Mercado Libre y Tiendanube…', totalEnvios - ml.length - tn.length, totalEnvios, 'publicaciones');
+                    const loteMl = ml.slice(0, TANDA_ENVIOS);
+                    const loteTn = loteMl.length < TANDA_ENVIOS ? tn.slice(0, TANDA_ENVIOS - loteMl.length) : [];
+                    postConReintentos(rutas.accionesMasivasEnviarPrecios, { ml: loteMl, tn: loteTn })
+                        .done(function (resp) {
+                            ml = ml.slice(resp.ml_procesados || 0);
+                            tn = tn.slice(resp.tn_procesados || 0);
+                            envio.enviados += resp.enviados || 0;
+                            envio.no_enviados += resp.no_enviados || 0;
+                            [resp.ml_bloqueo, resp.tn_bloqueo].forEach(function (b) {
+                                if (b && envio.bloqueos.indexOf(b) === -1) { envio.bloqueos.push(b); }
+                            });
+                            if ((resp.ml_procesados || 0) + (resp.tn_procesados || 0) === 0) {
+                                // Sin avance (no debería pasar): se corta en vez de quedar en bucle.
+                                envio.no_enviados += ml.length + tn.length;
+                                terminar(envio);
+                                return;
+                            }
+                            paso();
+                        })
+                        .fail(function (xhr) {
+                            envio.pendientes = ml.length + tn.length;
+                            ocultarProgreso();
+                            d.reject({ xhr: xhr, aplicados: aplicados, total: total, fase: 'enviar', envio: envio });
+                        });
+                };
+                paso();
+            }
+
+            mostrarProgreso($modalOrigen).done(function () {
+                if (!payload.todos) {
+                    const ids = (payload.ids || []).slice();
+                    total = ids.length;
+                    aplicarTanda(ids, 0);
+                    return;
+                }
+                postConReintentos(rutas.accionesMasivasIds, { filtros: payload.filtros })
+                    .done(function (resp) {
+                        // El modal anunció N productos: si el filtro ahora devuelve otra cantidad
+                        // (alguien cargó o editó productos mientras tanto), no se aplica a un
+                        // conjunto distinto del que se confirmó.
+                        if (resp.ids.length !== anunciados) {
+                            ocultarProgreso();
+                            d.reject({ aplicados: 0, total: anunciados, fase: 'aplicar',
+                                mensaje: 'La selección cambió: el modal indicaba ' + formatoCantidad(anunciados) + ' productos y ahora son ' +
+                                    formatoCantidad(resp.ids.length) + '. No se modificó nada; volvé a confirmar la acción.' });
+                            return;
+                        }
+                        total = resp.ids.length;
+                        aplicarTanda(resp.ids, 0);
+                    })
+                    .fail(function (xhr) { fallar(xhr, 'aplicar'); });
+            });
+
+            return d.promise();
+        }
+
+        function avisarFalloAccionMasiva(err) {
+            tabla.ajax.reload(null, false);
+            refrescarStats();
+            const xhr = err.xhr || {};
+            const errores = xhr.responseJSON && xhr.responseJSON.errors;
+            const detalle = errores ? Object.values(errores)[0][0] : null;
+
+            if (err.fase === 'enviar') {
+                toast('warning', 'Los cambios quedaron guardados en los ' + err.total + ' productos, pero se cortó el envío a Mercado Libre / Tiendanube: ' +
+                    (err.envio ? err.envio.pendientes : '') + ' publicaciones quedaron pendientes de envío.');
+                return;
+            }
+            if (err.aplicados > 0) {
+                toast('error', 'Se cortó a mitad de camino: se aplicó a ' + err.aplicados + ' de ' + err.total +
+                    ' productos (los primeros de la selección). Los demás quedaron sin cambios.' + (detalle ? ' ' + detalle : ''));
+                return;
+            }
+            toast('error', err.mensaje || detalle || 'No se pudo aplicar la acción. No se modificó ningún producto.');
+        }
+
         function avisarResultadoAccionMasiva(resp, accion) {
             tabla.ajax.reload(null, false);
             refrescarStats();
+            if (resp.envio) {
+                const e = resp.envio;
+                if (e.bloqueos.length) {
+                    toast('warning', 'Los precios no se enviaron a las integraciones: ' + e.bloqueos.join(' ') + ' Quedaron pendientes.');
+                } else if (e.no_enviados > 0) {
+                    toast('warning', e.no_enviados + ' de ' + e.total + ' publicaciones no se pudieron enviar (quedaron con error o retenidas por el corte de precios). Revisalas en Vinculaciones.');
+                }
+            }
             if (accion === 'eliminar') {
                 const noEliminados = resp.no_eliminados || [];
                 let msg = resp.eliminados + ' producto(s) eliminado(s).';
@@ -773,7 +1011,9 @@
             limpiarErroresMasivas();
             $formMasivas.find('[data-valor]').addClass('d-none');
             $('#masiva-eliminar-aviso').addClass('d-none');
-            $('#btn-confirmar-acciones-masivas').prop('disabled', true);
+            $('#btn-confirmar-acciones-masivas').prop('disabled', true)
+                .text('Confirmar (' + formatoCantidad(cantidadSeleccionada()) + ' productos)');
+            mostrarCantidad($modalMasivas);
             refreshSelect2($('#masiva-proveedor'));
             modalMasivas ? modalMasivas.show() : $modalMasivas.show();
         }
@@ -808,27 +1048,9 @@
             const payload = Object.assign({ accion: accion, valor: valorAccionMasiva(accion) }, payloadSeleccion());
 
             window.AppBtn.loading('#btn-confirmar-acciones-masivas', true);
-            ejecutarAccionMasiva(payload)
-                .done(function (resp) {
-                    modalMasivas ? modalMasivas.hide() : $modalMasivas.hide();
-                    avisarResultadoAccionMasiva(resp, accion);
-                })
-                .fail(function (xhr) {
-                    if (xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.errors) {
-                        const errors = xhr.responseJSON.errors;
-                        const mensaje = errors.accion ? errors.accion[0] : (errors.valor ? errors.valor[0] : 'Revisá los datos.');
-                        if (errors.accion) {
-                            $accionSel.addClass('is-invalid');
-                            $formMasivas.find('.invalid-feedback[data-field="accion"]').text(errors.accion[0]);
-                        }
-                        if (errors.valor) {
-                            $formMasivas.find('.invalid-feedback[data-field="valor"]').text(errors.valor[0]);
-                        }
-                        toast('error', mensaje);
-                    } else {
-                        toast('error', 'No se pudo aplicar la acción.');
-                    }
-                })
+            ejecutarAccionMasiva(payload, $modalMasivas)
+                .done(function (resp) { avisarResultadoAccionMasiva(resp, accion); })
+                .fail(avisarFalloAccionMasiva)
                 .always(function () {
                     window.AppBtn.loading('#btn-confirmar-acciones-masivas', false);
                 });
@@ -876,9 +1098,9 @@
             const esCosto = accion === 'costo';
             $('#masiva-precios-accion').val(accion);
             $('#masiva-precios-titulo').text(esCosto ? 'Edición Masiva de Costos' : 'Edición Masiva de Precios de Venta');
-            $('#masiva-precios-cantidad').text(cantidadSeleccionada());
+            mostrarCantidad($modalPrecios);
             $('#masiva-precios-redondear-label').text('Redondear ' + (esCosto ? 'los costos' : 'los precios') + ' modificados al primer entero');
-            $('#btn-actualizar-precios').text(esCosto ? 'Actualizar Costos' : 'Actualizar Precios');
+            $('#btn-actualizar-precios').text((esCosto ? 'Actualizar costos de ' : 'Actualizar precios de ') + formatoCantidad(cantidadSeleccionada()) + ' productos');
             $('#masiva-precios-redondear').prop('checked', false);
 
             const $cont = $('#masiva-precios-campos').empty();
@@ -918,16 +1140,9 @@
             }, payloadSeleccion());
 
             window.AppBtn.loading('#btn-actualizar-precios', true);
-            ejecutarAccionMasiva(payload)
-                .done(function (resp) {
-                    modalPrecios ? modalPrecios.hide() : $modalPrecios.hide();
-                    avisarResultadoAccionMasiva(resp, accion);
-                })
-                .fail(function (xhr) {
-                    const msg = (xhr.responseJSON && xhr.responseJSON.errors && Object.values(xhr.responseJSON.errors)[0][0])
-                        || 'No se pudo aplicar la acción.';
-                    toast('error', msg);
-                })
+            ejecutarAccionMasiva(payload, $modalPrecios)
+                .done(function (resp) { avisarResultadoAccionMasiva(resp, accion); })
+                .fail(avisarFalloAccionMasiva)
                 .always(function () {
                     window.AppBtn.loading('#btn-actualizar-precios', false);
                 });
@@ -940,6 +1155,7 @@
 
         function abrirModalMasivaIva() {
             $formIva[0].reset();
+            mostrarCantidad($modalIva);
             modalIva ? modalIva.show() : $modalIva.show();
         }
 
@@ -952,12 +1168,9 @@
             }, payloadSeleccion());
 
             const $btn = window.AppBtn.loading($formIva.find('button[type="submit"]'), true);
-            ejecutarAccionMasiva(payload)
-                .done(function (resp) {
-                    modalIva ? modalIva.hide() : $modalIva.hide();
-                    avisarResultadoAccionMasiva(resp, 'iva');
-                })
-                .fail(function () { toast('error', 'No se pudo aplicar la acción.'); })
+            ejecutarAccionMasiva(payload, $modalIva)
+                .done(function (resp) { avisarResultadoAccionMasiva(resp, 'iva'); })
+                .fail(avisarFalloAccionMasiva)
                 .always(function () { window.AppBtn.loading($btn, false); });
         });
 
@@ -973,7 +1186,7 @@
 
         function abrirModalMasivaTipoProducto() {
             $formTipoProd[0].reset();
-            $('#masiva-tipo-producto-cantidad').text(cantidadSeleccionada());
+            mostrarCantidad($modalTipoProd);
             $('#masiva-tipo-producto-producto, #masiva-tipo-producto-servicio').val('');
             refreshSelect2($('#masiva-tipo-producto-producto'));
             refreshSelect2($('#masiva-tipo-producto-servicio'));
@@ -996,12 +1209,9 @@
             }, payloadSeleccion());
 
             const $btn = window.AppBtn.loading($formTipoProd.find('button[type="submit"]'), true);
-            ejecutarAccionMasiva(payload)
-                .done(function (resp) {
-                    modalTipoProd ? modalTipoProd.hide() : $modalTipoProd.hide();
-                    avisarResultadoAccionMasiva(resp, 'tipo_producto_id');
-                })
-                .fail(function () { toast('error', 'No se pudo aplicar la acción.'); })
+            ejecutarAccionMasiva(payload, $modalTipoProd)
+                .done(function (resp) { avisarResultadoAccionMasiva(resp, 'tipo_producto_id'); })
+                .fail(avisarFalloAccionMasiva)
                 .always(function () { window.AppBtn.loading($btn, false); });
         });
     });
