@@ -22,7 +22,7 @@
         @if (!empty($filtros['operacion']))
             &middot; Operación: {{ $etiquetas[$filtros['operacion']] ?? $filtros['operacion'] }}
         @endif
-        &middot; emitido el {{ now()->format('d/m/Y H:i') }}
+        &middot; emitido el {{ now()->local()->format('d/m/Y H:i') }}
     </div>
 
     <h1 style="font-size:11px">Saldos</h1>

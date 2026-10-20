@@ -165,7 +165,7 @@ class EnvioContadorController extends Controller
             ->get()
             ->map(fn (EnvioContador $e) => $e->progreso() + [
                 'periodo' => $e->mes ? str_pad((string) $e->mes, 2, '0', STR_PAD_LEFT).'/'.$e->anio : (string) $e->anio,
-                'creado_en' => $e->created_at?->format('d/m/Y H:i'),
+                'creado_en' => $e->created_at?->local()->format('d/m/Y H:i'),
             ]);
 
         return response()->json(['envios' => $envios]);

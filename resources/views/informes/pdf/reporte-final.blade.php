@@ -14,7 +14,7 @@
     <h1>Reporte Final &mdash; {{ $titulo }}</h1>
     <div class="meta">
         Período {{ \App\Services\Informes\RangoFechas::etiqueta($arbol['desde'], $arbol['hasta']) }}
-        &middot; emitido el {{ now()->format('d/m/Y H:i') }}
+        &middot; emitido el {{ now()->local()->format('d/m/Y H:i') }}
         @if ($excluidas !== [])
             &middot; <strong>escenario simulado</strong>: {{ count($excluidas) }} categoría(s) excluida(s)
         @endif

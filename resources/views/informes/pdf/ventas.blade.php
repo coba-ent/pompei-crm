@@ -19,7 +19,7 @@
     <h1>Informe de Ventas</h1>
     <div class="meta">
         Período {{ \App\Services\Informes\RangoFechas::etiqueta($rango['desde'], $rango['hasta']) }}
-        &middot; emitido el {{ now()->format('d/m/Y H:i') }}
+        &middot; emitido el {{ now()->local()->format('d/m/Y H:i') }}
     </div>
 
     <table class="totales">

@@ -28,7 +28,7 @@
                 @if ($corrida)
                     <p class="text-muted small mb-0">
                         Archivo <strong>{{ $corrida->archivo_original }}</strong> ·
-                        {{ $corrida->confirmado_en->format('d/m/Y H:i') }} ·
+                        {{ $corrida->confirmado_en->local()->format('d/m/Y H:i') }} ·
                         {{ $corrida->filas_creadas }} {{ Str::plural('creado', $corrida->filas_creadas) }},
                         {{ $corrida->filas_actualizadas }} {{ Str::plural('actualizado', $corrida->filas_actualizadas) }}
                     </p>

@@ -78,7 +78,8 @@ class EnvioContador extends Model
             'error' => $this->error,
             'destinatarios' => $this->destinatarios,
             'archivos' => $this->archivos,
-            'enviado_en' => $this->enviado_en?->format('d/m/Y H:i'),
+            // Se guarda en UTC: sin local() se mostraba 3 horas adelantado.
+            'enviado_en' => $this->enviado_en?->local()->format('d/m/Y H:i'),
         ];
     }
 }

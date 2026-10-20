@@ -499,14 +499,14 @@ class ImportacionController extends Controller
             'recordsFiltered' => $total,
             'data' => $corridas->map(fn ($c) => [
                 'id' => $c->id,
-                'confirmado_en' => $c->confirmado_en->format('d/m/Y H:i'),
+                'confirmado_en' => $c->confirmado_en->local()->format('d/m/Y H:i'),
                 'usuario' => $c->usuario?->name ?? '—',
                 'archivo_original' => $c->archivo_original,
                 'filas_creadas' => $c->filas_creadas,
                 'filas_actualizadas' => $c->filas_actualizadas,
                 'filas_fallidas' => $c->filas_fallidas,
                 'estado' => $c->estado(),
-                'deshacer_disponible_hasta' => $c->deshacer_disponible_hasta->format('d/m/Y H:i'),
+                'deshacer_disponible_hasta' => $c->deshacer_disponible_hasta->local()->format('d/m/Y H:i'),
                 'puede_deshacer' => $c->puedeDeshacer(),
                 // Spec 093 — tres estados del archivo, no un booleano (FR-015).
                 'archivo' => [
