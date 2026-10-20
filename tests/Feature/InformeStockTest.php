@@ -151,6 +151,37 @@ class InformeStockTest extends TestCase
         $this->assertSame($productoA->id, $resp['data'][0]['producto_id']);
     }
 
+    public function test_filtro_deposito_acota_la_tabla_y_los_kpis(): void
+    {
+        $local = Deposito::create(['nombre' => 'Local']);
+        $full = Deposito::create(['nombre' => 'Full']);
+        $producto = Producto::factory()->create(['costo' => 100, 'precio_venta' => 200]);
+        Stock::create(['producto_id' => $producto->id, 'deposito_id' => $local->id, 'cantidad' => 7]);
+        Stock::create(['producto_id' => $producto->id, 'deposito_id' => $full->id, 'cantidad' => 3]);
+
+        MovimientoStock::create([
+            'producto_id' => $producto->id, 'deposito_id' => $local->id,
+            'tipo' => 'ajuste', 'cantidad' => 7, 'fecha' => '2026-06-01',
+        ]);
+        MovimientoStock::create([
+            'producto_id' => $producto->id, 'deposito_id' => $full->id,
+            'tipo' => 'ajuste', 'cantidad' => 3, 'fecha' => '2026-06-02',
+        ]);
+
+        $resp = $this->getJson(route('informes.stock.data', [
+            'draw' => 1, 'start' => 0, 'length' => 10, 'deposito_id' => $full->id,
+        ]))->assertOk()->json();
+
+        $this->assertCount(1, $resp['data']);
+        $this->assertSame('Full', $resp['data'][0]['deposito']);
+        // El saldo sigue siendo el del depósito, no el total del producto.
+        $this->assertEquals(3, $resp['data'][0]['stock_saldo']);
+
+        $stats = $this->getJson(route('informes.stock.stats', ['deposito_id' => $full->id]))->assertOk()->json();
+        $this->assertEquals(3, $stats['unidades_en_stock']);
+        $this->assertEquals(300, $stats['costo_total']);
+    }
+
     private function deposito(): Deposito
     {
         return Deposito::create(['nombre' => 'Principal', 'activo' => true]);

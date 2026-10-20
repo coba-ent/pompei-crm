@@ -60,6 +60,7 @@
         initSelect2($('#filtro-operacion'));
         initSelect2($('#filtro-proveedor'));
         initSelect2($('#filtro-tipo-producto'));
+        initSelect2($('#filtro-deposito'));
         initSelect2($('#filtro-estado'), { minimumResultsForSearch: Infinity });
 
         // Picker de producto con Select2 + búsqueda remota (igual que el de Ajuste de Stock global).
@@ -127,6 +128,7 @@
                     d.proveedor_id = $('#filtro-proveedor').val();
                     d.tipo_producto_id = $('#filtro-tipo-producto').val();
                     d.producto_id = $('#filtro-producto').val();
+                    d.deposito_id = $('#filtro-deposito').val();
                     d.estado = $('#filtro-estado').val();
                     d.fecha_desde = fechaDesde;
                     d.fecha_hasta = fechaHasta;
@@ -230,12 +232,12 @@
 
         // --- Filtros ---
         $('#btn-aplicar-filtros').on('click', function () { tabla.ajax.reload(); refrescarStats(); });
-        $('#filtro-usuario, #filtro-operacion, #filtro-proveedor, #filtro-tipo-producto, #filtro-estado, #filtro-producto').on('change', function () {
+        $('#filtro-usuario, #filtro-operacion, #filtro-proveedor, #filtro-tipo-producto, #filtro-deposito, #filtro-estado, #filtro-producto').on('change', function () {
             tabla.ajax.reload();
             refrescarStats();
         });
         $('#btn-limpiar-filtros').on('click', function () {
-            $('#filtro-usuario, #filtro-operacion, #filtro-proveedor, #filtro-tipo-producto').val('').trigger('change.select2');
+            $('#filtro-usuario, #filtro-operacion, #filtro-proveedor, #filtro-tipo-producto, #filtro-deposito').val('').trigger('change.select2');
             $('#filtro-estado').val('todos').trigger('change.select2');
             $('#filtro-producto').val(null).trigger('change');
             $('#filtro-rango-fechas').val('');
@@ -254,6 +256,7 @@
                 proveedor_id: $('#filtro-proveedor').val(),
                 tipo_producto_id: $('#filtro-tipo-producto').val(),
                 producto_id: $('#filtro-producto').val(),
+                deposito_id: $('#filtro-deposito').val(),
                 estado: $('#filtro-estado').val(),
             }).done(function (s) {
                 const fmt = function (n) { return new Intl.NumberFormat('es-AR').format(n); };

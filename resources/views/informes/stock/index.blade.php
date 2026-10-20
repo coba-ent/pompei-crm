@@ -104,7 +104,16 @@
                                     @endif
                                 </select>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-2">
+                                <label class="form-label">Depósito</label>
+                                <select id="filtro-deposito" class="form-select">
+                                    <option value="">Todos</option>
+                                    @foreach ($depositos as $deposito)
+                                        <option value="{{ $deposito->id }}">{{ $deposito->nombre }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-2">
                                 <label class="form-label">Estado del Producto/Servicio</label>
                                 <select id="filtro-estado" class="form-select">
                                     <option value="todos" selected>Todos</option>
@@ -112,7 +121,7 @@
                                     <option value="inactivos">Inactivos</option>
                                 </select>
                             </div>
-                            <div class="col-md-5">
+                            <div class="col-md-4">
                                 <label class="form-label">Rango de fechas</label>
                                 <div class="input-group">
                                     <input type="text" id="filtro-rango-fechas" class="form-control" placeholder="Todas las fechas" autocomplete="off">

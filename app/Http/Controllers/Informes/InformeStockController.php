@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Informes;
 
 use App\Http\Controllers\Controller;
 use App\Models\Compra;
+use App\Models\Deposito;
 use App\Models\NotaCreditoDebito;
 use App\Models\Producto;
 use App\Models\Proveedor;
@@ -36,13 +37,15 @@ class InformeStockController extends Controller
         $usuarios = User::orderBy('name')->get(['id', 'name']);
         $proveedores = Proveedor::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']);
         $tiposProducto = TipoProducto::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']);
+        // Todos, no sólo los activos: el histórico tiene movimientos de depósitos que hoy pueden estar dados de baja.
+        $depositos = Deposito::orderBy('nombre')->get(['id', 'nombre']);
         $productoId = $request->input('producto_id');
         $productoPreseleccionado = $productoId ? Producto::find($productoId, ['id', 'nombre', 'codigo']) : null;
 
         $stats = $this->estadisticas($request);
 
         return view('informes.stock.index', compact(
-            'CurrentPage', 'usuarios', 'proveedores', 'tiposProducto', 'productoId', 'productoPreseleccionado', 'stats'
+            'CurrentPage', 'usuarios', 'proveedores', 'tiposProducto', 'depositos', 'productoId', 'productoPreseleccionado', 'stats'
         ));
     }
 
@@ -282,6 +285,12 @@ class InformeStockController extends Controller
             $query->where('mov.producto_id', $request->input('producto_id'));
         }
 
+        // Afuera de la ventana, como el resto: el "Stock Saldo" ya se calcula por depósito, así
+        // que filtrar acá no lo altera — cada fila sigue mostrando el saldo de su depósito.
+        if ($request->filled('deposito_id')) {
+            $query->where('mov.deposito_id', $request->input('deposito_id'));
+        }
+
         $estado = $request->input('estado', 'todos');
         if ($estado === 'activos') {
             $query->where('productos.activo', true);
@@ -380,7 +389,7 @@ class InformeStockController extends Controller
     /**
      * KPIs de valorización (misma fórmula que ProductoController::estadisticas()),
      * acotados a los productos que matchean los filtros de producto vigentes
-     * (proveedor, tipo de producto, producto puntual, estado) — no a los
+     * (proveedor, tipo de producto, producto puntual, estado) y al depósito — no a los
      * filtros propios del histórico de movimientos (usuario/operación/fechas).
      *
      * @return array{unidades_en_stock:float, costo_total:float, valor_venta_total:float}
@@ -410,6 +419,7 @@ class InformeStockController extends Controller
         $valorizacion = DB::table('stocks')
             ->join('productos', 'productos.id', '=', 'stocks.producto_id')
             ->whereIn('stocks.producto_id', $ids)
+            ->when($request->filled('deposito_id'), fn ($q) => $q->where('stocks.deposito_id', $request->input('deposito_id')))
             ->selectRaw('COALESCE(SUM(stocks.cantidad), 0) as unidades_en_stock')
             ->selectRaw('COALESCE(SUM(stocks.cantidad * productos.costo), 0) as costo_total')
             ->selectRaw('COALESCE(SUM(stocks.cantidad * productos.precio_venta), 0) as valor_venta_total')
