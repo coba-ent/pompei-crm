@@ -200,6 +200,10 @@ cambia lo filtrado no corra el conjunto), los manda en tandas de 250 con una bar
   las integraciones; los vínculos afectados quedan `precio_pendiente` y la pantalla los envía después
   (fase "Enviando precios…"), con las mismas reglas y cortes que cualquier otro envío.
 - Un porcentaje sobre un producto **sin precio** en una lista ya no crea un precio $0 en esa lista.
+- **Cantidad antes de confirmar**: los cuatro modales (genérico, Precios/Costos, IVA, Tipo de
+  Producto) dicen a cuántos productos se va a aplicar, también en el botón ("Actualizar precios de
+  9.274 productos"). Si al ejecutar el filtro devuelve otra cantidad que la anunciada, no se aplica
+  nada y se pide volver a confirmar.
 
 El modal "Acciones Masivas" ofrece 11 operaciones en lote, en este orden: Modificar Precio de Venta,
 Modificar Costo, Mostrar en Ventas, No Mostrar en Ventas, Mostrar en Compras, No Mostrar en Compras,
@@ -1155,8 +1159,16 @@ Reglas de negocio:
   **Validado contra Contagram** (informe de movimientos del 20/08): los mismos productos tienen ventas
   imputadas a Full el 18/08 y a Local el 19/08, cuando el depósito Full se vació. Contagram también
   decide venta por venta.
-- **Reposición hacia Full**: **manual**, por decisión del negocio y porque Mercado Libre no la expone
-  por API. El CRM no la automatiza; si se quiere dejar registro, se usa un movimiento entre depósitos.
+- **Reposición hacia Full y retiros de Full**: **manuales**, por decisión del negocio y porque Mercado
+  Libre no los expone por API. El lado Full **se hace en Mercado Libre** (envío a Full / retiro) y el
+  reflejo lo copia solo; en el CRM sólo se toca el lado **Local**: Disminución al mandar a Full,
+  Aumento cuando vuelve mercadería de Full. **No usar "Movimiento entre Depósitos" Local ↔ Full** si
+  en Mercado Libre no ocurrió el envío/retiro: el reflejo revierte el lado Full y quedan unidades
+  perdidas (Local → Full) o contadas dos veces (Full → Local). Si el envío sí se hizo en Mercado Libre,
+  el movimiento entre depósitos cierra igual pero deja dos movimientos de ruido (el reflejo baja Full
+  mientras ML no recibió, y lo vuelve a subir al recibir). Mientras la mercadería viaja no figura en
+  ningún depósito del CRM. (Aclarado con el usuario el 21/10/2026; antes este punto recomendaba el
+  movimiento entre depósitos, que era engañoso.)
 - **El depósito Full es un espejo, no un depósito escribible.** `SincronizadorStockFull` lo iguala al
   inventario real de Mercado Libre en cada corrida, así que cualquier valor que se le escriba —a mano,
   por `stock:ajustar-desde-hoja` o por el módulo de importación (§Base de Datos)— se revierte en menos
@@ -2698,8 +2710,10 @@ para el form de Ajuste de Stock); navega a una **pantalla propia** (`/informes/s
 `informe_contagram_base_de_datos.md` §4.9), con `?producto_id=` pre-cargando el filtro "Productos".
 
 - **Filtros**: Usuario, Operación (`Ajuste`/`Transferencia`, más **`Salida`/`Entrada` por Ventas desde
-  la spec 012** — ver nota abajo), Proveedor, Tipo de Producto, Productos (buscador), Estado del
-  Producto/Servicio, rango de fechas.
+  la spec 012** — ver nota abajo), Proveedor, Tipo de Producto, Productos (buscador), **Depósito**
+  (20/10/2026: lista todos los depósitos, también los inactivos, porque el histórico puede tenerlos),
+  Estado del Producto/Servicio, rango de fechas. El filtro de Depósito acota la tabla **y** los KPIs;
+  no altera el Stock Saldo, que ya se calcula por producto+depósito.
 
   > **Corrección (spec 012, 27/07/2026)**: este documento afirmaba que las operaciones `Entrada`/`Salida`
   > "no existen todavía". Era exacto hasta la spec 011: se verificó en código que `VentaController` y
@@ -2710,11 +2724,18 @@ para el form de Ajuste de Stock); navega a una **pantalla propia** (`/informes/s
   > insoluble. La spec 030 (01/08/2026) cierra la brecha simétrica para **Compras**: ver §3.1 más abajo.
 - **KPIs** (recalculados según los filtros de producto vigentes): Unidades en Stock, Costo Total, Valor
   Venta Total — misma fórmula que los KPIs en $ de Productos (§2.2).
-- **Tabla**: Fecha, Operación, Detalle, Producto, Cantidad, **Stock Saldo** (saldo corrido por
-  producto+depósito, calculado sobre el histórico completo de `movimientos_stock` vía función de
-  ventana SQL — los filtros de pantalla nunca alteran ese cálculo, sólo qué filas se muestran).
-  Ordenada por defecto por **fecha y hora ascendente** (spec 051, 06/08/2026) — antes ordenaba sólo
-  por fecha (sin hora), lo que no distinguía el orden real entre varios movimientos del mismo día.
+- **Tabla**: ID (documento de origen, con enlace), Fecha, Operación, Detalle, Producto, Depósito,
+  Cantidad, **Stock Saldo** (saldo por producto+depósito, calculado hacia atrás desde el stock actual
+  sobre el histórico completo de `movimientos_stock` vía función de ventana SQL — los filtros de
+  pantalla nunca alteran ese cálculo, sólo qué filas se muestran), Usuario. Ordenada por defecto por
+  **fecha y hora descendente** (lo último primero, 28/08/2026). Detalle y Producto tienen **ancho fijo
+  y el texto baja de línea** (21/10/2026, `col-detalle`/`col-producto` en `contagram-custom.css`):
+  crecen en alto, no en ancho.
+- **El historial arranca en 2024.** Los movimientos anteriores al 13/08/2026 se cargaron desde los
+  informes de stock de Contagram de 2024–2026 (spec 094); 2021–2023 no tienen movimientos aunque las
+  ventas y compras de esos años existan. Un producto que no se movió entre 2024 y la migración muestra
+  sólo lo posterior (caso consultado el 20/10/2026: producto 28924, con 17 ventas 2021–2023 y un único
+  movimiento visible).
 - Es de **sólo lectura**: no edita ni elimina movimientos desde ahí. El alta de movimientos sigue
   siendo "Ajuste de Stock" (Aumentar/Disminuir/Transferencia) desde Productos, sin cambios.
 
@@ -3750,6 +3771,11 @@ si hace falta un índice funcional en `movimientos_stock`.
 **Prioridad**: baja. No corrompe datos ni afecta importes; sólo la atribución de día en pantallas de
 consulta. Se vuelve importante si se cierra caja de stock por día o se concilian órdenes de ML
 contra Contagram por fecha.
+
+**Corregido el 20/10/2026, más pantallas con la hora en UTC.** El estado "Enviado" del Envío al
+contador mostraba 14:17 para un envío de las 11:17. Mismo error en el historial de envíos al
+contador, el historial y el resumen de importaciones y el "emitido el" de los PDFs de informes. Todos
+pasan ahora por `->local()` (macro de `AppServiceProvider`) antes de formatear.
 
 **Corregido el 16/08/2026, la mitad de front del mismo problema.** Ocho modales calculaban "hoy"
 con `new Date().toISOString().slice(0, 10)`, que es UTC: después de las 21:00 ARG proponían el día

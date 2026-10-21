@@ -85,6 +85,10 @@ No son sugerencias: toda spec, plan, task e implementación debe cumplirlas.
    `state.columns[2]`): usar clases (`no-colvis`) o `data`. Excepción: tablas con encabezado de dos
    filas (`colspan`/`rowspan`, ej. Saldos de Cuenta Corriente) no llevan colReorder — la extensión no
    las soporta. Referencia: `resources/js/productos.js`.
+   **Persistencia del estado**: `layouts/default.blade.php` fija para todas las tablas
+   `stateDuration: 0` (el default de DataTables vencía el estado a las 2 h) y una clave de
+   localStorage con la ruta normalizada (ids → `*`, sin subrutas `ranking/`/`vista/`). No pisar
+   `stateDuration`, `stateSaveCallback` ni `stateLoadCallback` en una tabla puntual.
 2. **Alta / edición / eliminación**: siempre mediante **modales de Bootstrap + AJAX**. La página
    **NUNCA** se refresca ni se recarga para realizar una operación (comportamiento tipo SPA sobre
    Blade). Los formularios se envían por AJAX y actualizan la tabla/UI en el lugar.
