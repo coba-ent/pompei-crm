@@ -1357,13 +1357,24 @@ tr.cuenta-orden-placeholder {
     min-width: 110px;
 }
 
-/* Informe de Stock: la columna Detalle tiene ancho fijo y el texto baja de línea (crece en alto,
-   no en ancho). La tabla es `nowrap`, así que hay que pisarlo sólo para esta columna. */
+/* Informe de Stock: las columnas Detalle y Producto tienen ancho fijo y el texto baja de línea
+   (crecen en alto, no en ancho). La tabla es `nowrap`, así que hay que pisarlo sólo para ellas. */
 #tabla-informe-stock th.col-detalle,
-#tabla-informe-stock td.col-detalle {
+#tabla-informe-stock td.col-detalle,
+#tabla-informe-stock th.col-producto,
+#tabla-informe-stock td.col-producto {
     white-space: normal;
     overflow-wrap: anywhere;
+}
+#tabla-informe-stock th.col-detalle,
+#tabla-informe-stock td.col-detalle {
     width: 280px;
     min-width: 280px;
     max-width: 280px;
+}
+#tabla-informe-stock th.col-producto,
+#tabla-informe-stock td.col-producto {
+    width: 400px;
+    min-width: 400px;
+    max-width: 400px;
 }

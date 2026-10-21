@@ -183,7 +183,8 @@
                     // Ojo: en la mayor parte del catálogo el código además viene EMBEBIDO en el
                     // nombre (dato heredado de la importación), así que se ve repetido. Se decidió
                     // no recortarlo acá: es un problema del dato, no de esta pantalla.
-                    data: 'producto', name: 'productos.nombre', defaultContent: '',
+                    // Mismo tratamiento que Detalle: ancho fijo y texto en varias líneas (`col-producto`).
+                    data: 'producto', name: 'productos.nombre', defaultContent: '', className: 'col-producto', width: '400px',
                     render: function (nombre, tipo, fila) {
                         // En export/orden se usa el valor crudo; el formato es sólo para pantalla.
                         if (tipo !== 'display') { return nombre || ''; }
