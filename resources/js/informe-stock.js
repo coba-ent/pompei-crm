@@ -171,7 +171,10 @@
                 // `detalle`, `stock_saldo` y `usuario` son ALIAS del SELECT (un CASE, una window
                 // function y un join), no columnas reales: el buscador global los metía en el
                 // WHERE y la consulta reventaba con "Unknown column 'detalle' in 'WHERE'".
-                { data: 'detalle', name: 'detalle', defaultContent: '', searchable: false },
+                // Ancho fijo y texto en varias líneas (`col-detalle`, contagram-custom.css): con el
+                // `nowrap` de la tabla, un detalle largo estiraba la columna y empujaba el resto
+                // fuera de la pantalla (pedido del 21/10/2026).
+                { data: 'detalle', name: 'detalle', defaultContent: '', searchable: false, className: 'col-detalle', width: '280px' },
                 {
                     // Contagram muestra "(código) - nombre" y no el nombre pelado: el código es
                     // lo que el usuario tiene a mano para identificar el producto. `name` apunta

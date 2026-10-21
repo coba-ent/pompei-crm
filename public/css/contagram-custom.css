@@ -1356,3 +1356,14 @@ tr.cuenta-orden-placeholder {
 #tabla-items td:nth-child(6) { /* IVA */
     min-width: 110px;
 }
+
+/* Informe de Stock: la columna Detalle tiene ancho fijo y el texto baja de línea (crece en alto,
+   no en ancho). La tabla es `nowrap`, así que hay que pisarlo sólo para esta columna. */
+#tabla-informe-stock th.col-detalle,
+#tabla-informe-stock td.col-detalle {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    width: 280px;
+    min-width: 280px;
+    max-width: 280px;
+}
