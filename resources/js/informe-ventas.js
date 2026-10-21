@@ -190,6 +190,7 @@
             // Fecha descendente: lo más reciente arriba (FR-017).
             order: [[1, 'desc']],
             stateSave: true,
+            colReorder: true, // Arrastrar encabezados reordena las columnas (se guarda con stateSave).
         });
 
         function actualizarKpis() {

@@ -111,6 +111,51 @@
 
 @include('elements.page-js', ['CurrentPage' => $CurrentPage])
 
+{{-- Estado guardado de las tablas (columnas ocultas, orden de columnas, largo de página). Dos
+     motivos por los que "a veces" el orden de columnas no se guardaba (21/10/2026):
+
+     1. Vencía. El default de DataTables es `stateDuration: 7200`: a las 2 horas sin usar la
+        pantalla descartaba el estado. Con 0 no vence nunca.
+     2. La clave dependía de la URL exacta. DataTables guarda bajo "DataTables_{tabla}_{ruta}", así
+        que cada cuenta de Tesorería (/tesoreria/cuentas/1, /2…) tenía su propio orden, y en los
+        informes con Rankings el estado se iba a /informes/ventas/ranking/… y no se encontraba al
+        volver a /informes/ventas. La ruta se normaliza: los ids pasan a "*" y se quitan las
+        subrutas de ranking/vista. Al leer, si todavía no hay nada bajo la clave nueva, se usa la
+        vieja para no perder lo que el usuario ya tenía armado.
+
+     Va después de los scripts de página (donde se carga DataTables) y antes de los bundles de
+     `local-js`, que son los que crean las tablas. --}}
+<script>
+    if (window.jQuery && jQuery.fn.dataTable) {
+        (function () {
+            function rutaNormalizada() {
+                return location.pathname
+                    .replace(/\/(ranking|vista)\/[^/]+$/, '')
+                    .replace(/\/\d+(?=\/|$)/g, '/*');
+            }
+            function clave(settings, ruta) {
+                return 'DataTables_' + settings.sInstance + '_' + ruta;
+            }
+
+            jQuery.extend(true, jQuery.fn.dataTable.defaults, {
+                stateDuration: 0,
+                stateSaveCallback: function (settings, data) {
+                    try { localStorage.setItem(clave(settings, rutaNormalizada()), JSON.stringify(data)); } catch (e) {}
+                },
+                stateLoadCallback: function (settings) {
+                    try {
+                        var guardado = localStorage.getItem(clave(settings, rutaNormalizada()))
+                            || localStorage.getItem(clave(settings, location.pathname));
+                        return guardado ? JSON.parse(guardado) : null;
+                    } catch (e) {
+                        return null;
+                    }
+                },
+            });
+        })();
+    }
+</script>
+
 {{-- Reintento automático ante 419 "CSRF token mismatch" (ver resources/js/csrf-refresh.js):
      Laravel rota el token de sesión aunque el usuario siga logueado, y cada bundle de pantalla
      lo lee una sola vez al cargar. Va PRIMERO de todo, antes de que cualquier otro bundle llame

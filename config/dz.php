@@ -595,21 +595,8 @@ return [
 				'js/custom.js',
 			],
 		],
-		'informe-contador' => [
-			'title' => 'Información para el Contador',
-			'css' => [
-				'vendor/datatables/css/jquery.dataTables.min.css',
-				'vendor/toastr/css/toastr.min.css',
-				'vendor/bootstrap-daterangepicker/daterangepicker.css',
-			],
-			'js' => [
-				'vendor/datatables/js/jquery.dataTables.min.js',
-				'vendor/toastr/js/toastr.min.js',
-				'vendor/moment/moment.min.js',
-				'vendor/bootstrap-daterangepicker/daterangepicker.js',
-				'js/custom.js',
-			],
-		],
+		// Acá había una segunda entrada 'informe-contador' (sin Select2 ni colReorder) que, por ser la
+		// última clave repetida del array, pisaba la completa de más arriba. Se quitó el 21/10/2026.
 		'informe-ranking' => [
 			'title' => 'Informe de Ranking',
 			'css' => [

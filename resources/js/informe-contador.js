@@ -163,6 +163,9 @@
                     // El id explícito en la tabla (tabla-informe-contador-{pestana}) evita que la
                     // clave de storage dependa del orden en que se inicializa cada pestaña.
                     stateSave: true,
+                    // El selector de columnas de abajo arma el menú en cada apertura con los índices
+                    // vigentes, así que no se desfasa cuando se reordena.
+                    colReorder: true,
                 });
 
                 actualizarLeyenda();
