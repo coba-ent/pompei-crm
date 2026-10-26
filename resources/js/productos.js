@@ -733,6 +733,11 @@
 
         const $modalProgreso = $('#modal-masiva-progreso');
         const modalProgreso = window.bootstrap ? new window.bootstrap.Modal($modalProgreso[0]) : null;
+        // Bootstrap ignora hide() mientras dura la animación de apertura: con pocos productos la
+        // respuesta llega antes de que termine el fade y el modal quedaba abierto para siempre.
+        let progresoAbriendo = false;
+        $modalProgreso.on('show.bs.modal', function () { progresoAbriendo = true; });
+        $modalProgreso.on('shown.bs.modal', function () { progresoAbriendo = false; });
 
         function progreso(titulo, hechos, total, unidad) {
             const porcentaje = total > 0 ? Math.round((hechos / total) * 100) : 0;
@@ -797,6 +802,10 @@
         }
 
         function ocultarProgreso() {
+            if (modalProgreso && progresoAbriendo) {
+                $modalProgreso.one('shown.bs.modal', function () { modalProgreso.hide(); });
+                return;
+            }
             modalProgreso ? modalProgreso.hide() : $modalProgreso.hide();
         }
 
