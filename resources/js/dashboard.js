@@ -103,6 +103,20 @@
     // ============================================================
     let graficoMensual = null;
     const NOMBRES_SERIE = { ventas: 'Ventas', otros_ingresos: 'Otros Ingresos', compras: 'Compras', gastos: 'Gastos' };
+    // Mismos colores que las barras de "Totales del Período": se lee el color ya resuelto de la
+    // clase (el template pisa bg-info, así que la variable --bs-info no coincide con lo que se ve).
+    const CLASE_COLOR_SERIE = { ventas: 'bg-success', otros_ingresos: 'bg-info', compras: 'bg-warning', gastos: 'bg-danger' };
+    function colorSerie(clave) {
+        const clase = CLASE_COLOR_SERIE[clave];
+        if (!clase) { return ''; }
+        const muestra = document.createElement('span');
+        muestra.className = clase;
+        muestra.style.display = 'none';
+        document.body.appendChild(muestra);
+        const color = getComputedStyle(muestra).backgroundColor;
+        muestra.remove();
+        return color;
+    }
     function cargarGraficoMensual() {
         if (!rutas.graficoMensual || !$('#grafico-mensual').length || typeof ApexCharts === 'undefined') { return; }
         $.getJSON(rutas.graficoMensual).done(function (data) {
@@ -111,10 +125,12 @@
             const series = Object.keys(data.series || {}).map(function (clave) {
                 return { name: NOMBRES_SERIE[clave] || clave, data: data.series[clave] };
             });
+            const colores = Object.keys(data.series || {}).map(colorSerie);
             const opciones = {
                 chart: { type: 'bar', height: 320, stacked: true, toolbar: { show: false } },
                 series: series,
                 xaxis: { categories: data.labels },
+                ...(colores.every(Boolean) ? { colors: colores } : {}),
                 yaxis: { labels: { formatter: fmtMoneyCorto } },
                 // Las etiquetas sobre las barras quedaban ilegibles: 12 meses × 4 series, cada una
                 // con el número entero encimado sobre la de al lado. El monto exacto está en el
