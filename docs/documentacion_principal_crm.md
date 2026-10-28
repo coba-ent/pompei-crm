@@ -1411,7 +1411,10 @@ incidente del 25/08 en sentido inverso—. Reglas que no se "simplifican":
   Al pasar a Clásica **no** se consulta `available_downgrades`: el 28/10/2026 se verificó que esa
   consulta devuelve vacío para todas las publicaciones Premium de la cuenta (modelo User Products),
   aunque la baja desde la pantalla de ML funciona, y bloqueaba el 100% de las bajas. Si ML rechaza la
-  baja, el rechazo llega en el POST del cambio y se muestra su mensaje (spec 116).
+  baja, el rechazo llega en el POST del cambio y se muestra su mensaje (spec 116). La documentación
+  oficial de ML confirma ambas cosas: la baja Premium → Clásica está permitida en cualquier momento, y
+  `available_downgrades` puede devolver `[ ]`. **Verificado en producción el 28/10/2026**: MLA1578044032
+  pasó de Clásica a Premium y de vuelta a Clásica desde el CRM, con precio y cuotas correctos en ML.
 - Al pasar a Clásica, la confirmación avisa que se pierden las cuotas sin interés vigentes. Toda Premium
   tiene alguna: sin campaña, ML le aplica 6.
 - El tipo nuevo queda guardado en el vínculo **en el momento**, sin esperar la próxima revisión de tipos.
