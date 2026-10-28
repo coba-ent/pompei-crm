@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Producto;
+use App\Models\TipoProducto;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -92,6 +93,26 @@ class ProductoListadoTest extends TestCase
 
         $servicios = $this->getJson(route('productos.data').'?draw=1&start=0&length=10&estado=todos&tipo=servicio');
         $servicios->assertOk()->assertJsonPath('recordsFiltered', 1);
+    }
+
+    /** El filtro "Tipo de Producto" es de selección múltiple: varios tipos se suman (OR). */
+    public function test_filtro_tipo_producto_multiple(): void
+    {
+        $tapa = TipoProducto::create(['nombre' => 'Tapa asiento']);
+        $tapas = TipoProducto::create(['nombre' => 'Tapas Asiento']);
+        $otro = TipoProducto::create(['nombre' => 'Sanitario']);
+        Producto::create(['nombre' => 'A', 'tipo' => 'producto', 'tipo_producto_id' => $tapa->id]);
+        Producto::create(['nombre' => 'B', 'tipo' => 'producto', 'tipo_producto_id' => $tapas->id]);
+        Producto::create(['nombre' => 'C', 'tipo' => 'producto', 'tipo_producto_id' => $otro->id]);
+
+        $base = route('productos.data').'?draw=1&start=0&length=10&';
+
+        $this->getJson($base.http_build_query(['tipo_producto_id' => [$tapa->id, $tapas->id]]))
+            ->assertOk()->assertJsonPath('recordsFiltered', 2);
+
+        // Un id suelto (llamados viejos) sigue funcionando.
+        $this->getJson($base.'tipo_producto_id='.$otro->id)
+            ->assertOk()->assertJsonPath('recordsFiltered', 1);
     }
 
     /** Spec 103, T002: un producto con punto_reposicion > 0 lo devuelve como entero. */

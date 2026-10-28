@@ -184,8 +184,11 @@ class ProductoController extends Controller
             $query->where('tipo', $request->input('tipo'));
         }
 
-        if ($request->filled('tipo_producto_id')) {
-            $query->where('tipo_producto_id', $request->input('tipo_producto_id'));
+        // Selección múltiple (Select2 multiple): llega como array; un id suelto
+        // sigue funcionando para los llamados viejos.
+        $tiposProducto = array_filter((array) $request->input('tipo_producto_id', []), fn ($v) => $v !== null && $v !== '');
+        if ($tiposProducto !== []) {
+            $query->whereIn('tipo_producto_id', $tiposProducto);
         }
 
         if ($request->filled('proveedor_id')) {

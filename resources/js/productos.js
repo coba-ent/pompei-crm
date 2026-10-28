@@ -362,7 +362,8 @@
         });
         $('#btn-limpiar-filtros').on('click', function () {
             $('#filtro-id, #filtro-buscar, #filtro-stock-min, #filtro-stock-max').val('');
-            $('#filtro-deposito, #filtro-tipo, #filtro-tipo-producto, #filtro-proveedor').val('');
+            $('#filtro-deposito, #filtro-tipo, #filtro-proveedor').val('');
+            $('#filtro-tipo-producto').val([]);
             $('#filtro-estado').val('activos');
             refreshSelect2($('#filtro-deposito'));
             refreshSelect2($('#filtro-estado'));
@@ -375,7 +376,7 @@
         // Select2 en los filtros de datos dinámicos (Depósito, Tipo de Producto,
         // Proveedor) y en los selects de estado/tipo para una UX consistente.
         initSelect2($('#filtro-deposito'));
-        initSelect2($('#filtro-tipo-producto'));
+        initSelect2($('#filtro-tipo-producto'), { placeholder: 'Todos', allowClear: true, closeOnSelect: false });
         initSelect2($('#filtro-proveedor'));
         initSelect2($('#filtro-estado'), { minimumResultsForSearch: Infinity });
         initSelect2($('#filtro-tipo'), { minimumResultsForSearch: Infinity });
@@ -424,7 +425,9 @@
             filtros.buscar = filtros.buscar || tabla.search() || '';
             const params = new URLSearchParams();
             Object.entries(filtros).forEach(([clave, valor]) => {
-                if (valor !== null && valor !== undefined && valor !== '') {
+                if (Array.isArray(valor)) {
+                    valor.forEach((v) => params.append(clave + '[]', v));
+                } else if (valor !== null && valor !== undefined && valor !== '') {
                     params.set(clave, valor);
                 }
             });

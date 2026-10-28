@@ -137,8 +137,7 @@
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label">Tipo de Producto</label>
-                                <select id="filtro-tipo-producto" class="form-select">
-                                    <option value="">Todos</option>
+                                <select id="filtro-tipo-producto" class="form-select" multiple>
                                     @foreach ($tiposProducto as $tipo)
                                         <option value="{{ $tipo->id }}">{{ $tipo->nombre }}</option>
                                     @endforeach
