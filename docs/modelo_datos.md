@@ -1145,8 +1145,10 @@ publicaciones vinculadas, no sólo hacia una — ver `specs/036-vinculacion-mult
 > traduce el valor crudo a "Premium sí/no", comparando contra `gold_pro`) — usado por
 > `SincronizadorPrecios` para resolver qué Lista de Precios (`lista_precio_id` vs
 > `lista_precio_id_premium`) corresponde a cada publicación, evaluado por vínculo individual (no por
-> producto, spec 036). Mantenido por el comando `mercadolibre:sincronizar-tipos-publicacion` (corrida
-> diaria, independiente de la de stock) y completado al vincular una publicación nueva. Detalle
+> producto, spec 036). Mantenido por la revisión de tipos (`SincronizadorTiposPublicacion`), que
+> desde la spec 116 corre dentro de la corrida de stock, a lo sumo una vez por `frecuencia_sync_minutos`
+> (antes era diaria). Se completa al vincular una publicación nueva. Un cambio Clásica ↔ Premium
+> detectado solo se consolida si se pudo intentar el envío del precio del tipo nuevo. Detalle
 > completo en `specs/050-lista-precio-premium-ml/data-model.md`.
 
 > **Columnas nuevas (spec 084, especificada)** — referencia del corte de seguridad de precios:
@@ -1203,7 +1205,8 @@ y tiene que quedar quién lo confirmó y con qué importes.
 | resultado | string(30) | `cambiado` / `cambiado_precio_pendiente` / `cambiado_cuotas_pendientes` / `sin_cambios` / `bloqueado` / `fallido` / `revertido` |
 | mensaje | text, nullable | Motivo del bloqueo o falla (el de Mercado Libre si lo hubo) |
 | lote_id | uuid, nullable, indexado | `null` = cambio individual |
-| usuario_id | FK → users, nullable | Quien confirmó |
+| usuario_id | FK → users, nullable | Quien confirmó. `null` = cambio hecho en ML detectado por la revisión de tipos |
+| origen | string(20), default `crm`, indexado | *(spec 116, migración `2026_10_28_000001`)* `crm` = confirmado desde Vinculaciones ML; `mercadolibre` = cambio hecho en Mercado Libre y detectado por el CRM (en la revisión de tipos o al confirmar uno que ML ya tenía) |
 
 Sin columnas nuevas en `ml_publicacion_producto`: el cambio actualiza en el momento `listing_type_id`
 / `listing_type_sincronizado_en`, y el precio lo manejan las columnas de siempre vía
@@ -1252,9 +1255,9 @@ no en tabla. Detalle en `specs/115-ml-cambio-tipo-publicacion/data-model.md`.
 > **Columnas nuevas (spec 050, implementada)**: `lista_precio_id_premium` (FK → `listas_precio`,
 > nullable, `nullOnDelete`) — segunda Lista de Precios, opcional, exclusiva para publicaciones de tipo
 > **Premium** (`listing_type_id = gold_pro`); coexiste con `lista_precio_id` (la general, arriba).
-> `tipo_publicacion_ultima_sync_en` (datetime, nullable) — última corrida del comando
-> `mercadolibre:sincronizar-tipos-publicacion`, comparada contra un intervalo fijo de 24hs (no
-> configurable, a diferencia de `frecuencia_sync_minutos`). Ver `ml_publicacion_producto.listing_type_id`
+> `tipo_publicacion_ultima_sync_en` (datetime, nullable) — última revisión de tipos. Desde la spec 116
+> se compara contra `frecuencia_sync_minutos`, la misma frecuencia del stock, y la dispara el comando
+> de stock. Antes era un intervalo fijo de 24hs. Ver `ml_publicacion_producto.listing_type_id`
 > abajo para la clasificación por vínculo. Detalle completo en
 > `specs/050-lista-precio-premium-ml/data-model.md`.
 

@@ -5,7 +5,9 @@ namespace App\Console\Commands;
 use App\Models\Integraciones\MercadoLibreConfiguracion;
 use App\Services\MercadoLibre\SincronizadorStock;
 use App\Services\MercadoLibre\SincronizadorStockFull;
+use App\Services\MercadoLibre\SincronizadorTiposPublicacion;
 use Illuminate\Console\Command;
+use Throwable;
 
 /**
  * Tarea programada de sincronización de stock (spec 013, contracts §4): mismo
@@ -19,12 +21,45 @@ class SincronizarStockMercadoLibre extends Command
 
     protected $description = 'Empuja hacia Mercado Libre el stock de los productos vinculados con cambios pendientes';
 
-    public function __construct(private readonly SincronizadorStockFull $sincronizadorFull)
-    {
+    public function __construct(
+        private readonly SincronizadorStockFull $sincronizadorFull,
+        private readonly SincronizadorTiposPublicacion $sincronizadorTipos,
+    ) {
         parent::__construct();
     }
 
     public function handle(SincronizadorStock $sincronizador): int
+    {
+        // spec 116 (FR-012/FR-013): la revisión de tipos va colgada de este cron, en todos los caminos
+        // —también con el stock bloqueado, sin corresponder o roto (ej. sin depósito)—, porque tiene su
+        // propio freno por la misma `frecuencia_sync_minutos`. Su resultado no cambia el del stock.
+        try {
+            return $this->sincronizarStock($sincronizador);
+        } finally {
+            $this->revisarTipos();
+        }
+    }
+
+    private function revisarTipos(): void
+    {
+        try {
+            $resultado = $this->sincronizadorTipos->sincronizarSiCorresponde();
+        } catch (Throwable $e) {
+            report($e);
+            $this->warn('No se pudo revisar el tipo de las publicaciones: '.$e->getMessage());
+
+            return;
+        }
+
+        if ($resultado === null) {
+            return;
+        }
+
+        $this->info("Tipos de publicación: {$resultado['actualizados']} actualizados, {$resultado['con_error']} con error, "
+            ."{$resultado['cambios_procesados']} cambios hechos en Mercado Libre procesados, {$resultado['cambios_postergados']} postergados.");
+    }
+
+    private function sincronizarStock(SincronizadorStock $sincronizador): int
     {
         $configuracion = MercadoLibreConfiguracion::actual();
 

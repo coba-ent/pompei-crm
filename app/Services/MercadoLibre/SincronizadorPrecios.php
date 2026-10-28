@@ -34,9 +34,10 @@ class SincronizadorPrecios
      * sincronizarListaCompleta() (que ya verificaron los cortes una sola vez
      * antes de iterar — ver verificarCortes()).
      *
-     * spec 084: acá vive el corte de seguridad de precios. `$omitirCorte` sólo lo usan las
-     * confirmaciones humanas que muestran los dos importes: la aprobación manual de una retención
-     * (spec 084) y el cambio de tipo de publicación Clásica ↔ Premium (spec 115, FR-009).
+     * spec 084: acá vive el corte de seguridad de precios. `$omitirCorte` tiene tres únicos usos:
+     * la aprobación manual de una retención (spec 084), la confirmación de un cambio de tipo de
+     * publicación Clásica ↔ Premium (spec 115, FR-009) y un cambio de tipo hecho en Mercado Libre y
+     * detectado por el CRM (spec 116, sólo desde ProcesadorCambioTipoDetectado).
      */
     public function enviarUno(MercadoLibrePublicacionProducto $vinculo, float $precio, bool $omitirCorte = false): bool
     {
@@ -58,10 +59,11 @@ class SincronizadorPrecios
         // garantizaría que algún día sean tres reglas distintas — que es exactamente cómo nació el
         // incidente del 25/08. Corre DESPUÉS de verificarCortes() a propósito: aquellos cortes
         // conservan el pendiente para el próximo intento válido y son una decisión distinta.
-        // `omitirCorte` es exclusivamente para confirmaciones humanas —aprobar una retención
-        // (spec 084) o confirmar un cambio de tipo de publicación (spec 115)—: ahí una persona ya
-        // vio los dos importes y decidió. Ningún camino automático puede pasarlo en true, porque
-        // sería una puerta trasera al corte.
+        // `omitirCorte` es exclusivamente para decisiones humanas: aprobar una retención (spec 084),
+        // confirmar un cambio de tipo de publicación (spec 115) o un cambio de tipo que alguien hizo
+        // en Mercado Libre (spec 116, ProcesadorCambioTipoDetectado: decisión del usuario del
+        // 28/10/2026, porque Premium → Clásica baja siempre 15-31% y quedaría retenido). Ningún otro
+        // camino automático puede pasarlo en true, porque sería una puerta trasera al corte.
         $configuracion = MercadoLibreConfiguracion::actual();
         $decision = $omitirCorte
             ? ['publicar' => true, 'motivo' => null, 'caida_pct' => null, 'precio_publicado' => null, 'umbral_pct' => 0.0]

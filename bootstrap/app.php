@@ -57,13 +57,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('arca:avisar-vencimiento-certificado')
             ->daily();
 
-        // spec 050, research.md §R3: mismo mecanismo de portabilidad que arriba
-        // (se evalúa cada minuto, el propio comando decide si corresponde según
-        // el intervalo fijo de 24hs) — independiente de la corrida de stock, para
-        // no multiplicar llamadas a la API por un dato que casi no cambia.
-        $schedule->command('mercadolibre:sincronizar-tipos-publicacion')
-            ->everyMinute()
-            ->withoutOverlapping();
+        // spec 116: la revisión de tipos de publicación ya no tiene schedule propio. La dispara
+        // `mercadolibre:sincronizar-stock` en cada corrida, frenada por la misma
+        // `frecuencia_sync_minutos`, para detectar en minutos —no en un día— los cambios
+        // Clásica ↔ Premium hechos desde Mercado Libre y publicarles el precio de su lista.
 
         // spec 084, US3 — chequeo diario de precios publicados contra el CRM. Es la red que faltó
         // el 25/08/2026, cuando 18 publicaciones estuvieron 30 horas un 31% por debajo de su precio

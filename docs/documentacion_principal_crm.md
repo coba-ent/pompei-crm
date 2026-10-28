@@ -960,11 +960,12 @@ Ver §5.2 para la divergencia deliberada de todo el módulo (aplicación propia 
   > (spec 036). Al sincronizar, cada publicación Premium con precio cargado en la lista Premium recibe
   > ese precio; si no tiene precio ahí, o si no hay lista Premium configurada, cae al mismo
   > comportamiento de siempre (lista general). Las publicaciones no Premium siempre usan la lista
-  > general. `listing_type_id` se completa al vincular una publicación nueva y se refresca una vez por
-  > día mediante el comando `mercadolibre:sincronizar-tipos-publicacion` (independiente de la corrida de
-  > stock cada 15 minutos, para no multiplicar llamadas a la API por un dato que casi no cambia); si la
-  > consulta a Mercado Libre falla, se conserva el último tipo conocido. Ver
-  > `specs/050-lista-precio-premium-ml/`.
+  > general. `listing_type_id` se completa al vincular una publicación nueva. **Desde la spec 116** se
+  > refresca dentro de la corrida de stock de ML, a lo sumo una vez por `frecuencia_sync_minutos`
+  > (hoy 15 min, ≈14 consultas por revisión); antes era una vez por día. Un cambio Clásica ↔ Premium
+  > hecho desde Mercado Libre se detecta ahí y se le publica el precio de su lista nueva
+  > (§3.2.ter.octies). Si la consulta a Mercado Libre falla, se conserva el último tipo conocido. Ver
+  > `specs/050-lista-precio-premium-ml/` y `specs/116-ml-tipo-detectado-y-baja-clasica/`.
 - **Tipo de comprobante derivado** de la condición fiscal que informa Mercado Libre: Responsable
   Inscripto → A; Consumidor Final/Monotributo o sin dato → B. Coherente con el principio III de la
   constitución, que exige derivar el comprobante de la condición de IVA. Con **spec 037**
@@ -1371,8 +1372,16 @@ spec 084 y necesita la suya.
 
 > **Segunda excepción humana al corte (spec 115)**: además de aprobar una retención, la confirmación de
 > un **cambio de tipo de publicación** (Clásica ↔ Premium, §3.2.ter.octies) publica su precio sin pasar
-> por el corte, porque el modal muestra el precio actual y el nuevo antes de confirmar. Son las **dos
-> únicas** llamadas autorizadas a usar `omitirCorte`; ningún camino automático puede hacerlo.
+> por el corte, porque el modal muestra el precio actual y el nuevo antes de confirmar.
+>
+> **Tercera excepción (spec 116, decisión del usuario del 28/10/2026)**: un **cambio de tipo hecho desde
+> Mercado Libre** y detectado por el CRM publica el precio de la lista del tipo nuevo sin pasar por el
+> corte, porque el cambio de tipo en ML ya es una decisión humana. Si no, casi todo Premium → Clásica
+> (baja de 15% a 31%) quedaría retenido con el precio Premium. Está acotada a
+> `ProcesadorCambioTipoDetectado`: el tipo lo tiene que haber informado ML en esa misma corrida, tiene
+> que ser distinto del guardado y los dos tienen que ser Clásica o Premium. El precio sale de
+> `resolverListaPrecio()`. Son las **tres únicas** llamadas autorizadas a usar `omitirCorte`; ningún
+> otro camino automático puede hacerlo.
 
 *Fuente(s): `specs/084-corte-bajada-precios-ml/`*
 
@@ -1394,9 +1403,18 @@ incidente del 25/08 en sentido inverso—. Reglas que no se "simplifican":
   después se cambia el tipo; a Clásica se cambia primero el tipo y después se baja el precio. Si el
   segundo paso falla: a Premium se restituye el precio anterior (sigue Clásica); a Clásica queda el
   precio pendiente (cobra de más, nunca de menos).
-- **Se verifica contra ML antes de confirmar**: tipo vigente (si ya es el destino, se actualiza el
-  vínculo y no se envía nada) y que el destino esté disponible para ese ítem.
-- El tipo nuevo queda guardado en el vínculo **en el momento**, sin esperar la clasificación diaria.
+- **Se verifica contra ML antes de confirmar** el tipo vigente. Si ya es el destino, se procesa como
+  cambio detectado en ML: se actualiza el vínculo **y se publica el precio de la lista de ese tipo**
+  (spec 116). Antes no se enviaba nada y quedaba con el precio del tipo anterior. Abrir la confirmación
+  no guarda un tipo nuevo, para no "consumir" el cambio sin su precio.
+- **Disponibilidad del destino**: al pasar a Premium se exige que ML lo informe en `available_upgrades`.
+  Al pasar a Clásica **no** se consulta `available_downgrades`: el 28/10/2026 se verificó que esa
+  consulta devuelve vacío para todas las publicaciones Premium de la cuenta (modelo User Products),
+  aunque la baja desde la pantalla de ML funciona, y bloqueaba el 100% de las bajas. Si ML rechaza la
+  baja, el rechazo llega en el POST del cambio y se muestra su mensaje (spec 116).
+- Al pasar a Clásica, la confirmación avisa que se pierden las cuotas sin interés vigentes. Toda Premium
+  tiene alguna: sin campaña, ML le aplica 6.
+- El tipo nuevo queda guardado en el vínculo **en el momento**, sin esperar la próxima revisión de tipos.
 - Respeta los cortes de siempre (función desactivada, sólo lectura, sin cuenta) y el candado de
   sincronización de precios. El lote corre en segundo plano (mismo patrón que la Sincronización
   forzada) y termina con un resumen de cambiadas / omitidas / fallidas.
@@ -1431,7 +1449,25 @@ La misma regla ("las cuotas se eligen en el momento, no por un default configura
 futura creación de publicaciones (§3.2.ter.nonies); el mapa de campañas vive en
 `App\Services\MercadoLibre\CampaniasCuotas` para reusarlo ahí.
 
-*Fuente(s): `specs/115-ml-cambio-tipo-publicacion/` (spec.md "Ajuste 2026-10-16", research R9)*
+**Cambio de tipo hecho desde Mercado Libre (spec 116).** Si alguien cambia el tipo directamente en ML,
+el CRM lo detecta en la siguiente revisión de tipos, que corre dentro de la corrida de stock con la
+misma frecuencia configurada. Ahí actualiza el tipo del vínculo y publica el precio de la lista del tipo
+nuevo, con la tercera excepción al corte (§3.2.ter.septies). Reglas:
+
+- Solo cuenta un cambio entre Clásica y Premium con tipo guardado conocido. La primera clasificación
+  (`null`) y los tipos fuera de alcance se guardan como siempre, sin precio.
+- **Si en ese momento no se puede enviar el precio** (función desactivada, sólo lectura, sin cuenta,
+  otra sincronización de precios en curso), el tipo **no** se consolida, así la próxima revisión lo
+  vuelve a detectar. Consolidarlo sin precio es el bug original: el cambio dejaría de verse.
+- Si se envía y ML lo rechaza, el tipo queda actualizado (es el real) y el precio queda pendiente.
+- El evento queda en `ml_cambios_tipo_publicacion` con `origen = mercadolibre`, sin usuario si lo
+  detectó la revisión.
+
+Caso real que la originó: MLA1578044032, pasada a Clásica a mano en ML el 28/10/2026, quedó a $245.000
+(precio Premium) en vez de $207.420. El CRM se iba a enterar recién en la clasificación diaria, y aun
+así no reenviaba el precio.
+
+*Fuente(s): `specs/115-ml-cambio-tipo-publicacion/` (spec.md "Ajuste 2026-10-16", research R9), `specs/116-ml-tipo-detectado-y-baja-clasica/`*
 
 ### 3.2.ter.nonies Crear publicaciones de Mercado Libre desde un producto — **próxima spec (investigada, sin especificar)**
 

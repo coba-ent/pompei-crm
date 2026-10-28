@@ -252,6 +252,8 @@
                         <i class="fas fa-triangle-exclamation me-1"></i>
                         Premium cobra <strong>más comisión por venta</strong> que Clásica.
                     </div>
+                    {{-- spec 116 (FR-016): el texto lo arma el JS con las cuotas vigentes. --}}
+                    <div class="alert alert-warning small mt-3 mb-0 d-none" id="cambio-tipo-aviso-cuotas"></div>
                     <div class="alert alert-info small mt-3 mb-0 d-none" id="cambio-tipo-sin-cambios"></div>
                     <div class="alert alert-danger small mt-3 mb-0 d-none" id="cambio-tipo-bloqueo"></div>
                 </div>
@@ -280,6 +282,11 @@
                     <div class="alert alert-warning small d-none" id="cambio-tipo-lote-aviso-comision">
                         <i class="fas fa-triangle-exclamation me-1"></i>
                         Premium cobra <strong>más comisión por venta</strong> que Clásica.
+                    </div>
+                    {{-- spec 116 (FR-017) --}}
+                    <div class="alert alert-warning small d-none" id="cambio-tipo-lote-aviso-cuotas">
+                        <i class="fas fa-triangle-exclamation me-1"></i>
+                        Las publicaciones con <strong>cuotas sin interés</strong> las pierden al pasar a Clásica.
                     </div>
                     <div class="mb-3">
                         <label class="form-label small fw-semibold mb-1">Cuotas en todas las publicaciones</label>

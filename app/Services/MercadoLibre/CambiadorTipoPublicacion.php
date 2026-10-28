@@ -32,10 +32,11 @@ class CambiadorTipoPublicacion
     public function __construct(
         private readonly ClienteMercadoLibre $cliente,
         private readonly SincronizadorPrecios $sincronizadorPrecios,
+        private readonly ProcesadorCambioTipoDetectado $procesadorDetectado,
     ) {}
 
     /**
-     * Arma la confirmación (contracts §1). Consulta a ML el tipo vigente y los tipos disponibles;
+     * Arma la confirmación (contracts §1). Consulta a ML el tipo vigente y, para subir a Premium, si está disponible;
      * lo único que escribe es el tipo del vínculo cuando el de ML difiere del guardado.
      *
      * `$destino` null sólo para vínculos sin clasificar: se propone el opuesto del tipo real.
@@ -68,6 +69,7 @@ class CambiadorTipoPublicacion
             'cuotas_actual_etiqueta' => null,
             'cuotas_opciones' => [],
             'cuotas_sugerida' => null,
+            'aviso_pierde_cuotas' => null,
         ];
 
         if ($motivo = $this->motivoBloqueoLocal($vinculo, $destino, $configuracion, $base)) {
@@ -84,7 +86,11 @@ class CambiadorTipoPublicacion
 
         $tipoVigente = $item->datos['listing_type_id'] ?? null;
 
-        if ($tipoVigente && $tipoVigente !== $vinculo->listing_type_id) {
+        // Un Clásica ↔ Premium hecho en ML NO se guarda acá: guardarlo sin su precio "consumía" el
+        // cambio y la publicación quedaba con el precio del tipo anterior (spec 116, FR-011a). Lo
+        // consolida ProcesadorCambioTipoDetectado, al confirmar o en la próxima revisión de tipos.
+        if ($tipoVigente && $tipoVigente !== $vinculo->listing_type_id
+            && ! ProcesadorCambioTipoDetectado::esCambioDetectado($vinculo->listing_type_id, $tipoVigente)) {
             $vinculo->update(['listing_type_id' => $tipoVigente, 'listing_type_sincronizado_en' => now()]);
         }
 
@@ -108,19 +114,30 @@ class CambiadorTipoPublicacion
             }
         }
 
+        // spec 116 (FR-016): toda Premium tiene cuotas sin interés —sin campaña, las 6 que ML le pone
+        // por defecto— y al pasar a Clásica las pierde.
+        if ($destino === Vinculo::TIPO_CLASICA && $tipoVigente === Vinculo::TIPO_PREMIUM) {
+            $base['aviso_pierde_cuotas'] = CampaniasCuotas::etiqueta($base['cuotas_actual'], Vinculo::TIPO_PREMIUM);
+        }
+
         if ($tipoVigente === $destino) {
             return [...$base, 'sin_cambios' => true];
         }
 
-        $recurso = $destino === Vinculo::TIPO_PREMIUM ? 'available_upgrades' : 'available_downgrades';
-        $disponibles = $this->cliente->obtener('consultar_tipo_publicacion', "/items/{$vinculo->ml_item_id}/{$recurso}");
+        // Sólo la subida se valida antes de confirmar. `available_downgrades` devuelve vacío para todas
+        // las Premium de la cuenta (verificado el 28/10/2026, modelo User Products) aunque la baja
+        // desde la pantalla de ML funciona: consultarlo bloqueaba el 100% de los pasos a Clásica
+        // (spec 116, research R1). Si ML no admite la baja, lo dice el POST de cambiarTipo().
+        if ($destino === Vinculo::TIPO_PREMIUM) {
+            $disponibles = $this->cliente->obtener('consultar_tipo_publicacion', "/items/{$vinculo->ml_item_id}/available_upgrades");
 
-        if ($disponibles->fallo()) {
-            return ['ok' => false, 'mensaje' => $disponibles->mensajeError ?? 'No se pudo consultar a Mercado Libre qué tipos admite la publicación.'];
-        }
+            if ($disponibles->fallo()) {
+                return ['ok' => false, 'mensaje' => $disponibles->mensajeError ?? 'No se pudo consultar a Mercado Libre qué tipos admite la publicación.'];
+            }
 
-        if (! in_array($destino, $this->idsDisponibles($disponibles->datos), true)) {
-            return [...$base, 'motivo_bloqueo' => 'Mercado Libre no ofrece el tipo '.Vinculo::etiquetaTipo($destino).' para esta publicación.'];
+            if (! in_array($destino, $this->idsDisponibles($disponibles->datos), true)) {
+                return [...$base, 'motivo_bloqueo' => 'Mercado Libre no ofrece el tipo '.Vinculo::etiquetaTipo($destino).' para esta publicación.'];
+            }
         }
 
         if ($conCuotas) {
@@ -204,6 +221,8 @@ class CambiadorTipoPublicacion
             'omitidas' => $omitidas,
             'puede_confirmar' => $aCambiar !== [],
             'aviso_comision' => $destino === Vinculo::TIPO_PREMIUM,
+            // spec 116 (FR-017): sin consultar a ML no se sabe qué cuotas tiene cada una; aviso general.
+            'aviso_pierde_cuotas_lote' => $destino === Vinculo::TIPO_CLASICA,
             // Sin consultar a ML: la lista documentada. Si la categoría de alguna publicación no
             // admite la opción elegida, esa queda bloqueada al procesarla (FR-021).
             'cuotas_opciones' => CampaniasCuotas::opcionesPorDefecto($destino),
@@ -222,6 +241,15 @@ class CambiadorTipoPublicacion
         }
 
         $etiquetaDestino = Vinculo::etiquetaTipo($destino);
+
+        if ($previa['sin_cambios'] && ProcesadorCambioTipoDetectado::esCambioDetectado($vinculo->listing_type_id, $destino)) {
+            // ML ya lo tenía en el destino: alguien lo cambió allá. Se procesa como cambio detectado,
+            // que publica el precio de ese tipo y registra la única fila de historial (FR-011a).
+            $procesado = $this->procesadorDetectado->procesar($vinculo, $destino, $usuarioId);
+
+            return ['ok' => true, 'resultado' => Cambio::RESULTADO_SIN_CAMBIOS,
+                'mensaje' => "La publicación {$vinculo->ml_item_id} ya era {$etiquetaDestino} en Mercado Libre. ".$procesado['mensaje']];
+        }
 
         if ($previa['sin_cambios']) {
             $this->cerrarRetencionAbierta($vinculo);
@@ -499,7 +527,7 @@ class CambiadorTipoPublicacion
         return null;
     }
 
-    /** `available_upgrades|downgrades` devuelve una lista de tipos (`[{id, name, ...}]`). */
+    /** `available_upgrades` devuelve una lista de tipos (`[{id, name, ...}]`). */
     private function idsDisponibles(array $datos): array
     {
         return collect($datos)
@@ -540,6 +568,7 @@ class CambiadorTipoPublicacion
             'lista_precio_id' => $previa['lista_destino']['id'] ?? null,
             'cuotas' => $previa['cuotas_elegidas'] ?? null,
             'resultado' => $resultado,
+            'origen' => Cambio::ORIGEN_CRM,
             'mensaje' => $mensaje,
             'lote_id' => $loteId,
             'usuario_id' => $usuarioId,

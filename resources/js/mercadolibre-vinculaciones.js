@@ -436,8 +436,13 @@
             $('#cambio-tipo-cuotas-bloque').toggleClass('d-none', !opcionesCuotas.length);
             $('#cambio-tipo-cuotas-ayuda').toggleClass('d-none', !opcionesCuotas.some((o) => o.cargo));
             $('#cambio-tipo-aviso-comision').toggleClass('d-none', !r.aviso_comision || !!r.motivo_bloqueo || !!r.sin_cambios);
+            // spec 116 (FR-016): al pasar a Clásica se pierden las cuotas sin interés de Premium.
+            const avisoCuotas = r.aviso_pierde_cuotas && !r.motivo_bloqueo && !r.sin_cambios;
+            $('#cambio-tipo-aviso-cuotas').toggleClass('d-none', !avisoCuotas)
+                .text(avisoCuotas ? 'Al pasar a Clásica, la publicación pierde las ' + r.aviso_pierde_cuotas + '.' : '');
+            // spec 116 (FR-011a): si ML ya lo tenía, confirmar publica el precio de la lista de ese tipo.
             $('#cambio-tipo-sin-cambios').toggleClass('d-none', !r.sin_cambios)
-                .text(r.sin_cambios ? 'En Mercado Libre la publicación ya es ' + r.tipo_destino_etiqueta + '. Al confirmar sólo se registra en el CRM; no se envía nada.' : '');
+                .text(r.sin_cambios ? 'En Mercado Libre la publicación ya es ' + r.tipo_destino_etiqueta + '. Al confirmar se actualiza el CRM y se publica el precio de la lista de ese tipo.' : '');
             $('#cambio-tipo-bloqueo').toggleClass('d-none', !r.motivo_bloqueo).text(r.motivo_bloqueo || '');
 
             $('#cambio-tipo-cargando').addClass('d-none');
@@ -538,6 +543,7 @@
                 : '<tr><td colspan="2" class="text-muted">Ninguna.</td></tr>');
 
             $('#cambio-tipo-lote-aviso-comision').toggleClass('d-none', !r.aviso_comision);
+            $('#cambio-tipo-lote-aviso-cuotas').toggleClass('d-none', !r.aviso_pierde_cuotas_lote);
             renderOpcionesCuotas($('#cambio-tipo-lote-cuotas'), 'cambio-tipo-lote-cuotas', r.cuotas_opciones, r.cuotas_sugerida);
             $confirmar.prop('disabled', !r.puede_confirmar);
             mostrar('confirmacion');

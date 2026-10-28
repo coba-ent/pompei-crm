@@ -7,33 +7,32 @@ use App\Services\MercadoLibre\SincronizadorTiposPublicacion;
 use Illuminate\Console\Command;
 
 /**
- * Tarea programada diaria (spec 050, US3, research.md R3): mismo patrón que
- * SincronizarStockMercadoLibre, pero contra un intervalo fijo de 24hs
- * (`tipo_publicacion_ultima_sync_en`), no configurable — la Clarification ya
- * fijó "diaria" como valor de negocio, independiente de `frecuencia_sync_minutos`
- * (que gobierna la corrida de stock, cada 15 minutos).
+ * Revisión manual del tipo de publicación (spec 050, US3). Desde la spec 116 ya no está programada:
+ * la dispara `mercadolibre:sincronizar-stock` en cada corrida, frenada por `frecuencia_sync_minutos`.
+ * Este comando queda para correrla a mano, con el mismo freno (`--forzar` lo saltea) y la misma
+ * detección de cambios hechos en Mercado Libre.
  */
 class SincronizarTiposPublicacionMercadoLibre extends Command
 {
-    private const INTERVALO_HORAS = 24;
+    protected $signature = 'mercadolibre:sincronizar-tipos-publicacion {--forzar : Ignora la frecuencia configurada}';
 
-    protected $signature = 'mercadolibre:sincronizar-tipos-publicacion {--forzar : Ignora el intervalo de 24hs}';
-
-    protected $description = 'Refresca el tipo de publicación (Premium/Clásica) de las publicaciones vinculadas de Mercado Libre';
+    protected $description = 'Refresca el tipo de publicación (Premium/Clásica) de las publicaciones vinculadas de Mercado Libre y publica el precio de los cambios hechos en ML';
 
     public function handle(SincronizadorTiposPublicacion $sincronizador): int
     {
         $configuracion = MercadoLibreConfiguracion::actual();
 
         if (! $this->option('forzar') && ! $this->correspondeEjecutar($configuracion)) {
-            $this->info('Todavía no corresponde sincronizar: no pasaron 24hs desde la última corrida.');
+            $this->info('Todavía no corresponde sincronizar según la frecuencia configurada.');
 
             return self::SUCCESS;
         }
 
         $resultado = $sincronizador->sincronizarTodos();
 
-        $this->info("{$resultado['actualizados']} publicaciones actualizadas, {$resultado['con_error']} con error.");
+        $this->info("{$resultado['actualizados']} publicaciones actualizadas, {$resultado['con_error']} con error. "
+            ."Cambios hechos en Mercado Libre: {$resultado['cambios_detectados']} detectados, {$resultado['cambios_procesados']} procesados, "
+            ."{$resultado['cambios_postergados']} postergados.");
 
         return self::SUCCESS;
     }
@@ -44,6 +43,6 @@ class SincronizarTiposPublicacionMercadoLibre extends Command
             return true;
         }
 
-        return $configuracion->tipo_publicacion_ultima_sync_en->diffInHours(now()) >= self::INTERVALO_HORAS;
+        return $configuracion->tipo_publicacion_ultima_sync_en->diffInMinutes(now()) >= $configuracion->frecuencia_sync_minutos;
     }
 }

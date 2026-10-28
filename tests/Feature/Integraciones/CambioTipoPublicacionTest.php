@@ -291,6 +291,48 @@ class CambioTipoPublicacionTest extends TestCase
         $this->assertSame([], $this->escrituras());
     }
 
+    // ───────────────────────────── spec 116, US1: baja sin available_downgrades ─────────────────────────────
+
+    public function test_pasar_a_clasica_con_available_downgrades_vacio_cambia(): void
+    {
+        // Lo que devolvió ML el 28/10/2026 para las 21 Premium de la cuenta, aunque la baja desde su pantalla funciona.
+        $vinculo = $this->vinculo('gold_pro', publicado: 145_350);
+        $this->fakeMl('gold_pro', disponibles: []);
+
+        $r = $this->cambiador()->ejecutar($vinculo, 'gold_special', auth()->id());
+
+        $this->assertSame('cambiado', $r['resultado']);
+        $this->assertSame(['POST /items/MLA123/listing_type', 'PUT /items/MLA123'], $this->escrituras());
+        $this->assertSame('gold_special', $vinculo->fresh()->listing_type_id);
+        $this->assertEqualsWithDelta(100_000, (float) $vinculo->fresh()->precio_publicado, 0.01);
+    }
+
+    public function test_pasar_a_clasica_rechazada_por_ml_informa_su_mensaje(): void
+    {
+        $vinculo = $this->vinculo('gold_pro', publicado: 145_350);
+        $this->fakeMl('gold_pro', disponibles: [], fallaTipo: true);
+
+        $r = $this->cambiador()->ejecutar($vinculo, 'gold_special', auth()->id());
+
+        $this->assertSame('fallido', $r['resultado']);
+        $this->assertStringContainsString('listing_type not allowed', $r['mensaje']);
+        $this->assertSame(['POST /items/MLA123/listing_type'], $this->escrituras());
+        $this->assertSame('gold_pro', $vinculo->fresh()->listing_type_id);
+        $this->assertStringContainsString('listing_type not allowed', MercadoLibreCambioTipoPublicacion::sole()->mensaje);
+    }
+
+    public function test_previsualizar_a_clasica_no_consulta_available_downgrades(): void
+    {
+        $vinculo = $this->vinculo('gold_pro', publicado: 145_350);
+        $this->fakeMl('gold_pro', disponibles: []);
+
+        $r = $this->cambiador()->previsualizar($vinculo, 'gold_special');
+
+        $this->assertTrue($r['puede_confirmar']);
+        $this->assertNull($r['motivo_bloqueo']);
+        $this->assertSame([], array_values(array_filter($this->llamadas, fn ($l) => str_contains($l, 'available_downgrades'))));
+    }
+
     public function test_destino_no_disponible_en_ml_bloquea(): void
     {
         $vinculo = $this->vinculo();
@@ -430,7 +472,11 @@ class CambioTipoPublicacionTest extends TestCase
         $this->assertSame('gold_pro', $vinculo->fresh()->listing_type_id);
     }
 
-    public function test_si_ml_ya_tenia_el_destino_actualiza_el_vinculo_sin_escrituras(): void
+    /**
+     * spec 116 (FR-011a): antes esto actualizaba el tipo **sin** enviar precio y dejaba la Premium con
+     * el precio de Clásica. Ahora se procesa como cambio detectado en ML.
+     */
+    public function test_si_ml_ya_tenia_el_destino_actualiza_el_vinculo_y_publica_el_precio_de_ese_tipo(): void
     {
         $vinculo = $this->vinculo();
         $this->fakeMl('gold_pro');
@@ -438,8 +484,27 @@ class CambioTipoPublicacionTest extends TestCase
         $r = $this->cambiador()->ejecutar($vinculo, 'gold_pro', auth()->id());
 
         $this->assertSame('sin_cambios', $r['resultado']);
+        $this->assertSame(['PUT /items/MLA123'], $this->escrituras());
+        $vinculo->refresh();
+        $this->assertSame('gold_pro', $vinculo->listing_type_id);
+        $this->assertEqualsWithDelta(145_350, (float) $vinculo->precio_publicado, 0.01);
+
+        $fila = MercadoLibreCambioTipoPublicacion::sole();
+        $this->assertSame('mercadolibre', $fila->origen);
+        $this->assertSame(auth()->id(), $fila->usuario_id);
+    }
+
+    public function test_previsualizar_no_consolida_un_cambio_hecho_en_ml(): void
+    {
+        $vinculo = $this->vinculo();
+        $this->fakeMl('gold_pro');
+
+        $r = $this->cambiador()->previsualizar($vinculo, 'gold_pro');
+
+        $this->assertTrue($r['sin_cambios']);
+        $this->assertSame('gold_pro', $r['tipo_actual']);
+        $this->assertSame('gold_special', $vinculo->fresh()->listing_type_id);
         $this->assertSame([], $this->escrituras());
-        $this->assertSame('gold_pro', $vinculo->fresh()->listing_type_id);
     }
 
     public function test_una_retencion_abierta_queda_reemplazada(): void
@@ -463,13 +528,15 @@ class CambioTipoPublicacionTest extends TestCase
         $this->fakeMl();
         $this->cambiador()->ejecutar($vinculo, 'gold_pro', auth()->id());
 
+        // spec 116: `available_downgrades` vacío ya no bloquea la baja (lo devuelve vacío para toda la cuenta).
         $this->fakeMl('gold_pro', disponibles: []);
         $this->cambiador()->ejecutar($vinculo->fresh(), 'gold_special', auth()->id());
 
         $filas = MercadoLibreCambioTipoPublicacion::orderBy('id')->get();
         $this->assertCount(2, $filas);
-        $this->assertSame(['cambiado', 'bloqueado'], $filas->pluck('resultado')->all());
+        $this->assertSame(['cambiado', 'cambiado'], $filas->pluck('resultado')->all());
         $this->assertSame([auth()->id(), auth()->id()], $filas->pluck('usuario_id')->all());
+        $this->assertSame(['crm', 'crm'], $filas->pluck('origen')->all());
 
         $primera = $filas->first();
         $this->assertSame('MLA123', $primera->ml_item_id);
@@ -505,6 +572,41 @@ class CambioTipoPublicacionTest extends TestCase
             ]);
 
         $this->assertSame([], $this->escrituras());
+    }
+
+    // ───────────────────────────── spec 116, US4: aviso de cuotas ─────────────────────────────
+
+    public function test_previsualizar_a_clasica_avisa_las_cuotas_sin_interes_que_se_pierden(): void
+    {
+        $vinculo = $this->vinculo('gold_pro', publicado: 145_350);
+        $this->fakeMl('gold_pro');
+        $this->cuotasMl['tags'] = ['3x_campaign', 'immediate_payment'];
+
+        $this->assertSame('3 cuotas sin interés', $this->cambiador()->previsualizar($vinculo, 'gold_special')['aviso_pierde_cuotas']);
+    }
+
+    public function test_previsualizar_a_clasica_sin_campania_avisa_las_6_cuotas_que_ml_pone_por_defecto(): void
+    {
+        $vinculo = $this->vinculo('gold_pro', publicado: 145_350);
+        $this->fakeMl('gold_pro');
+
+        $this->assertSame('6 cuotas sin interés', $this->cambiador()->previsualizar($vinculo, 'gold_special')['aviso_pierde_cuotas']);
+    }
+
+    public function test_previsualizar_a_premium_no_avisa_cuotas(): void
+    {
+        $vinculo = $this->vinculo();
+        $this->fakeMl();
+
+        $this->assertNull($this->cambiador()->previsualizar($vinculo, 'gold_pro')['aviso_pierde_cuotas']);
+    }
+
+    public function test_previsualizar_lote_avisa_cuotas_solo_hacia_clasica(): void
+    {
+        $vinculo = $this->vinculo('gold_pro', publicado: 145_350);
+
+        $this->assertTrue($this->cambiador()->previsualizarLote([$vinculo->id], 'gold_special')['aviso_pierde_cuotas_lote']);
+        $this->assertFalse($this->cambiador()->previsualizarLote([$vinculo->id], 'gold_pro')['aviso_pierde_cuotas_lote']);
     }
 
     public function test_previsualizacion_a_clasica_no_avisa_comision_y_muestra_el_bloqueo(): void

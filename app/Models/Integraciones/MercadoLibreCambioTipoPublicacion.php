@@ -49,10 +49,16 @@ class MercadoLibreCambioTipoPublicacion extends Model
         self::RESULTADO_REVERTIDO,
     ];
 
+    /** Cambio confirmado desde Vinculaciones ML (spec 115). */
+    public const ORIGEN_CRM = 'crm';
+
+    /** Cambio hecho en Mercado Libre y detectado por el CRM (spec 116): `usuario_id` null si lo detectó la revisión de tipos. */
+    public const ORIGEN_MERCADOLIBRE = 'mercadolibre';
+
     protected $fillable = [
         'ml_publicacion_producto_id', 'ml_item_id', 'producto_id',
         'tipo_anterior', 'tipo_destino', 'precio_anterior', 'precio_nuevo', 'lista_precio_id', 'cuotas',
-        'resultado', 'mensaje', 'lote_id', 'usuario_id',
+        'resultado', 'origen', 'mensaje', 'lote_id', 'usuario_id',
     ];
 
     protected $casts = [

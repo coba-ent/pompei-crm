@@ -82,10 +82,10 @@ class MercadoLibreSincronizarTiposPublicacionTest extends TestCase
         $this->assertSame('gold_special', $vinculo->fresh()->listing_type_id);
     }
 
-    /** T016c: sin --forzar, no vuelve a golpear la API si no pasaron 24hs desde la última corrida. */
-    public function test_sin_forzar_no_repite_la_corrida_antes_de_24hs(): void
+    /** T016c (spec 116): sin --forzar, no vuelve a golpear la API antes de `frecuencia_sync_minutos` (ya no 24hs). */
+    public function test_sin_forzar_no_repite_la_corrida_antes_de_la_frecuencia(): void
     {
-        MercadoLibreConfiguracion::actual()->update(['tipo_publicacion_ultima_sync_en' => now()->subHours(2)]);
+        MercadoLibreConfiguracion::actual()->update(['frecuencia_sync_minutos' => 15, 'tipo_publicacion_ultima_sync_en' => now()->subMinutes(5)]);
         $this->crearVinculo('MLA1');
 
         Http::fake();

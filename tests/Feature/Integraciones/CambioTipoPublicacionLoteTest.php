@@ -213,4 +213,35 @@ class CambioTipoPublicacionLoteTest extends TestCase
         $this->assertLessThan(120, microtime(true) - $inicio);
         $this->assertSame(50, Cache::get(CambioTipoPublicacionLote::ESTADO_CACHE_KEY)['resumen']['cambiado']);
     }
+
+    /** spec 116, US1: `available_downgrades` vacío (lo que ML devuelve para toda la cuenta) no frena el lote a Clásica. */
+    public function test_el_lote_a_clasica_no_depende_de_available_downgrades(): void
+    {
+        Http::fake(function (Request $request) {
+            $ruta = parse_url($request->url(), PHP_URL_PATH);
+            preg_match('#/items/([^/]+)#', $ruta, $m);
+
+            if (str_ends_with($ruta, '/available_downgrades')) {
+                return Http::response([], 200);
+            }
+            if ($request->method() === 'GET') {
+                return Http::response(['id' => $m[1] ?? '', 'listing_type_id' => 'gold_pro', 'tags' => ['immediate_payment']], 200);
+            }
+            if (str_ends_with($ruta, '/listing_type')) {
+                return Http::response(['id' => $m[1] ?? '', 'listing_type_id' => $request['id']], 200);
+            }
+
+            return Http::response(['id' => $m[1] ?? ''], 200);
+        });
+        $a = $this->vinculo('MLA1', 'gold_pro');
+        $b = $this->vinculo('MLA2', 'gold_pro');
+
+        (new CambioTipoPublicacionLote('lote-baja', [$a->id, $b->id], 'gold_special', auth()->id()))
+            ->handle(app(CambiadorTipoPublicacion::class));
+
+        $this->assertSame(2, Cache::get(CambioTipoPublicacionLote::ESTADO_CACHE_KEY)['resumen']['cambiado']);
+        $this->assertSame('gold_special', $a->fresh()->listing_type_id);
+        $this->assertSame('gold_special', $b->fresh()->listing_type_id);
+        Http::assertNotSent(fn ($r) => str_ends_with(parse_url($r->url(), PHP_URL_PATH), '/available_downgrades'));
+    }
 }
