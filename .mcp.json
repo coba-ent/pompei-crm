@@ -2,7 +2,7 @@
   "mcpServers": {
     "mercadolibre": {
       "type": "http",
-      "url": "https://mcp.mercadolibre.com/mcp"
+      "url": "https://mcp.mercadolibre.com/devsite/v1/mcp"
     },
     "tiendanube": {
       "type": "http",
