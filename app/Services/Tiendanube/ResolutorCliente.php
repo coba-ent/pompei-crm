@@ -137,6 +137,7 @@ class ResolutorCliente
             'nombre' => $orden->comprador_nombre ?: ('Comprador Tiendanube '.$orden->tn_customer_id),
             'email' => $orden->comprador_email,
             'tn_customer_id' => $orden->tn_customer_id,
+            ...$this->datosDeContacto($orden),
             'condicion_iva_id' => $resultadoPadron?->condicionIvaId ?: CondicionIva::where('nombre', self::CONDICION_IVA_DEFECTO)->value('id'),
             'tipo_comprobante_defecto' => $tipoComprobante,
             'razon_social' => $resultadoPadron?->razonSocial,
@@ -145,6 +146,44 @@ class ResolutorCliente
             'provincia_fiscal' => $resultadoPadron?->provinciaFiscal,
             'activo' => true,
         ]);
+    }
+
+    /**
+     * Documento, teléfono y domicilio que la orden trae en campos planos (`contact_*`/`billing_*`).
+     * El documento va al campo `cuit` (que guarda cualquier documento fiscal, con `tipo_documento`)
+     * sólo si ningún otro Cliente lo tiene: la columna es única.
+     *
+     * @return array<string, ?string>
+     */
+    private function datosDeContacto(TiendanubeOrden $orden): array
+    {
+        $p = $orden->payload ?? [];
+        $datos = [];
+
+        $documento = preg_replace('/\D/', '', (string) $orden->billing_document_number);
+        $tipoDocumento = match (true) {
+            strlen($documento) === 11 => 'CUIT',
+            in_array(strlen($documento), [7, 8], true) => 'DNI',
+            default => null,
+        };
+        if ($tipoDocumento && ! Cliente::where('cuit', $documento)->exists()) {
+            $datos['cuit'] = $documento;
+            $datos['tipo_documento'] = $tipoDocumento;
+        }
+
+        $domicilio = trim(implode(' ', array_filter([
+            trim((string) ($p['billing_address'] ?? '')),
+            trim((string) ($p['billing_number'] ?? '')),
+            trim((string) ($p['billing_floor'] ?? '')),
+        ])));
+
+        return array_merge($datos, array_filter([
+            'telefono' => $p['contact_phone'] ?? $p['billing_phone'] ?? null,
+            'domicilio' => $domicilio ?: null,
+            'localidad' => trim((string) ($p['billing_city'] ?? $p['billing_locality'] ?? '')) ?: null,
+            'provincia' => $p['billing_province'] ?? null,
+            'cp' => $p['billing_zipcode'] ?? null,
+        ]));
     }
 
     /** FR-041/FR-041a/FR-007b: completa sólo lo que falta, nunca pisa datos ya cargados a mano. */

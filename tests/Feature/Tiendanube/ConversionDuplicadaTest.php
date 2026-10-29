@@ -102,6 +102,57 @@ class ConversionDuplicadaTest extends TestCase
         $this->assertSame((string) $orden->tn_order_id, (string) $resultado['venta']->tn_order_id);
     }
 
+    public function test_orden_pagada_despues_de_las_21_argentinas_queda_con_la_fecha_local(): void
+    {
+        // 00:35 UTC del 30/07 = 21:35 del 29/07 en Argentina (caso real: orden #108).
+        $orden = $this->crearOrden([
+            'fecha_creada' => '2026-07-30 00:35:45', 'fecha_cerrada' => '2026-07-30 00:35:45',
+        ]);
+
+        $resultado = app(ConversorOrdenAVenta::class)->convertir($orden, null, automatica: true);
+
+        $this->assertTrue($resultado['ok'], $resultado['mensaje'] ?? '');
+        $this->assertSame('2026-07-29', $resultado['venta']->fresh()->fecha_emision->toDateString());
+    }
+
+    public function test_orden_con_envio_y_descuento_deja_la_linea_coherente_con_el_total(): void
+    {
+        // Caso real (orden #110): producto 187.549,20 − descuento por transferencia 18.754,92
+        // + envío 50.755,80 = 219.550,08. La diferencia con el producto va con IVA incluido.
+        $orden = $this->crearOrden(['total' => 219550.08]);
+        $orden->items()->update(['precio_unitario' => 187549.20, 'total_linea' => 187549.20]);
+
+        $resultado = app(ConversorOrdenAVenta::class)->convertir($orden, null, automatica: true);
+
+        $this->assertTrue($resultado['ok'], $resultado['mensaje'] ?? '');
+        $venta = $resultado['venta']->fresh('items');
+        $this->assertEqualsWithDelta(219550.08, (float) $venta->total, 0.001);
+        $this->assertEqualsWithDelta(219550.08, (float) $venta->items->first()->subtotal_con_iva, 0.02);
+        $this->assertEqualsWithDelta(181446.35, (float) $venta->items->first()->precio_unitario, 0.02);
+    }
+
+    public function test_cliente_nuevo_se_crea_con_documento_telefono_y_domicilio_de_la_orden(): void
+    {
+        $orden = $this->crearOrden([
+            'billing_document_number' => '17119795',
+            'payload' => [
+                'contact_phone' => '+5491100000000', 'billing_address' => 'Av. Cabildo', 'billing_number' => '1234',
+                'billing_floor' => '3B', 'billing_city' => 'CABA', 'billing_province' => 'Capital Federal', 'billing_zipcode' => '1426',
+            ],
+        ]);
+
+        $resultado = app(ConversorOrdenAVenta::class)->convertir($orden, null, automatica: true);
+
+        $this->assertTrue($resultado['ok'], $resultado['mensaje'] ?? '');
+        $cliente = $resultado['venta']->cliente;
+        $this->assertSame('17119795', $cliente->cuit);
+        $this->assertSame('DNI', $cliente->tipo_documento);
+        $this->assertSame('+5491100000000', $cliente->telefono);
+        $this->assertSame('Av. Cabildo 1234 3B', $cliente->domicilio);
+        $this->assertSame('CABA', $cliente->localidad);
+        $this->assertSame('1426', $cliente->cp);
+    }
+
     public function test_venta_soft_deleted_sigue_bloqueando_la_reconversion(): void
     {
         $orden = $this->crearOrden();

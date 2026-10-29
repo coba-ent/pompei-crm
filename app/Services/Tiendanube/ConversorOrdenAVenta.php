@@ -205,7 +205,12 @@ class ConversorOrdenAVenta
             $venta = DB::transaction(function () use ($orden, $clienteFinal, $tipoComprobante, $cuentaTesoreria, $usuarioId, $automatica) {
                 $lineas = $this->armarLineas($orden);
 
-                $fechaEmision = ($orden->fecha_cerrada ?? $orden->fecha_creada ?? now())->toDateString();
+                // Las fechas de la orden se guardan en UTC. El día hay que sacarlo en hora local,
+                // si no toda venta hecha después de las 21:00 argentinas cae en el día siguiente
+                // (mismo arreglo que ya tenía el conversor de Mercado Libre).
+                $fechaEmision = ($orden->fecha_cerrada ?? $orden->fecha_creada ?? now())
+                    ->setTimezone(config('app.display_timezone'))
+                    ->toDateString();
 
                 $venta = Venta::create([
                     'origen' => 'tiendanube',
@@ -318,8 +323,13 @@ class ConversorOrdenAVenta
         if (abs($diferencia) >= 0.01 && count($itemsCalculo) > 0) {
             $ultimoIndice = count($itemsCalculo) - 1;
             $cantidadUltimo = max((float) $itemsCalculo[$ultimoIndice]['cantidad'], 1);
+            // La diferencia es CON IVA (sale de comparar totales finales) y `precio_unitario` es
+            // neto: hay que desagregarla antes de sumarla. Sumándola tal cual, una orden con envío
+            // y descuento por transferencia dejaba la línea con un IVA de más y su subtotal con
+            // IVA por encima del total de la Venta (ventas 26060 y 26166, octubre 2026).
+            $ivaUltimo = Producto::porcentajeIva($itemsCalculo[$ultimoIndice]['iva_pct']);
             $itemsCalculo[$ultimoIndice]['precio_unitario'] = round(
-                (float) $itemsCalculo[$ultimoIndice]['precio_unitario'] + ($diferencia / $cantidadUltimo),
+                (float) $itemsCalculo[$ultimoIndice]['precio_unitario'] + ($diferencia / (1 + $ivaUltimo / 100) / $cantidadUltimo),
                 2
             );
             $resultado = $this->calculo->calcular($itemsCalculo, 'porcentaje', 0, []);
