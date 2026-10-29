@@ -157,7 +157,12 @@ class ResolutorCliente
      */
     private function datosDeContacto(TiendanubeOrden $orden): array
     {
-        $p = $orden->payload ?? [];
+        // Las órdenes cargadas a mano desde el admin (`storefront=form`) traen el texto literal
+        // "No informado" en los campos de facturación que nadie completó.
+        $p = array_map(
+            fn ($valor) => is_string($valor) && strcasecmp(trim($valor), 'No informado') === 0 ? null : $valor,
+            $orden->payload ?? []
+        );
         $datos = [];
 
         $documento = preg_replace('/\D/', '', (string) $orden->billing_document_number);

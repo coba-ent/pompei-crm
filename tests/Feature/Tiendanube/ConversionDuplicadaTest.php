@@ -153,6 +153,21 @@ class ConversionDuplicadaTest extends TestCase
         $this->assertSame('1426', $cliente->cp);
     }
 
+    public function test_campos_no_informado_no_se_copian_al_cliente(): void
+    {
+        $orden = $this->crearOrden([
+            'payload' => ['billing_address' => 'No informado', 'billing_number' => 'No informado', 'billing_city' => 'No informado', 'billing_zipcode' => 'No informado'],
+        ]);
+
+        $resultado = app(ConversorOrdenAVenta::class)->convertir($orden, null, automatica: true);
+
+        $this->assertTrue($resultado['ok'], $resultado['mensaje'] ?? '');
+        $cliente = $resultado['venta']->cliente;
+        $this->assertNull($cliente->domicilio);
+        $this->assertNull($cliente->localidad);
+        $this->assertNull($cliente->cp);
+    }
+
     public function test_venta_soft_deleted_sigue_bloqueando_la_reconversion(): void
     {
         $orden = $this->crearOrden();
