@@ -289,10 +289,52 @@
             actualizarPanel();
         });
 
+        // Mail predeterminado: el que se precarga en cada envío. El botón sólo aparece cuando lo
+        // tipeado difiere de lo guardado, así se ve de un vistazo si se está usando el de siempre.
+        const $destinatarios = $('#ec-destinatarios');
+        const $btnPredeterminado = $('#ec-btn-mail-predeterminado');
+        const $esPredeterminado = $('#ec-mail-es-predeterminado');
+
+        function normalizarMails(valor) {
+            return String(valor || '').split(',').map((m) => m.trim()).filter(Boolean).join(', ');
+        }
+
+        function actualizarMailPredeterminado() {
+            const actual = normalizarMails($destinatarios.val());
+            const esElGuardado = actual !== '' && actual === normalizarMails(cfg.mailContador);
+            $btnPredeterminado.toggleClass('d-none', esElGuardado || actual === '');
+            $esPredeterminado.toggleClass('d-none', !esElGuardado);
+        }
+
+        $destinatarios.on('input', actualizarMailPredeterminado);
+
+        $btnPredeterminado.on('click', function () {
+            $destinatarios.removeClass('is-invalid');
+            $form.find('.invalid-feedback[data-field="destinatarios"]').text('');
+            $btnPredeterminado.prop('disabled', true);
+
+            $.ajax({
+                url: rutas.mailPredeterminado, method: 'POST', dataType: 'json',
+                data: { destinatarios: $destinatarios.val() },
+            }).done(function (resp) {
+                cfg.mailContador = resp.mail_contador;
+                $destinatarios.val(resp.mail_contador);
+                actualizarMailPredeterminado();
+                toast('success', resp.mensaje || 'Mail predeterminado guardado.');
+            }).fail(function (xhr) {
+                const json = xhr.responseJSON || {};
+                if (xhr.status === 422 && json.errors) { mostrarErrores(json.errors); }
+                toast('error', json.message || 'No se pudo guardar el mail predeterminado.');
+            }).always(function () {
+                $btnPredeterminado.prop('disabled', false);
+            });
+        });
+
         $modal.on('show.bs.modal', function () {
-            if (!$('#ec-destinatarios').val()) { $('#ec-destinatarios').val(cfg.mailContador || ''); }
+            if (!$destinatarios.val()) { $destinatarios.val(cfg.mailContador || ''); }
             if (!$('#ec-asunto').val()) { $('#ec-asunto').val('Información de ' + (cfg.nombreNegocio || '')); }
             actualizarBotonEnviar();
+            actualizarMailPredeterminado();
         });
 
         function limpiarErrores() {

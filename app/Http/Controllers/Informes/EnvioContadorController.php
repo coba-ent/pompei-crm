@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Informes;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\EnviarInformacionContador;
+use App\Models\DatosEmpresa;
 use App\Models\EnvioContador;
 use App\Services\Informes\Contador\OpcionesEnvio;
 use App\Services\Informes\Contador\PaqueteContador;
@@ -154,6 +155,32 @@ class EnvioContadorController extends Controller
         }
 
         return response()->json(['progreso' => $envio->progreso()]);
+    }
+
+    /**
+     * Fija desde el mismo modal el mail que se precarga en cada envío. Es el mismo `mail_contador`
+     * que se edita en Mi Perfil: se valida igual que los destinatarios de un envío, así nunca queda
+     * guardado un predeterminado que después el envío rechace.
+     */
+    public function guardarMailPredeterminado(Request $request): JsonResponse
+    {
+        $datos = $request->validate(['destinatarios' => ['required', 'string', 'max:255']]);
+
+        try {
+            $direcciones = (new ValidadorDestinatarios)->parsear($datos['destinatarios']);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage(), 'errors' => ['destinatarios' => [$e->getMessage()]]], 422);
+        }
+
+        $datosEmpresa = DatosEmpresa::instancia() ?? new DatosEmpresa;
+        $datosEmpresa->mail_contador = implode(', ', $direcciones);
+        $datosEmpresa->save();
+
+        return response()->json([
+            'ok' => true,
+            'mensaje' => 'Mail predeterminado guardado.',
+            'mail_contador' => $datosEmpresa->mail_contador,
+        ]);
     }
 
     /** Los últimos envíos del usuario, para que el resultado de uno viejo no se pierda al recargar. */

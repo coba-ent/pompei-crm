@@ -3534,6 +3534,11 @@ Contagram, ya usado en `Tesoreria\MovimientosExport`.
     como el envío, así nunca divergen) y `app/Mail/CorreoContador.php`. El mail del contador se
     agregó como un único campo (`mail_contador`) a `datos_empresa` (Configuración → Empresa), sin
     pantalla nueva.
+    > **Mail predeterminado desde el modal** (02/11/2026, fix directo sin spec). Debajo del campo
+    > Mail, un botón "Guardar como predeterminado" fija `mail_contador` sin salir del modal
+    > (`POST informes/contador/mail-predeterminado`, mismo permiso que el envío, misma validación
+    > que los destinatarios). El botón sólo se ve cuando lo tipeado difiere de lo guardado; si
+    > coincide se muestra la marca "Mail predeterminado".
     > **Cola en `database`, no `sync`** (27/08/2026): se cambió `QUEUE_CONNECTION=sync` → `database`
     > en el `.env` local para que FR-021 (envío en segundo plano) se cumpla de verdad. La tabla
     > `jobs` (migración default de Laravel) ya existía. **El VPS ya tenía resuelto el lado

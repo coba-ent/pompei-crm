@@ -13,8 +13,16 @@
                             <div class="mb-3">
                                 <label class="form-label">Mail</label>
                                 <input type="text" class="form-control" name="destinatarios" id="ec-destinatarios" placeholder="contador@estudio.com.ar">
-                                <div class="form-text">Separar con una coma (,) direcciones de mail adicionales</div>
                                 <div class="invalid-feedback" data-field="destinatarios"></div>
+                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-1 mt-1">
+                                    <div class="form-text mt-0">Separar con una coma (,) direcciones de mail adicionales</div>
+                                    <button type="button" class="btn btn-link btn-sm p-0" id="ec-btn-mail-predeterminado">
+                                        <i class="far fa-star me-1"></i> Guardar como predeterminado
+                                    </button>
+                                    <span class="form-text text-success mt-0 d-none" id="ec-mail-es-predeterminado">
+                                        <i class="fas fa-star me-1"></i> Mail predeterminado
+                                    </span>
+                                </div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Asunto del Correo</label>

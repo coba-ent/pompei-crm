@@ -250,6 +250,7 @@
         rutas: {
             adjuntosPrevistos: @json(route('informes.contador.adjuntos-previstos')),
             enviar: @json(route('informes.contador.enviar')),
+            mailPredeterminado: @json(route('informes.contador.mail-predeterminado')),
             envios: @json(route('informes.contador.envios')),
             estado: @json(route('informes.contador.envio-estado', ['envio' => '__ID__'])),
         },
