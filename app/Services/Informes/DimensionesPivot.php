@@ -43,6 +43,8 @@ class DimensionesPivot
             // número, no como texto.
             'costo_venta' => ['Costo al Vender', 'costo_unitario_venta', true],
             'costo_actual' => ['Costo Actual', 'costo_actual_producto', true],
+            // CMV del producto en todo el período, ya sumado (ver VentasPivotDataset).
+            'costo_total_vendido' => ['Costo Total Vendido', 'cmv_total_producto', true],
         ],
         'compras' => [
             'fecha_emision' => ['Fecha de Emisión', 'fecha'],

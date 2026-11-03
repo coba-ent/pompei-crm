@@ -113,7 +113,7 @@
          * dos productos pueden llamarse igual, y el Id o el Código los separan.
          */
         const ATRIBUTOS_EXTRA_RANKING = {
-            productos: ['producto_id', 'codigo_producto', 'proveedores', 'costo_venta', 'costo_actual'],
+            productos: ['producto_id', 'codigo_producto', 'proveedores', 'costo_venta', 'costo_actual', 'costo_total_vendido'],
         };
 
         /**

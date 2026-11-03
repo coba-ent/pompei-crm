@@ -59,6 +59,27 @@ abstract class PivotDataset
         return $fila;
     }
 
+    /**
+     * Columnas de dimensión que no salen de la consulta sino de {@see self::completarFilas()}.
+     *
+     * @return list<string>
+     */
+    protected function columnasCalculadasEnPhp(): array
+    {
+        return [];
+    }
+
+    /**
+     * Agrega a las filas las columnas que dependen del conjunto entero y no de la línea sola.
+     *
+     * @param  list<array<string, mixed>>  $filas
+     * @return list<array<string, mixed>>
+     */
+    protected function completarFilas(array $filas): array
+    {
+        return $filas;
+    }
+
     /** Nombre del informe, tal como lo conoce {@see DimensionesPivot}. */
     abstract protected function informe(): string;
 
@@ -99,7 +120,8 @@ abstract class PivotDataset
         $columnas = collect($dimensiones)->pluck('columna')
             ->merge(collect($medidas)->pluck('columna'))
             ->merge(collect($medidas)->pluck('divisor')->filter())
-            ->reject(fn ($c) => in_array($c, self::DERIVADAS_DE_FECHA, true))
+            ->reject(fn ($c) => in_array($c, self::DERIVADAS_DE_FECHA, true)
+                || in_array($c, $this->columnasCalculadasEnPhp(), true))
             ->unique()
             ->values()
             ->all();
@@ -111,6 +133,8 @@ abstract class PivotDataset
             ->get()
             ->map(fn ($fila) => $this->conFechaDesglosada((array) $fila))
             ->all();
+
+        $filas = $this->completarFilas($filas);
 
         return [
             'filas' => $filas,

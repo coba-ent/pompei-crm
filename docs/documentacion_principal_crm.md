@@ -3142,6 +3142,11 @@ Divergencias **deliberadas** respecto de Contagram:
   "Arma tu Informe" y en el pool del **Ranking de Productos** (junto a Id, Código y Proveedores). Se
   muestran como importe es-AR y se ordenan como número. Ojo: con "Costo al Vender" un producto que
   cambió de costo dentro del período se parte en una fila por cada costo.
+  Tercera dimensión: **"Costo Total Vendido"** = CMV del producto sumado en todo el período
+  filtrado, calculado en PHP (`VentasPivotDataset::completarFilas`) y repetido en cada línea del
+  producto para que el pivot no lo parta en una fila por venta. Arrastrada junto a "Productos" deja
+  venta y costo total en la misma fila (y en el mismo Excel del pivot). Es el total del **rango
+  entero**, no de cada columna: si el cruce se abre en varios meses, no se reparte por mes.
 - **Medidas de margen en el "Dato" de Ventas (pedido del cliente, 03/11/2026)** — tampoco existen en
   Contagram: **"Costo Mercadería Vendida"** (suma de `cmv_total` = costo unitario × unidades),
   **"Resultado"** (neto sin IVA − CMV) y **"Margen %"** (= Resultado / neto sin IVA, calculado como

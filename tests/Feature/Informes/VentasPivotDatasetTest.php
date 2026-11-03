@@ -194,6 +194,25 @@ class VentasPivotDatasetTest extends TestCase
         $this->assertEquals(1500, (float) $fila['costo_actual_producto']);
     }
 
+    public function test_costo_total_vendido_es_el_cmv_del_producto_en_todo_el_periodo(): void
+    {
+        $a = Producto::factory()->create();
+        $b = Producto::factory()->create();
+
+        // A en dos ventas de cantidades distintas: 2×1000 + 5×1000 = 7000.
+        $this->venta([['producto_id' => $a->id, 'cantidad' => 2, 'precio' => 3000, 'iva_pct' => '21', 'costo_unitario' => 1000]]);
+        $this->venta([
+            ['producto_id' => $a->id, 'cantidad' => 5, 'precio' => 3000, 'iva_pct' => '21', 'costo_unitario' => 1000],
+            ['producto_id' => $b->id, 'cantidad' => 1, 'precio' => 900, 'iva_pct' => '21', 'costo_unitario' => 400],
+        ]);
+
+        $filas = collect($this->filas());
+
+        // El mismo valor en todas las líneas de A: así el pivot no lo parte en una fila por venta.
+        $this->assertSame([7000.0], $filas->where('producto_id', $a->id)->pluck('cmv_total_producto')->unique()->values()->all());
+        $this->assertSame([400.0], $filas->where('producto_id', $b->id)->pluck('cmv_total_producto')->unique()->values()->all());
+    }
+
     public function test_ofrece_cmv_resultado_y_margen_como_dato(): void
     {
         $producto = Producto::factory()->create();
