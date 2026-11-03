@@ -117,6 +117,7 @@ abstract class PivotDataset
                 'clave' => $clave,
                 'rotulo' => $d['rotulo'],
                 'columna' => $d['columna'],
+                'importe' => $d['importe'],
             ])->values()->all(),
             'datos' => collect($medidas)->map(fn ($m, $clave) => [
                 'clave' => $clave,

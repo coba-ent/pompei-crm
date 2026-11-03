@@ -93,13 +93,21 @@ class CostoMercaderiaVendida
      */
     public function sqlCmv(string $columnaCantidad, ?string $columnaCostoCongelado = null): string
     {
+        return $this->sqlCostoUnitario($columnaCostoCongelado).' * ('.$columnaCantidad.')';
+    }
+
+    /**
+     * Costo unitario con el que se calcula el CMV de una línea: el congelado si lo tiene, si no
+     * el promedio de compras. Es el factor de {@see self::sqlCmv()} sin la cantidad, y lo usa
+     * también la dimensión "Costo al Vender" del pivot.
+     */
+    public function sqlCostoUnitario(?string $columnaCostoCongelado = null): string
+    {
         // Sin `NULLIF`: `costo_unitario = 0` es un costo congelado válido que tiene que ganarle al
         // promedio de compras (invariante I2). Envolverlo en `NULLIF(..., 0)` reintroduce el bug
         // que esta spec vino a corregir.
-        $costo = $columnaCostoCongelado === null
+        return $columnaCostoCongelado === null
             ? 'COALESCE('.self::ALIAS.'.costo_promedio, 0)'
             : 'COALESCE('.$columnaCostoCongelado.', '.self::ALIAS.'.costo_promedio, 0)';
-
-        return $costo.' * ('.$columnaCantidad.')';
     }
 }

@@ -472,6 +472,13 @@ class VentasInformeQuery
             "COALESCE(proveedores.nombre, 'Sin proveedor') as proveedor",
             "{$descuentoPct} as descuento_pct",
             "{$etiquetas} as etiquetas",
+            // Costo UNITARIO, para usarlo como atributo del pivot y no como medida (pedido del
+            // cliente, 03/11/2026). "Costo al Vender" es el que entra en el CMV de la línea;
+            // "Costo Actual" es el de la ficha del producto hoy. Redondeados a 2 decimales: el
+            // promedio de compras sale con decimales infinitos y partiría un mismo costo en filas
+            // distintas del cruce.
+            'ROUND('.$this->cmv->sqlCostoUnitario($costoCongelado).', 2) as costo_unitario_venta',
+            'ROUND(COALESCE(productos.costo, 0), 2) as costo_actual_producto',
 
             // Importe de la línea CON impuestos, que es la medida "Total Venta" del pivot. No se
             // usa `total_comprobante`: ese se repite en cada línea y sumarlo lo contaría una vez

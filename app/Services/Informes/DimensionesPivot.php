@@ -16,7 +16,7 @@ namespace App\Services\Informes;
 class DimensionesPivot
 {
     /**
-     * Dimensiones por informe: clave interna => [rótulo visible, columna del dataset].
+     * Dimensiones por informe: clave interna => [rótulo visible, columna del dataset, ¿importe?].
      *
      * La clave es la que viaja en `config.filas` / `config.columnas` de una vista guardada, así
      * que renombrarla invalida las vistas ya guardadas: si alguna vez hay que cambiarla, hace
@@ -39,6 +39,10 @@ class DimensionesPivot
             'cantidades' => ['Cantidades', 'cantidad'],
             'descuento_pct' => ['Descuento en %', 'descuento_pct'],
             'etiquetas' => ['Etiquetas', 'etiquetas'],
+            // Tercer elemento `true` = importe: el front lo muestra como moneda y lo ordena como
+            // número, no como texto.
+            'costo_venta' => ['Costo al Vender', 'costo_unitario_venta', true],
+            'costo_actual' => ['Costo Actual', 'costo_actual_producto', true],
         ],
         'compras' => [
             'fecha_emision' => ['Fecha de Emisión', 'fecha'],
@@ -102,13 +106,13 @@ class DimensionesPivot
         }
     }
 
-    /** @return array<string, array{rotulo: string, columna: string}> */
+    /** @return array<string, array{rotulo: string, columna: string, importe: bool}> */
     public function dimensiones(string $informe): array
     {
         $this->validarInforme($informe);
 
         return collect(self::DIMENSIONES[$informe])
-            ->map(fn ($d) => ['rotulo' => $d[0], 'columna' => $d[1]])
+            ->map(fn ($d) => ['rotulo' => $d[0], 'columna' => $d[1], 'importe' => $d[2] ?? false])
             ->all();
     }
 

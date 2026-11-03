@@ -174,7 +174,9 @@
         // pool de dimensiones muestren "Clientes" y no "cliente".
         const datosParaPivot = filas.map((fila) => {
             const salida = {};
-            dimensiones.forEach((d) => { salida[d.rotulo] = fila[d.columna]; });
+            dimensiones.forEach((d) => {
+                salida[d.rotulo] = d.importe ? textoImporte(fila[d.columna]) : fila[d.columna];
+            });
             datos.forEach((m) => { salida[m.columna] = fila[m.columna]; });
 
             return salida;
@@ -208,6 +210,14 @@
 
             aggregators: { [nombreAccion]: () => agg[nombreAccion] },
             aggregatorName: nombreAccion,
+
+            // Los importes viajan como texto "18.500,00": sin esto se ordenan como texto y
+            // "1.200,00" quedaría antes que "950,00".
+            sorters: dimensiones.filter((d) => d.importe).reduce((acc, d) => {
+                acc[d.rotulo] = (a, b) => numeroDeImporte(a) - numeroDeImporte(b);
+
+                return acc;
+            }, {}),
 
             // En un RANKING la fila de arriba tiene que ser la de mayor valor: es lo que se va a
             // mirar. Por defecto PivotTable.js ordena por la etiqueta (`key_a_to_z`), así que el
@@ -279,6 +289,25 @@
                 }
             },
         }, true, 'es');
+    }
+
+    /**
+     * Valor de una dimensión de importe (Costo al Vender, Costo Actual) como lo lee el usuario:
+     * `18500.5` → `18.500,50`. Se formatea antes de entrar al pivot porque PivotTable.js muestra
+     * el valor del atributo tal cual.
+     */
+    function textoImporte(valor) {
+        const n = parseFloat(valor);
+        if (isNaN(n)) { return valor; }
+
+        return n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    /** Inversa de {@see textoImporte}, para ordenar. */
+    function numeroDeImporte(texto) {
+        const n = parseFloat(String(texto).replace(/\./g, '').replace(',', '.'));
+
+        return isNaN(n) ? -Infinity : n;
     }
 
     /**

@@ -175,6 +175,25 @@ class VentasPivotDatasetTest extends TestCase
         $this->assertNotContains('total_comprobante', $datos, 'se repite por línea: sumarlo contaría de más');
     }
 
+    public function test_ofrece_el_costo_al_vender_y_el_costo_actual_como_dimensiones(): void
+    {
+        $producto = Producto::factory()->create(['costo' => 1500]);
+
+        // Se vendió con costo 1000 y después el producto subió a 1500.
+        $this->venta([['producto_id' => $producto->id, 'cantidad' => 2, 'precio' => 3000, 'iva_pct' => '21', 'costo_unitario' => 1000]]);
+
+        $armado = $this->dataset()->armar($this->request(['desde' => '2026-08-01', 'hasta' => '2026-08-31']));
+        $dimensiones = collect($armado['dimensiones'])->keyBy('clave');
+
+        $this->assertTrue($dimensiones['costo_venta']['importe']);
+        $this->assertTrue($dimensiones['costo_actual']['importe']);
+        $this->assertFalse($dimensiones['productos']['importe']);
+
+        $fila = $armado['filas'][0];
+        $this->assertEquals(1000, (float) $fila['costo_unitario_venta'], 'el costo congelado, no el de hoy');
+        $this->assertEquals(1500, (float) $fila['costo_actual_producto']);
+    }
+
     public function test_el_producto_sin_tipo_ni_proveedor_igual_aparece(): void
     {
         $producto = Producto::factory()->create(['tipo_producto_id' => null, 'proveedor_id' => null]);

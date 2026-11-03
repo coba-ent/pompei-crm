@@ -3135,6 +3135,13 @@ Divergencias **deliberadas** respecto de Contagram:
   el navegador, así que el dataset viaja entero y hay un tope de 50.000 filas.
 - **"Mostrar Como" no se dibuja** (FR-021) y el locale registra un único renderer, para que los
   modos de gráfico no puedan reaparecer ni manipulando las opciones desde afuera.
+- **Dimensiones de costo en Ventas (pedido del cliente, 03/11/2026)** — no existen en Contagram:
+  **"Costo al Vender"** (costo unitario con el que se calculó el CMV de la línea: el congelado de la
+  spec 075, o el promedio de compras si la línea no lo tiene) y **"Costo Actual"** (`productos.costo`
+  de hoy). Son atributos unitarios, no medidas: se arrastran a filas junto a "Productos". Están en
+  "Arma tu Informe" y en el pool del **Ranking de Productos** (junto a Id, Código y Proveedores). Se
+  muestran como importe es-AR y se ordenan como número. Ojo: con "Costo al Vender" un producto que
+  cambió de costo dentro del período se parte en una fila por cada costo.
 
 **Rendimiento medido** (16/08/2026, base de ~24.000 ventas):
 
