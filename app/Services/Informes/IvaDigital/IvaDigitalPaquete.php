@@ -92,7 +92,9 @@ class IvaDigitalPaquete
         $filas = $this->comprasQuery->detalle($request)
             ->orderBy('emision', 'asc')->orderBy('id', 'asc')
             ->get()
-            ->filter(fn ($f) => ! in_array($f->tipo, [null, '', 'S'], true))
+            // NCS/NDS: la nota hereda el 'S' de su compra y el detalle la rotula 'NC'.$tipo
+            // (03/11/2026, al pasar a 'S' las 940 compras importadas sin tipo).
+            ->filter(fn ($f) => ! in_array($f->tipo, [null, '', 'S', 'NCS', 'NDS'], true))
             ->values();
 
         $rutaComprobantes = tempnam(sys_get_temp_dir(), 'iva_cc_');

@@ -90,11 +90,25 @@ class StoreNotaCreditoDebitoRequest extends FormRequest
                 }
             }
 
+            $comprobante = $this->route('venta') ?? $this->route('compra');
+
+            // FR-004: el tipo se copia del comprobante de origen y no se infiere. 940 compras
+            // importadas no tienen tipo, así que con el campo vacío la nota llegaba al INSERT con
+            // `tipo_comprobante` NULL y la base la rechazaba con un 500 (03/11/2026). Se pide
+            // acá, con un mensaje que el usuario puede resolver.
+            if (($comprobante instanceof Venta || $comprobante instanceof Compra)
+                && ! $this->filled('tipo_comprobante')
+                && blank($comprobante->tipo_comprobante)) {
+                $validator->errors()->add(
+                    'tipo_comprobante',
+                    'El comprobante de origen no tiene tipo cargado: indicá el Tipo de Comprobante de la nota (A, B o C).'
+                );
+            }
+
             if (! $this->boolean('afecta_stock') || ! is_array($this->input('items'))) {
                 return;
             }
 
-            $comprobante = $this->route('venta') ?? $this->route('compra');
             if (! $comprobante instanceof Venta && ! $comprobante instanceof Compra) {
                 return;
             }

@@ -58,6 +58,29 @@ class NotaCreditoDebitoCompraTest extends TestCase
         $this->assertSame(1000.0, $compra->fresh()->aPagar());
     }
 
+    public function test_compra_sin_tipo_pide_el_tipo_en_vez_de_dar_500(): void
+    {
+        // Caso real del 03/11/2026: compras importadas con `tipo_comprobante` NULL.
+        $compra = $this->crearCompra();
+        $compra->forceFill(['tipo_comprobante' => null])->saveQuietly();
+
+        $nota = [
+            'tipo' => 'credito',
+            'afecta_stock' => false,
+            'fecha_emision' => now()->toDateString(),
+            'monto' => 210,
+            'mes_imputacion' => now()->toDateString(),
+            'descripcion' => '30622',
+        ];
+
+        $this->postJson(route('compras.notas.store', $compra), $nota)
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('tipo_comprobante');
+
+        $this->postJson(route('compras.notas.store', $compra), $nota + ['tipo_comprobante' => 'A'])
+            ->assertCreated();
+    }
+
     public function test_nota_de_debito_sobre_compra_suma_al_a_pagar(): void
     {
         $compra = $this->crearCompra(); // total = 1210

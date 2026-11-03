@@ -983,3 +983,12 @@ usó para el tramo 06→13/08/2026.
 **Aparte, 5 ventas por $600.286 no cierran y NO tienen descuento**: es otra causa, no ésta. Las dos
 más grandes son la 24477 y la 24478 (13/08/2026), donde el desglose queda **corto** contra el total en
 vez de largo. Sin diagnosticar.
+
+## 03/11/2026 — Compras importadas sin `tipo_comprobante` → 'S' (Sin Factura)
+
+940 compras de la importación (2021–2026) tenían `tipo_comprobante` NULL y ninguna tenía
+`nro_comprobante`. Al cargarles una NC, la nota heredaba el NULL y el INSERT fallaba con un 500
+(columna NOT NULL). Todo el sistema ya trataba NULL igual que 'S' (filtro "Sin factura", Informe de
+Compras, IVA Digital), así que se pasaron a 'S' con un UPDATE en producción, con backup previo de
+`compras` en `/root/backups/`. Además: el alta de NC/ND pide el tipo si el origen no lo tiene (422
+en vez de 500), e IVA Digital excluye también las notas `NCS`/`NDS` de compras sin factura.

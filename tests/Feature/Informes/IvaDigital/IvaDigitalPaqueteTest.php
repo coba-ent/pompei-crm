@@ -95,12 +95,18 @@ class IvaDigitalPaqueteTest extends TestCase
             'fecha_emision' => '2026-08-15',
             'total' => 500,
         ]);
-        Compra::factory()->create([
+        $sinFactura = Compra::factory()->create([
             'proveedor_id' => $proveedor->id,
             'tipo_comprobante' => 'S',
             'nro_comprobante' => null,
             'fecha_emision' => '2026-08-16',
             'total' => 700,
+        ]);
+        // La NC de una compra "Sin Factura" hereda la 'S' y sale rotulada "NCS": tampoco va.
+        \App\Models\NotaCreditoDebito::create([
+            'compra_id' => $sinFactura->id, 'tipo' => 'credito', 'afecta_stock' => false,
+            'mes_imputacion' => '2026-08-01', 'fecha_emision' => '2026-08-20', 'monto' => 100,
+            'tipo_comprobante' => 'S', 'descripcion' => 'Devolución',
         ]);
 
         $ruta = app(IvaDigitalPaquete::class)->generar($this->request(), 8, 2026);
