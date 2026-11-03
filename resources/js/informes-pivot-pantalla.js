@@ -193,7 +193,8 @@
                 fraccion_columna: 'Suma como Fracción por Columna',
             };
 
-            const disponibles = medida.es_conteo ? { suma: 'Suma' } : todas;
+            // Un cociente (Margen %) tampoco admite promedios ni fracciones: sólo su propio cálculo.
+            const disponibles = (medida.es_conteo || medida.divisor) ? { suma: 'Suma' } : todas;
             const $accion = $('#pivot-accion').empty();
 
             Object.keys(disponibles).forEach(function (clave) {

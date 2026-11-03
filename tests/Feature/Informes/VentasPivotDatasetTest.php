@@ -194,6 +194,28 @@ class VentasPivotDatasetTest extends TestCase
         $this->assertEquals(1500, (float) $fila['costo_actual_producto']);
     }
 
+    public function test_ofrece_cmv_resultado_y_margen_como_dato(): void
+    {
+        $producto = Producto::factory()->create();
+
+        // 2 unidades a $3.000 neto con costo congelado $1.000: CMV 2.000, resultado 4.000.
+        $this->venta([['producto_id' => $producto->id, 'cantidad' => 2, 'precio' => 3000, 'iva_pct' => '21', 'costo_unitario' => 1000]]);
+
+        $armado = $this->dataset()->armar($this->request(['desde' => '2026-08-01', 'hasta' => '2026-08-31']));
+        $datos = collect($armado['datos'])->keyBy('clave');
+
+        $this->assertSame('cmv_total', $datos['cmv']['columna']);
+        $this->assertSame('precio_neto', $datos['margen_pct']['divisor']);
+        $this->assertNull($datos['total_venta']['divisor']);
+
+        $fila = $armado['filas'][0];
+        $this->assertEqualsWithDelta(2000, (float) $fila['cmv_total'], 0.01);
+        $this->assertEqualsWithDelta(4000, (float) $fila['resultado'], 0.01);
+        $this->assertEqualsWithDelta(6000, (float) $fila['precio_neto'], 0.01, 'el divisor del margen viaja aunque ninguna medida lo use como columna propia');
+
+        $this->assertSame(['suma'], array_keys(app(\App\Services\Informes\DimensionesPivot::class)->agregadores('ventas', 'margen_pct')));
+    }
+
     public function test_el_producto_sin_tipo_ni_proveedor_igual_aparece(): void
     {
         $producto = Producto::factory()->create(['tipo_producto_id' => null, 'proveedor_id' => null]);

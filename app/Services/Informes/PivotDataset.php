@@ -98,6 +98,7 @@ abstract class PivotDataset
         // MySQL y la SQLite de los tests que ya nos hizo perder tiempo dos veces en esta spec.
         $columnas = collect($dimensiones)->pluck('columna')
             ->merge(collect($medidas)->pluck('columna'))
+            ->merge(collect($medidas)->pluck('divisor')->filter())
             ->reject(fn ($c) => in_array($c, self::DERIVADAS_DE_FECHA, true))
             ->unique()
             ->values()
@@ -124,6 +125,7 @@ abstract class PivotDataset
                 'rotulo' => $m['rotulo'],
                 'columna' => $m['columna'],
                 'es_conteo' => $m['es_conteo'],
+                'divisor' => $m['divisor'],
             ])->values()->all(),
         ];
     }

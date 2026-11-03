@@ -74,6 +74,13 @@ class DimensionesPivot
             'total_venta_sin_impuestos' => ['Total Venta sin impuestos', 'precio_neto', false],
             'cantidad_productos' => ['Cantidad de Productos', 'cantidad', true],
             'cantidad_ventas' => ['Cantidad de Ventas', 'comprobante_id', true],
+            // No existen en Contagram: pedido del cliente (03/11/2026) para sacar el margen por
+            // producto. Mismas columnas que las tarjetas CMV y Resultado del informe.
+            'cmv' => ['Costo Mercadería Vendida', 'cmv_total', false],
+            'resultado' => ['Resultado', 'resultado', false],
+            // Cuarto elemento = divisor: la medida es `SUMA(columna) / SUMA(divisor)`, no una suma.
+            // Sobre el neto sin IVA, igual que el Resultado.
+            'margen_pct' => ['Margen %', 'resultado', false, 'precio_neto'],
         ],
         'compras' => [
             'total_compra' => ['Total Compra', 'total_linea', false],
@@ -116,13 +123,13 @@ class DimensionesPivot
             ->all();
     }
 
-    /** @return array<string, array{rotulo: string, columna: string, es_conteo: bool}> */
+    /** @return array<string, array{rotulo: string, columna: string, es_conteo: bool, divisor: string|null}> */
     public function medidas(string $informe): array
     {
         $this->validarInforme($informe);
 
         return collect(self::MEDIDAS[$informe])
-            ->map(fn ($m) => ['rotulo' => $m[0], 'columna' => $m[1], 'es_conteo' => $m[2]])
+            ->map(fn ($m) => ['rotulo' => $m[0], 'columna' => $m[1], 'es_conteo' => $m[2], 'divisor' => $m[3] ?? null])
             ->all();
     }
 
@@ -135,7 +142,9 @@ class DimensionesPivot
     {
         $this->validarInforme($informe);
 
-        $esConteo = $medida !== null && ($this->medidas($informe)[$medida]['es_conteo'] ?? false);
+        // Un cociente (Margen %) tampoco admite promedios ni fracciones: sólo su propio cálculo.
+        $definicion = $medida !== null ? ($this->medidas($informe)[$medida] ?? null) : null;
+        $esConteo = $definicion !== null && ($definicion['es_conteo'] || $definicion['divisor'] !== null);
 
         return collect(self::AGREGADORES)
             ->filter(fn ($a) => ! $esConteo || $a[1])

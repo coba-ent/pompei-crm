@@ -3142,6 +3142,12 @@ Divergencias **deliberadas** respecto de Contagram:
   "Arma tu Informe" y en el pool del **Ranking de Productos** (junto a Id, Código y Proveedores). Se
   muestran como importe es-AR y se ordenan como número. Ojo: con "Costo al Vender" un producto que
   cambió de costo dentro del período se parte en una fila por cada costo.
+- **Medidas de margen en el "Dato" de Ventas (pedido del cliente, 03/11/2026)** — tampoco existen en
+  Contagram: **"Costo Mercadería Vendida"** (suma de `cmv_total` = costo unitario × unidades),
+  **"Resultado"** (neto sin IVA − CMV) y **"Margen %"** (= Resultado / neto sin IVA, calculado como
+  cociente de las SUMAS, no promedio de márgenes por línea). Cuadran con las tarjetas CMV y
+  Resultado del informe. "Margen %" sólo admite la acción Suma (como los conteos). Un producto con
+  costo 0 da 100%.
 
 **Rendimiento medido** (16/08/2026, base de ~24.000 ventas):
 

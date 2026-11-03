@@ -141,6 +141,19 @@
     }
 
     /**
+     * Medida cociente, como "Margen %" = Resultado / Neto.
+     *
+     * Es el cociente de las SUMAS y no el promedio de los márgenes de cada línea: así el total de
+     * un producto pondera cada venta por su importe, igual que las tarjetas del informe.
+     */
+    function agregadorCociente(columna, divisor) {
+        const t = U.aggregatorTemplates;
+        const pct = U.numberFormat({ digitsAfterDecimal: 1, scaler: 100, suffix: '%', thousandsSep: '.', decimalSep: ',' });
+
+        return { suma: t.sumOverSum(pct)([columna, divisor]) };
+    }
+
+    /**
      * Monta el pivot en un contenedor.
      *
      * @param {object} cfg
@@ -160,9 +173,11 @@
         dimensiones.forEach((d) => { porClave[d.clave] = d; });
 
         const medida = datos.find((d) => d.clave === config.dato) || datos[0];
-        const agg = medida.es_conteo
-            ? agregadorConteo(medida.columna, medida.clave.startsWith('cantidad_ventas') || medida.clave.startsWith('cantidad_compras'))
-            : agregadores(medida.columna);
+        const agg = medida.divisor
+            ? agregadorCociente(medida.columna, medida.divisor)
+            : medida.es_conteo
+                ? agregadorConteo(medida.columna, medida.clave.startsWith('cantidad_ventas') || medida.clave.startsWith('cantidad_compras'))
+                : agregadores(medida.columna);
 
         const nombreAccion = agg[config.accion] ? config.accion : 'suma';
 
@@ -177,7 +192,10 @@
             dimensiones.forEach((d) => {
                 salida[d.rotulo] = d.importe ? textoImporte(fila[d.columna]) : fila[d.columna];
             });
-            datos.forEach((m) => { salida[m.columna] = fila[m.columna]; });
+            datos.forEach((m) => {
+                salida[m.columna] = fila[m.columna];
+                if (m.divisor) { salida[m.divisor] = fila[m.divisor]; }
+            });
 
             return salida;
         });
@@ -232,6 +250,7 @@
             // "fecha de emision" (relevado 16/08/2026 sobre su Ranking de Categorías), no las 13.
             // El pool completo es exclusivo de "Arma tu Informe".
             hiddenAttributes: datos.map((m) => m.columna).concat(
+                datos.filter((m) => m.divisor).map((m) => m.divisor),
                 cfg.dimensionesVisibles
                     ? dimensiones.filter((d) => cfg.dimensionesVisibles.indexOf(d.clave) === -1).map((d) => d.rotulo)
                     : []
