@@ -203,12 +203,30 @@ class ProductoController extends Controller
             $this->aplicarBusquedaFlexible($query, $request->input('buscar'));
         }
 
-        // Filtros por stock (menor/mayor que), sobre el agregado de la foto de stock.
+        // Filtros por stock, sobre el agregado de la foto de stock. Son ESTRICTOS, como dicen sus
+        // etiquetas ("Stock mayor que" / "Stock menor que"): "mayor que 0" no trae los que están
+        // en 0. Antes eran >= / <= y el cliente lo reportó (04/11/2026).
+        //
+        // Va como subconsulta en el WHERE y no como HAVING sobre `stock_total`: un producto sin
+        // ninguna fila en `stocks` tiene stock_total NULL y quedaba afuera de "menor que 1" aunque
+        // su stock sea 0 (el COALESCE lo cuenta como 0), y además HAVING sin GROUP BY no es SQL
+        // portable (SQLite de los tests lo rechaza).
+        $stockSql = Stock::query()
+            ->selectRaw('COALESCE(SUM(cantidad), 0)')
+            ->whereColumn('producto_id', 'productos.id')
+            ->when($depositoId, fn ($q) => $q->where('deposito_id', $depositoId));
+
+        //
+        // El límite va como literal numérico (ya casteado a float, así que no hay inyección
+        // posible): PDO bindea los float como texto, y en SQLite un entero es siempre menor que
+        // cualquier texto, con lo que el filtro no traía nada en los tests.
+        $limite = fn (string $campo) => DB::raw((string) (float) $request->input($campo));
+
         if ($request->filled('stock_min')) {
-            $query->having('stock_total', '>=', (float) $request->input('stock_min'));
+            $query->where($stockSql->clone(), '>', $limite('stock_min'));
         }
         if ($request->filled('stock_max')) {
-            $query->having('stock_total', '<=', (float) $request->input('stock_max'));
+            $query->where($stockSql->clone(), '<', $limite('stock_max'));
         }
 
         return $query;

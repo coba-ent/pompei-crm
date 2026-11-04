@@ -105,6 +105,33 @@ class ProductoStockPorDepositoTest extends TestCase
         $this->assertEquals(-4, $this->primeraFila()['stock_deposito_'.$deposito->id]);
     }
 
+    /**
+     * "Stock mayor que" / "Stock menor que" son estrictos, como dicen las etiquetas: "mayor que 0"
+     * no trae los que están en 0, y "mayor que 1" arranca en 2 (pedido del cliente, 04/11/2026).
+     */
+    public function test_filtros_de_stock_mayor_y_menor_que_son_estrictos(): void
+    {
+        $deposito = Deposito::create(['nombre' => 'Principal', 'activo' => true]);
+
+        foreach ([-1, 0, 1, 2] as $cantidad) {
+            $producto = Producto::factory()->create(['tipo' => 'producto', 'activo' => true, 'nombre' => "Stock {$cantidad}"]);
+            Stock::create(['producto_id' => $producto->id, 'deposito_id' => $deposito->id, 'cantidad' => $cantidad]);
+        }
+        // Sin ninguna fila en `stocks`: su stock es 0 y tiene que entrar en "menor que 1".
+        Producto::factory()->create(['tipo' => 'producto', 'activo' => true, 'nombre' => 'Sin stock cargado']);
+
+        $stocks = fn (array $filtro) => collect(
+            $this->getJson(route('productos.data').'?draw=1&start=0&length=50&'.http_build_query($filtro))
+                ->assertOk()->json('data')
+        )->pluck('stock_total')->map(fn ($v) => (float) $v)->sort()->values()->all();
+
+        $this->assertSame([1.0, 2.0], $stocks(['stock_min' => 0]));
+        $this->assertSame([-1.0], $stocks(['stock_max' => 0]));
+        $this->assertSame([2.0], $stocks(['stock_min' => 1]));
+        $this->assertSame([1.0], $stocks(['stock_min' => 0, 'stock_max' => 2]));
+        $this->assertSame([-1.0, 0.0, 0.0], $stocks(['stock_max' => 1]));
+    }
+
     /** El encabezado de la tabla tiene que traer una columna con el nombre de cada depósito. */
     public function test_la_pantalla_renderiza_una_columna_por_deposito(): void
     {
