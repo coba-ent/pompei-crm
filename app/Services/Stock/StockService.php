@@ -53,7 +53,7 @@ class StockService
                 'descripcion' => $descripcion,
                 'origen_type' => $origen ? $origen->getMorphClass() : null,
                 'origen_id' => $origen?->getKey(),
-                'fecha' => $fecha ?: now(),
+                'fecha' => self::fechaMovimiento($fecha),
                 'usuario_id' => $usuario?->id,
             ]);
 
@@ -119,7 +119,7 @@ class StockService
                 'tipo' => 'ajuste',
                 'cantidad' => $diferencia,
                 'descripcion' => $descripcion,
-                'fecha' => now(),
+                'fecha' => self::fechaMovimiento(null),
                 'usuario_id' => $usuario?->id,
             ]);
 
@@ -146,7 +146,7 @@ class StockService
         ?string $fecha = null,
     ): array {
         $cantidad = abs($cantidad);
-        $fecha = $fecha ?: now();
+        $fecha = self::fechaMovimiento($fecha);
 
         return DB::transaction(function () use ($producto, $variante, $salida, $entrada, $cantidad, $descripcion, $usuario, $fecha) {
             $stockSalida = Stock::lockForUpdate()->firstOrNew([
@@ -300,11 +300,49 @@ class StockService
                 'cantidad' => $signo * $cantidad,
                 'origen_type' => $origen ? $origen->getMorphClass() : null,
                 'origen_id' => $origen?->getKey(),
-                'fecha' => $fecha ?: now(),
+                'fecha' => self::fechaMovimiento($fecha),
                 'usuario_id' => $usuario?->id,
             ]);
 
             return (float) $stock->cantidad;
         });
+    }
+
+    /**
+     * Fecha y hora con la que se graba un movimiento, en HORA ARGENTINA (`app.display_timezone`).
+     *
+     * `movimientos_stock.fecha` es una fecha de negocio, no un timestamp técnico: lo que importa es
+     * en qué día y a qué hora del local pasó. Por eso, a diferencia de `created_at`, NO se guarda en
+     * UTC. Antes convivían tres criterios en la misma columna —el histórico importado de Contagram
+     * en hora argentina, las fechas de documento sin hora (medianoche argentina) y los `now()` del
+     * CRM en UTC— y el Informe de Stock mostraba estos últimos 3 horas adelantados (incidente del
+     * 02/11/2026: una venta de las 11:19 figuraba a las 14:19 y no se encontraba en Auditoría).
+     *
+     * - Sin fecha → ahora, en hora argentina.
+     * - Sólo día y es HOY → ahora, en hora argentina. El modal de ajuste/transferencia manda
+     *   siempre el día; antes eso se grababa como 00:00 y un ajuste de las 10 de la mañana se veía
+     *   a medianoche (y quedaba ordenado antes que las ventas de esa mañana).
+     * - Sólo día y es OTRO día (compra con fecha retroactiva, ajuste cargado tarde) → ese día a las
+     *   00:00: la hora real no existe, y la medianoche es la convención que ya usan las compras.
+     * - Fecha con hora → tal cual: se asume que ya viene en hora argentina.
+     */
+    public static function fechaMovimiento(?string $fecha): string
+    {
+        $zona = config('app.display_timezone');
+        $ahora = now()->setTimezone($zona);
+
+        if ($fecha === null || trim($fecha) === '') {
+            return $ahora->format('Y-m-d H:i:s');
+        }
+
+        $fecha = trim($fecha);
+
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) {
+            return $fecha === $ahora->toDateString()
+                ? $ahora->format('Y-m-d H:i:s')
+                : $fecha.' 00:00:00';
+        }
+
+        return $fecha;
     }
 }

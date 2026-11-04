@@ -229,18 +229,101 @@ class InformeStockTest extends TestCase
         $this->assertEquals([8.0, 3.0], $saldos);
     }
 
-    public function test_ajuste_sin_fecha_explicita_persiste_con_hora_real(): void
+    /**
+     * La fecha del movimiento se graba en HORA ARGENTINA, no en UTC (incidente del 02/11/2026:
+     * el informe mostraba las ventas 3 horas adelantadas respecto de Auditoría).
+     */
+    public function test_ajuste_sin_fecha_explicita_persiste_con_hora_real_argentina(): void
     {
         $deposito = $this->deposito();
         $producto = Producto::factory()->create(['tipo' => 'producto']);
 
-        $this->travelTo(now()->setTime(15, 30, 0));
+        // 18:30 UTC = 15:30 en Argentina.
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-02 18:30:00', 'UTC'));
 
         app(StockService::class)->ajustar($producto, null, $deposito, 1, 'Ajuste sin fecha');
 
         $movimiento = MovimientoStock::where('descripcion', 'Ajuste sin fecha')->firstOrFail();
 
-        $this->assertSame('15:30:00', $movimiento->fecha->format('H:i:s'));
+        $this->assertSame('2026-11-02 15:30:00', $movimiento->fecha->format('Y-m-d H:i:s'));
+    }
+
+    /** El modal manda sólo el día: si es hoy, se guarda la hora del momento y no 00:00. */
+    public function test_ajuste_con_fecha_de_hoy_sin_hora_guarda_la_hora_actual(): void
+    {
+        $deposito = $this->deposito();
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+
+        // 13:05 UTC = 10:05 en Argentina, la mañana del ajuste del 02/11/2026.
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-02 13:05:00', 'UTC'));
+
+        app(StockService::class)->ajustar($producto, null, $deposito, 6, 'Conteo', fecha: '2026-11-02');
+
+        $this->assertSame('2026-11-02 10:05:00', MovimientoStock::firstOrFail()->fecha->format('Y-m-d H:i:s'));
+    }
+
+    /**
+     * "Hoy" es el día argentino: a las 22:00 de Argentina ya es el día siguiente en UTC, y el día
+     * elegido en el modal sigue siendo hoy.
+     */
+    public function test_hoy_se_evalua_en_hora_argentina_despues_de_las_21(): void
+    {
+        $deposito = $this->deposito();
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-03 01:00:00', 'UTC'));
+
+        app(StockService::class)->ajustar($producto, null, $deposito, 1, 'Noche', fecha: '2026-11-02');
+
+        $this->assertSame('2026-11-02 22:00:00', MovimientoStock::firstOrFail()->fecha->format('Y-m-d H:i:s'));
+    }
+
+    /** Un ajuste cargado con otro día no tiene hora real: queda a las 00:00 de ese día. */
+    public function test_ajuste_con_fecha_de_otro_dia_queda_a_medianoche(): void
+    {
+        $deposito = $this->deposito();
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-04 15:00:00', 'UTC'));
+
+        app(StockService::class)->ajustar($producto, null, $deposito, 1, 'Atrasado', fecha: '2026-11-01');
+
+        $this->assertSame('2026-11-01 00:00:00', MovimientoStock::firstOrFail()->fecha->format('Y-m-d H:i:s'));
+    }
+
+    /** La transferencia sigue la misma regla que el ajuste, en sus dos filas. */
+    public function test_transferencia_con_fecha_de_hoy_guarda_hora_argentina(): void
+    {
+        $origen = $this->deposito();
+        $destino = Deposito::create(['nombre' => 'Full', 'activo' => true]);
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-02 14:19:00', 'UTC'));
+
+        app(StockService::class)->transferir($producto, null, $origen, $destino, 2, null, null, '2026-11-02');
+
+        $this->assertSame(
+            ['2026-11-02 11:19:00', '2026-11-02 11:19:00'],
+            MovimientoStock::orderBy('id')->get()->map(fn ($m) => $m->fecha->format('Y-m-d H:i:s'))->all()
+        );
+    }
+
+    /** Una venta de las 22:00 argentinas cae en su día en el filtro, no en el siguiente. */
+    public function test_filtro_por_dia_usa_el_dia_argentino(): void
+    {
+        $deposito = $this->deposito();
+        $producto = Producto::factory()->create(['tipo' => 'producto']);
+
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-03 01:00:00', 'UTC'));
+        app(StockService::class)->ajustar($producto, null, $deposito, 1, 'Noche del 2');
+
+        $respuesta = $this->getJson(route('informes.stock.data', [
+            'fecha_desde' => '2026-11-02',
+            'fecha_hasta' => '2026-11-02',
+        ]))->assertOk();
+
+        $this->assertSame(['Noche del 2'], collect($respuesta->json('data'))->pluck('descripcion')->all());
+        $this->assertStringStartsWith('2026-11-02 22:00', (string) $respuesta->json('data.0.fecha'));
     }
 
     public function test_alta_de_stock_por_compra_conserva_hora_00_00_00(): void
