@@ -95,6 +95,18 @@ class InformeStockController extends Controller
                 'ROWS BETWEEN 1 FOLLOWING AND UNBOUNDED FOLLOWING), 0) as stock_saldo'
             );
 
+        // Los pares reverso/reaplicación que deja editar una Venta o Compra (MovimientosDeEdicion)
+        // se sacan ANTES de la ventana, no después. Cada par suma cero, así que sin ellos el saldo
+        // hacia atrás desde el stock actual sigue cerrando; con ellos, NO: el reverso lleva la
+        // fecha de la edición y la reaplicación la del documento, y el par queda partido en el
+        // tiempo. Todas las filas visibles entre las dos fechas salían infladas en la cantidad
+        // editada — caso real (05/11/2026): mixer 36317 con saldo 26 en un ajuste que lo dejó
+        // en 1, por dos compras de octubre editadas ese día.
+        $ocultos = app(MovimientosDeEdicion::class)->idsOcultos();
+        if ($ocultos) {
+            $ventana->whereIntegerNotInRaw('movimientos_stock.id', $ocultos);
+        }
+
         return DB::query()
             ->fromSub($ventana, 'mov')
             ->leftJoin('productos', 'productos.id', '=', 'mov.producto_id')
@@ -257,13 +269,8 @@ class InformeStockController extends Controller
     /** Aplica los filtros externos de pantalla (nunca dentro de la ventana). */
     private function aplicarFiltros(Builder $query, Request $request): void
     {
-        // Los pares reverso/reaplicación que deja editar una Venta o Compra no se muestran: se
-        // anulan entre sí y confundían (una compra editada aparecía como "Disminución"). Ver
-        // MovimientosDeEdicion. El saldo corrido no cambia porque se calcula antes, sobre todos.
-        $ocultos = app(MovimientosDeEdicion::class)->idsOcultos();
-        if ($ocultos) {
-            $query->whereIntegerNotInRaw('mov.id', $ocultos);
-        }
+        // Los pares de edición de Venta/Compra ya vienen excluidos desde baseQuery(), antes de la
+        // ventana del saldo — ver el comentario ahí.
 
         if ($request->filled('usuario_id')) {
             $query->where('mov.usuario_id', $request->input('usuario_id'));

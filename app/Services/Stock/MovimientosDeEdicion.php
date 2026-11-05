@@ -22,8 +22,11 @@ use Illuminate\Support\Facades\DB;
  * el documento aplica hoy. Excepción: si el documento está eliminado, su último par es la
  * eliminación y se deja a la vista, porque eso sí es algo que pasó.
  *
- * No se borra ni se toca ningún movimiento: el saldo corrido del informe se sigue calculando sobre
- * todos, y como cada par oculto suma cero, las filas visibles cierran igual.
+ * No se borra ni se toca ningún movimiento. El saldo corrido del informe se calcula SIN estos pares
+ * (se excluyen antes de la función de ventana): como cada par suma cero, el stock actual no cambia,
+ * pero dejarlos adentro rompía el saldo de las filas visibles, porque el reverso lleva la fecha de
+ * la edición y la reaplicación la del documento — el par queda partido en el tiempo y todo lo que
+ * cae entre las dos fechas sale inflado (o desinflado) en la cantidad editada.
  */
 class MovimientosDeEdicion
 {
