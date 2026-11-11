@@ -32,7 +32,12 @@ return [
     |
     */
 
-    'lifetime' => (int) env('SESSION_LIFETIME', 120),
+    // Fijo en 30 días a propósito (no se lee de SESSION_LIFETIME): Laravel arma el handler
+    // de sesión con este valor al arrancar el request, ANTES de que AplicarDuracionSesion
+    // corra, y el handler descarta toda sesión inactiva por más de esto. Si valiera 120,
+    // "Mantener sesión iniciada" moría a las 2 h aunque la cookie durara 30 días. El corte
+    // de 2 h para quien NO tildó "mantener" lo hace AplicarDuracionSesion por su cuenta.
+    'lifetime' => 60 * 24 * 30,
 
     'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', false),
 

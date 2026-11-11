@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Services\Auth\CredencialRecordada;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -29,7 +30,8 @@ class LoginRequest extends FormRequest
     {
         return [
             'email' => ['required', 'string', 'email'],
-            'password' => ['required', 'string'],
+            'password' => ['required_without:credencial_recordada', 'nullable', 'string'],
+            'credencial_recordada' => ['nullable', 'string'],
         ];
     }
 
@@ -42,9 +44,33 @@ class LoginRequest extends FormRequest
     {
         $this->ensureIsNotRateLimited();
 
+        // Sin contraseña escrita: entra con la credencial que "Recordarme" dejó guardada en
+        // este navegador (ver CredencialRecordada). Si ya no sirve (cambió la contraseña,
+        // usuario inactivo, otro email), el error va en `credencial_recordada` para que el
+        // login la borre del navegador y pida la contraseña.
+        if (! $this->filled('password')) {
+            $user = app(CredencialRecordada::class)
+                ->resolver((string) $this->input('credencial_recordada'), (string) $this->input('email'));
+
+            if (! $user) {
+                RateLimiter::hit($this->throttleKey());
+
+                throw ValidationException::withMessages([
+                    'credencial_recordada' => 'La contraseña recordada en este equipo ya no es válida. Escribila de nuevo.',
+                ]);
+            }
+
+            Auth::login($user);
+            RateLimiter::clear($this->throttleKey());
+
+            return;
+        }
+
         $credenciales = $this->only('email', 'password') + ['activo' => true];
 
-        if (! Auth::attempt($credenciales, $this->boolean('remember'))) {
+        // "Recordarme" ya no usa la cookie remember de Laravel: recuerda la cuenta en el
+        // navegador (CredencialRecordada). Quedarse logueado es "Mantener sesión iniciada".
+        if (! Auth::attempt($credenciales)) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([

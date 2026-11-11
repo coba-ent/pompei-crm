@@ -106,3 +106,65 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 });
+
+/**
+ * "Recordarme" del login. Al entrar con el check tildado, la página siguiente guarda en
+ * localStorage la cuenta + una credencial cifrada (no la contraseña; ver
+ * App\Services\Auth\CredencialRecordada y elements/login-recordado.blade.php). Acá se
+ * precarga: mail escrito, check tildado y contraseña "recordada". Si se escribe una
+ * contraseña o se cambia el mail, se usa lo escrito como en un login normal.
+ */
+document.addEventListener('DOMContentLoaded', function () {
+    const CLAVE = 'pompei.login_recordado';
+    const form = document.getElementById('form-login');
+    if (!form) { return; }
+
+    function borrar() {
+        try { localStorage.removeItem(CLAVE); } catch (e) { /* storage bloqueado */ }
+    }
+
+    if (form.dataset.credencialInvalida === '1') {
+        borrar();
+        return;
+    }
+
+    let recordado = null;
+    try { recordado = JSON.parse(localStorage.getItem(CLAVE) || 'null'); } catch (e) { recordado = null; }
+    if (!recordado || !recordado.email || !recordado.credencial) { return; }
+
+    const email = form.querySelector('[name=email]');
+    const password = form.querySelector('[name=password]');
+    const check = form.querySelector('[name=remember]');
+    const hidden = document.getElementById('credencial_recordada');
+    const olvidar = document.getElementById('olvidar_recordado');
+
+    const mismoEmail = () => email.value.trim().toLowerCase() === String(recordado.email).toLowerCase();
+    const usaRecordada = () => !password.value && mismoEmail();
+
+    function refrescar() {
+        const usa = usaRecordada();
+        password.required = !usa;
+        password.placeholder = usa ? '•••••••• (recordada en este equipo)' : '';
+        hidden.value = usa ? recordado.credencial : '';
+    }
+
+    if (!email.value) { email.value = recordado.email; }
+    if (mismoEmail()) {
+        check.checked = true;
+        // Con todo cargado, Enter alcanza para entrar.
+        form.querySelector('button[type=submit]')?.focus();
+    }
+    refrescar();
+
+    email.addEventListener('input', refrescar);
+    password.addEventListener('input', refrescar);
+    // El autocompletado de Chrome a veces no dispara `input`.
+    email.addEventListener('change', refrescar);
+    password.addEventListener('change', refrescar);
+
+    form.addEventListener('submit', function () {
+        refrescar();
+        // Destildar "Recordarme" sobre la cuenta recordada = olvidarla.
+        olvidar.value = (!check.checked && mismoEmail()) ? '1' : '';
+    });
+});

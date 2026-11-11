@@ -19,8 +19,11 @@
 						<div class="alert alert-danger">{{ $errors->first() }}</div>
 					@endif
 
-					<form method="POST" action="{{ route('login') }}">
+					<form method="POST" action="{{ route('login') }}" id="form-login"
+						data-credencial-invalida="{{ $errors->has('credencial_recordada') ? '1' : '0' }}">
 						@csrf
+						<input type="hidden" name="credencial_recordada" id="credencial_recordada" value="">
+						<input type="hidden" name="olvidar_recordado" id="olvidar_recordado" value="">
 
 						<div class="mb-4">
 							<label class="mb-1">Email<span class="text-danger"> *</span></label>

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Middleware\AplicarDuracionSesion;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Services\Auth\CredencialRecordada;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -38,6 +39,19 @@ class AuthenticatedSessionController extends Controller
         // corta aunque el usuario haya tildado "Mantener sesión iniciada" — recién se
         // corregía en el próximo request.
         AplicarDuracionSesion::aplicar($mantenerSesion);
+
+        // "Recordarme": la página siguiente guarda esta cuenta en el localStorage del
+        // navegador (elements/login-recordado.blade.php). Sin el check, la cuenta recordada
+        // anterior se conserva, salvo que se haya destildado sobre esa misma cuenta.
+        if ($request->boolean('remember')) {
+            // `put` y no `flash`: ver elements/login-recordado.blade.php.
+            $request->session()->put('login_recordado', [
+                'email' => $request->user()->email,
+                'credencial' => app(CredencialRecordada::class)->emitir($request->user()),
+            ]);
+        } elseif ($request->boolean('olvidar_recordado')) {
+            $request->session()->put('login_olvidar', true);
+        }
 
         return redirect()->intended(route('dashboard.index', absolute: false));
     }

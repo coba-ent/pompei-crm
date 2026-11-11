@@ -163,6 +163,8 @@
      antes de la primera petición de la página. --}}
 @vite(['resources/js/csrf-refresh.js'])
 
+@include('elements.login-recordado')
+
 {{-- Utilidad global de inputs de fecha en dd/mm/aaaa (`AppFecha`). Va acá, y no vista por vista,
      porque hay campos de fecha en casi todos los módulos y porque se auto-inicializa sobre
      cualquier `[data-fecha-ar]` del documento y de los modales. Tiene que cargar ANTES de los

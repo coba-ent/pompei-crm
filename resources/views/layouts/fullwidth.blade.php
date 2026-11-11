@@ -21,6 +21,7 @@
 		}
 	} catch (e) {}
 </script>
+@include('elements.login-recordado')
 
 	@yield('content')
 
