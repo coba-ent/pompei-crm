@@ -43,17 +43,21 @@
                 <div class="bg-light rounded-3 p-3 mb-3">
                     <div class="text-uppercase text-muted fs-12 fw-semibold mb-2">Precios y Costos</div>
                     <div class="row g-3">
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="text-muted fs-13">Costo</div>
                             <div class="fw-semibold" id="ver-producto-costo">&mdash;</div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="text-muted fs-13">Precio de Venta</div>
                             <div class="fw-semibold text-success" id="ver-producto-precio-venta">&mdash;</div>
                         </div>
-                        <div class="col-md-4" id="ver-producto-stock-wrap">
+                        <div class="col-md-3" id="ver-producto-stock-wrap">
                             <div class="text-muted fs-13">Stock</div>
                             <div class="fw-semibold" id="ver-producto-stock">&mdash;</div>
+                        </div>
+                        <div class="col-md-3" id="ver-producto-punto-reposicion-wrap">
+                            <div class="text-muted fs-13">Punto de Reposición</div>
+                            <div class="fw-semibold" id="ver-producto-punto-reposicion">&mdash;</div>
                         </div>
                         <div class="col-md-6">
                             <div class="text-muted fs-13">IVA por defecto (ventas)</div>

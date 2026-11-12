@@ -524,6 +524,11 @@
                     $('#ver-producto-stock-wrap').toggleClass('d-none', esServicio);
                     $('#ver-producto-stock').text(esServicio ? '—' : Number(p.stock_total || 0).toLocaleString('es-AR'));
 
+                    // Punto de reposición: 0 = "el producto no se controla" (mismo criterio que el form).
+                    const puntoReposicion = Number(p.punto_reposicion || 0);
+                    $('#ver-producto-punto-reposicion-wrap').toggleClass('d-none', esServicio);
+                    $('#ver-producto-punto-reposicion').text(puntoReposicion > 0 ? puntoReposicion.toLocaleString('es-AR') : 'Sin control');
+
                     const stockPorDeposito = resp.stock_por_deposito || [];
                     $('#ver-producto-stock-depositos-wrap').toggleClass('d-none', esServicio || stockPorDeposito.length === 0);
                     const $stockDepBody = $('#ver-producto-stock-depositos-body').empty();
