@@ -152,6 +152,22 @@
                     }
                 },
             });
+
+            // Página guardada fuera de rango (13/11/2026). El estado guarda también la página en
+            // la que quedó el usuario, y con `stateDuration: 0` eso ya no vence nunca: si alguien
+            // dejó Movimientos de Cta Cte en la página 76 (sin filtro, miles de filas) y después
+            // entra con un filtro de cliente que trae 3, el servidor recibe start=7500 y devuelve
+            // vacío — "Mostrando 7.501 a 3 de 3" y la tabla en blanco. Si la página pedida quedó
+            // más allá del final, se vuelve a la primera.
+            jQuery(document).on('draw.dt', function (e, settings) {
+                var api = new jQuery.fn.dataTable.Api(settings);
+                var info = api.page.info();
+                if (info.recordsDisplay > 0 && info.start >= info.recordsDisplay) {
+                    // Diferido: redibujar dentro del propio evento draw deja el pedido nuevo sin
+                    // pintar (el pie decía "1 a 6 de 6" con la tabla todavía vacía).
+                    setTimeout(function () { api.page('first').draw('page'); }, 0);
+                }
+            });
         })();
     }
 </script>
