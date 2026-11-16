@@ -53,6 +53,11 @@
                         <i class="fas fa-filter me-1"></i> Filtros
                     </button>
                     <span id="dt-buttons-informe-stock"></span>
+                    @can('informes.exportar')
+                    <button type="button" class="btn btn-success ms-auto" id="btn-exportar">
+                        <i class="fas fa-file-excel me-1"></i> Exportar
+                    </button>
+                    @endcan
                 </div>
 
                 {{-- Panel de Filtros (colapsable) --}}
@@ -179,6 +184,7 @@
         rutas: {
             data: "{{ route('informes.stock.data') }}",
             stats: "{{ route('informes.stock.stats') }}",
+            exportar: "{{ route('informes.stock.exportar') }}",
             opciones: "{{ route('productos.opciones', ['incluir_inactivos' => 1]) }}",
         },
         productoId: {{ $productoId ? (int) $productoId : 'null' }},

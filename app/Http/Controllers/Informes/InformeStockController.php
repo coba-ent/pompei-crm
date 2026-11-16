@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Informes;
 
+use App\Exports\Informes\InformeStockExport;
 use App\Http\Controllers\Controller;
 use App\Models\Compra;
 use App\Models\Deposito;
@@ -16,6 +17,7 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
 use Yajra\DataTables\Facades\DataTables;
 
 /**
@@ -28,6 +30,9 @@ class InformeStockController extends Controller
 {
     /** Tipos de operación que el filtro "Operación" expone (FR-013, spec 012 quickstart §Escenario 7). */
     private const OPERACIONES_DISPONIBLES = ['entrada', 'salida', 'ajuste', 'transferencia'];
+
+    /** Máximo de movimientos por Excel (ver exportar()). */
+    public const MAXIMO_FILAS_EXPORT = 25000;
 
     /** Página del informe (shell con filtros, KPIs y tabla). */
     public function index(Request $request)
@@ -131,6 +136,11 @@ class InformeStockController extends Controller
                 $join->on('notas.id', '=', 'mov.origen_id')
                     ->where('mov.origen_type', '=', NotaCreditoDebito::class);
             })
+            // Sólo para el Excel (columnas "Tipo de Producto" y "Proveedor" del export de
+            // Contagram). El proveedor es el DEL PRODUCTO —el mismo que usa el filtro—, no el de
+            // la compra: alias propio porque `proveedores` ya está tomado por el de la compra.
+            ->leftJoin('tipos_producto', 'tipos_producto.id', '=', 'productos.tipo_producto_id')
+            ->leftJoin('proveedores as prov_producto', 'prov_producto.id', '=', 'productos.proveedor_id')
             ->select([
                 'mov.id as id',
                 'mov.fecha as fecha',
@@ -154,6 +164,10 @@ class InformeStockController extends Controller
                 'productos.activo as producto_activo',
                 'depositos.nombre as deposito',
                 'users.name as usuario',
+                'tipos_producto.nombre as tipo_producto',
+                'prov_producto.nombre as proveedor_producto',
+                DB::raw('COALESCE(ventas.tipo_comprobante, compras.tipo_comprobante, notas.tipo_comprobante) as tipo_factura'),
+                DB::raw('COALESCE(ventas.nro_comprobante, compras.nro_comprobante, notas.nro_comprobante) as nro_factura'),
                 DB::raw($this->sqlDetalle().' as detalle'),
             ]);
     }
@@ -338,6 +352,45 @@ class InformeStockController extends Controller
                 $query->orderBy('mov.fecha', $direccion)->orderBy('mov.id', $direccion);
             })
             ->toJson();
+    }
+
+    /**
+     * Excel del Informe de Stock, con los mismos filtros que la pantalla.
+     *
+     * Contagram tiene este botón y el CRM no lo tenía (pedido del 16/11/2026: exportar los
+     * movimientos de los últimos 90 días). Las columnas calcan el export de Contagram —que trae
+     * más datos que la pantalla: tipo y número de factura, código, tipo de producto y
+     * proveedor— más el Depósito, que en el CRM es parte del saldo.
+     *
+     * Mismo orden que la pantalla por defecto (más reciente primero), así cada "Saldo Stock" se
+     * lee igual que en la tabla.
+     */
+    public function exportar(Request $request)
+    {
+        $query = $this->baseQuery();
+        $this->aplicarFiltros($query, $request);
+
+        // Tope: el Excel se arma en memoria. Medido en el VPS, 10.000 filas son ~3,5 s y ~115 MB;
+        // el histórico entero (40.000 al 16/11/2026) se acercaba al límite de 512 MB de php-fpm.
+        // La pantalla consulta antes con `contar=1` para avisar sin navegar a una página de error.
+        $filas = (clone $query)->count();
+        if ($request->boolean('contar') || $filas > self::MAXIMO_FILAS_EXPORT) {
+            return response()->json([
+                'filas' => $filas,
+                'maximo' => self::MAXIMO_FILAS_EXPORT,
+                'mensaje' => $filas > self::MAXIMO_FILAS_EXPORT
+                    ? 'Son '.number_format($filas, 0, ',', '.').' movimientos y el máximo para exportar es '
+                        .number_format(self::MAXIMO_FILAS_EXPORT, 0, ',', '.').'. Acotá el rango de fechas u otro filtro.'
+                    : null,
+            ], $filas > self::MAXIMO_FILAS_EXPORT ? 422 : 200);
+        }
+
+        $query->orderBy('mov.fecha', 'desc')->orderBy('mov.id', 'desc');
+
+        return Excel::download(
+            new InformeStockExport($query),
+            'Informe de Stock '.now()->format('d-m-Y Hi').' Hs.xlsx'
+        );
     }
 
     /**

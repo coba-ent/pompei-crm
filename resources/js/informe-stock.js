@@ -82,6 +82,25 @@
         // --- Rango de fechas (bootstrap-daterangepicker) ---
         let fechaDesde = '';
         let fechaHasta = '';
+
+        // Filtros de pantalla: los usan la tabla y el Exportar, para que el Excel traiga
+        // exactamente lo que se está viendo.
+        function filtrosVigentes() {
+            const f = {
+                usuario_id: $('#filtro-usuario').val(),
+                operacion: $('#filtro-operacion').val(),
+                proveedor_id: $('#filtro-proveedor').val(),
+                tipo_producto_id: $('#filtro-tipo-producto').val(),
+                producto_id: $('#filtro-producto').val(),
+                deposito_id: $('#filtro-deposito').val(),
+                estado: $('#filtro-estado').val(),
+                fecha_desde: fechaDesde,
+                fecha_hasta: fechaHasta,
+            };
+            Object.keys(f).forEach(function (k) { if (f[k] === null || f[k] === undefined || f[k] === '') { delete f[k]; } });
+            return f;
+        }
+
         if ($.fn.daterangepicker) {
             // Helper compartido (spec 067): trae los 7 presets, "Desde - Hasta" y el
             // "Borrar filtro" del botón de cancelar. Este picker era una copia anterior al
@@ -122,17 +141,7 @@
             },
             ajax: {
                 url: rutas.data,
-                data: function (d) {
-                    d.usuario_id = $('#filtro-usuario').val();
-                    d.operacion = $('#filtro-operacion').val();
-                    d.proveedor_id = $('#filtro-proveedor').val();
-                    d.tipo_producto_id = $('#filtro-tipo-producto').val();
-                    d.producto_id = $('#filtro-producto').val();
-                    d.deposito_id = $('#filtro-deposito').val();
-                    d.estado = $('#filtro-estado').val();
-                    d.fecha_desde = fechaDesde;
-                    d.fecha_hasta = fechaHasta;
-                },
+                data: function (d) { Object.assign(d, filtrosVigentes()); },
             },
             columns: [
                 {
@@ -232,6 +241,32 @@
 
         $tabla.one('init.dt', function () {
             tabla.buttons().container().appendTo('#dt-buttons-informe-stock');
+        });
+
+        // --- Exportar: mismos filtros que la tabla ---
+        $('#btn-exportar').on('click', function () {
+            // La descarga del Excel no puede ir por AJAX: el navegador tiene que recibir el
+            // archivo como respuesta de una navegación para guardarlo (mismo criterio que
+            // los demás informes). No recarga la página: la respuesta es un adjunto.
+            // Antes se cuenta: si supera el tope, el servidor contesta JSON y navegar ahí dejaría
+            // al usuario en una página con el error crudo.
+            const filtros = filtrosVigentes();
+            const $btn = $(this);
+            $btn.prop('disabled', true);
+            $.getJSON(rutas.exportar, Object.assign({ contar: 1 }, filtros))
+                .done(function (r) {
+                    if (!r.filas) {
+                        toastr.warning('No hay movimientos para exportar con los filtros elegidos.');
+                        return;
+                    }
+                    const params = $.param(filtros);
+                    window.location.assign(rutas.exportar + (params ? '?' + params : ''));
+                    toastr.info('Generando el Excel de ' + new Intl.NumberFormat('es-AR').format(r.filas) + ' movimientos…');
+                })
+                .fail(function (xhr) {
+                    toastr.error((xhr.responseJSON && xhr.responseJSON.mensaje) || 'No se pudo exportar el informe.');
+                })
+                .always(function () { $btn.prop('disabled', false); });
         });
 
         // --- Filtros ---

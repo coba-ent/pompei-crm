@@ -721,4 +721,62 @@ class InformeStockTest extends TestCase
             collect($respuesta->json('data'))->pluck('detalle')->first()
         );
     }
+
+    public function test_exportar_descarga_el_excel_con_los_filtros_de_la_pantalla(): void
+    {
+        $this->actingAsUsuarioConPermisos(['informes.stock', 'informes.exportar']);
+
+        $deposito = $this->deposito();
+        $producto = Producto::factory()->create(['tipo' => 'producto', 'codigo' => 'COD-1']);
+        $cliente = Cliente::factory()->create(['nombre' => 'Juan Pérez']);
+        $venta = $this->crearVenta($cliente);
+
+        app(StockService::class)->registrarSalida($producto, null, $deposito, 1, $venta);
+        MovimientoStock::create([
+            'producto_id' => $producto->id, 'deposito_id' => $deposito->id,
+            'tipo' => 'ajuste', 'cantidad' => 5, 'fecha' => '2020-01-01',
+        ]);
+
+        \Maatwebsite\Excel\Facades\Excel::fake();
+
+        $this->get(route('informes.stock.exportar', ['fecha_desde' => now()->subDays(90)->toDateString()]))->assertOk();
+
+        \Maatwebsite\Excel\Facades\Excel::assertDownloaded(
+            'Informe de Stock '.now()->format('d-m-Y Hi').' Hs.xlsx',
+            function (\App\Exports\Informes\InformeStockExport $export) use ($venta) {
+                $hoja = $export->sheets()[0]->array();
+                $this->assertSame('ID', $hoja[0][0]);
+                $this->assertSame('Saldo Stock', end($hoja[0]));
+                // El ajuste de 2020 queda afuera por el filtro de fecha.
+                $this->assertCount(2, $hoja);
+                $this->assertSame($venta->id, $hoja[1][0]);
+                $this->assertSame('B', $hoja[1][5]);
+                $this->assertSame('0001-00000001', $hoja[1][6]);
+                $this->assertSame('COD-1', $hoja[1][7]);
+                $this->assertSame(-1.0, $hoja[1][12]);
+
+                return true;
+            }
+        );
+    }
+
+    public function test_exportar_con_contar_devuelve_la_cantidad_sin_generar_el_archivo(): void
+    {
+        $this->actingAsUsuarioConPermisos(['informes.stock', 'informes.exportar']);
+        $deposito = $this->deposito();
+        $producto = Producto::factory()->create();
+        MovimientoStock::create([
+            'producto_id' => $producto->id, 'deposito_id' => $deposito->id,
+            'tipo' => 'ajuste', 'cantidad' => 5, 'fecha' => '2026-06-10',
+        ]);
+
+        $this->getJson(route('informes.stock.exportar', ['contar' => 1]))
+            ->assertOk()
+            ->assertJson(['filas' => 1, 'maximo' => \App\Http\Controllers\Informes\InformeStockController::MAXIMO_FILAS_EXPORT]);
+    }
+
+    public function test_exportar_exige_el_permiso_de_exportar(): void
+    {
+        $this->get(route('informes.stock.exportar'))->assertForbidden();
+    }
 }

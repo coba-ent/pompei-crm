@@ -198,6 +198,10 @@ Route::middleware('auth')->group(function () {
         Route::get('informes/stock', [InformeStockController::class, 'index'])->name('informes.stock.index');
         Route::get('informes/stock/data', [InformeStockController::class, 'data'])->name('informes.stock.data');
         Route::get('informes/stock/stats', [InformeStockController::class, 'stats'])->name('informes.stock.stats');
+
+        Route::middleware('permiso:informes.exportar')->group(function () {
+            Route::get('informes/stock/exportar', [InformeStockController::class, 'exportar'])->name('informes.stock.exportar');
+        });
     });
 
     // Informes → Cuenta Corriente Clientes (spec 029)

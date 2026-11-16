@@ -2777,6 +2777,13 @@ para el form de Ajuste de Stock); navega a una **pantalla propia** (`/informes/s
   **fecha y hora descendente** (lo último primero, 28/08/2026). Detalle y Producto tienen **ancho fijo
   y el texto baja de línea** (21/10/2026, `col-detalle`/`col-producto` en `contagram-custom.css`):
   crecen en alto, no en ancho.
+- **Exportar** (16/11/2026, pedido del cliente; Contagram lo tenía y el CRM no): botón verde con
+  permiso `informes.exportar`, mismos filtros que la tabla. El Excel calca las 13 columnas del
+  export de Contagram (ID, Fecha, Usuario, Operación, Descripción, Tipo de Factura, N° de Factura,
+  Código, Producto, Tipo de Producto, Proveedor, Cantidad, Saldo Stock) **más Depósito**. El
+  Proveedor es el del producto (el mismo del filtro). **Tope de 25.000 movimientos** por archivo
+  (el histórico completo son ~40.000 y se acerca al límite de memoria de php-fpm): el botón cuenta
+  antes (`?contar=1`) y, si se pasa, pide acotar el rango con un toast.
 - **El historial arranca en 2024.** Los movimientos anteriores al 13/08/2026 se cargaron desde los
   informes de stock de Contagram de 2024–2026 (spec 094); 2021–2023 no tienen movimientos aunque las
   ventas y compras de esos años existan. Un producto que no se movió entre 2024 y la migración muestra
