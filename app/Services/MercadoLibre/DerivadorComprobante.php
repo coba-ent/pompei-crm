@@ -51,7 +51,9 @@ class DerivadorComprobante
             [$docTipo, $docNumero] = $this->sanearDocumento($orden->comprador_doc_tipo, $orden->comprador_doc_numero);
 
             return [
-                'tipo_comprobante' => $orden->comprador_condicion_iva === 'IVA Responsable Inscripto' ? 'A' : 'B',
+                // Monotributo también va con A: ARCA rechaza una B a un monotributista (error
+                // 10243). Ver CondicionIva::CODIGOS_FACTURA_A.
+                'tipo_comprobante' => in_array($orden->comprador_condicion_iva, ['IVA Responsable Inscripto', 'Monotributo'], true) ? 'A' : 'B',
                 'condicion_iva' => self::MAPEO_CONDICION_IVA_CRM[$orden->comprador_condicion_iva] ?? 'Consumidor Final',
                 'doc_tipo' => $docTipo,
                 'doc_numero' => $docNumero,
@@ -71,7 +73,7 @@ class DerivadorComprobante
                 $nombreCondicionIva = CondicionIva::find($resultadoPadron->condicionIvaId)?->nombre ?? 'Consumidor Final';
 
                 return [
-                    'tipo_comprobante' => $nombreCondicionIva === 'Responsable Inscripto' ? 'A' : 'B',
+                    'tipo_comprobante' => CondicionIva::nombreRecibeFacturaA($nombreCondicionIva) ? 'A' : 'B',
                     'condicion_iva' => $nombreCondicionIva,
                     'doc_tipo' => $docTipo,
                     'doc_numero' => $docNumero,

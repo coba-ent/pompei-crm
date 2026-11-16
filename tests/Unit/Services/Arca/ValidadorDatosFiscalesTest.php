@@ -106,4 +106,40 @@ class ValidadorDatosFiscalesTest extends TestCase
 
         $this->assertNull($motivo);
     }
+
+    /** Producción 16/11/2026: B a un monotributista → ARCA 10243. Se ataja antes con un mensaje claro. */
+    public function test_factura_b_a_monotributista_se_rechaza_antes_de_arca(): void
+    {
+        $motivo = (new ValidadorDatosFiscales())->validar('B', ['cuit' => '20385332166', 'condicion_iva_codigo' => '6']);
+
+        $this->assertNotNull($motivo);
+        $this->assertStringContainsString('Monotributista', $motivo);
+        $this->assertStringContainsString('cambiá el comprobante a A', $motivo);
+    }
+
+    public function test_factura_b_a_responsable_inscripto_se_rechaza_antes_de_arca(): void
+    {
+        $motivo = (new ValidadorDatosFiscales())->validar('B', ['cuit' => '20928490530', 'condicion_iva_codigo' => '1']);
+
+        $this->assertNotNull($motivo);
+        $this->assertStringContainsString('Responsable Inscripto', $motivo);
+    }
+
+    public function test_factura_a_a_monotributista_pasa(): void
+    {
+        $this->assertNull((new ValidadorDatosFiscales())->validar('A', ['cuit' => '20385332166', 'condicion_iva_codigo' => '6']));
+    }
+
+    public function test_factura_a_a_consumidor_final_se_rechaza_antes_de_arca(): void
+    {
+        $motivo = (new ValidadorDatosFiscales())->validar('A', ['cuit' => '20304050607', 'condicion_iva_codigo' => '5']);
+
+        $this->assertNotNull($motivo);
+        $this->assertStringContainsString('cambiá el comprobante a B', $motivo);
+    }
+
+    public function test_factura_b_a_consumidor_final_pasa(): void
+    {
+        $this->assertNull((new ValidadorDatosFiscales())->validar('B', ['dni' => '30111222', 'condicion_iva_codigo' => '5']));
+    }
 }

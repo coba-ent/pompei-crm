@@ -204,7 +204,7 @@ class TiendanubeConversionPadronTest extends TestCase
         $resultado = app(ConversorOrdenAVenta::class)->convertir($orden, null, automatica: true);
 
         $this->assertTrue($resultado['ok'], $resultado['mensaje'] ?? '');
-        $this->assertSame('B', $resultado['venta']->tipo_comprobante);
+        $this->assertSame('A', $resultado['venta']->tipo_comprobante);
         $this->assertSame('Monotributista', $cliente->fresh()->condicionIva->nombre);
     }
 

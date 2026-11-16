@@ -21,8 +21,6 @@ use App\Services\Arca\ResultadoConsultaPadron;
 class ResolutorCliente
 {
     /** Mismo mapeo que `App\Services\MercadoLibre\ResolutorCliente`: única condición que deriva Factura A. */
-    private const CONDICION_IVA_FACTURA_A = 'Responsable Inscripto';
-
     private const CONDICION_IVA_DEFECTO = 'Consumidor Final';
 
     /** Resultado de la última consulta al padrón hecha por tipoComprobante(), reusado por completarDatosFiscalesSinPisar() (FR-007b). */
@@ -227,6 +225,7 @@ class ResolutorCliente
     {
         $nombre = CondicionIva::find($condicionIvaId)?->nombre;
 
-        return $nombre === self::CONDICION_IVA_FACTURA_A ? 'A' : 'B';
+        // RI y Monotributista reciben A (ARCA rechaza una B a un monotributista, error 10243).
+        return CondicionIva::nombreRecibeFacturaA($nombre) ? 'A' : 'B';
     }
 }

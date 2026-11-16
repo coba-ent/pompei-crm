@@ -2,6 +2,8 @@
 
 namespace App\Services\Arca;
 
+use App\Models\CondicionIva;
+
 /** Valida los datos fiscales mínimos requeridos según Tipo de Comprobante (FR-009). */
 class ValidadorDatosFiscales
 {
@@ -30,6 +32,22 @@ class ValidadorDatosFiscales
 
         if ((! empty($cliente['cuit']) || ! empty($cliente['dni'])) && empty($cliente['condicion_iva_codigo'])) {
             return 'El cliente no tiene Condición de IVA cargada — cargala en Base de Datos → Clientes antes de enviar.';
+        }
+
+        // Letra vs. condición del receptor (FEParamGetCondicionIvaReceptor). Sin esto ARCA
+        // contesta "10243 El campo Condicion IVA receptor no es valido para la clase de
+        // comprobante", que no le dice a nadie qué cambiar.
+        $codigo = $cliente['condicion_iva_codigo'] ?? null;
+        if (! empty($codigo) && in_array($tipoComprobante, ['A', 'B'], true)) {
+            $recibeA = CondicionIva::codigoRecibeFacturaA($codigo);
+
+            if ($tipoComprobante === 'B' && $recibeA) {
+                return 'El cliente es '.$this->nombreCondicion($codigo).' y a esa condición ARCA no le acepta Factura B: cambiá el comprobante a A y volvé a enviar.';
+            }
+
+            if ($tipoComprobante === 'A' && ! $recibeA) {
+                return 'El cliente es '.$this->nombreCondicion($codigo).' y a esa condición ARCA no le acepta Factura A: cambiá el comprobante a B (o corregí la Condición de IVA del cliente) y volvé a enviar.';
+            }
         }
 
         if ($items !== null) {
@@ -71,6 +89,16 @@ class ValidadorDatosFiscales
         }
 
         return null;
+    }
+
+    private function nombreCondicion(string $codigo): string
+    {
+        // Sin consulta a la base: este validador se usa (y se testea) sin DB.
+        return [
+            '1' => 'Responsable Inscripto', '4' => 'Exento', '5' => 'Consumidor Final',
+            '6' => 'Monotributista', '7' => 'No Categorizado', '13' => 'Monotributista Social',
+            '16' => 'Monotributo Trabajador Independiente Promovido',
+        ][$codigo] ?? "condición de IVA {$codigo}";
     }
 
     private function cuitValido(string $cuit): bool

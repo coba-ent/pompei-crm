@@ -119,7 +119,7 @@ class EmisorComprobante
         ]);
         $this->registrarLog($comprobante->id, 'wsfe_solicitar_cae', 'error', $motivoRechazo, $request, $respuestaArray);
 
-        throw new ArcaRechazoException($motivoRechazo);
+        throw new ArcaRechazoException($motivoRechazo.$this->ayudaRechazo($motivoRechazo, $datos));
     }
 
     /**
@@ -127,6 +127,29 @@ class EmisorComprobante
      * para esa operación (respuesta perdida en un intento anterior), persiste y devuelve el
      * comprobante como aprobado sin volver a solicitar CAE (FR-011).
      */
+    /**
+     * El 10016 casi siempre es la fecha, no el número (el número lo calcula el CRM con
+     * FECompUltimoAutorizado justo antes): ARCA no acepta un comprobante con fecha anterior a la
+     * del último ya autorizado de ese tipo. Pasa al facturar el lunes ventas del fin de semana
+     * cuando en el medio ya se emitió otra con fecha más nueva (16/11/2026: ventas del 12 y 13/11
+     * después de una factura del 14/11). Se agrega la indicación concreta al mensaje.
+     */
+    private function ayudaRechazo(string $motivo, array $datos): string
+    {
+        if (! str_contains($motivo, '10016') || empty($datos['fecha'])) {
+            return '';
+        }
+
+        $fecha = Carbon::parse($datos['fecha']);
+        $hoy = now()->setTimezone(config('app.display_timezone'))->startOfDay();
+
+        if (! $fecha->lt($hoy)) {
+            return '';
+        }
+
+        return ' — La fecha del comprobante ('.$fecha->format('d/m/Y').') es anterior a la de la última factura ya autorizada: editá la fecha de emisión a hoy y volvé a enviar.';
+    }
+
     public function verificarPendiente(ComprobanteFiscal $pendiente): ?ComprobanteFiscal
     {
         $certificado = CertificadoFiscal::activo();

@@ -91,9 +91,9 @@ class MercadoLibreConversionTest extends TestCase
         $this->assertSame('A', $resultado['venta']->tipo_comprobante);
     }
 
-    public function test_monotributo_con_cuit_deriva_factura_b_no_a(): void
+    public function test_monotributo_con_cuit_deriva_factura_a(): void
     {
-        // El caso que la regla de Mercado Libire ("CUIT → A") resolvería mal.
+        // ARCA rechaza una B a un monotributista (error 10243, producción 16/11/2026).
         $orden = $this->crearOrden([
             'comprador_condicion_iva' => 'Monotributo',
             'comprador_doc_tipo' => 'CUIT',
@@ -103,7 +103,7 @@ class MercadoLibreConversionTest extends TestCase
         $resultado = app(ConversorOrdenAVenta::class)->convertir($orden, null, automatica: true);
 
         $this->assertTrue($resultado['ok'], $resultado['mensaje'] ?? '');
-        $this->assertSame('B', $resultado['venta']->tipo_comprobante);
+        $this->assertSame('A', $resultado['venta']->tipo_comprobante);
     }
 
     public function test_iva_exento_deriva_factura_b(): void

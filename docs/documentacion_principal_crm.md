@@ -967,7 +967,14 @@ Ver §5.2 para la divergencia deliberada de todo el módulo (aplicación propia 
   > (§3.2.ter.octies). Si la consulta a Mercado Libre falla, se conserva el último tipo conocido. Ver
   > `specs/050-lista-precio-premium-ml/` y `specs/116-ml-tipo-detectado-y-baja-clasica/`.
 - **Tipo de comprobante derivado** de la condición fiscal que informa Mercado Libre: Responsable
-  Inscripto → A; Consumidor Final/Monotributo o sin dato → B. Coherente con el principio III de la
+  Inscripto **o Monotributo** → A; Consumidor Final/Exento o sin dato → B. (Corregido el
+  16/11/2026: antes Monotributo iba a B y ARCA lo rechazaba con el error 10243 — la tabla
+  `FEParamGetCondicionIvaReceptor` sólo admite las condiciones 1/6/13/16 en clase A. La misma
+  regla vale para Tiendanube y para el "Comprobante por defecto" del Cliente; ver
+  `CondicionIva::CODIGOS_FACTURA_A`.) Si el Cliente al que se asocia la orden ya está cargado
+  como RI/Monotributista y la orden derivó B, la Venta se crea en A, porque al emitir viajan los
+  datos fiscales del Cliente. Antes de llamar a ARCA, `ValidadorDatosFiscales` frena una letra
+  incompatible con la condición del Cliente con un mensaje en castellano. Coherente con el principio III de la
   constitución, que exige derivar el comprobante de la condición de IVA. Con **spec 037**
   (`specs/037-padron-arca-cuit/`), cuando el cliente resuelto de la orden es nuevo o no tiene
   condición de IVA ya cargada, y la orden trae un CUIT del comprador, esa derivación se confirma

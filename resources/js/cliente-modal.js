@@ -157,7 +157,8 @@
         const $condicion = $form.find('select[name="condicion_iva_id"]');
         const texto = $condicion.find('option:selected').text().trim();
         if (!texto) { return; }
-        $form.find('select[name="tipo_comprobante_defecto"]').val(texto === 'Responsable Inscripto' ? 'A' : 'B');
+        // RI y Monotributista reciben A: ARCA rechaza una B a un monotributista (error 10243).
+        $form.find('select[name="tipo_comprobante_defecto"]').val(['Responsable Inscripto', 'Monotributista'].includes(texto) ? 'A' : 'B');
     }
 
     function mostrarMensajePadron(padron) {

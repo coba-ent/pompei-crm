@@ -209,7 +209,7 @@ class MercadoLibreConversionPadronTest extends TestCase
         $resultado = app(ConversorOrdenAVenta::class)->convertir($orden, null, automatica: true);
 
         $this->assertTrue($resultado['ok'], $resultado['mensaje'] ?? '');
-        $this->assertSame('B', $resultado['venta']->tipo_comprobante);
+        $this->assertSame('A', $resultado['venta']->tipo_comprobante);
     }
 
     public function test_sin_cuit_no_consulta_el_padron(): void

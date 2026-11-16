@@ -122,7 +122,9 @@ class Cliente extends Model
      */
     public function tipoComprobanteQueCorresponde(): string
     {
-        if ($this->esResponsableInscripto()) {
+        // Monotributista también recibe A (ARCA rechaza una B con el error 10243): ver
+        // CondicionIva::CODIGOS_FACTURA_A.
+        if (CondicionIva::codigoRecibeFacturaA(optional($this->condicionIva)->codigo_afip)) {
             return 'A';
         }
 

@@ -5,6 +5,7 @@ namespace App\Services\MercadoLibre;
 use App\Enums\MercadoLibre\EstadoConversion;
 use App\Enums\MercadoLibre\EstadoOrden;
 use App\Models\Cliente;
+use App\Models\CondicionIva;
 use App\Models\CuentaTesoreria;
 use App\Models\Deposito;
 use App\Models\FuncionAvanzada;
@@ -277,7 +278,7 @@ class ConversorOrdenAVenta
             return $this->rechazo('No hay una cuenta de Tesorería "Mercado Pago" activa. Creala o reactivala antes de convertir.');
         }
 
-        $tipoComprobante = $tipoComprobanteOverride ?: $datosFiscales['tipo_comprobante'];
+        $tipoComprobante = $tipoComprobanteOverride ?: $this->tipoSegunCliente($clienteFinal, $datosFiscales['tipo_comprobante']);
 
         try {
             $venta = DB::transaction(function () use ($orden, $clienteFinal, $tipoComprobante, $cuentaMercadoPago, $usuarioId, $automatica, $forzadaEfectiva, $motivoExcepcional) {
@@ -534,6 +535,28 @@ class ConversorOrdenAVenta
     private function cuentaMercadoPago(): ?CuentaTesoreria
     {
         return CuentaTesoreria::where('nombre', 'Mercado Pago')->where('visible', true)->first();
+    }
+
+    /**
+     * La letra tiene que coincidir con la condición de IVA del Cliente, porque ésa es la que viaja a
+     * ARCA al emitir (`Cliente::datosFiscalesArca()`), no la que informó la orden. El 16/11/2026 una
+     * orden facturada en ML a "Consumidor Final / DNI" se asoció a un cliente ya cargado como
+     * Responsable Inscripto: la Venta quedó B, ARCA la rechazó (10243, RI con B) y hubo que
+     * cambiarla a mano.
+     *
+     * Sólo corrige B → A. El caso inverso no se toca: cuando la orden trae un CUIT sin condición de
+     * IVA, la derivación aproxima A y el cliente nuevo queda provisoriamente como Consumidor Final
+     * (FR-040c); pasarlo a B ahí sería cambiar esa regla, no corregir este bug.
+     */
+    private function tipoSegunCliente(Cliente $cliente, string $tipoDerivado): string
+    {
+        $cliente->loadMissing('condicionIva');
+
+        if ($tipoDerivado === 'B' && CondicionIva::codigoRecibeFacturaA($cliente->condicionIva?->codigo_afip)) {
+            return 'A';
+        }
+
+        return $tipoDerivado;
     }
 
     private function rechazo(string $mensaje, ?int $ventaId = null, ?string $motivo = null): array
