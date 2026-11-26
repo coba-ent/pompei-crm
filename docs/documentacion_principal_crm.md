@@ -3620,8 +3620,11 @@ Contagram, ya usado en `Tesoreria\MovimientosExport`.
   >    byte-idéntico al de Contagram en esos dos registros, y eso es correcto.
   > 3. **Compras "Sin Factura"** (`compras.tipo_comprobante` `NULL` o `'S'` — la opción del formulario
   >    para gastos sin comprobante fiscal real) **se excluyen** del período de IVA Digital: no tienen
-  >    tipo/número de comprobante que declarar ante ARCA. Siguen apareciendo normalmente en el Libro IVA
-  >    Compras en pantalla (spec 077) — sólo no entran al TXT. Encontrado recién al validar contra la
+  >    tipo/número de comprobante que declarar ante ARCA. **Desde el 26/11/2026 tampoco aparecen en el
+  >    Libro IVA Compras** (pantalla, Excel y envío al contador), ni sus NC/ND (que heredan la 'S'),
+  >    aunque sean no gravadas: pedido de la contadora — el subdiario de compras es un registro de
+  >    comprobantes fiscales, igual que Ventas con `sin_comprobante_fiscal`. El filtro vive en
+  >    `LibroIvaComprasQuery`; el de `IvaDigitalPaquete` quedó como red de seguridad. Encontrado recién al validar contra la
   >    base real (no aparece en el fixture de Agosto 2026, que no tenía ninguna): sin este filtro la
   >    generación del período rompe con `InvalidArgumentException` apenas aparece la primera.
 

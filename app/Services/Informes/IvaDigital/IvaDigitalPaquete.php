@@ -87,8 +87,8 @@ class IvaDigitalPaquete
     {
         // Compras "Sin Factura" (tipo_comprobante NULL, opción 'S' del formulario) no tienen
         // comprobante fiscal real que declarar ante ARCA — RG 3685 es un régimen de comprobantes,
-        // no del gasto en sí — así que se excluyen acá, sin tocar LibroIvaComprasQuery::detalle()
-        // (spec 077 sigue mostrándolas en pantalla, sólo no entran al TXT).
+        // no del gasto en sí. Desde el 26/11/2026 LibroIvaComprasQuery::detalle() ya las saca
+        // (pedido de la contadora); este filtro queda como red de seguridad.
         $filas = $this->comprasQuery->detalle($request)
             ->orderBy('emision', 'asc')->orderBy('id', 'asc')
             ->get()

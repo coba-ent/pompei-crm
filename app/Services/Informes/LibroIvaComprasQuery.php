@@ -15,6 +15,9 @@ class LibroIvaComprasQuery extends LibroIvaQuery
 {
     private const ALICUOTAS = ['2.5', '5', '10.5', '21', '27'];
 
+    /** `tipo_comprobante` de las compras sin comprobante fiscal (además de NULL). */
+    private const SIN_FACTURA = ['', 'S'];
+
     public function __construct(private DesgloseImpositivoCompra $desglose) {}
 
     public function detalle(Request $request): Builder
@@ -39,6 +42,11 @@ class LibroIvaComprasQuery extends LibroIvaQuery
         // (alias por defecto `compra_items`); acá se envuelven en subqueries correlacionadas para
         // agregar a nivel comprobante — mismo criterio que Ventas (ver LibroIvaQuery).
         $query = $this->envolverEnSubqueryCorrelacionada($d);
+
+        // El Libro IVA es un registro de comprobantes FISCALES: las compras "Sin Factura"
+        // (tipo NULL, '' o 'S') no van, aunque sean no gravadas — pedido de la contadora
+        // (26/11/2026). Mismo criterio que Ventas con `sin_comprobante_fiscal`.
+        $query->whereNotNull('compras.tipo_comprobante')->whereNotIn('compras.tipo_comprobante', self::SIN_FACTURA);
 
         $this->filtrarPeriodo($query, $request, $periodoExpr);
         $this->aplicarFiltrosComunes($query, $request, 'compras.id', 'compras.proveedor_id', 'proveedores.cuit', 'proveedores.condicion_iva_id', 'compras.tipo_comprobante', 'compras.nro_comprobante');
@@ -102,6 +110,9 @@ class LibroIvaComprasQuery extends LibroIvaQuery
             ->whereNull('notas_credito_debito.deleted_at')
             ->whereNull('compras.deleted_at')
             ->whereNotNull('notas_credito_debito.compra_id')
+            // La NC/ND de una compra "Sin Factura" hereda la 'S': tampoco va.
+            ->whereNotNull('notas_credito_debito.tipo_comprobante')
+            ->whereNotIn('notas_credito_debito.tipo_comprobante', self::SIN_FACTURA)
             ->whereDate('notas_credito_debito.mes_imputacion', '>=', $desde)
             ->whereDate('notas_credito_debito.mes_imputacion', '<=', $hasta);
 
